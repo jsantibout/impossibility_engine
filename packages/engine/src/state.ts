@@ -1614,6 +1614,18 @@ export interface PendingMove {
    * already measured against and already paid Speed to reach.
    */
   readonly destination: Point;
+  /**
+   * The creatures this move brings along, and where each lands — W7-B10.
+   *
+   * SRD Grappled, *Movable*: "The grappler can drag or carry you when it
+   * moves." A held creature the mover named, or a creature attached to the
+   * mover that moves with it (SRD Darkmantle), each with the placement the
+   * command settled before the move was declared — so a move held open for
+   * an Opportunity Attack completes with the same carry it declared, and a
+   * mover killed by that attack carries nobody. Absent on every move written
+   * before the field, and on every move that carries nobody.
+   */
+  readonly carrying?: readonly { readonly who: CharacterId; readonly placement: Placement }[];
   /** Who was offered an Opportunity Attack and has not yet answered. */
   readonly provoked: readonly { readonly reactor: CharacterId; readonly reach: number }[];
 }

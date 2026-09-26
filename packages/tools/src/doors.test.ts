@@ -877,6 +877,10 @@ const ANSWERS: Readonly<Record<string, Answer>> = {
   return_space_required: {
     fields: ['end_turn.returns', 'return_from_elsewhere.to', 'recall_familiar.to'],
   },
+  // The same question about a creature dragged along rather than coming back:
+  // SRD Grappled's "drag or carry you", to a space beside the grappler that
+  // the grappler chooses. (W7-B10)
+  carry_space_required: { fields: ['move.carrying'] },
   destination_required: {
     fields: [
       'activate_spell.to',

@@ -2416,6 +2416,21 @@ const MOVE = tool({
         .describe(
           'Carry one of your own castings\u2019 areas along with this move \u2014 SRD Conjure Animals is "when you move on your turn, you can also move the pack up to 30 feet to an unoccupied space you can see". It costs nothing and rides on the move because the book writes one sentence about both; a turn you stand still is a turn the pack stays put. The engine owns the allowance and refuses a space beyond it, one outside the room, one somebody is standing in and one you have been declared unable to see \u2014 all before a foot of movement is spent.',
         ),
+      carrying: z
+        .array(
+          z.object({
+            held: creatureId.describe('A creature this mover is grappling.'),
+            to: placementSchema
+              .optional()
+              .describe(
+                'Where it lands: a space beside the mover’s destination. Leave it out and the engine takes the one space that qualifies, or asks.',
+              ),
+          }),
+        )
+        .optional()
+        .describe(
+          'The creatures this mover is grappling that it drags along — SRD Grappled: "The grappler can drag or carry you when it moves." Each lands in an unoccupied space beside where the mover ends, and the hold stands; the dragged creature spends none of its own Speed. A held creature you leave out stays where it is and the grapple ends once the mover is out of reach. The extra foot per foot of dragging is charged whether or not you name anybody, and a creature clinging to the mover whose line says it moves with it comes along without being named. Refused `carry_space_required` where several spaces qualify and nobody said which — send the same move again with `to` filled in.',
+        ),
       using_grant: z
         .string()
         .min(1)
@@ -2444,6 +2459,15 @@ const MOVE = tool({
           ...(args.alongSurface === true ? { alongSurface: true as const } : {}),
           ...(args.using_grant === undefined ? {} : { usingGrant: args.using_grant }),
           ...(args.using_line === undefined ? {} : { usingLine: args.using_line }),
+          // And whom it drags — SRD Grappled's "drag or carry you".
+          ...(args.carrying === undefined
+            ? {}
+            : {
+                carrying: args.carrying.map((entry) => ({
+                  held: who(entry.held),
+                  ...(entry.to === undefined ? {} : { to: placementOf(entry.to) }),
+                })),
+              }),
           // And the area this move carries along — SRD Conjure Animals' pack.
           ...(args.also_moves === undefined
             ? {}

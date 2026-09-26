@@ -21,7 +21,7 @@ import {
   addSceneLandmark,
   beginCombat,
   declareCreatureSide,
-  detachFrom,
+  letGoOfAttachment,
   placeCreatureInScene,
   resolveAttack,
   resolveMove,
@@ -139,9 +139,12 @@ describe('a Darkmantle attached to a knight', () => {
     // Detached, it may attack anybody again.
     endTurn(table, 'the rogue is done again');
     endTurn(table, 'the other is done again');
-    table.did('it lets go', (s) => detachFrom(s, BEAST, { holder: BEAST, from: ROGUE }, table.supply()));
+    table.do('it lets go', (s) => letGoOfAttachment(s, BEAST, { from: ROGUE }));
     expect(table.state.creatures[BEAST]!.rollModifiers).toEqual([]);
-    expect(swing(table, 'Crush', OTHER, 'free again').ok).toBe(true);
+    // The other knight is twenty feet off now, so the swing is refused for
+    // the distance and no longer for the attach.
+    const free = swing(table, 'Crush', OTHER, 'free again');
+    expect(isErr(free) && free.code).toBe('out_of_reach');
   });
 });
 

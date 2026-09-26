@@ -50,6 +50,7 @@ import {
   forcePrintedSave,
   placeCreatureInScene,
   pullOutOfCreature,
+  resolveMove,
   resolveTurn,
   returnFromElsewhere,
   setScene,
@@ -474,6 +475,21 @@ describe("a Shambling Mound's Engulf", () => {
     // The goblin's own turn begins, and the hold collects.
     table.did("the mound's turn ends", (s) => resolveTurn(s, table.supply(), { commandId: 'end mound' }));
     expect(table.state.creatures[GOBLIN]!.vitals.hp).toBeLessThan(before);
+  });
+
+  it('moves with the bandit inside it at no extra cost', () => {
+    // "When the shambling mound moves, the Grappled target moves with it,
+    // costing it no extra movement." A Medium bandit is one size under a
+    // Large mound, so SRD Grappled's drag would charge it — and this does not.
+    const table = aBogWhereTheGoblinIsHeld();
+    const walked = unwrap(
+      resolveMove(table.state, MOUND, { placement: { from: { creature: MOUND }, feet: 10, bearing: 270 }, commandId: 'wade' }, table.supply()),
+      'the mound wades off',
+    );
+    expect(walked.cost).toBe(10);
+    table.log.push(...walked.events);
+    expect(elsewhereOf(table.state, GOBLIN)?.host).toBe(MOUND);
+    expect(grapplesOn(table.state, GOBLIN).map((held) => held.grappler)).toEqual([MOUND]);
   });
 
   it('refuses a second target while it holds one, and lets the goblin out when the grapple ends', () => {

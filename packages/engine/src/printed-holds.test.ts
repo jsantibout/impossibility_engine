@@ -23,10 +23,14 @@ import { asCharacterId, type CharacterId, expect as unwrap, isErr, type Result }
 import {
   addCreature,
   addSceneLandmark,
+  applyConditionTo,
   beginCombat,
   declareCreatureSide,
+  declineOpportunity,
   escapeGrapple,
   forcePrintedSave,
+  grappleSource,
+  liftConditionFrom,
   placeCreatureInScene,
   resolveAttack,
   resolveMove,
@@ -36,8 +40,9 @@ import {
 import { hasCondition } from './conditions.js';
 import { createRng, type Rng } from './dice.js';
 import { fold, type GameEvent, type GameState } from './events.js';
+import { distanceBetween, positionOf } from './positioning.js';
 import { createRollIssuer } from './rolls.js';
-import { grapplesOn } from './commands/unarmed.js';
+import { grapplesOn, lapsedGrapples } from './commands/unarmed.js';
 
 const id = (s: string) => asCharacterId(s);
 const BEAST = id('beast');
@@ -71,7 +76,7 @@ class Table {
 }
 
 /** The beast by the oak, with two knights beside it and a third further off; the beast's turn first. */
-function field(block: string, away = 5): Table {
+function field(block: string, away = 5, thirdAt = { x: 200, y: 300, z: 0 }): Table {
   const table = new Table();
   table.did('the beast arrives', (s) => addCreature(s, SRD_CONTENT, BEAST, block));
   for (const who of [BREN, SABLE, THIRD]) {
@@ -90,7 +95,7 @@ function field(block: string, away = 5): Table {
   const north = 200 + footprint + away - 5;
   table.do('Bren north', (s) => placeCreatureInScene(s, BREN, { from: { point: { x: 200, y: north, z: 0 } }, feet: 0, bearing: 0 }));
   table.do('Sable beside him', (s) => placeCreatureInScene(s, SABLE, { from: { point: { x: 205, y: north, z: 0 } }, feet: 0, bearing: 0 }));
-  table.do('the third far off', (s) => placeCreatureInScene(s, THIRD, { from: { point: { x: 200, y: 300, z: 0 } }, feet: 0, bearing: 0 }));
+  table.do('the third far off', (s) => placeCreatureInScene(s, THIRD, { from: { point: thirdAt }, feet: 0, bearing: 0 }));
   table.do("the beast's side", (s) => declareCreatureSide(s, BEAST, 'wild'));
   for (const who of [BREN, SABLE, THIRD]) table.do(`${who}'s side`, (s) => declareCreatureSide(s, who, 'party'));
   table.do('the order', (s) =>
@@ -178,6 +183,193 @@ describe("the Animated Rug of Smothering's hold", () => {
     expect(isErr(again) && again.code === 'line_forbidden_while_holding').toBe(true);
     // Nothing was spent for the refusal.
     expect(table.state.combat!.budgets[BEAST]!.action).toBe(true);
+  });
+});
+
+describe('a grappler that carries what it holds', () => {
+  /**
+   * SRD Grappled, *Movable*: "The grappler can drag or carry you when it
+   * moves, but every foot of movement costs it 1 extra foot." The rug's ten
+   * feet buy five with the knight in tow, and the knight comes along to the
+   * space the rug names beside its destination — or the hold lapses where the
+   * rug names nobody, which is the choice "can" hands the grappler.
+   */
+  it('brings the held creature to a stated space beside its destination, and the hold stands', () => {
+    const table = field('animated-rug-of-smothering');
+    table.log.push(...unwrap(swing(table, 'Smother', { hold: true }), 'the smother').events);
+    // Five feet east; the rug's box is (200..210, 200..210), so it ends at (205..215).
+    const east = { from: { point: { x: 215, y: 205, z: 0 } }, feet: 0, bearing: 0 };
+    // Several spaces beside the destination qualify, so the rug is asked.
+    const asked = resolveMove(
+      table.state,
+      BEAST,
+      { placement: { from: { creature: BEAST }, feet: 5, bearing: 90 }, carrying: [{ held: BREN }], commandId: 'ask' },
+      table.supply(),
+    );
+    expect(!asked.ok && asked.code === 'carry_space_required').toBe(true);
+    // A space too far from the rug is refused before anything is spent.
+    const far = resolveMove(
+      table.state,
+      BEAST,
+      {
+        placement: { from: { creature: BEAST }, feet: 5, bearing: 90 },
+        carrying: [{ held: BREN, to: { from: { point: { x: 260, y: 205, z: 0 } }, feet: 0, bearing: 0 } }],
+        commandId: 'far',
+      },
+      table.supply(),
+    );
+    expect(!far.ok && far.code === 'carry_too_far').toBe(true);
+    expect(table.state.combat!.budgets[BEAST]!.movementSpent).toBe(0);
+    // The carry: the rug walks five feet and Bren lands beside it, still held.
+    const walked = unwrap(
+      resolveMove(
+        table.state,
+        BEAST,
+        { placement: { from: { creature: BEAST }, feet: 5, bearing: 90 }, carrying: [{ held: BREN, to: east }], commandId: 'walk' },
+        table.supply(),
+      ),
+      'the walk',
+    );
+    table.log.push(...walked.events);
+    const state = table.state;
+    // The drag: five feet cost ten, which is the whole of the rug's Speed.
+    expect(walked.cost).toBe(10);
+    expect(positionOf(state.scene!, BREN)).toEqual({ x: 215, y: 205, z: 0 });
+    expect(distanceBetween(state.scene!, BREN, BEAST)).toEqual({ ok: true, value: 5 });
+    expect(grapplesOn(state, BREN).map((one) => one.grappler)).toEqual([BEAST]);
+    expect(lapsedGrapples(state)).toEqual([]);
+  });
+
+  it('leaves a held creature behind where the grappler names nobody, and the hold lapses', () => {
+    // Five feet south, away from Bren; the rug names nobody, so nobody comes.
+    const table = field('animated-rug-of-smothering');
+    table.log.push(...unwrap(swing(table, 'Smother', { hold: true }), 'the smother').events);
+    const before = positionOf(table.state.scene!, BREN);
+    table.did('the rug walks off', (s) =>
+      resolveMove(s, BEAST, { placement: { from: { creature: BEAST }, feet: 5, bearing: 180 }, commandId: 'off' }, table.supply()),
+    );
+    expect(positionOf(table.state.scene!, BREN)).toEqual(before);
+    expect(lapsedGrapples(table.state).map((one) => one.reason)).toEqual(['out-of-range']);
+  });
+
+  it('carries on the held road too: the prisoner lands when the move completes', () => {
+    // The third knight stands at the rug's west flank, where a step south
+    // takes the rug out of its reach and buys it a swing.
+    const table = field('animated-rug-of-smothering', 5, { x: 195, y: 205, z: 0 });
+    table.log.push(...unwrap(swing(table, 'Smother', { hold: true }), 'the smother').events);
+    const before = positionOf(table.state.scene!, BREN)!;
+    // South five feet, with Bren dragged down behind it to its north edge.
+    const beyond = { from: { point: { x: 200, y: 205, z: 0 } }, feet: 0, bearing: 0 };
+    const off = unwrap(
+      resolveMove(
+        table.state,
+        BEAST,
+        { placement: { from: { creature: BEAST }, feet: 5, bearing: 180 }, carrying: [{ held: BREN, to: beyond }], commandId: 'drag' },
+        table.supply(),
+      ),
+      'the drag',
+    );
+    table.log.push(...off.events);
+    // The third knight may swing; Bren waits to go where the rug goes.
+    expect(table.state.pendingMove?.provoked.map((one) => one.reactor)).toEqual([THIRD]);
+    expect(table.state.pendingMove?.carrying?.map((one) => one.who)).toEqual([BREN]);
+    expect(positionOf(table.state.scene!, BREN)).toEqual(before);
+    table.do('the third passes', (s) => declineOpportunity(s, THIRD, { commandId: 'pass' }));
+    const state = table.state;
+    expect(state.pendingMove).toBeNull();
+    expect(positionOf(state.scene!, BEAST)).toEqual({ x: 200, y: 195, z: 0 });
+    expect(positionOf(state.scene!, BREN)).toEqual({ x: 200, y: 205, z: 0 });
+    expect(grapplesOn(state, BREN).map((one) => one.grappler)).toEqual([BEAST]);
+    expect(lapsedGrapples(state)).toEqual([]);
+  });
+
+  it('leaves the prisoner where it was when the hold ends before the held move completes', () => {
+    // SRD Grappling: the grappler may release the creature at any time. Let go
+    // while the third knight is deciding, and the move that was to drag Bren
+    // lands the rug alone.
+    const table = field('animated-rug-of-smothering', 5, { x: 195, y: 205, z: 0 });
+    table.log.push(...unwrap(swing(table, 'Smother', { hold: true }), 'the smother').events);
+    const before = positionOf(table.state.scene!, BREN)!;
+    const beyond = { from: { point: { x: 200, y: 205, z: 0 } }, feet: 0, bearing: 0 };
+    table.did('the drag is declared', (s) =>
+      resolveMove(
+        s,
+        BEAST,
+        { placement: { from: { creature: BEAST }, feet: 5, bearing: 180 }, carrying: [{ held: BREN, to: beyond }], commandId: 'drag' },
+        table.supply(),
+      ),
+    );
+    table.do('the rug lets go', (s) => liftConditionFrom(s, BREN, 'grappled', grappleSource(BEAST)));
+    table.do('the third passes', (s) => declineOpportunity(s, THIRD, { commandId: 'pass' }));
+    expect(table.state.pendingMove).toBeNull();
+    expect(positionOf(table.state.scene!, BEAST)).toEqual({ x: 200, y: 195, z: 0 });
+    expect(positionOf(table.state.scene!, BREN)).toEqual(before);
+  });
+
+  it('refuses one creature named twice, and one the mover does not hold', () => {
+    const table = field('animated-rug-of-smothering');
+    table.log.push(...unwrap(swing(table, 'Smother', { hold: true }), 'the smother').events);
+    const east = { from: { point: { x: 215, y: 205, z: 0 } }, feet: 0, bearing: 0 };
+    const placement = { from: { creature: BEAST }, feet: 5, bearing: 90 };
+    const twice = resolveMove(
+      table.state,
+      BEAST,
+      { placement, carrying: [{ held: BREN, to: east }, { held: BREN, to: east }], commandId: 'twice' },
+      table.supply(),
+    );
+    expect(isErr(twice) && twice.code).toBe('carry_repeated');
+    const loose = resolveMove(table.state, BEAST, { placement, carrying: [{ held: SABLE }], commandId: 'loose' }, table.supply());
+    expect(isErr(loose) && loose.code).toBe('not_grappling_target');
+    expect(table.state.combat!.budgets[BEAST]!.movementSpent).toBe(0);
+  });
+});
+
+/**
+ * Where a held creature may land when nobody names the space: the single
+ * space that qualifies, taken unasked, or none. Out of combat, a knight at
+ * (5, 0) holding an ogre (Large, ten feet square) at (10, 0) steps west to the
+ * corner. Three ten-foot boxes touch the knight there — the ogre shuffled five
+ * feet west, and the two whose corners are (0, 5) and (5, 5) — so two more
+ * knights stand where they shut the last two out and leave the first, or one
+ * knight stands at (5, 5), which all three boxes overlap.
+ */
+function lane(room: 'one' | 'none'): Table {
+  const table = new Table();
+  const OGRE = id('ogre');
+  table.did('the knight arrives', (s) => addCreature(s, SRD_CONTENT, BEAST, 'knight'));
+  table.did('the ogre arrives', (s) => addCreature(s, SRD_CONTENT, OGRE, 'ogre'));
+  for (const who of [SABLE, THIRD]) table.did(`${who} arrives`, (s) => addCreature(s, SRD_CONTENT, who, 'knight'));
+  table.do('the lane', (s) => setScene(s, { width: 40, depth: 40, height: 20 }));
+  const at = (x: number, y: number) => ({ from: { point: { x, y, z: 0 } }, feet: 0, bearing: 0 });
+  table.do('the knight', (s) => placeCreatureInScene(s, BEAST, at(5, 0)));
+  table.do('the ogre', (s) => placeCreatureInScene(s, OGRE, at(10, 0)));
+  if (room === 'none') {
+    table.do('a knight in every box', (s) => placeCreatureInScene(s, SABLE, at(5, 5)));
+  } else {
+    table.do('a knight in one box', (s) => placeCreatureInScene(s, SABLE, at(0, 10)));
+    table.do('a knight in the other', (s) => placeCreatureInScene(s, THIRD, at(10, 10)));
+  }
+  table.do('held', (s) => applyConditionTo(s, OGRE, 'grappled', grappleSource(BEAST)));
+  return table;
+}
+
+describe('a carry where nobody names the space', () => {
+  const OGRE = id('ogre');
+  const west = { from: { point: { x: 0, y: 0, z: 0 } }, feet: 0, bearing: 0 };
+
+  it('takes the single space that qualifies, unasked', () => {
+    const table = lane('one');
+    table.did('west, dragging the ogre', (s) =>
+      resolveMove(s, BEAST, { placement: west, carrying: [{ held: OGRE }], commandId: 'west' }, table.supply()),
+    );
+    expect(positionOf(table.state.scene!, OGRE)).toEqual({ x: 5, y: 0, z: 0 });
+    expect(lapsedGrapples(table.state)).toEqual([]);
+  });
+
+  it('refuses where no space beside the destination holds the carried creature', () => {
+    const table = lane('none');
+    const refused = resolveMove(table.state, BEAST, { placement: west, carrying: [{ held: OGRE }], commandId: 'west' }, table.supply());
+    expect(isErr(refused) && refused.code).toBe('no_carry_space');
   });
 });
 

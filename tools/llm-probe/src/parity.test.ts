@@ -290,6 +290,9 @@ const AUDIT: readonly {
       alsoMoves: because(
         'SRD Conjure Animals: "when you move on your turn, you can also move the pack up to 30 feet to an unoccupied space you can see." A rider that carries one of the mover’s own castings along, so it needs a casting id and a space — and no benchmark character has the one spell in the book that grants it. `packages/tools` publishes it as `move.also_moves` for a druid who does',
       ),
+      carrying: because(
+        'SRD Grappled: "The grappler can drag or carry you when it moves." Whom a grappler drags along and to which space beside it — a decision and a place, never a number. Neither benchmark has anybody grappling anybody, so a published field would be refused every value it could be sent today. `packages/tools` publishes it as `move.carrying`',
+      ),
       usingGrant: because(
         'SRD Tactical Shift\'s "you can move up to half your Speed without provoking Opportunity Attacks", spent out of feet a feature handed the turn rather than out of the Speed. A decision rather than a number, and `packages/tools` publishes it as `using_grant`. It is not on **this** surface because this one is a benchmark held fixed: neither benchmark character has a feature that hands a move over, so a published field would be refused every value it could be sent today',
       ),

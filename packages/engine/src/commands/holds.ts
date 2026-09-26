@@ -186,16 +186,57 @@ export function completeIfSettled(state: GameState, answered: readonly GameEvent
   const resolvable =
     scene !== null && moveCreature(scene, waiting.mover, waiting.placement).ok;
 
-  return [
-    { type: 'movement-completed', id: waiting.mover },
-    {
-      type: 'creature-moved',
-      id: waiting.mover,
-      placement: resolvable
-        ? waiting.placement
-        : { ...waiting.placement, from: { point: waiting.destination }, bearing: 0, feet: 0 },
-    },
-  ];
+  const arrived: GameEvent = {
+    type: 'creature-moved',
+    id: waiting.mover,
+    placement: resolvable
+      ? waiting.placement
+      : { ...waiting.placement, from: { point: waiting.destination }, bearing: 0, feet: 0 },
+  };
+  return [{ type: 'movement-completed', id: waiting.mover }, arrived, ...carriedOnArrival(after, waiting, arrived)];
+}
+
+/**
+ * **Whoever the move brings along**, once the mover has arrived — W7-B10.
+ *
+ * Each a forced move to the space the command settled when it declared the
+ * move, after the mover's own so a held creature lands beside where the mover
+ * now is. Asked again here rather than trusted, because Reactions came in
+ * between: a passenger that has died or left the world, a prisoner the
+ * grapple no longer holds, a clinger that has let go, or a space somebody now
+ * stands in is left where it was — and a hold left behind lapses exactly as
+ * `lapsedGrapples` says of any grappler that walked away.
+ */
+function carriedOnArrival(after: GameState, waiting: PendingMove, arrived: GameEvent): readonly GameEvent[] {
+  const events: GameEvent[] = [];
+  let world = applyEvent(after, arrived);
+  for (const carried of waiting.carrying ?? []) {
+    const creature = world.creatures[carried.who];
+    if (creature === undefined || creature.vitals.dead || world.scene === null) continue;
+    if (!stillAlongWith(creature, waiting.mover)) continue;
+    if (!moveCreature(world.scene, carried.who, carried.placement, { forced: true }).ok) continue;
+    const moved: GameEvent = { type: 'creature-moved', id: carried.who, placement: carried.placement, forced: true };
+    events.push(moved);
+    world = applyEvent(world, moved);
+  }
+  return events;
+}
+
+/**
+ * Whether a creature is still held by the mover's grapple or still clinging to
+ * it. The grapple is read off the source `grappleSource` writes — `grapple:<who>`,
+ * with `/<limb>` after it for a hold made with a thing of its own — because
+ * `commands/unarmed.ts` imports this module and cannot be imported back.
+ */
+function stillAlongWith(creature: GameState['creatures'][string], mover: CharacterId): boolean {
+  const grapple = `grapple:${mover}`;
+  return (
+    creature.conditions.instances.some(
+      (instance) =>
+        instance.condition === 'grappled' &&
+        (instance.source === grapple || instance.source.startsWith(`${grapple}/`)),
+    ) || creature.attachments.some((one) => one.to === mover)
+  );
 }
 
 /** The hit whose damage is still to be rolled, or null. */

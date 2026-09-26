@@ -41,11 +41,13 @@ import {
 } from '../monster.js';
 import { effectiveSizeOf } from '../size.js';
 import { castingIdOf, castingSource } from '../spells.js';
-import { grapplesOn } from './unarmed.js';
+import { grapplesOn, UNARMED_REACH } from './unarmed.js';
 import { parseNotation } from '../dice.js';
 import {
   altitudeOf,
   canPassThrough,
+  distanceBetween,
+  ridersOf,
   shiftSize,
   sizeAtMost,
   checkRoute,
@@ -300,6 +302,27 @@ export interface MoveCommand extends CommandIdentity {
    * Difficult Terrain costs movement and there is none being spent.
    */
   readonly route?: readonly Point[];
+  /**
+   * The creatures this mover is grappling that it drags or carries along, and
+   * where each lands — W7-B10.
+   *
+   * SRD Grappled, *Movable*: "The grappler can drag or carry you when it
+   * moves, but every foot of movement costs it 1 extra foot unless you are
+   * Tiny or two or more sizes smaller than it." The surcharge has been charged
+   * since W7-B9; this is the carry. **Stated, because "can" is a choice**: a
+   * grappler who names nobody walks away and the hold lapses as
+   * `lapsedGrapples` says, and a grappler who names a held creature brings it
+   * to a space adjacent to its own destination — the one stated, the single
+   * qualifying space where none is, or `carry_space_required` where several
+   * do. The held creature's move is forced: it spends none of their Speed,
+   * provokes nobody, and a barrier in its way is reported rather than refused,
+   * as every forced move's is.
+   *
+   * A creature **attached** to the mover that its line says moves with it
+   * (SRD Darkmantle) is carried unasked into the mover's own space, because
+   * that is not the mover's choice to make.
+   */
+  readonly carrying?: readonly { readonly held: CharacterId; readonly to?: Placement }[];
 }
 
 export interface MoveResolution {
@@ -555,6 +578,11 @@ export function moveWithin(
     if (!alsoMoved.ok) return alsoMoved;
     const carried = alsoMoved.value;
 
+    // **And whoever comes along** — W7-B10 — settled before any cost, so a
+    // carry with nowhere to land costs the grappler nothing to be told about.
+    const passengers = holdsCarried(state, scene.value, moved.value.state, id, to, command);
+    if (!passengers.ok) return passengers;
+
     const difficult = command.difficultFeet ?? 0;
     if (!Number.isInteger(difficult) || difficult < 0 || difficult > feet) {
       return err(
@@ -774,7 +802,16 @@ export function moveWithin(
     const opportunity =
       command.forced === true || disengaged || exempt
         ? { provoked: [], unverified: [] }
-        : provokedBy(state, supply.content, id, from, to, mode, sheet);
+        : provokedBy(
+            state,
+            supply.content,
+            id,
+            from,
+            to,
+            mode,
+            sheet,
+            new Set(passengers.value.carrying.map((along) => along.who)),
+          );
     // What the line hands to the table, said at the moment of the move.
     const lineNotes = (lineMove?.handedOver ?? []).map(
       (clause) => `${lineMove!.name}: "${clause}" is the table's to judge, and the move was made on the line as stated`,
@@ -797,6 +834,11 @@ export function moveWithin(
       const cut = cutByTheGround(events.reduce(applyEvent, state), id, cutting.value.charges, supply);
       if (!cut.ok) return cut;
       events.push(...cut.value.events);
+      // The carry, after the mover's own move so each lands beside where the
+      // mover now is — W7-B10. Forced: nobody's Speed, nobody's swing.
+      for (const along of passengers.value.carrying) {
+        events.push({ type: 'creature-moved', id: along.who, placement: along.placement, forced: true });
+      }
       return ok({
         events,
         feet,
@@ -813,6 +855,7 @@ export function moveWithin(
           ...climbing,
           ...lineNotes,
           ...carriedAlong,
+          ...passengers.value.unverified,
         ],
         duplicate: false,
       });
@@ -825,6 +868,8 @@ export function moveWithin(
         placement: command.placement,
         destination: to,
         provoked: opportunity.provoked,
+        // Settled now and performed when the move completes — W7-B10.
+        ...(passengers.value.carrying.length === 0 ? {} : { carrying: passengers.value.carrying }),
       },
       ...(stamp === null ? {} : { command: stamp }),
     });
@@ -855,6 +900,7 @@ export function moveWithin(
         ...climbing,
         ...lineNotes,
         ...carriedAlong,
+        ...passengers.value.unverified,
       ],
       duplicate: false,
     });
@@ -1005,6 +1051,161 @@ function cutByTheGround(
   }
   events.push(...rollsIssuedSince(supply, issuedBefore));
   return ok({ events, unverified });
+}
+
+/**
+ * Whom a move brings along, and where each lands — W7-B10.
+ *
+ * Two kinds of passenger, for two sentences. SRD Grappled, *Movable*: "The
+ * grappler can drag or carry you when it moves" — a held creature the mover
+ * **named** in `carrying` lands in a space adjacent to the mover's destination:
+ * the one stated, checked for adjacency (`carry_too_far`) and for room; the
+ * single qualifying space where none is stated; `carry_space_required` where
+ * several qualify, because which side of the ogre the prisoner is dragged to
+ * is a choice. A held creature the mover did not name is left where it stood,
+ * and the hold lapses as `lapsedGrapples` says — "can" is the grappler's
+ * choice and walking away is one of them.
+ *
+ * SRD Darkmantle: "it moves with the target" — a creature attached to the
+ * mover whose record says so is carried **unasked** into the mover's own
+ * space, because that is not the mover's choice: the darkmantle is clinging
+ * to their head.
+ *
+ * Every passenger's move is forced — nobody's Speed, nobody's Opportunity
+ * Attack — and a barrier in its way is reported rather than refused, which is
+ * what a forced move through a barrier has always earned. Riders on the mover
+ * are not passengers here: the scene already moves them with their mount.
+ * Measured over the scene **after** the mover has moved and after each earlier
+ * passenger has landed, so two held creatures cannot be dragged into one
+ * square.
+ */
+function holdsCarried(
+  state: GameState,
+  before: PositionState,
+  afterMover: PositionState,
+  id: CharacterId,
+  destination: Point,
+  command: MoveCommand,
+): Result<{
+  readonly carrying: readonly { readonly who: CharacterId; readonly placement: Placement }[];
+  readonly unverified: readonly string[];
+}> {
+  const carrying: { readonly who: CharacterId; readonly placement: Placement }[] = [];
+  const unverified: string[] = [];
+  let scene = afterMover;
+  const riders = new Set(ridersOf(before, id));
+
+  // — the held creatures the mover named ————————————————————————————————
+  const named = new Set<CharacterId>();
+  for (const entry of command.carrying ?? []) {
+    const who = entry.held;
+    if (named.has(who)) {
+      return err('carry_repeated', `${who} is named twice in what ${id} carries, and lands in one space`);
+    }
+    named.add(who);
+    if (riders.has(who)) continue;
+    if (!grapplesOn(state, who).some((grapple) => grapple.grappler === id)) {
+      return err('not_grappling_target', `${id} is not grappling ${who}, and carries only what it holds`);
+    }
+    const stood = positionOf(before, who);
+    if (stood === null) {
+      return err('not_here', `${who} has no position in this scene to be carried from`);
+    }
+
+    let placement: Placement;
+    if (entry.to !== undefined) {
+      const placed = moveCreature(scene, who, entry.to);
+      if (!placed.ok) return anchorNeeded(placed, entry.to.from, `${who} is being carried relative to it`);
+      const apart = distanceBetween(placed.value.state, who, id);
+      if (!apart.ok || apart.value > UNARMED_REACH) {
+        return err(
+          'carry_too_far',
+          `${id} carries ${who} to a space adjacent to its own, and the space stated is ${apart.ok ? `${apart.value} feet` : 'an unmeasurable distance'} away`,
+        );
+      }
+      placement = entry.to;
+      scene = placed.value.state;
+    } else {
+      const spaces = spacesBeside(scene, id, who);
+      if (spaces.length === 0) {
+        return err('no_carry_space', `no unoccupied space beside ${id}'s destination is free for ${who}`);
+      }
+      if (spaces.length > 1) {
+        return needsContext(
+          'carry_space_required',
+          `${id} carries ${who} to a space beside its destination, and ${spaces.length} qualify; nobody has said which`,
+          [
+            {
+              kind: 'position',
+              subject: who,
+              need: `the space ${who} is carried to`,
+              because: 'which side of the grappler a held creature is dragged to is a choice the engine makes for nobody',
+              satisfyWith: `resolveMove again with \`carrying\` naming ${who}'s landing space`,
+            },
+          ],
+        );
+      }
+      placement = { from: { point: spaces[0]! }, feet: 0, bearing: 0 };
+      const placed = moveCreature(scene, who, placement);
+      if (!placed.ok) return placed;
+      scene = placed.value.state;
+    }
+    // A barrier the held creature is dragged through is a forced move's
+    // report, never a refusal: the mover paid for the move and made it.
+    const landed = positionOf(scene, who)!;
+    const wall = checkBarriers(state, before, who, stood, landed, undefined, 'walk', 'none');
+    if (wall.ok) unverified.push(...wall.value.unverified);
+    carrying.push({ who, placement });
+  }
+
+  // — the creatures clinging to the mover ————————————————————————————————
+  for (const key of Object.keys(state.creatures).sort()) {
+    const clinger = key as CharacterId;
+    if (clinger === id || riders.has(clinger)) continue;
+    const held = state.creatures[clinger]!.attachments.find(
+      (one) => one.to === id && one.whileAttached?.movesWithTarget === true,
+    );
+    if (held === undefined || positionOf(before, clinger) === null) continue;
+    const placement: Placement = { from: { point: destination }, feet: 0, bearing: 0 };
+    const placed = moveCreature(scene, clinger, placement, { forced: true });
+    if (!placed.ok) {
+      unverified.push(`${clinger} moves with ${id} and could not follow: ${placed.reason}`);
+      continue;
+    }
+    scene = placed.value.state;
+    carrying.push({ who: clinger, placement });
+  }
+
+  return ok({ carrying, unverified });
+}
+
+/**
+ * The unoccupied spaces adjacent to one creature that another could stand in,
+ * sorted so every replay answers alike — W7-B10.
+ *
+ * **Box to box**, on the ruler every reach is measured on: each candidate is
+ * the carried creature actually placed there (`moveCreature`, which refuses
+ * an occupied space and the scene's edge), then measured to the grappler
+ * whole. Measuring from the candidate's corner alone would find no room for a
+ * Large prisoner whose corner is ten feet off and whose body is beside the
+ * grappler. Searched out to twenty-five feet from the grappler's corner,
+ * which is past the far side of a Gargantuan box plus a Gargantuan prisoner.
+ */
+function spacesBeside(scene: PositionState, near: CharacterId, who: CharacterId): readonly Point[] {
+  const anchor = positionOf(scene, near);
+  if (anchor === null) return [];
+  const reach = 25;
+  const found: Point[] = [];
+  for (let x = anchor.x - reach; x <= anchor.x + reach; x += CUBE) {
+    for (let y = anchor.y - reach; y <= anchor.y + reach; y += CUBE) {
+      const at = { x, y, z: anchor.z };
+      const placed = moveCreature(scene, who, { from: { point: at }, feet: 0, bearing: 0 });
+      if (!placed.ok) continue;
+      const apart = distanceBetween(placed.value.state, who, near);
+      if (apart.ok && apart.value <= UNARMED_REACH) found.push(at);
+    }
+  }
+  return found.sort((a, b) => a.x - b.x || a.y - b.y);
 }
 
 /**
@@ -1216,9 +1417,9 @@ function wayOf(
  * from the *held* creature's side and prints no sum, and a grappler holding
  * two is a case the SRD does not price. The sizes are the ones every rule
  * reads (`effectiveSizeOf`), so an enlarged prisoner costs what it weighs
- * now. **Where the held creature ends up is still the table's**: nothing here
- * moves the prisoner, exactly as nothing did before — the DM moves it with a
- * forced move, and this is only what the grappler pays.
+ * now. **Charged whether or not the mover names the prisoner in `carrying`**,
+ * which is the reading W7-B9 wrote and the owner kept: this is only what the
+ * grappler pays, and {@link holdsCarried} is where the prisoner is moved.
  */
 function dragSurchargeFor(state: GameState, id: CharacterId): 0 | 1 {
   const sheet = sheetAsItStands(state, id) ?? state.creatures[id]?.sheet;
@@ -1228,6 +1429,11 @@ function dragSurchargeFor(state: GameState, id: CharacterId): 0 | 1 {
   for (const key of Object.keys(state.creatures).sort()) {
     const held = key as CharacterId;
     if (!grapplesOn(state, held).some((grapple) => grapple.grappler === id)) continue;
+    // **Held inside the mover, it weighs nothing to the move** — W7-B10. SRD
+    // Shambling Mound: "When the shambling mound moves, the Grappled target
+    // moves with it, costing it no extra movement." A creature inside another
+    // travels with its host's record and is dragged across no ground.
+    if (state.creatures[held]?.elsewhere?.host === id) continue;
     const size = effectiveSizeOf(state, held) ?? 'medium';
     if (size === 'tiny' || sizeAtMost(size, cheap)) continue;
     return 1;
@@ -2024,6 +2230,7 @@ function provokedBy(
   to: Point,
   mode: MovementMode,
   sheet: CharacterSheet,
+  passengers: ReadonlySet<CharacterId> = new Set(),
 ): {
   readonly provoked: readonly { readonly reactor: CharacterId; readonly reach: number }[];
   readonly unverified: readonly string[];
@@ -2054,6 +2261,10 @@ function provokedBy(
   for (const key of Object.keys(state.creatures).sort()) {
     const other = state.creatures[key];
     if (other === undefined || other.id === mover) continue;
+    // **Nor does a creature the move brings along** — W7-B10. A prisoner
+    // dragged beside the grappler and a darkmantle clinging to its head never
+    // see the mover leave their reach, because they go where it goes.
+    if (passengers.has(other.id)) continue;
 
     // An ally does not swing at you for walking away — the same conservative
     // reading an aura takes of "your allies". Declared and allied is settled;
