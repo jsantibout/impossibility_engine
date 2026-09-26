@@ -32,6 +32,7 @@ import {
 } from '../character.js';
 import {
   bestPrintedMeleeAttack,
+  climbsWithoutACheck,
   hasPrintedTrait,
   printedLeap,
   printedLineSource,
@@ -493,7 +494,7 @@ export function moveWithin(
 
     // The one decision a climb leaves to the table, and the printed sentence
     // that answers it for the creatures whose blocks carry one.
-    const climbing = [...climbCheck(id, mode, command, sheet), ...levitating.value];
+    const climbing = [...climbCheck(state, id, mode, command, sheet), ...levitating.value];
 
     // **A carried area sweeps, and a move of more than one space does not say
     // what it swept.** Checked before any cost, any budget and any Opportunity
@@ -1910,15 +1911,21 @@ function jumpBonusFor(state: GameState, who: CharacterId): number {
  * a Climb Speed"; Spider Climb is not a Climb Speed, and every SRD block that
  * prints it prints a Climb Speed beside it but one — the Vampire Spawn, which
  * therefore climbs at half rate exactly as the book has it.
+ *
+ * **And the Swarm of Insects' sentence is gated** — "If the swarm has a Climb
+ * Speed" — so its holder is excused only while that is true, asked of the
+ * creature as it stands (W7-B12). The book gives the swarm no Climb Speed, so
+ * it is asked like anybody until something grants one.
  */
 function climbCheck(
+  state: GameState,
   id: CharacterId,
   mode: MovementMode,
   command: MoveCommand,
   sheet: CharacterSheet,
 ): readonly string[] {
   if (mode !== 'climb' || command.forced === true) return [];
-  if (hasPrintedTrait(sheet, 'climbs-without-a-check')) return [];
+  if (climbsWithoutACheck(sheet, hasSpeedInModeOn(state, id, 'climb'))) return [];
 
   return [
     `nobody has said what ${id} is climbing, and the SRD leaves a slippery surface or one with few handholds to the GM at a DC 15 Strength (Athletics) check; the climb was allowed without one`,

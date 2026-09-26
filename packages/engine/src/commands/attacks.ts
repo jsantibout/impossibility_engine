@@ -2623,7 +2623,14 @@ export function resolveAttack(
     // whether it sits on the attacker or on the creature being attacked. One
     // gatherer, shared with the spell attack, which is what stops the two
     // paths drifting apart again.
-    const defending = defendingModes(state, id, command.target, ability);
+    //
+    // **And whether the swing is melee**, which SRD Giant Boar's "Advantage on
+    // melee attack rolls" reads (W7-B12) — the same answer the standing damage
+    // gatherer below reads off the same two facts: the printed line's own kind,
+    // or the weapon's range.
+    const swingIsMelee =
+      stated === undefined ? rangeOf(weapon, command.thrown === true) === null : !stated.ranged;
+    const defending = defendingModes(state, id, command.target, ability, undefined, swingIsMelee);
     unverified.push(...defending.unverified);
 
     // SRD Pack Tactics, off the attacker's own stat block: "Advantage on an
@@ -2899,6 +2906,7 @@ export function resolveAttack(
       roller: id,
       against: command.target,
       ability,
+      melee: swingIsMelee,
       rollerPerceives: sensesPerceiving(state, id, command.target),
       rollerSees: canSee(state, id, command.target),
     })) {

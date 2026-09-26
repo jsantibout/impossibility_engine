@@ -33,6 +33,8 @@ import {
   type CarriedPrintedObject,
   hasPrintedTrait,
   type PrintedSpeedMode,
+  printedRegeneration,
+  REGENERATION,
   resolveSummonerMarks,
   type SummonerNumbers,
   withPrintedSpeeds,
@@ -1070,6 +1072,18 @@ export function damageCreature(
     // the settled floor would win, because its die has already been thrown and
     // cannot be un-thrown.
     const settledFloor = unheld.droppedToZero ? settled : null;
+    // **And the death SRD Regeneration moves**, for a monster whose block says
+    // "dies only if it starts its turn with 0 Hit Points and doesn't
+    // regenerate": a floor of 0, pinned on every blow that reaches or finds it
+    // at 0, so the drop leaves it alive and Unconscious and a blow while it
+    // lies there costs it nothing. The turn's start is where it dies, and that
+    // is `settleStartOfTurnBody`'s. Behind the two floors above, which hold a
+    // Hit Point and would be the better answer where both applied; no SRD block
+    // prints either beside this one. (W7-B12)
+    const waits =
+      creature.vitals.diesAtZero &&
+      printedRegeneration(creature.sheet) !== null &&
+      (unheld.droppedToZero || isDown(creature.vitals));
     const floor: {
       readonly at: number;
       readonly feature: string;
@@ -1077,13 +1091,15 @@ export function damageCreature(
     } | null =
       settledFloor !== null
         ? { at: settledFloor.at, feature: settledFloor.feature }
-        : standing === null
-          ? null
-          : {
+        : standing !== null
+          ? {
               at: standing.at,
               feature: standing.feature,
               spent: { key: standing.key, recovers: standing.recovers },
-            };
+            }
+          : waits
+            ? { at: 0, feature: REGENERATION }
+            : null;
 
     const events: GameEvent[] = [
       {

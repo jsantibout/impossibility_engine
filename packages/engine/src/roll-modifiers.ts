@@ -538,6 +538,25 @@ export interface RollSelector {
    * would pick out nothing for ever.
    */
   readonly targetMissingHitPoints?: true;
+  /**
+   * The attack roll is a **melee** one — W7-B12.
+   *
+   * SRD Giant Boar's Bloodied Fury: "The boar has Advantage on **melee** attack
+   * rolls while it is Bloodied." Every field above narrows an attack by who
+   * makes it, with what ability, against whom and whether a spell made it, and
+   * none of them tells a Tusk from a thrown spear — so the nearest sayable
+   * thing was Advantage on every attack roll, which is the plain Boar's
+   * sentence and a different rule.
+   *
+   * **What the roller decides, not what this asks** — {@link RollQuery.melee},
+   * answered by the two sites that throw an attack's d20: the swing, off the
+   * weapon's range or the printed line's own kind, and the spell attack, off
+   * the definition's `attack`. Silence is a miss, the reading
+   * {@link againstMagic} takes: a roll nobody classified is not this sentence.
+   *
+   * **Legal only on an attack roll**, the one family that is ever melee.
+   */
+  readonly reach?: 'melee';
 }
 
 /** A mode, and the rolls it reaches. */
@@ -843,6 +862,16 @@ export interface RollQuery {
    */
   readonly targetMissingHitPoints?: boolean;
   /**
+   * Whether this attack roll is a melee one — what {@link RollSelector.reach}
+   * matches. W7-B12.
+   *
+   * Answered by the site that throws the die, because it is the one thing that
+   * knows: a swing reads its weapon's range or its printed line's kind, and a
+   * spell attack reads the definition's `attack`. Absent means nobody said,
+   * which a selector asking for melee reads as a miss.
+   */
+  readonly melee?: boolean;
+  /**
    * What the creature **rolling** is, as a spell or other magical effect sees
    * it — what {@link RollSelector.attackerType} matches.
    *
@@ -1032,6 +1061,11 @@ export function selectorMatches(
   ) {
     return false;
   }
+
+  // SRD Giant Boar's Bloodied Fury: "Advantage on **melee** attack rolls". The
+  // site that threw the die says which it was, and silence is a miss — see
+  // {@link RollQuery.melee}. (W7-B12)
+  if (selector.reach === 'melee' && query.melee !== true) return false;
 
   // SRD Innate Sorcery: "the attack rolls of Sorcerer spells you cast." Two
   // narrowings of one sentence, read the same way `againstMagic` is: a swing
@@ -1358,6 +1392,23 @@ export function rollSelectorProblems(
         code: 'wounded_gate_off_the_roller',
         reason:
           "this clause reads the creature rolled against, and on an \"against-holder\" selector that creature is the holder — a sentence about the holder's own Hit Points is written with the while-bloodied requirement instead",
+      });
+    }
+  }
+
+  // SRD Giant Boar's "melee attack rolls" — only an attack roll is ever melee,
+  // and `reach` has one legal value. See {@link RollSelector.reach}. (W7-B12)
+  if (selector.reach !== undefined) {
+    if (selector.reach !== 'melee') {
+      found.push({
+        code: 'bad_reach',
+        reason: `"${String(selector.reach)}" is not a reach an attack roll is narrowed by; the engine reads melee, or none`,
+      });
+    }
+    if (selector.roll !== 'attack') {
+      found.push({
+        code: 'reach_off_an_attack',
+        reason: `only an attack roll is melee or not, so a reach cannot pick out a ${selector.roll}`,
       });
     }
   }

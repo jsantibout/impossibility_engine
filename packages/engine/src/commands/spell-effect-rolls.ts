@@ -322,9 +322,17 @@ function resolveOneAttackRoll(
   // casting's own route, so a Sorcerer/Wizard's Fire Bolt is narrowed by which
   // half of her cast it, and a feat's or an item's route names no class at all.
   const through = ctx.route === null ? null : classOfRoute(ctx.route);
-  const defending = defendingModes(current, casterId, target, ability, {
-    ...(through === null ? {} : { through }),
-  });
+  // And whether it is a melee one, off the definition's own `attack` — SRD
+  // Giant Boar's "melee attack rolls" reaches a Shocking Grasp and not a Fire
+  // Bolt. (W7-B12)
+  const defending = defendingModes(
+    current,
+    casterId,
+    target,
+    ability,
+    { ...(through === null ? {} : { through }) },
+    effect.attack !== 'ranged',
+  );
   unverified.push(...defending.unverified);
 
   // **A ranged spell attack is a ranged attack.** SRD "Ranged Attacks": "You
@@ -447,6 +455,7 @@ function resolveOneAttackRoll(
     roller: casterId,
     against: target,
     ...(ability === null ? {} : { ability }),
+    melee: effect.attack !== 'ranged',
   })) {
     const consumed: GameEvent = {
       type: 'roll-modifier-consumed',

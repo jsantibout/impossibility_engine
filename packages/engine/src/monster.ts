@@ -1339,6 +1339,22 @@ export const hasPrintedTrait = (sheet: CharacterSheet, kind: MonsterTrait['kind'
   sheet.stated?.traits?.some((trait) => trait.kind === kind) === true;
 
 /**
+ * SRD Spider Climb, with the gate the Swarm of Insects prints on it — W7-B12.
+ *
+ * "The pudding can climb difficult surfaces … without needing to make an
+ * ability check" holds for its holder outright; "**If the swarm has a Climb
+ * Speed**, the swarm can climb …" holds only while that is true. Whether it is
+ * is the caller's answer, asked of the creature as it stands rather than of
+ * the sheet — a Climb Speed a spell granted is a Climb Speed — which is the
+ * reading the climb's own surcharge takes of the same words.
+ */
+export const climbsWithoutACheck = (sheet: CharacterSheet, hasClimbSpeed: boolean): boolean =>
+  (sheet.stated?.traits ?? []).some(
+    (trait) =>
+      trait.kind === 'climbs-without-a-check' && (trait.ifHasClimbSpeed !== true || hasClimbSpeed),
+  );
+
+/**
  * What a creature holds inside itself, and how a neighbour gets somebody out
  * — SRD Ooze Cube, read off the `holds-creatures-inside` trait — W7-B10.
  *
@@ -1528,6 +1544,52 @@ export const printedTypeSlow = (
   return null;
 };
 
+/**
+ * The name SRD Regeneration's held death is recorded under — W7-B12.
+ *
+ * {@link UNDEAD_FORTITUDE}'s reason: the rule's own name and not a catalogue
+ * id, so the `damage-taken.floor` a replay reads and the death a turn's start
+ * writes name the same rule, and a test asks for it by the name the log gives.
+ */
+export const REGENERATION = 'Regeneration';
+
+/**
+ * SRD Regeneration: what a block's own turn start gives back, and the damage
+ * types that stop it for a turn — or null for every block that prints none.
+ *
+ * "The troll regains 15 Hit Points at the start of each of its turns. If the
+ * troll takes Acid or Fire damage, this trait doesn't function on the troll's
+ * next turn. The troll dies only if it starts its turn with 0 Hit Points and
+ * doesn't regenerate." The first number and the list are the kind's; the
+ * third sentence is what this module's two readers do with them — the drop to
+ * 0 held at 0 in `damageCreature`, and the death at the turn's start in
+ * `settleStartOfTurnBody`. (W7-B12)
+ */
+export const printedRegeneration = (
+  sheet: CharacterSheet,
+): { readonly hitPoints: number; readonly suppressedBy: readonly string[] } | null => {
+  for (const trait of sheet.stated?.traits ?? []) {
+    if (trait.kind === 'regenerates') {
+      return { hitPoints: trait.hitPoints, suppressedBy: trait.suppressedBy };
+    }
+  }
+  return null;
+};
+
+/**
+ * The source the "doesn't function on its next turn" marker is hung under —
+ * W7-B12.
+ *
+ * **A deadline with nothing granted beneath it**, which is the whole of the
+ * rule: SRD Aversion to Fire hangs a mode under a `grants` timer "until the end
+ * of its next turn", and this is the same timer with the mode taken out,
+ * because what the fire costs the troll is not a number but a turn's heal. The
+ * boundary asks whether the timer still stands; the expiry pass takes it away
+ * at the end of that turn exactly as it takes the golem's Disadvantage.
+ */
+export const regenerationStoppedSource = (who: CharacterId): string =>
+  printedLineSource(who, `${REGENERATION} stopped`);
+
 /** One printed sentence that hurts somebody when a turn begins or ends. */
 export interface PrintedBoundaryDamage {
   readonly moment: TurnMoment;
@@ -1545,6 +1607,13 @@ export interface PrintedBoundaryDamage {
     | { readonly kind: 'held' };
   /** SRD Fire Aura's "unless the azer has the Incapacitated condition". */
   readonly unlessIncapacitated: boolean;
+  /**
+   * SRD Fire Elemental's "Creatures … in the Emanation **start burning**" —
+   * W7-B12. The glossary's Burning, lit on every creature the line catches;
+   * the flammable objects the same sentence names are the table's, and the
+   * boundary says so where it lights the creatures.
+   */
+  readonly ignites: boolean;
 }
 
 /**
@@ -1571,6 +1640,7 @@ export const printedBoundaryDamage = (
         damageType: trait.damageType,
         catches: { kind: 'emanation', feet: trait.feet, chosen: trait.chosen },
         unlessIncapacitated: trait.unlessIncapacitated,
+        ignites: trait.ignites === true,
       });
     }
     if (trait.kind === 'damages-creatures-it-is-holding') {
@@ -1580,6 +1650,7 @@ export const printedBoundaryDamage = (
         damageType: trait.damageType,
         catches: { kind: 'held' },
         unlessIncapacitated: false,
+        ignites: false,
       });
     }
   }
@@ -1783,6 +1854,9 @@ function printedBloodiedAdvantage(
   key: string,
 ): readonly StandingEffect[] {
   if (line.trait?.kind !== 'advantage-while-bloodied') return [];
+  // SRD Giant Boar's "Advantage on **melee** attack rolls" — the narrowing the
+  // selector's `reach` carries, and only on the attack roll it names. (W7-B12)
+  const reach = line.trait.reach;
   return line.trait.rolls.map(
     (roll): StandingEffect => ({
       feature: key,
@@ -1792,7 +1866,11 @@ function printedBloodiedAdvantage(
         kind: 'roll-mode',
         modifier: {
           mode: 'advantage',
-          selector: { roll: SUNLIT_ROLL[roll], relation: 'roller' },
+          selector: {
+            roll: SUNLIT_ROLL[roll],
+            relation: 'roller',
+            ...(reach === undefined || roll !== 'attack-roll' ? {} : { reach }),
+          },
         },
       },
       requires: [{ kind: 'while-bloodied' }],

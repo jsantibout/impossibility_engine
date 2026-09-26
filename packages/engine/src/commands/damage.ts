@@ -33,8 +33,10 @@ import {
   hasPrintedTrait,
   printedAbsorption,
   printedLineSource,
+  printedRegeneration,
   printedTypeAversion,
   printedTypeSlow,
+  regenerationStoppedSource,
 } from '../monster.js';
 import { OBJECT_CREATURE_TYPE } from '../objects.js';
 import { endOfNextTurn } from '../time.js';
@@ -344,6 +346,27 @@ export function printedTypeTriggers(
         },
         timer.value,
       );
+    }
+  }
+
+  // SRD Regeneration: "If the troll takes Acid or Fire damage, this trait
+  // doesn't function on the troll's next turn." The same trigger and the same
+  // span as the two sentences above — "takes", so a type the defences turned
+  // wholly aside stops nothing — with nothing granted under the deadline: the
+  // timer standing is the marker, and the turn's start asks for it. (W7-B12)
+  const regeneration = printedRegeneration(sheet);
+  if (
+    regeneration !== null &&
+    regeneration.suppressedBy.some((type) => (byType[type] ?? 0) > 0)
+  ) {
+    const marker = regenerationStoppedSource(target);
+    const timer = schedule(state, { kind: 'grants', on: target, source: marker }, endOfNextTurn(target));
+    if (!timer.ok) {
+      unverified.push(
+        `${target} took ${regeneration.suppressedBy.join(' or ')} damage and its block stops its Regeneration on its next turn; there is no turn order for that moment to be pinned in, so nothing was hung`,
+      );
+    } else {
+      events.push(timer.value);
     }
   }
 
