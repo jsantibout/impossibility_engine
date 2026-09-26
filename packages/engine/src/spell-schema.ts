@@ -25,6 +25,7 @@ import {
   modifierRidersOf,
   persists as castingPersists,
   optionEffectLists,
+  readsAStatedStorm,
   statedChoiceCollides,
   statedChoiceReaches,
 } from './spell-definitions.js';
@@ -422,6 +423,10 @@ function checkScaling(
   for (const [key, notation] of [
     ['dice', scaling.dice],
     ['perSlotLevelAbove', scaling.perSlotLevelAbove],
+    // The dice a stated fact about the world buys — SRD Call Lightning's storm
+    // — read for its count exactly as the per-slot notation is, and so held to
+    // the same parse for the same reason.
+    ['plusInAStorm', scaling.plusInAStorm],
   ] as const) {
     if (notation === undefined) continue;
     if (typeof notation !== 'string' || !parseNotation(notation).ok) {
@@ -451,7 +456,7 @@ function checkScaling(
     // in, so the upcast would silently come to nothing. `flatPerSlotLevelAbove`
     // is deliberately not here — `scaledFlatFor` never reads a notation, so a
     // printed number that grows flatly with the slot is perfectly sayable.
-    for (const key of ['perSlotLevelAbove', 'cantripUpgradesAt'] as const) {
+    for (const key of ['perSlotLevelAbove', 'cantripUpgradesAt', 'plusInAStorm'] as const) {
       if (scaling[key] !== undefined) {
         found.push({
           field: `${path}.${key}`,
@@ -6372,6 +6377,37 @@ export function checkSpellDefinition(
     );
   }
 
+  // — the one question a spell asks about the world ————————————————————————
+  //
+  // SRD Call Lightning's storm, held to the two halves the book prints: the
+  // question, and what the answer buys. Either alone is silent — a caster
+  // asked a question nothing reads, or dice conditioned on a question nobody
+  // is asked — which is the reachability rule `stated_choice_reaches_nothing`
+  // already states about the other stated fact.
+  if (definition.stormStated !== undefined && definition.stormStated !== true) {
+    found.push({
+      field: 'stormStated',
+      code: 'malformed_field',
+      reason: 'a spell asks whether its caster is outdoors in a storm or it does not; the only value is true',
+    });
+  }
+  if (definition.stormStated === true && !readsAStatedStorm(definition)) {
+    found.push({
+      field: 'stormStated',
+      code: 'stated_storm_reaches_nothing',
+      reason:
+        'nothing this spell rolls reads the weather, so the caster would be asked a question whose answer goes nowhere',
+    });
+  }
+  if (definition.stormStated !== true && readsAStatedStorm(definition)) {
+    found.push({
+      field: 'stormStated',
+      code: 'storm_dice_without_the_clause',
+      reason:
+        'dice conditioned on a storm need the spell to print the clause the caster answers, and this one asks nothing',
+    });
+  }
+
   // — the one thing the spell asks its caster to choose ————————————————————
   //
   // `damageTypeStated`'s rules over a wider vocabulary, and one rule of its
@@ -6982,7 +7018,7 @@ export function checkSpellDefinition(
       activation.redirects !== true &&
       activation.reoptions !== true &&
       activation.area === undefined &&
-      activation.redrawsArea !== true
+      activation.redrawsArea === undefined
     ) {
       found.push({
         field: 'activation.range',
@@ -7051,7 +7087,7 @@ export function checkSpellDefinition(
           });
         }
       }
-      if (activation.redrawsArea === true) {
+      if (activation.redrawsArea !== undefined) {
         found.push({
           field: 'activation.area',
           code: 'activation_area_and_redraw',
@@ -7085,11 +7121,12 @@ export function checkSpellDefinition(
      * its own and needs the spell to have a template with a point to move.
      */
     if (activation.redrawsArea !== undefined) {
-      if (activation.redrawsArea !== true) {
+      if (typeof activation.redrawsArea !== 'number' || activation.redrawsArea <= 0) {
         found.push({
           field: 'activation.redrawsArea',
-          code: 'malformed_field',
-          reason: 'a later action draws the casting’s template again or it does not; the only value is true',
+          code: 'bad_movement_allowance',
+          reason:
+            'how far from the point the casting keeps the fresh template may be centred is a distance in feet, and an allowance of nothing is an action spent on the same square for ever',
         });
       } else {
         if (definition.area === undefined) {
@@ -7155,7 +7192,7 @@ export function checkSpellDefinition(
       activation.redirects !== true &&
       activation.reAims !== true &&
       activation.reoptions !== true &&
-      activation.redrawsArea !== true
+      activation.redrawsArea === undefined
     ) {
       found.push({
         field: 'activation.effects',

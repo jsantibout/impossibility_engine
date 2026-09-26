@@ -650,6 +650,16 @@ export interface CastingPlan {
    */
   readonly fought?: readonly CharacterId[];
   /**
+   * Whether the caster was outdoors in a storm — SRD Call Lightning.
+   *
+   * Beside the fought list and carried for the same reason: settlement takes no
+   * fresh request, so a Call Lightning declared in a storm must not settle out
+   * of one. Elided when false, which is where it follows `willing` rather than
+   * {@link CastingPlan.fought}: the spell's own first sentence makes a cloud and
+   * silence is the book's answer.
+   */
+  readonly inAStorm?: true;
+  /**
    * Where the orb leaps, in the caster's order — SRD Chromatic Orb. Carried in
    * the order stated, because the order is the choice; see
    * `CastSpellRequest.leapTo`.
@@ -1138,6 +1148,8 @@ function castSpellWith(
           ? {}
           : { endsAfterTrigger: command.hold.endsAfterTrigger }),
         ...(command.hold.fought === undefined ? {} : { fought: command.hold.fought }),
+        // And the weather, carried the same way — SRD Call Lightning's storm.
+        ...(command.hold.inAStorm === undefined ? {} : { inAStorm: command.hold.inAStorm }),
         ...(command.hold.leapTo === undefined ? {} : { leapTo: command.hold.leapTo }),
         ...(command.hold.willing === undefined ? {} : { willing: command.hold.willing }),
         ...(command.hold.unaffected === undefined ? {} : { unaffected: command.hold.unaffected }),

@@ -2260,16 +2260,17 @@ describe('the fought fact is a second build that corrected the query', () => {
    */
   it('keeps the shape for the facts the build did not reach', () => {
     const fact = consumersOf('a-fact-only-the-table-can-declare');
-    // Call Lightning was the second undefined consumer and is tracked now, so
-    // its reading — the extra 1d10 for being outdoors in a storm — moved into
-    // the tracked map against the sentence it was read from. Enthrall followed
-    // the same way once a tracked entry could carry the half of it no
-    // mechanical marker sees, and has since left the map altogether: the
-    // fought fact it read is `autoSucceedIf.fought` now. The undefined
-    // population is empty of this shape and the claims are live elsewhere.
+    // Call Lightning was the second undefined consumer, became tracked, and has
+    // now left the map altogether: `SpellDefinition.stormStated` prints the
+    // question, `cast_spell.inAStorm` is the caster's answer and
+    // `DiceScaling.plusInAStorm` is the die it buys — a claimant leaving by
+    // being given a field to declare into, which is the third time this shape
+    // has worked that way. Enthrall left the same way, its fought fact read by
+    // `autoSucceedIf.fought`. The undefined population is empty of this shape
+    // and the claims are live elsewhere.
     expect(fact.undefined).toEqual([]);
     expect(fact.executed).toEqual(['hunters-mark', 'sleep']);
-    expect(fact.tracked).toEqual(['call-lightning', 'scrying']);
+    expect(fact.tracked).toEqual(['scrying']);
   });
 });
 

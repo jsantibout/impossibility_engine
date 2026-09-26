@@ -485,6 +485,7 @@ export function resolveDeclaredCast(
       // fresh request there is none of. A held Charm Person settles with the
       // Advantage its caster said it had.
       ...(pending.fought === undefined ? {} : { fought: pending.fought }),
+      ...(pending.inAStorm === undefined ? {} : { inAStorm: pending.inAStorm }),
       // And where the orb leaps, read back off the record for the same reason.
       ...(pending.leapTo === undefined ? {} : { leapTo: pending.leapTo }),
       // And the ninth, read back the same way: a Levitate declared over a
@@ -1142,6 +1143,13 @@ export function castOrRelease(
       if (
         (definition.areaTrigger !== undefined ||
           definition.triggered !== undefined ||
+          // **A sixth clause wants the point**, and it is the one that wants it
+          // as a *bound* rather than as a place: SRD Call Lightning's later
+          // Magic action draws the template again "at a point you can see under
+          // the cloud", and the cloud is measured from where the first bolt
+          // fell. Without this the record kept no point at all and the
+          // allowance had nothing to be measured from.
+          definition.activation?.redrawsArea !== undefined ||
           definition.areaStanding !== undefined ||
           Object.values(definition.options ?? {}).some(
             (branch) => branch.areaStanding !== undefined,
@@ -2426,6 +2434,7 @@ function resolveOnTargets(
         effects: running,
         ...(origin === null ? {} : { from: origin }),
         ...(fought === undefined ? {} : { fought }),
+        ...(stated.inAStorm === undefined ? {} : { inAStorm: stated.inAStorm }),
         ...(request.leapTo === undefined ? {} : { leapTo: request.leapTo }),
         ...(willing === undefined ? {} : { willing }),
         ...(request.teleportTo === undefined ? {} : { teleportTo: request.teleportTo }),
@@ -2866,6 +2875,7 @@ function resolveOnTargets(
       ...(answeredChoice === undefined ? {} : { choice: answeredChoice }),
       ...(origin === null ? {} : { from: origin }),
       ...(fought === undefined ? {} : { fought }),
+      ...(stated.inAStorm === undefined ? {} : { inAStorm: stated.inAStorm }),
       ...(request.leapTo === undefined ? {} : { leapTo: request.leapTo }),
       ...(willing === undefined ? {} : { willing }),
       ...(request.teleportTo === undefined ? {} : { teleportTo: request.teleportTo }),
@@ -3250,6 +3260,16 @@ export function resolveEffects(
      * cancels rather than stacks.
      */
     readonly fought?: readonly CharacterId[];
+    /**
+     * Whether the caster was outdoors in a storm when this casting was made.
+     *
+     * SRD Call Lightning's "the spell's damage increases by 1d10", and the
+     * casting's own answer is the whole of what decides it: the request's at the
+     * cast, the declaration's for one held open, and the **record's** for a bolt
+     * called down nine minutes later. Read by `scaledDiceFor` through
+     * `DiceScaling.plusInAStorm`, and by nothing else.
+     */
+    readonly inAStorm?: true;
     /** Where the orb leaps, in the caster's order — see `CastSpellRequest.leapTo`. */
     readonly leapTo?: readonly CharacterId[];
     /**
@@ -3389,6 +3409,7 @@ export function resolveEffects(
     ...(context.label === undefined ? {} : { label: context.label }),
     ...(context.from === undefined ? {} : { from: context.from }),
     ...(context.fought === undefined ? {} : { fought: context.fought }),
+    ...(context.inAStorm === undefined ? {} : { inAStorm: context.inAStorm }),
     ...(context.leapTo === undefined ? {} : { leapTo: context.leapTo }),
     ...(context.willing === undefined ? {} : { willing: context.willing }),
     ...(context.altitude === undefined ? {} : { altitude: context.altitude }),
@@ -3483,6 +3504,12 @@ export function resolveEffects(
         // the opposite polarity, pinned beside it. See `OngoingSpell.chosen`.
         ...(becomes.chosen === undefined ? {} : { chosen: becomes.chosen }),
         ...(becomes.damageType === undefined ? {} : { damageType: becomes.damageType }),
+        // **And the weather, which is the first fact pinned here that is about
+        // the world rather than about a creature.** SRD Call Lightning's storm
+        // was true when the cloud rose and the bolts it calls down nine minutes
+        // later read it off this record rather than asking again — the same
+        // reason every other stated fact is here.
+        ...(becomes.inAStorm === undefined ? {} : { inAStorm: becomes.inAStorm }),
         // The casting this one turns aside, pinned at the cast — see
         // `OngoingSpell.negates`.
         ...(becomes.negates === undefined ? {} : { negates: becomes.negates }),
@@ -3609,6 +3636,8 @@ export interface EffectRun {
   readonly label?: string;
   readonly from?: Point;
   readonly fought?: readonly CharacterId[];
+  /** Whether the caster was outdoors in a storm — see `CastSpellRequest.inAStorm`. */
+  readonly inAStorm?: true;
   readonly leapTo?: readonly CharacterId[];
   readonly willing?: readonly CharacterId[];
   readonly altitude?: number;
@@ -3902,6 +3931,7 @@ export function runEffects(
     alters: run.alters ?? NO_ALTERATIONS(),
     ...(run.from === undefined ? {} : { from: run.from }),
     ...(run.fought === undefined ? {} : { fought: run.fought }),
+    ...(run.inAStorm === undefined ? {} : { inAStorm: run.inAStorm }),
     ...(run.leapTo === undefined ? {} : { leapTo: run.leapTo }),
     ...(run.willing === undefined ? {} : { willing: run.willing }),
     ...(run.altitude === undefined ? {} : { altitude: run.altitude }),
@@ -4053,6 +4083,8 @@ interface OngoingRecordPlan {
   readonly types?: readonly string[];
   /** The spaces a wall runs through, for the one template that is drawn — see `OngoingSpell.path`. */
   readonly path?: readonly Point[];
+  /** Whether the caster said they were outdoors in a storm — see `OngoingSpell.inAStorm`. */
+  readonly inAStorm?: true;
 }
 
 /**
@@ -4089,6 +4121,7 @@ function statedFacts(
     readonly unaffected?: readonly CharacterId[];
     readonly chosen?: readonly CharacterId[];
     readonly types?: readonly string[];
+    readonly inAStorm?: true;
   },
   /**
    * Whose casting this is, for the one fact that names them without being
@@ -4111,6 +4144,7 @@ function statedFacts(
   readonly unaffected?: readonly CharacterId[];
   readonly chosen?: readonly CharacterId[];
   readonly types?: readonly string[];
+  readonly inAStorm?: true;
 } {
   return {
     ...(stated.unaffected === undefined || stated.unaffected.length === 0
@@ -4129,6 +4163,12 @@ function statedFacts(
       return chosen === undefined ? {} : { chosen };
     })(),
     ...(stated.damageType === undefined ? {} : { damageType: stated.damageType }),
+    // The weather the caster stated, carried as given and idempotent for the
+    // reason everything here is: `true` or absent, and `declaredFacts` has
+    // already refused it on a spell that prints no such clause. SRD Call
+    // Lightning's storm is a fact about the world at the moment the cloud rose,
+    // so it is pinned rather than asked again nine minutes later.
+    ...(stated.inAStorm === true ? { inAStorm: true as const } : {}),
   };
 }
 

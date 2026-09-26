@@ -525,6 +525,26 @@ export interface CastSpellRequest extends CommandIdentity {
    */
   readonly fought?: readonly CharacterId[];
   /**
+   * Whether the caster is outdoors in a storm, for the one spell that asks.
+   *
+   * SRD Call Lightning: "If you're outdoors in a storm when you cast this
+   * spell, the spell gives you control over that storm instead of creating a
+   * new one. Under such conditions, the spell's damage increases by 1d10."
+   *
+   * The twelfth fact a casting states rather than derives, and it is the first
+   * that is about **the world** rather than about a creature: the engine holds
+   * no weather and nothing to infer one from, so the layer that reads the
+   * fiction says. Refused on a spell that prints no such clause
+   * (`storm_states_nothing`), pinned on the record, and read by the dice ten
+   * minutes later.
+   *
+   * **Not required**, which is where it follows {@link willing} rather than
+   * {@link fought}: absence is "no storm", the book's own default, because the
+   * spell's first sentence makes a cloud of its own and the storm is the
+   * exception to it.
+   */
+  readonly inAStorm?: true;
+  /**
    * Where the orb goes when its dice pair, **in order** — SRD Chromatic Orb's
    * "the orb leaps to a different target of your choice within 30 feet of the
    * target".
@@ -1214,6 +1234,23 @@ export function declaredFacts(
     return err(
       'no_fought_clause',
       `${definition.name} does not change its save for a creature you are fighting; which of them you are fighting is not a fact it asks for`,
+    );
+  }
+
+  // — the weather, which is the first fact here that is about the world ——————
+  //
+  // SRD Call Lightning: "If you're outdoors in a storm when you cast this
+  // spell ... the spell's damage increases by 1d10." The engine holds no sky
+  // and nothing to infer one from, so the layer that reads the fiction says.
+  //
+  // **Refused where the spell prints no such clause and never required where
+  // it does**, which is `willing`'s shape rather than `fought`'s: the spell's
+  // own first sentence makes a cloud, and the storm is the exception to it, so
+  // silence is the book's own answer rather than a fact nobody supplied.
+  if (request.inAStorm !== undefined && definition.stormStated !== true) {
+    return err(
+      'storm_states_nothing',
+      `${definition.name} does not change for the weather; whether you are outdoors in a storm is not a fact it asks for`,
     );
   }
 

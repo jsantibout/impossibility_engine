@@ -166,6 +166,26 @@ export interface DiceScaling {
    * {@link scaledFlatFor} never looks at a notation.
    */
   readonly perSlotLevelAbove?: string;
+  /**
+   * Extra dice a **fact about the world the caster stated** buys.
+   *
+   * SRD Call Lightning: "If you're outdoors in a storm when you cast this
+   * spell, the spell gives you control over that storm instead of creating a
+   * new one. Under such conditions, **the spell's damage increases by 1d10**."
+   *
+   * **Read exactly as {@link perSlotLevelAbove} is read** — the count is what
+   * matters and the faces are the base notation's — and applied **once**
+   * rather than per level, because the sentence is a condition rather than a
+   * table. Presupposes {@link dice} for that reason.
+   *
+   * **The fact is the caster's word, and the definition has to print the
+   * question for the word to be legal**: `SpellDefinition.stormStated` is that
+   * printing, `CastSpellRequest.inAStorm` is the answer, and
+   * `checkSpellDefinition` refuses this field on a definition that asks
+   * nothing. The answer is pinned on the ongoing record, so a bolt called down
+   * nine minutes later still knows what the weather was when the cloud rose.
+   */
+  readonly plusInAStorm?: string;
 }
 
 /**
@@ -5261,6 +5281,31 @@ export interface SpellDefinition {
    */
   readonly damageTypeStated?: readonly string[];
   /**
+   * The spell prints a clause conditioned on **the weather where it is cast**,
+   * and the caster is the one who may answer.
+   *
+   * SRD Call Lightning: "If you're outdoors in a storm when you cast this
+   * spell, the spell gives you control over that storm instead of creating a
+   * new one. Under such conditions, the spell's damage increases by 1d10."
+   *
+   * **The one fact of its kind in the book, and it is a fact about the world.**
+   * {@link damageTypeStated} records who may tell the engine what the SRD
+   * decided about the caster; this records who may tell it what the SRD decided
+   * about the sky. The engine holds no weather, no indoors and no outdoors, and
+   * there is nothing to derive one from — so the casting states it, absence is
+   * "no storm" (which is the book's own default: the spell makes a cloud of its
+   * own), and `CastSpellRequest.inAStorm` on a spell that prints no such clause
+   * is refused rather than ignored.
+   *
+   * **What the answer buys is the effect's**, exactly as a stated damage type's
+   * is: `DiceScaling.plusInAStorm` is the dice, and `checkSpellDefinition`
+   * refuses a definition that asks the question and reads the answer nowhere.
+   *
+   * The half of the sentence about controlling the storm rather than making one
+   * is narration — the engine holds neither cloud — and is handed over.
+   */
+  readonly stormStated?: true;
+  /**
    * The one thing this spell asks the caster to choose, and what it prints.
    *
    * SRD writes the sentence four ways over the spells this engine executes,
@@ -6226,12 +6271,18 @@ export interface SpellActivation {
    * the cloud is. A field that meant both would have had to decide whether the
    * pinned area moved, and Call Lightning's cloud does not.
    *
-   * **Where the point may be is the kept origin's business.** The cloud is
-   * `CastingOrigin` with its radius as the reach, so the bolt's point is
-   * checked against it exactly as a target is — see `reachFromOrigin`, which is
-   * the same ruler asked about a place instead of a creature.
+   * **The number is how far from the point the casting keeps the fresh template
+   * may be centred**, in feet — "a point you can see **under the cloud**", where
+   * the cloud is the 60-foot radius the spell's first sentence prints. Measured
+   * from `OngoingSpell.origin`, which for an area spell is where the template
+   * was laid, and refused beyond it (`outside_the_kept_point`) before the action
+   * is charged.
+   *
+   * A number rather than a flag for {@link movesArea}'s reason: the allowance is
+   * the printed one, the engine owns the geometry, and a boolean would have had
+   * nothing honest to check the caller's point against.
    */
-  readonly redrawsArea?: true;
+  readonly redrawsArea?: number;
   /**
    * How far the **caster** reaches, checked afresh each time.
    *
@@ -6847,6 +6898,41 @@ export function statedChoiceReaches(
 ): boolean {
   const after = statedChoice(effects, of, probe);
   return after.some((effect, i) => effect !== effects[i]);
+}
+
+/**
+ * Whether anything a casting of this definition could roll reads the answer to
+ * the one question about the world a spell may ask.
+ *
+ * SRD Call Lightning prints the storm and prints what it buys — "the spell's
+ * damage increases by 1d10" — and `DiceScaling.plusInAStorm` is where the
+ * second half is written. So the two halves are checked against each other:
+ * a definition that asks the caster a question and reads the answer nowhere is
+ * the silent failure every reachability rule in the validator exists to catch,
+ * and dice conditioned on a question the spell never asks would never be rolled.
+ *
+ * **Every list a casting could run**, which is the union `dropsAnObject` takes
+ * of the same definition: the common list, an activation's, an area trigger's,
+ * what a DM's decision fires, and each branch's. A nested scaling is found by
+ * reading the key rather than by naming the effect kinds that carry one, so a
+ * kind that grows a `DiceScaling` is covered the day it is written.
+ */
+export function readsAStatedStorm(definition: SpellDefinition): boolean {
+  const lists: readonly (readonly SpellEffect[])[] = [
+    definition.effects,
+    definition.activation?.effects ?? [],
+    definition.areaTrigger?.effects ?? [],
+    definition.triggered?.effects ?? [],
+    ...optionEffectLists(definition),
+  ];
+  const holds = (value: unknown): boolean => {
+    if (Array.isArray(value)) return value.some(holds);
+    if (value === null || typeof value !== 'object') return false;
+    const record = value as Record<string, unknown>;
+    if (record.plusInAStorm !== undefined) return true;
+    return Object.values(record).some(holds);
+  };
+  return lists.some(holds);
 }
 
 /**
@@ -7986,21 +8072,36 @@ export function scaledDiceFor(
   spellLevel: number,
   casterLevel: number,
   slotLevel: number,
+  /**
+   * Whether the casting answered yes to the one fact about the world a spell
+   * may ask about — see {@link DiceScaling.plusInAStorm}. Absent is no, which
+   * is the book's own default and what every caller before this said.
+   */
+  inAStorm = false,
 ): string | undefined {
   if (scaling.dice === undefined) return undefined;
   const [count, faces] = scaling.dice.split('d');
   const base = Number(count ?? '1');
   const sides = faces ?? '6';
+  // The stated fact adds its dice once, whatever the slot did — SRD Call
+  // Lightning prints the storm and the slot table as two separate sentences,
+  // and a storm at level 5 is 5d10 by both of them.
+  const stormy =
+    inAStorm && scaling.plusInAStorm !== undefined
+      ? Number(scaling.plusInAStorm.split('d')[0] ?? '0')
+      : 0;
 
   if (spellLevel === 0) {
     const upgrades = (scaling.cantripUpgradesAt ?? []).filter((at) => casterLevel >= at).length;
-    return `${base + upgrades}d${sides}`;
+    return `${base + upgrades + stormy}d${sides}`;
   }
 
-  if (scaling.perSlotLevelAbove === undefined) return scaling.dice;
+  if (scaling.perSlotLevelAbove === undefined) {
+    return stormy === 0 ? scaling.dice : `${base + stormy}d${sides}`;
+  }
   const [extraCount] = scaling.perSlotLevelAbove.split('d');
   const above = Math.max(0, slotLevel - spellLevel);
-  return `${base + Number(extraCount ?? '0') * above}d${sides}`;
+  return `${base + Number(extraCount ?? '0') * above + stormy}d${sides}`;
 }
 
 /**

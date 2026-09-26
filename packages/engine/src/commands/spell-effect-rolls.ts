@@ -473,7 +473,7 @@ function resolveOneAttackRoll(
 
     const splashDice = alteredCastingDice(
       alters,
-      scaledDiceFor(effect.damage, definition.level, numbers.casterLevel, castLevel),
+      scaledDiceFor(effect.damage, definition.level, numbers.casterLevel, castLevel, ctx.inAStorm),
     );
     if (!splashDice.ok) return splashDice;
 
@@ -563,7 +563,7 @@ function resolveOneAttackRoll(
   // maximisation maximises whatever dice end up rolling.
   const scaled = alteredCastingDice(
     alters,
-    scaledDiceFor(effect.damage, definition.level, numbers.casterLevel, castLevel),
+    scaledDiceFor(effect.damage, definition.level, numbers.casterLevel, castLevel, ctx.inAStorm),
     attack.value.critical,
   );
   if (!scaled.ok) return scaled;
@@ -866,7 +866,7 @@ export function resolveAutoDamageEffect(
     // feature that behaved differently at two darts than at one.
     const scaled = alteredCastingDice(
       alters,
-      scaledDiceFor(effect.damage, level, numbers.casterLevel, castLevel),
+      scaledDiceFor(effect.damage, level, numbers.casterLevel, castLevel, ctx.inAStorm),
     );
     if (!scaled.ok) return scaled;
 
@@ -1074,7 +1074,7 @@ export function resolveSaveDamageEffect(
   for (const [index, part] of parts.entries()) {
     const dice = alteredCastingDice(
       alters,
-      scaledDiceFor(part.damage, level, numbers.casterLevel, castLevel),
+      scaledDiceFor(part.damage, level, numbers.casterLevel, castLevel, ctx.inAStorm),
     );
     if (!dice.ok) return dice;
     const rolled = rollSpellDice(

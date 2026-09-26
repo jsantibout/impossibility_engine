@@ -2524,20 +2524,15 @@ export const TRACKED_ADJUDICATED: Readonly<Record<string, readonly TrackedAdjudi
       note: 'healCreature refuses a corpse and the refusal costs no slot; and the amount is derived from the target’s own maximum besides, which is the other residue this spell names.',
     },
   ],
-  'call-lightning': [
-    {
-      marker: 'saving-throw',
-      clause: 'Each creature within 5 feet of that point makes a Dexterity saving throw',
-      why: 'an-activation-that-resolves-an-area',
-      note: 'the save is raised by an activation taken on a later turn that lays a five-foot area at a point chosen then; an activation calls a save on a target and never on a fresh template, so the bolt at the casting cannot be written apart from the ones after it.',
-    },
-    {
-      marker: 'dice',
-      clause: 'Under such conditions',
-      why: 'a-fact-only-the-table-can-declare',
-      note: 'the extra 1d10 is conditioned on the caster being outdoors in a storm, which is a fact about the weather that the engine does not hold and cannot derive from anything it does hold.',
-    },
-  ],
+  // **Call Lightning has left the tracked map**, and it took both of its shapes
+  // with it: `SpellActivation.redrawsArea` draws the casting's own 5-foot Sphere
+  // again at a point stated when the Magic action is taken, bounded by the
+  // cloud's own radius, so the bolt at the cast and the bolts after it are one
+  // template and one number written once; and the storm is a stated fact —
+  // `SpellDefinition.stormStated` prints the question, `cast_spell.inAStorm`
+  // answers it, the record pins it and `DiceScaling.plusInAStorm` reads it.
+  // What is left of the spell is the cloud itself, which is narration and is in
+  // the definition's `dmDecides`.
   'conjure-animals': [
     {
       marker: 'roll-mode',

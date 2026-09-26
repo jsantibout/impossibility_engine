@@ -694,6 +694,26 @@ export interface OngoingSpell {
    */
   readonly endsAfterTrigger?: true;
   /**
+   * The caster said at the casting that they were outdoors in a storm — SRD
+   * Call Lightning.
+   *
+   * > "If you're outdoors in a storm when you cast this spell, the spell gives
+   * > you control over that storm instead of creating a new one. Under such
+   * > conditions, the spell's damage increases by 1d10."
+   *
+   * **The first fact pinned on this record that is about the world rather than
+   * about a creature.** The engine holds no weather and nothing to infer one
+   * from, so the caster's word is the whole of the answer — and the word was
+   * spoken when the cloud rose, which is why it is written down here instead of
+   * being asked again: a bolt called down nine minutes later falls in the storm
+   * the spell took hold of, whatever the sky has done since.
+   *
+   * `DiceScaling.plusInAStorm` is the one reader, through `scaledDiceFor`.
+   * Absent on every other casting in the book, which is every casting that was
+   * never asked.
+   */
+  readonly inAStorm?: true;
+  /**
    * Somebody other than the caster may end this casting, and pays for it —
    * SRD Gaseous Form's "if it takes a Magic action to end the spell on
    * itself".

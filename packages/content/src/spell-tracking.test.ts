@@ -1452,7 +1452,9 @@ const ADDED_THIRD: readonly string[] = [
   'arcane-hand',
   'astral-projection',
   'bestow-curse',
-  'call-lightning',
+  // **Call Lightning has left**: the bolt it calls down at the cast and the
+  // ones it calls down afterwards are one template drawn again, and the storm
+  // is a stated fact, so nothing of it waits.
   'confusion',
   'conjure-animals',
   'conjure-celestial',

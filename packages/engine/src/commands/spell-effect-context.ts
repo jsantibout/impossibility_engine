@@ -225,6 +225,15 @@ export interface EffectContext {
    */
   readonly fought?: readonly CharacterId[];
   /**
+   * Whether the caster was outdoors in a storm when this casting was made.
+   *
+   * SRD Call Lightning is the one spell that asks, and `DiceScaling.plusInAStorm`
+   * is the one reader: the extra die it prints is added wherever this casting
+   * rolls its damage. Absent for every other casting, which is the book's own
+   * default — the spell makes a cloud of its own and the storm is the exception.
+   */
+  readonly inAStorm?: true;
+  /**
    * Where the orb leaps, in the caster's order — SRD Chromatic Orb's "a
    * different target of your choice". Read by the attack resolver when the
    * spell's own dice pair; absent for every other casting, and for a leaping

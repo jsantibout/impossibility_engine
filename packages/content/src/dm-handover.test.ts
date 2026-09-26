@@ -409,6 +409,13 @@ describe('the catalogue hands over exactly the text it means to', () => {
       'animal-messenger',
       'arcane-lock',
       'augury',
+      // **The cloud, which is the whole of what is left of a spell whose bolts
+      // the engine now throws.** SRD Call Lightning's template, its numbers and
+      // its later Magic action are executed, and the storm cloud itself — where
+      // it appears, the Cylinder it takes the shape of, and the difference
+      // between making one and taking hold of one already there — is narration
+      // the engine holds nothing of. Handed over in the book's own words.
+      'call-lightning',
       'clairvoyance',
       'commune',
       'commune-with-nature',

@@ -210,6 +210,15 @@ export const VERIFIED_SPELLS: readonly string[] = [
   // silenced and back when the Concentration is let go, the second's sentence
   // handed over, a saved creature granted nothing, the map pinned on the
   // record, and the six refusals a per-creature choice is held to.
+  // `call-lightning.test.ts` (engine): the bolt at the cast asking the goblin
+  // standing on the point for a Dexterity save and dealing 3d10 Lightning, the
+  // cloud kept as the point the next bolt is measured from, a second bolt called
+  // down thirty feet on with its own save, a point ninety feet off refused and a
+  // later action naming no point refused, and a storm stated at the cast adding
+  // a fourth die to the first bolt and to the second — with the storm refused on
+  // a spell that prints no such clause and a point refused on one that draws no
+  // template.
+  'call-lightning',
   'calm-emotions',
   'charm-monster',
   'charm-person',

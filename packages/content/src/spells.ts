@@ -14009,13 +14009,42 @@ export const CALL_LIGHTNING: SpellDefinition = {
   concentration: true,
   range: { kind: 'ranged', feet: 120 },
   targets: { count: 0 },
-  effects: [],
+  // "Each creature within 5 feet of that point": the bolt's own template. One
+  // template and one number, placed at the cast and drawn again by every later
+  // Magic action — see the activation below.
+  area: { kind: 'sphere', radius: 5, origin: 'point' },
+  // "If you're outdoors in a storm when you cast this spell ... the spell's
+  // damage increases by 1d10." The caster's word, because the engine holds no
+  // weather; pinned on the record, so the bolts after the first know it too.
+  stormStated: true,
+  effects: [
+    {
+      kind: 'save-damage',
+      ability: 'dex',
+      // "taking 3d10 Lightning damage on a failed save or half as much damage
+      // on a successful one"; "increases by 1d10 for each spell slot level
+      // above 3"; and the storm's own die beside them.
+      damage: { dice: '3d10', perSlotLevelAbove: '1d10', plusInAStorm: '1d10' },
+      damageType: 'lightning',
+      onSuccess: 'half',
+    },
+  ],
+  // "Until the spell ends, you can take a Magic action to call down lightning
+  // in that way again, targeting the same point or a different one."
+  activation: {
+    action: 'action',
+    label: 'Call Lightning (another bolt)',
+    // "targeting the same point or a different one", where a point is one the
+    // caster "can see under the cloud" — the 60-foot radius the cloud prints,
+    // measured from the point this casting laid its first bolt at.
+    redrawsArea: 60,
+    effects: [],
+  },
   durationSeconds: 600,
-  unmodelled: [
-    'no lightning falls: the spell is a Magic action taken on later turns that resolves a five-foot area at a point chosen then, and an activation calls a saving throw on a target rather than laying down a fresh template',
-    'so the Dexterity save and the 3d10 Lightning, half on a success, are not resolved at the casting either — the first bolt is the same activation taken immediately, and writing only that one would be a different spell',
-    'the extra 1d10 for being outdoors in a storm is not applied: whether the weather is doing that is a fact the engine does not hold and cannot derive',
-    'the ten-minute cloud, its 60-foot radius and the 10 feet of its height are the DM’s',
+  dmDecides: [
+    'A storm cloud appears at a point within range that you can see above yourself.',
+    'It takes the shape of a Cylinder that is 10 feet tall with a 60-foot radius.',
+    "If you're outdoors in a storm when you cast this spell, the spell gives you control over that storm instead of creating a new one.",
   ],
 };
 

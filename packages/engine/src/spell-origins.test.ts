@@ -1190,7 +1190,7 @@ describe('a definition says where its reach is measured from, once', () => {
         d.activation.reoptions !== true &&
         // And an action that draws a template catches whoever it covers.
         d.activation.area === undefined &&
-        d.activation.redrawsArea !== true &&
+        d.activation.redrawsArea === undefined &&
         d.origin === undefined &&
         d.activation.range === undefined,
     );

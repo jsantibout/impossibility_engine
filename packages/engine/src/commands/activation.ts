@@ -304,7 +304,8 @@ export function activateSpell(
     // target is a caller asking a Cone to be aimed at somebody: the geometry
     // decides, exactly as it decides a casting's own area — see
     // {@link SpellActivation.area}.
-    const drawn = activation.area ?? (activation.redrawsArea === true ? definition.area : undefined);
+    const drawn =
+      activation.area ?? (activation.redrawsArea === undefined ? undefined : definition.area);
     if (
       activation.movesArea !== undefined ||
       activation.redirects === true ||
@@ -441,20 +442,17 @@ export function activateSpell(
         `${record.spell}'s later action falls on a point of its caster's choosing, and nobody said where`,
       );
     } else {
-      const reach = definition.origin?.reach;
-      if (reach !== undefined && record.origin !== undefined) {
-        if (state.scene === null) {
-          unverified.push(
-            `no scene is set, so ${record.spell} could not check that the point it was called down on is within ${reach} feet of the point it keeps`,
+      // "a point you can see **under the cloud**": measured from the point the
+      // casting keeps — where the template was laid — and refused beyond the
+      // printed allowance before the action is charged.
+      const allowance = activation.redrawsArea;
+      if (allowance !== undefined && record.origin !== undefined) {
+        const away = distanceBetweenPoints(record.origin, snapToSpace(command.at));
+        if (away > allowance) {
+          return err(
+            'outside_the_kept_point',
+            `${record.spell} reaches ${allowance} feet from the point it holds, and the point named is ${away} away`,
           );
-        } else {
-          const away = distanceBetweenPoints(record.origin, snapToSpace(command.at));
-          if (away > reach) {
-            return err(
-              'outside_the_kept_point',
-              `${record.spell} keeps a point that reaches ${reach} feet, and the point named is ${away} away`,
-            );
-          }
         }
       }
     }
@@ -789,7 +787,7 @@ export function activateSpell(
       // before this line.
       effects: statedChoice(
         statedDamageType(
-          activation.reAims === true || activation.redrawsArea === true
+          activation.reAims === true || activation.redrawsArea !== undefined
             ? definition.effects
             : activation.effects,
           record.damageType,
@@ -803,6 +801,11 @@ export function activateSpell(
       // thing it was cast on, and an activation that asked again could heat
       // one object on this turn and another on the next.
       ...(record.object === undefined ? {} : { object: record.object }),
+      // **The weather the cloud rose in**, off the record rather than out of a
+      // fresh request: SRD Call Lightning's storm was a fact about the world at
+      // the cast, and a bolt called down nine minutes later falls in the storm
+      // the spell took hold of.
+      ...(record.inAStorm === undefined ? {} : { inAStorm: record.inAStorm }),
       // The one fact a later action states rather than reads off the record:
       // how far, and which way — see {@link ActivateSpellCommand.altitude}.
       ...(command.altitude === undefined ? {} : { altitude: command.altitude }),
