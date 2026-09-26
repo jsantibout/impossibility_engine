@@ -1447,6 +1447,18 @@ export function takePrintedTeleport(
       // rather than reused so that nothing here depends on that being true.
       const moved = teleportTo(events.reduce(applyEvent, state), id, relocation, stamp);
       if (!moved.ok) return moved;
+      // SRD Magic Circle: a creature of the chosen type that "tries to use
+      // teleportation … to do so … must first succeed on a Charisma saving
+      // throw." `teleportTo` hands the demand back, and this door — like
+      // `relocateCreature` — holds no dice to roll it with, so the crossing is
+      // refused before the Bonus Action is spent rather than performed with
+      // the save skipped. A spell's `teleport` effect is the road that rolls.
+      if (moved.value.saveToCross !== undefined) {
+        return err(
+          'barred',
+          `${id} is barred from crossing ${moved.value.saveToCross.spell} by anything but a teleport that first succeeds on a saving throw, and ${line.name} rolls none here`,
+        );
+      }
 
       return ok({
         events: [...events, ...moved.value.events],

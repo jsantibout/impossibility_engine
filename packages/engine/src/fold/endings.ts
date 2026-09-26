@@ -355,9 +355,11 @@ const endingKey = (castingId: string, subject: CharacterId): string =>
  * on a creature that has just cast a spell, and no caller has to remember a
  * sentence printed on somebody else's spell.
  *
- * **Cheap first.** Four event types can say anything at all here, and every
- * other event returns before `ongoing` is touched. That is the discipline
- * `anyCreature` established for the three passes that sort the whole cast.
+ * **Cheap first.** Five event types can say anything at all here — the four
+ * consequence events and `creature-moved`, for the one cause about a place —
+ * and every other event returns before `ongoing` is touched. That is the
+ * discipline `anyCreature` established for the three passes that sort the
+ * whole cast.
  *
  * **And it terminates *structurally*, which is the whole reason `settled`
  * exists.** A release changes the state the next pass reads, so the loop has
@@ -429,8 +431,10 @@ export function endTriggeredCastings(state: GameState, event: GameEvent): GameSt
  * it touches the condition, so nothing a release does can hand the loop back
  * a timer it has already settled.
  *
- * **Cheap first.** Four event types can say anything at all, and every other
- * one returns before `timers` is touched.
+ * **Cheap first.** Four event types can say anything at all *to a timer*, and
+ * every other one returns before `timers` is touched — including a
+ * `creature-moved`, whose one fact names no `who` and so is dropped here
+ * before the walk rather than discarded once per timer inside it.
  */
 /**
  * A printed condition ended by a blow or by a neighbour shaking the creature.
@@ -502,7 +506,10 @@ export function endEarlyEndedConditions(state: GameState, event: GameEvent): Gam
 }
 
 export function endTriggeredEffects(state: GameState, event: GameEvent): GameState {
-  const facts = endingFactsOf(state, event);
+  // Only the who-shaped causes can reach a timer — see the docstring — so the
+  // rest are dropped before the walk, and an event that says nothing a timer
+  // can hear costs nothing.
+  const facts = endingFactsOf(state, event).filter((fact) => 'who' in fact);
   if (facts.length === 0) return state;
 
   let current = state;

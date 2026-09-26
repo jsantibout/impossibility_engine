@@ -9,6 +9,7 @@ import { declaredCasting } from './spellcasting.js';
 import { checkSpellDefinitionValue } from './spell-schema.js';
 import { remaining } from './resources.js';
 import {
+  addCreature,
   applyConditionTo,
   relocateCreature,
   resolveAttack,
@@ -16,6 +17,7 @@ import {
   resolveMove,
   resolveSpell,
   resolveTurn,
+  takePrintedTeleport,
 } from './commands.js';
 
 /**
@@ -382,5 +384,72 @@ describe('SRD Magic Circle: "cause its magic to operate in the reverse direction
   it('cast outward, lets the Fiend in: the reverse bars leaving, not entering', () => {
     const game = new Game().draw('outward');
     expect(game.move(FIEND, 'inside east').ok).toBe(true);
+  });
+
+  /**
+   * "protecting targets outside it": the two clauses the reverse turns round
+   * reach the cleric standing **outside** the Cylinder — see `AreaSide` — and
+   * the Humanoid's swing and Frightened are untouched by either.
+   */
+  it('cast outward, protects the cleric outside from the Fiend held inside', () => {
+    const game = new Game('inside east').draw('outward');
+    // The cleric is put outside her own circle — ten feet beyond the bandit,
+    // so his shot is not one SRD gives Disadvantage for an enemy at his elbow,
+    // and well clear of the Cylinder — by the authoritative position change a
+    // walk and a teleport both write, so no Opportunity Attack from the Fiend
+    // holds the step open. It cannot follow.
+    game.push([
+      {
+        type: 'creature-moved',
+        id: CLERIC,
+        placement: { from: { creature: BANDIT }, feet: 10, bearing: 270 },
+      },
+    ]);
+    expect(game.state.scene?.positions[CLERIC]).toEqual({ x: 175, y: 200, z: 0 });
+    expect(game.frighten(FIEND)).toBe('immune');
+    expect(game.frighten(BANDIT)).toBeNull();
+    game.fight();
+    expect(game.shoot(FIEND)).toBe('disadvantage');
+    expect(game.shoot(BANDIT)).toBe('normal');
+  });
+});
+
+describe('SRD Magic Circle: a printed Teleport is a teleport too', () => {
+  /**
+   * SRD Blink Dog is Fey, and its Teleport is a Bonus Action a stat block
+   * prints. `takePrintedTeleport` holds no dice, so a crossing the circle
+   * demands a Charisma save for is refused there — as `relocateCreature`
+   * refuses it — rather than performed with the save skipped.
+   */
+  it('refuses a Blink Dog’s printed Teleport into a circle drawn against Fey', () => {
+    const DOG = id('dog');
+    const game = new Game();
+    game.push(unwrap(addCreature(game.state, SRD_CONTENT, DOG, 'blink-dog'), 'the dog').events);
+    game.push([
+      { type: 'creature-placed', id: DOG, placement: { from: { landmark: 'outside east' }, feet: 5, bearing: 90 } },
+    ]);
+    game.draw('inward', ['Fey']);
+    game.push([
+      {
+        type: 'combat-started',
+        combatants: [
+          { id: DOG, initiative: 20, speed: 40 },
+          { id: CLERIC, initiative: 10, speed: 30 },
+        ],
+      },
+    ]);
+    const blink = SRD_CONTENT.monsterById('blink-dog')!.bonusActions[0]!.name;
+    const refused = takePrintedTeleport(game.state, DOG, {
+      line: blink,
+      to: { from: { landmark: 'inside east' }, feet: 0 },
+    });
+    expect(codeOf(refused)).toBe('barred');
+    // And a space outside the circle is still the dog's to blink to.
+    expect(
+      takePrintedTeleport(game.state, DOG, {
+        line: blink,
+        to: { from: { landmark: 'outside west' }, feet: 0 },
+      }).ok,
+    ).toBe(true);
   });
 });
