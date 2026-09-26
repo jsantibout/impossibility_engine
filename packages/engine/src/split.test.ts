@@ -215,8 +215,10 @@ describe('SRD Split: the Reaction, the gate and the two triggers', () => {
     const state = struck(atHitPoints(12), 'slashing', 7);
     const unnamed = takeDamageResponse(state, PUDDING, { feature: SPLIT }, supply());
     expect(isNeedsContext(unnamed)).toBe(true);
+    expect(isErr(unnamed) && unnamed.code).toBe('undeclared_split');
     const unplaced = takeDamageResponse(state, PUDDING, { feature: SPLIT, into: [LEFT, RIGHT] }, supply());
     expect(isNeedsContext(unplaced)).toBe(true);
+    expect(isErr(unplaced) && unplaced.code).toBe('undeclared_split');
   });
 
   it('is offered to the table only while its trigger holds', () => {
