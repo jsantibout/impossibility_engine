@@ -963,6 +963,18 @@ export function settleDeferredRiders(
       if (!landed.ok) return landed;
       events.push(...landed.value.events);
       current = landed.value.events.reduce(applyEvent, current);
+      // **What "then ends its turn" could not reach, said out loud.** A spend
+      // charges the turn's own Action and Bonus Action, and an extra action a
+      // running effect handed this turn — SRD Haste's, granted a moment ago at
+      // this same boundary — is a slot `budget-compelled` does not name, as the
+      // movement is. Both stay in the budget, so the table is told the turn is
+      // over rather than the engine pretending it has nothing left. (W7-S22)
+      const extra = current.combat?.budgets[begun]?.extraActions.length ?? 0;
+      if (debt.riders.spends !== undefined && extra > 0) {
+        unverified.push(
+          `${debt.spell}: ${begun}'s turn ends here, and it still holds ${extra} extra action${extra === 1 ? '' : 's'} and its movement, which the word does not spend; the turn is the table's to end`,
+        );
+      }
     }
     const settled: GameEvent = { type: 'deferred-riders-settled', id: begun, source: debt.source };
     events.push(settled);

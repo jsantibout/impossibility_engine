@@ -2420,9 +2420,10 @@ export function resolveTurn(
 
     // SRD Command: "follow the command **on its next turn**" — what a failed
     // save bought on an earlier turn, landed now: the hands emptied, the
-    // Prone, and "then ends its turn" as the turn's two actions spent. After
-    // the Haste grant, so a turn that ends at its start ends the budget it was
-    // handed; refused `riders_owed` where there is no catalogue to settle it
+    // Prone, and "then ends its turn" as the turn's own Action and Bonus
+    // Action spent. After the Haste grant, so an extra action the turn was
+    // handed is standing when the settlement reports what the word could not
+    // spend; refused `riders_owed` where there is no catalogue to settle it
     // with, so the fight never advances past the word. (W7-S22)
     const obeyed = settleDeferredRiders(after, supply?.content, beginning);
     if (!obeyed.ok) return obeyed;

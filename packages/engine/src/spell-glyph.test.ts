@@ -192,6 +192,39 @@ describe('SRD Glyph of Warding’s spell glyph', () => {
     ).toBe(true);
   });
 
+  /**
+   * SRD Slow's "If it casts a spell with a Somatic component, there is a 25
+   * percent chance the spell fails": the stored spell was cast at the
+   * inscription, so a cleric slowed since then makes no gestures when the rune
+   * lets it go, and no die is thrown at the trigger. (W7-S22)
+   */
+  it('throws no Slow die at the trigger, because the stored spell was cast at the inscription', () => {
+    const { log, castingId } = inscribed();
+    const slowed: GameEvent[] = [
+      ...inCombat(log),
+      {
+        type: 'action-rule-granted',
+        id: CLERIC,
+        rule: {
+          source: 'Slow#cast:90',
+          rule: { kind: 'casting-chance', component: 'somatic', percent: 25 },
+          label: 'Slow',
+          until: 'the spell ends',
+        },
+      },
+    ];
+    for (const seed of ['a', 'b', 'c', 'd', 'e', 'f']) {
+      const fired = must(
+        triggerGlyph(fold('seed', slowed) as GameState, { castingId, by: BANDIT }, supply(seed)),
+        'trigger',
+      );
+      expect(
+        fired.events.filter((event) => event.type === 'roll-recorded' && event.label.includes('under Slow')),
+      ).toEqual([]);
+      expect(fired.events.some((event) => event.type === 'spell-fizzled')).toBe(false);
+    }
+  });
+
   it('paralyses the bandit on a failure for the stored spell’s full minute, with no Concentration to break', () => {
     const { log, castingId } = inscribed();
     const fighting = inCombat(log);

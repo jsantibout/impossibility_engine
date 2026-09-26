@@ -228,7 +228,7 @@ describe('SRD Command: Drop and Grovel land on the target’s next turn', () => 
     expect(state.deferredRiders).toEqual([]);
     // "And then ends its turn": the Action and the Bonus Action are gone, the
     // Reaction is not the turn's, and the feet are the one slot a spend may
-    // not take — untouched, with nothing left a spender could charge.
+    // not take — untouched, and the turn is the table's to end.
     const budget = combat.budgets[GOBLIN]!;
     expect(budget.action).toBe(false);
     expect(budget.bonusAction).toBe(false);
@@ -241,6 +241,35 @@ describe('SRD Command: Drop and Grovel land on the target’s next turn', () => 
     ]);
     const dash = takeDash(state, GOBLIN, {});
     expect(isErr(dash) && dash.code).toBe('no_action');
+  });
+
+  /**
+   * SRD Haste's extra action is a slot `budget-compelled` does not name, so a
+   * hasted goblin told to Drop keeps it — and the settlement says so rather
+   * than the budget quietly looking spent.
+   */
+  it('tells the table what a hasted goblin still holds when the word ends its turn', () => {
+    const hasted: readonly GameEvent[] = [
+      ...commanded('drop', -40),
+      {
+        type: 'action-rule-granted',
+        id: GOBLIN,
+        rule: {
+          source: 'Haste#cast:77',
+          rule: { kind: 'grants', at: 'each-turn', only: ['attack', 'dash', 'disengage', 'hide', 'utilize'] },
+          label: 'Haste',
+          until: 'the spell ends',
+        },
+      },
+    ];
+    const log = advance(hasted);
+    const state = fold('word', log);
+    const out = unwrap(resolveTurn(state, supply(state, 0)), 'into the goblin’s turn');
+    const theirs = fold('word', [...log, ...out.events]);
+    expect(held(theirs)).toEqual([]);
+    expect(theirs.combat!.budgets[GOBLIN]!.action).toBe(false);
+    expect(theirs.combat!.budgets[GOBLIN]!.extraActions).toHaveLength(1);
+    expect(out.unverified.join('\n')).toContain('still holds 1 extra action');
   });
 
   it('Grovel knocks the goblin Prone at its turn and not before', () => {

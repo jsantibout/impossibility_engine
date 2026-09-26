@@ -1697,13 +1697,14 @@ export interface OutcomeRiders {
    * the casting — the save rolled, the verdict in the log — and what it buys
    * is **owed** rather than applied, a `riders-deferred` record on the target
    * that the turn boundary settles as that creature's turn begins. "And then
-   * ends its turn" is the `spends` beside it: the Action and the Bonus Action
-   * go, which is every slot a turn is spent out of by name. The movement is the
-   * one a spend may not take, so a turn that ends at its start is written as a
-   * budget with both actions gone and its feet untouched — nothing is left
-   * that a spender could charge, and the turn is the table's to end. The
-   * Reaction is not the turn's: it is spent off-turn as often as on, and ending
-   * one's turn does not use it.
+   * ends its turn" is the `spends` beside it: the turn's own Action and Bonus
+   * Action go. Two things stay in the budget, because no spend can name them —
+   * the movement, which is spent by the foot, and an extra action a running
+   * effect handed the turn (SRD Haste's) — so a turn that ends at its start is
+   * a budget with both its own actions gone, its feet untouched and any extra
+   * action standing, and the settlement says so in `unverified`: the turn is
+   * the table's to end. The Reaction is not the turn's at all: it is spent
+   * off-turn as often as on, and ending one's turn does not use it.
    *
    * **Only three riders may be owed** — conditions, a drop and a spend, which
    * are what the one writer defers — and `checkSpellDefinition` refuses the

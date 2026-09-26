@@ -109,12 +109,14 @@ export interface SpellEntry {
    * after the Range — SRD Slow's "If it casts a spell with a **Somatic
    * component**, there is a 25 percent chance the spell fails". (W7-S22)
    *
-   * **Absent is the book's commonest line, V and S**, and the polarity is
-   * `SpellDefinition.noVerbalComponent`'s for its reason: a rule that turns on
-   * a component bites a spell nobody described rather than silently sparing
-   * it. Every SRD entry states all three — `@ie/srd` parses them — so absence
-   * is only ever an entry derived from a bare homebrew definition, or a
-   * homebrew entry written before the field. See {@link hasComponent}.
+   * **Absent is read as a Verbal and a Somatic component and no Material
+   * one**, and the polarity is `SpellDefinition.noVerbalComponent`'s for its
+   * reason: the two a rule turns on — SRD Silence's words, SRD Slow's
+   * gestures — bite a spell nobody described rather than silently sparing it,
+   * and no rule reads a Material component, so that half claims nothing. Every
+   * SRD entry states all three — `@ie/srd` parses them — so absence is only
+   * ever an entry derived from a bare homebrew definition, or a homebrew entry
+   * written before the field. See {@link hasComponent}.
    */
   readonly components?: SpellComponentFacts;
 }
@@ -134,8 +136,8 @@ export type SpellComponent = keyof SpellComponentFacts;
  *
  * The one reader, so the rule that asks and the entry that answers cannot
  * disagree about what absence means: a spell nobody described has a Verbal
- * and a Somatic component, which is what 290 of the SRD's 339 print, and no
- * Material one. (W7-S22)
+ * and a Somatic component and no Material one — see `SpellEntry.components`
+ * for why. (W7-S22)
  */
 export function hasComponent(entry: SpellEntry | null, component: SpellComponent): boolean {
   const stated = entry?.components;

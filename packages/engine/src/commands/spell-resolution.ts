@@ -3233,17 +3233,15 @@ function resolveOnTargets(
   // percent — asked here, where the slot and the action are both spent and
   // not a die of the spell's own has been thrown. A declaration spends no slot
   // and is asked at its settlement instead; an item's casting and a Subtle one
-  // have no components to fumble, and a stored spell a glyph lets go was cast
-  // at the inscription. (W7-S22)
+  // have no components to fumble. A release — a readied spell, a stored spell a
+  // glyph lets go — never reaches here: it took the held path above, because
+  // its casting was made, and paid for, earlier. (W7-S22)
   if (!declaring) {
     const fumbled = castingFailure(state, casterId, supply.content.spellEntry(definition.id), {
       castingId,
       name: definition.name,
       supply,
-      exempt:
-        route.kind === 'item' ||
-        altered.resolving.subtle !== undefined ||
-        context.pinnedNumbers !== undefined,
+      exempt: route.kind === 'item' || altered.resolving.subtle !== undefined,
     });
     if (!fumbled.ok) return fumbled;
     events.push(...fumbled.value.events);

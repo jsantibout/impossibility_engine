@@ -177,7 +177,7 @@ describe('the book’s components reach the engine', () => {
     expect(hasComponent(SRD_CONTENT.spellEntry('command'), 'verbal')).toBe(true);
   });
 
-  it('reads a spell nobody described as the book’s commonest line, V and S', () => {
+  it('reads a spell nobody described as having a Verbal and a Somatic component and no Material one', () => {
     expect(hasComponent(null, 'verbal')).toBe(true);
     expect(hasComponent(null, 'somatic')).toBe(true);
     expect(hasComponent(null, 'material')).toBe(false);
@@ -360,6 +360,30 @@ describe('SRD Slow: a Somatic casting may fail', () => {
       );
       expect(fumbleRolls(out.events)).toEqual([]);
       expect(out.events.some((event) => event.type === 'spell-fizzled')).toBe(false);
+
+      // And the same where the casting is held open and settled: the record
+      // carries the wand's numbers, which is how the settlement knows.
+      const declared = unwrap(
+        resolveSpell(
+          state,
+          WIZARD,
+          {
+            spellId: 'fireball',
+            targets: [],
+            at: { x: 200, y: 100, z: 0 },
+            item: 'wand-of-fireballs',
+            hold: true,
+          } as never,
+          supply(state, `held-wand-${n}`),
+        ),
+        'fireball from the wand, held',
+      );
+      const open = fold('slow', [...worn, ...declared.events]);
+      const settled = unwrap(
+        resolveDeclaredCast(open, declared.castingId!, supply(open, `held-wand-${n}`)),
+        'settled',
+      );
+      expect(fumbleRolls(settled.events)).toEqual([]);
     }
   });
 
