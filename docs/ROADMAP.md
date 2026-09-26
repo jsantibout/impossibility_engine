@@ -3226,3 +3226,21 @@ Appended 2026-09-26, wave seven on Opus:
   whether a limit the engine already hands to the table on every use may ride
   as a flagged debt, which would bring the Slippers back. Two Opus reviews,
   three defects and two withdrawals, all fixed.
+- **Every note on a spell in reach, sorted** (W8-S26). The ledger had counted
+  a spell executed while its `unmodelled` clauses sat unread: `ADJUDICATED`
+  named a blocker for two and `'table'` for thirty-one, and fifty-nine had no
+  entry at all. Every clause of every executed spell in level-5 reach is now
+  read on `docs/design/content.md`'s test — fiction to `dmDecides` (a
+  `'table'` entry may anchor a handed-over sentence that trips a marker, the
+  escape the tracked map already had), a debt to its blocker (the closest id
+  where none fits, and the note says so), an expressible clause to the new
+  `Adjudication.why: 'expressible'`. `readExecuted` counts an unsorted clause
+  as waiting on a definition, `unsortedInReach()` is asserted empty, and the
+  session's census and the ledger are held together by a test. **Spells in
+  reach, not executed: 0 → 44** (41 on a shape, 3 on a definition — Produce
+  Flame, Flame Blade and Nondetection, each expressible today). The number
+  rose because the book was read; that is what LEDGER.md's preamble asks of
+  it. Counterspell is a debt after all (17 stat blocks cast with no
+  components and the window opens on them). **Three ids worth minting**: a
+  check a casting offers with no timer, a light rider with its own deadline,
+  a duration the chosen branch sets. Two Opus reviews, eleven defects, fixed.

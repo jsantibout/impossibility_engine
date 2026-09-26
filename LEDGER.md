@@ -42,7 +42,7 @@ for exactly this reason.
 
 | Ledger | Size | Waits on an engine shape | Waits on a definition | Waits on none | Read to the end, handed over whole |
 |---|---|---|---|---|---|
-| Spells in reach, not executed | 0 spells | 0 | 0 | 0 | 33 |
+| Spells in reach, not executed | 44 spells | 41 | 3 | 0 | 33 |
 | Features manual, or a pool with nothing to buy | 0 features | 0 | 0 | 0 | 0 |
 | Items a level 1–5 party can buy | 157 items | 0 | 0 | 157 | 0 |
 | Glossary general rules nothing executes | 23 rules | 0 | 0 | 23 | 0 |
@@ -69,18 +69,174 @@ exactly the silently-missing entry this report’s header refuses.
 
 | Shape | Blocks | Finishes |
 |---|---|---|
+| `light-and-obscurement-the-scene-holds` | 8 | 7 |
+| `a-casting-ended-by-a-trigger` | 8 | 4 |
+| `a-target-rule-the-format-cannot-state` | 6 | 4 |
+| `a-duration-the-slot-changes` | 2 | 2 |
+| `a-second-place-to-put-a-creature` | 2 | 2 |
+| `a-standing-effect-derived-from-where-a-creature-stands` | 2 | 2 |
+| `falling` | 2 | 2 |
+| `a-fact-only-the-table-can-declare` | 3 | 1 |
+| `what-a-creature-is-holding` | 3 | 1 |
+| `an-action-a-spell-compels-or-forbids` | 2 | 1 |
+| `a-creature-fact-an-effect-overrides` | 1 | 1 |
+| `a-random-outcome-that-is-not-a-d20` | 1 | 1 |
+| `a-spell-that-answers-a-later-attack` | 1 | 1 |
+| `a-spells-effects-applied-to-different-targets` | 1 | 1 |
+| `an-area-that-filters-its-catch` | 1 | 1 |
+| `a-barrier-that-blocks-passage` | 1 | 0 |
+| `a-check-another-creature-may-attempt` | 1 | 0 |
+| `a-choice-made-at-the-casting` | 1 | 0 |
+| `a-creature-somebody-else-is-playing` | 1 | 0 |
+| `a-creature-type-predicate-an-area-reads` | 1 | 0 |
+| `a-deadline-anchored-to-a-rest` | 1 | 0 |
+| `a-rest-an-effect-gives-or-denies` | 1 | 0 |
+| `a-wall-or-several-templates-in-one-area` | 1 | 0 |
+| `an-effect-that-fires-when-the-casting-ends` | 1 | 0 |
+| `an-effect-that-suppresses-other-magic` | 1 | 0 |
 
 **Blocks** is every spell of this population the shape touches;
 **finishes** is what it is the *only* blocker for — the column a tranche
 is planned from. A spell can need more than one shape, so neither column
 sums to the population.
 
-#### Waiting on a definition — 0
+#### `light-and-obscurement-the-scene-holds` — blocks 8, finishes 7
+
+- **Dancing Lights** (level 0) — executed-partial
+- **Light** (level 0) — executed-partial
+- **Starry Wisp** (level 0) — executed-partial
+- **Faerie Fire** (level 1) — executed-partial
+- **Continual Flame** (level 2) — executed-partial
+- **Darkness** (level 2) — executed-partial
+- **Gust of Wind** (level 2) — executed-partial — also waits on 1
+- **Daylight** (level 3) — executed-partial
+
+#### `a-casting-ended-by-a-trigger` — blocks 8, finishes 4
+
+- **Fog Cloud** (level 1) — executed-partial
+- **Gust of Wind** (level 2) — executed-partial — also waits on 1
+- **Prayer of Healing** (level 2) — executed-partial — also waits on 2
+- **Suggestion** (level 2) — executed-partial — also waits on 1
+- **Web** (level 2) — executed-partial
+- **Glyph of Warding** (level 3) — executed-partial — also waits on 2
+- **Remove Curse** (level 3) — executed-partial
+- **Stinking Cloud** (level 3) — executed-partial
+
+#### `a-target-rule-the-format-cannot-state` — blocks 6, finishes 4
+
+- **Flaming Sphere** (level 2) — executed-partial
+- **Heat Metal** (level 2) — executed-partial — also waits on 1
+- **Magic Weapon** (level 2) — executed-partial
+- **Suggestion** (level 2) — executed-partial — also waits on 1
+- **Counterspell** (level 3) — executed-partial
+- **Dispel Magic** (level 3) — executed-partial
+
+#### `a-duration-the-slot-changes` — blocks 2, finishes 2
+
+- **Thaumaturgy** (level 0) — executed-partial
+- **Arcanist's Magic Aura** (level 2) — executed-partial
+
+#### `a-second-place-to-put-a-creature` — blocks 2, finishes 2
+
+- **Rope Trick** (level 2) — executed-partial
+- **Magic Circle** (level 3) — executed-partial
+
+#### `a-standing-effect-derived-from-where-a-creature-stands` — blocks 2, finishes 2
+
+- **Moonbeam** (level 2) — executed-partial
+- **Sleet Storm** (level 3) — executed-partial
+
+#### `falling` — blocks 2, finishes 2
+
+- **Feather Fall** (level 1) — executed-partial
+- **Fly** (level 3) — executed-partial
+
+#### `a-fact-only-the-table-can-declare` — blocks 3, finishes 1
+
+- **Animate Dead** (level 3) — executed-partial — also waits on 1
+- **Plant Growth** (level 3) — executed-partial — also waits on 1
+- **Revivify** (level 3) — executed-partial
+
+#### `what-a-creature-is-holding` — blocks 3, finishes 1
+
+- **Find Familiar** (level 1) — executed-partial
+- **Find Steed** (level 2) — executed-partial — also waits on 1
+- **Heat Metal** (level 2) — executed-partial — also waits on 1
+
+#### `an-action-a-spell-compels-or-forbids` — blocks 2, finishes 1
+
+- **Detect Thoughts** (level 2) — executed-partial
+- **Animate Dead** (level 3) — executed-partial — also waits on 1
+
+#### `a-creature-fact-an-effect-overrides` — blocks 1, finishes 1
+
+- **Gaseous Form** (level 3) — executed-partial
+
+#### `a-random-outcome-that-is-not-a-d20` — blocks 1, finishes 1
+
+- **Slow** (level 3) — executed-partial
+
+#### `a-spell-that-answers-a-later-attack` — blocks 1, finishes 1
+
+- **Sanctuary** (level 1) — executed-partial
+
+#### `a-spells-effects-applied-to-different-targets` — blocks 1, finishes 1
+
+- **Enhance Ability** (level 2) — executed-partial
+
+#### `an-area-that-filters-its-catch` — blocks 1, finishes 1
+
+- **Conjure Animals** (level 3) — executed-partial
+
+#### `a-barrier-that-blocks-passage` — blocks 1, finishes 0
+
+- **Wind Wall** (level 3) — executed-partial — also waits on 1
+
+#### `a-check-another-creature-may-attempt` — blocks 1, finishes 0
+
+- **Glyph of Warding** (level 3) — executed-partial — also waits on 2
+
+#### `a-choice-made-at-the-casting` — blocks 1, finishes 0
+
+- **Phantom Steed** (level 3) — executed-partial — also waits on 1
+
+#### `a-creature-somebody-else-is-playing` — blocks 1, finishes 0
+
+- **Find Steed** (level 2) — executed-partial — also waits on 1
+
+#### `a-creature-type-predicate-an-area-reads` — blocks 1, finishes 0
+
+- **Glyph of Warding** (level 3) — executed-partial — also waits on 2
+
+#### `a-deadline-anchored-to-a-rest` — blocks 1, finishes 0
+
+- **Prayer of Healing** (level 2) — executed-partial — also waits on 2
+
+#### `a-rest-an-effect-gives-or-denies` — blocks 1, finishes 0
+
+- **Prayer of Healing** (level 2) — executed-partial — also waits on 2
+
+#### `a-wall-or-several-templates-in-one-area` — blocks 1, finishes 0
+
+- **Plant Growth** (level 3) — executed-partial — also waits on 1
+
+#### `an-effect-that-fires-when-the-casting-ends` — blocks 1, finishes 0
+
+- **Phantom Steed** (level 3) — executed-partial — also waits on 1
+
+#### `an-effect-that-suppresses-other-magic` — blocks 1, finishes 0
+
+- **Wind Wall** (level 3) — executed-partial — also waits on 1
+
+#### Waiting on a definition — 3
 
 Nothing here is blocked. Each is either a paragraph nobody has recorded
 reading, or one the existing kinds already say and nobody has written — and
 both are work, which is why they are no longer printed as finished business.
 
+- **Produce Flame** (level 0) — executed-partial
+- **Flame Blade** (level 2) — executed-partial
+- **Nondetection** (level 3) — executed-partial
 
 #### Read to the end, handed over whole — 33
 
