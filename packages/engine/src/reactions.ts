@@ -368,7 +368,31 @@ export type ReactionEffect =
    * read, and a response half-performed would be a creature doing something
    * nobody printed.
    */
-  | { readonly kind: 'use-printed-line'; readonly line: string };
+  | { readonly kind: 'use-printed-line'; readonly line: string }
+  /**
+   * Take the failure back: the roll stands and the outcome is a success.
+   *
+   * SRD Legendary Resistance: "If the unicorn fails a saving throw, it can
+   * choose to succeed instead."
+   *
+   * **The third answer at `test-rolled`, and the only one that produces no
+   * number.** `intervene` adds or subtracts and `reroll` throws again; this
+   * touches the die not at all — the roll stays in the log exactly as it fell
+   * and `D20TestResult.autoSucceeded` names the rule, which is the field that
+   * already means "why this succeeded regardless of the roll". So there is
+   * nothing to carry: no amount, no dice, no sign.
+   *
+   * **It answers a failed saving throw and nothing else**, which is why it
+   * needs neither a `tests` list nor an `outcome`: the sentence names one
+   * family and one outcome, and a field with one possible value is a field
+   * nothing reads — the reasoning {@link reroll} already records. And it
+   * answers the roller's *own* save, so the feature's reach is `self`.
+   *
+   * **It costs no Reaction**, which is the feature's business rather than this
+   * member's — see {@link ReactionFeature.costsReaction}. The book limits it
+   * with a pool and says nothing about the action economy. (W7-B11)
+   */
+  | { readonly kind: 'succeed-instead' };
 
 /**
  * Who gave a Reaction away, and under what source it will end.
@@ -934,13 +958,25 @@ export function offersForTest(state: GameState, context: TestContext): ReactionO
     const reactor = key as CharacterId;
     for (const feature of [...featuresFor(state, reactor, 'test-rolled')].sort(byFeature)) {
       const does = feature.does;
-      if (does.kind !== 'intervene' && does.kind !== 'reroll') continue;
+      if (
+        does.kind !== 'intervene' &&
+        does.kind !== 'reroll' &&
+        does.kind !== 'succeed-instead'
+      ) {
+        continue;
+      }
 
       // SRD Indomitable and Disciplined Survivor both say "If you fail a
       // saving throw", and neither says anything about an ability check; SRD
-      // Heroic Inspiration says "any die", which a reroll declares.
+      // Heroic Inspiration says "any die", which a reroll declares. SRD
+      // Legendary Resistance says "a saving throw" and carries no list,
+      // because one family is all the sentence names. (W7-B11)
       const tests: readonly D20TestKind[] =
-        does.kind === 'intervene' ? does.tests : (does.tests ?? ['saving-throw']);
+        does.kind === 'intervene'
+          ? does.tests
+          : does.kind === 'reroll'
+            ? (does.tests ?? ['saving-throw'])
+            : ['saving-throw'];
       if (!tests.includes(context.kind)) continue;
 
       const wants = does.kind === 'intervene' ? does.outcome : 'failure';

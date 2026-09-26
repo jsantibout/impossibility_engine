@@ -749,6 +749,26 @@ const MAGIC_RESISTANCE = new RegExp(
 );
 
 /**
+ * SRD Legendary Resistance, printed word for word wherever it appears and on
+ * one block at CR 5 or below: "If the unicorn fails a saving throw, it can
+ * choose to succeed instead."
+ *
+ * **A bare kind for {@link MAGIC_RESISTANCE}'s reason.** Nothing in the
+ * sentence varies: one family of roll, one outcome replaced, and the *how
+ * often* is the heading's `(3/Day)` rather than the sentence's. A block that
+ * printed some other count would carry it in the heading and be read by
+ * `parsePerDay` exactly as this one is.
+ *
+ * Anchored end to end, which is what refuses the rakshasa's "automatically
+ * succeeds on saving throws against spells": that is a different rule about a
+ * narrower set of saves with no count at all, and a sentence read down to the
+ * words the two share would be a monster the book did not print. (W7-B11)
+ */
+const CHOOSES_TO_SUCCEED = new RegExp(
+  `^If ${SUBJECT} fails a saving throw, it can choose to succeed instead\\.$`,
+);
+
+/**
  * SRD Blood Frenzy: "The sahuagin has Advantage on attack rolls against any
  * creature that doesn't have all its Hit Points."
  *
@@ -1454,6 +1474,7 @@ export function parseTraitShape(text: string): MonsterTrait | null {
 
   if (UNDEAD_FORTITUDE.test(text)) return { kind: 'undead-fortitude' };
   if (MAGIC_RESISTANCE.test(text)) return { kind: 'magic-resistance' };
+  if (CHOOSES_TO_SUCCEED.test(text)) return { kind: 'chooses-to-succeed-on-a-failed-save' };
 
   // Asked **after** the bloodied sentence, which is belt and braces rather
   // than a dependency: both are Advantage on attack rolls and each is anchored

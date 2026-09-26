@@ -1115,7 +1115,12 @@ export function takeTestReaction(
       'test-rolled',
       command.from,
     );
-    if (feature === null || (feature.does.kind !== 'intervene' && feature.does.kind !== 'reroll')) {
+    if (
+      feature === null ||
+      (feature.does.kind !== 'intervene' &&
+        feature.does.kind !== 'reroll' &&
+        feature.does.kind !== 'succeed-instead')
+    ) {
       return err('no_such_feature', `${reactor} has no D20 Test Reaction called ${command.feature}`);
     }
 
@@ -1144,6 +1149,32 @@ export function takeTestReaction(
 
     const issuedBefore = supply.issuer.count;
     const does = feature.does;
+
+    // **The failure taken back, with no die thrown.** SRD Legendary
+    // Resistance: "If the unicorn fails a saving throw, it can choose to
+    // succeed instead." The roll stands exactly as it fell — every number on
+    // the result is the one the log already holds — and what changes is the
+    // outcome, with `autoSucceeded` naming the rule. So there is no
+    // `rollD20Recorded` here and no second `roll-recorded` beside it: a
+    // `roll-recorded` says a die was thrown, and none was. What the log gets
+    // is the `test-reaction-answered` every answer at this window writes,
+    // carrying the amended result the fold puts back on the hold. (W7-B11)
+    if (does.kind === 'succeed-instead') {
+      const turned: D20TestResult = {
+        ...pending.result,
+        success: true,
+        autoSucceeded: feature.name,
+      };
+      events.push({
+        type: 'test-reaction-answered',
+        reactor,
+        took: true,
+        feature: feature.feature,
+        result: turned,
+        ...(stamp === null ? {} : { command: stamp }),
+      });
+      return ok({ events, test: turned, duplicate: false });
+    }
     // As it stands, for the reason `takeDamageReaction` reads it that way: an
     // ability addend is resolved at the moment the die is thrown.
     const sheet = sheetAsItStands(state, reactor) ?? creature.sheet;

@@ -1595,6 +1595,11 @@ export const TRAIT_KINDS_WITH_A_READER: readonly string[] = [
   'advantage-while-bloodied',
   'allies-in-emanation-have-advantage',
   'carries-as-a-larger-creature',
+  // SRD Legendary Resistance, whose reader is the `test-rolled` window: the
+  // adapter compiles the trait into a Reaction that costs no Reaction, and
+  // `takeTestReaction` turns the failure into a success out of the day's pool.
+  // (W7-B11)
+  'chooses-to-succeed-on-a-failed-save',
   'climbs-without-a-check',
   'damages-creatures-in-an-emanation',
   'damages-creatures-it-is-holding',

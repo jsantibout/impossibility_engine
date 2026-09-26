@@ -1170,7 +1170,11 @@ describe('what a stat block’s sections print, and what is read', () => {
       // Jumper, which swaps the ability the glossary jumps read, and both
       // bugbears' Abduct, the exemption from a drag surcharge the movement
       // command charges now and did not before.
-      traits: { printed: 337, read: 245 },
+      // And thirty-two more with SRD Legendary Resistance, printed word for word
+      // on every block that has it — one at CR 5 or below (the Unicorn) and
+      // thirty-one above. The trait answers the `test-rolled` window, spends no
+      // Reaction, and comes out of the heading's own day's uses. (W7-B11)
+      traits: { printed: 337, read: 277 },
       // Fifty-three more than before the save template was read, and the
       // Clay Golem's Multiattack before them. Forty-seven more again with the
       // Spellcasting line, which is the book's third opening and is read

@@ -2192,6 +2192,21 @@ const MonsterTraitMechanicSchema = z.discriminatedUnion('kind', [
   }),
   z.object({
     /**
+     * SRD Legendary Resistance: "If the unicorn fails a saving throw, it can
+     * choose to succeed instead."
+     *
+     * **A bare kind for `magic-resistance`'s reason.** Nothing in the sentence
+     * varies: one family of roll, one outcome replaced, and *how often* is the
+     * heading's `(3/Day)` — read by `parsePerDay` exactly as every other
+     * printed count is, so a block printing a different number needs nothing
+     * here. The rakshasa's "automatically succeeds on saving throws against
+     * spells" is a different rule about a narrower set of saves with no count
+     * at all, and the anchored pattern refuses it whole. (W7-B11)
+     */
+    kind: z.literal('chooses-to-succeed-on-a-failed-save'),
+  }),
+  z.object({
+    /**
      * SRD Blood Frenzy: "The sahuagin has Advantage on attack rolls against
      * any creature that doesn't have all its Hit Points."
      *

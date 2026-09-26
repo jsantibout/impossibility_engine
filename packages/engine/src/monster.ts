@@ -1604,8 +1604,11 @@ const SUNLIT_ROLL: Readonly<Record<'ability-check' | 'attack-roll' | 'saving-thr
  * the two strings the stat block supplied. It is a label rather than a lookup:
  * only `while-worn` and `while-attuned` read `StandingEffect.feature` as an
  * item's id, and neither is a requirement any of these carries.
+ *
+ * Exported so a test names the key the adapter minted rather than retyping the
+ * rule that mints it — the same reason `printedLinePoolKey` is. (W7-B11)
  */
-const printedTraitKey = (monsterId: string, name: string): string =>
+export const printedTraitKey = (monsterId: string, name: string): string =>
   `${monsterId}:${name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')}`;
 
 /**
@@ -2149,6 +2152,44 @@ function printedLineUseReaction(monster: Monster, line: MonsterLine): ReactionFe
 }
 
 /**
+ * SRD Legendary Resistance, onto the sheet as the Reaction it is — though the
+ * book prints it under **Traits**.
+ *
+ * "If the unicorn fails a saving throw, it can choose to succeed instead."
+ * Where the heading is does not decide what a sentence *is*: this one names an
+ * instant the engine holds (`test-rolled`), a thing a creature may choose to do
+ * at it, and a pool it comes out of. The Reactions section is where the book
+ * puts the lines that spend the Reaction, and this one spends none — which is
+ * exactly what `costsReaction: false` is for, and why reading it as a Reaction
+ * feature grants nothing the sentence withheld.
+ *
+ * The count is the heading's `(3/Day)`, on the `dawn` clock every printed
+ * per-day limit is on; a block printing the sentence with no count at all gets
+ * `pool: null`, which is a permission with no limit — what the sentence then
+ * says. (W7-B11)
+ */
+function printedSucceedInsteadReaction(
+  monster: Monster,
+  line: MonsterLine,
+): ReactionFeature | null {
+  if (line.trait?.kind !== 'chooses-to-succeed-on-a-failed-save') return null;
+
+  return {
+    feature: printedTraitKey(monster.id, line.name),
+    name: line.name,
+    window: 'test-rolled',
+    // The book limits it with a pool and says nothing whatever about the
+    // action economy, so a unicorn that has already spent its Reaction may
+    // still turn a save.
+    costsReaction: false,
+    pool: line.perDay === undefined ? null : printedLinePoolKey(line.name),
+    // "If the unicorn fails a saving throw" — its own, and nobody else's.
+    reach: { kind: 'self' },
+    does: { kind: 'succeed-instead' },
+  };
+}
+
+/**
  * Every Reaction the block prints that this adapter can compile, and the pools
  * they come out of.
  *
@@ -2169,8 +2210,14 @@ function printedReactions(monster: Monster): {
   const reactions: ReactionFeature[] = [];
   const pools: PoolDeclaration[] = [];
 
-  for (const line of monster.reactions) {
+  // **The Traits section is read too**, and for one sentence: SRD Legendary
+  // Resistance answers a window this engine holds and spends no Reaction, so
+  // the heading it is printed under says what it *costs* and nothing else the
+  // engine can see — the reading `forcePrintedSave` already takes of a save
+  // printed under two different headings. (W7-B11)
+  for (const line of [...monster.traits, ...monster.reactions]) {
     const reaction =
+      printedSucceedInsteadReaction(monster, line) ??
       printedRollAddendReaction(monster, line) ??
       printedAcAddendReaction(monster, line) ??
       printedLineUseReaction(monster, line);
