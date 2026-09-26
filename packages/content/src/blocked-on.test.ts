@@ -2774,12 +2774,20 @@ describe('a spell with one blocker is the leverage the map is for', () => {
     // which is the whole of the path this row records: blocked, written,
     // half-built, built.
     //
-    // **And the shape does not retire with it.** Chromatic Orb still waits on
-    // the part nobody has built — a roll aimed at a creature the casting never
-    // named — so the id keeps a claimant, and what left is two spells rather
-    // than the debt.
+    // **And the shape has retired with it now.** Chromatic Orb was its last
+    // claimant — a roll aimed at a creature the casting never named, chained
+    // off a face the dice showed — and `OrbLeaps` is that: the caster states
+    // `leapTo`, a pair among the spell's own dice sends the orb on, and the
+    // resolver calls itself for the new roll. A shape nothing is blocked on is
+    // one the guard deletes, so what this pins is that the id is gone from the
+    // vocabulary rather than sitting in it unclaimed — and the same for the
+    // die shape the trigger was filed under, whose last spell claimant this
+    // was too.
     expect(BLOCKED_ON['scorching-ray']).toBeUndefined();
-    expect(claimedShapes().has('several-attack-rolls-from-one-casting')).toBe(true);
+    expect(Object.keys(MISSING_SHAPES)).not.toContain('several-attack-rolls-from-one-casting');
+    expect(Object.keys(MISSING_SHAPES)).not.toContain('a-die-behaviour-a-spell-asks-for');
+    expect(ADJUDICATED['chromatic-orb']).toBeUndefined();
+    expect(SRD_CONTENT.spell('chromatic-orb')?.unmodelled ?? []).toEqual([]);
     expect(SRD_CONTENT.spell('scorching-ray')?.effects).not.toEqual([]);
     expect(ADJUDICATED['scorching-ray']).toBeUndefined();
     expect(SRD_CONTENT.spell('scorching-ray')?.unmodelled ?? []).toEqual([]);

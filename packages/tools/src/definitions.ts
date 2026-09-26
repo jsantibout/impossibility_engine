@@ -2400,6 +2400,12 @@ const CAST_SPELL = tool({
       .describe(
         'Which of the targets you or your allies are already fighting, for a spell that prints the clause — Charm Person and Charm Monster roll that creature’s save with Advantage. A list, because an upcast Charm names several and the answer differs per creature. Send an empty list to say you are fighting none of them; leaving it out entirely is refused, because silence is not an answer the engine may fill in.',
       ),
+    leapTo: z
+      .array(creatureId)
+      .optional()
+      .describe(
+        'Where the orb goes if its dice pair, in order — Chromatic Orb’s "the orb leaps to a different target of your choice within 30 feet of the target". Name the creatures you would send it to, first choice first; at each leap the engine takes the first one you named that is within 30 feet of the creature just struck and has not been targeted by this casting, skips the rest, and makes a new attack roll and a new damage roll against it. The orb leaps at most as many times as the slot’s level. Leave it out and the orb does not leap; naming a creature this casting already targets, naming one twice, or naming any on a spell that does not leap is refused. A targeting decision and never a result: whether the dice pair is the engine’s.',
+      ),
     willing: z
       .array(creatureId)
       .optional()
@@ -2537,6 +2543,8 @@ const CAST_SPELL = tool({
       // caller who has not read the spell, and the engine tells the two
       // apart. Every other stated fact here is absent-or-present.
       ...(args.fought === undefined ? {} : { fought: args.fought.map(who) }),
+      // The order is the choice, so the list goes through as it was said.
+      ...(args.leapTo === undefined ? {} : { leapTo: args.leapTo.map(who) }),
       // And its opposite number, which **is** absent-or-present: neither
       // consent clause insists on an answer, so "nobody consented" and
       // "nobody was named" are one casting — see `willingFor`.

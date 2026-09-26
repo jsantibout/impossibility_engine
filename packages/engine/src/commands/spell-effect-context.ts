@@ -225,6 +225,22 @@ export interface EffectContext {
    */
   readonly fought?: readonly CharacterId[];
   /**
+   * Where the orb leaps, in the caster's order — SRD Chromatic Orb's "a
+   * different target of your choice". Read by the attack resolver when the
+   * spell's own dice pair; absent for every other casting, and for a leaping
+   * spell whose caster named nobody.
+   */
+  readonly leapTo?: readonly CharacterId[];
+  /**
+   * The creatures the orb has leapt to so far in this casting, in order.
+   *
+   * Mutable for the reason {@link summoned} is: the attack resolver appends
+   * each leap and reads the list back to count the leaps against the cap and
+   * to keep "a creature can be targeted only once by each casting". Empty for
+   * every casting that never leaps.
+   */
+  readonly leapt: CharacterId[];
+  /**
    * Which of this casting's targets consent to it, where the spell asks.
    *
    * Absent where nobody was named, which is the same casting as a list that

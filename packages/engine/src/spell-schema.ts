@@ -3013,6 +3013,48 @@ function checkEffect(
           });
         }
       }
+      // SRD Chromatic Orb's leap: a trigger that is the one the book prints,
+      // a reach in whole feet of at least one space, and a cap that is a
+      // derivation from the casting rather than a number the catalogue states.
+      if (effect.leaps !== undefined) {
+        const at = `${path}.leaps`;
+        if (
+          readsAsObject(
+            effect.leaps,
+            at,
+            'a leap is an object naming its trigger, its reach and its cap',
+            found,
+          )
+        ) {
+          const leaps = effect.leaps as {
+            readonly onPair?: unknown;
+            readonly withinFeet?: unknown;
+            readonly maximum?: unknown;
+          };
+          if (leaps.onPair !== true) {
+            found.push({
+              field: `${at}.onPair`,
+              code: 'bad_leap',
+              reason:
+                'the orb leaps when two of its dice show one face, and the book prints no other trigger; the only value is true',
+            });
+          }
+          if (!Number.isInteger(leaps.withinFeet) || (leaps.withinFeet as number) < 5) {
+            found.push({
+              field: `${at}.withinFeet`,
+              code: 'bad_leap',
+              reason: `a leap reaches a whole number of feet, at least one space, not ${String(leaps.withinFeet)}`,
+            });
+          }
+          if (leaps.maximum !== 'slot-level') {
+            found.push({
+              field: `${at}.maximum`,
+              code: 'bad_leap',
+              reason: `"${String(leaps.maximum)}" is not a cap the engine derives; the book counts leaps against the slot's level`,
+            });
+          }
+        }
+      }
       // An attack rolls an attack, so nothing it hangs has a save to repeat.
       checkRiders(effect, level, path, host(false), found);
       // **And the second roll, where the spell prints one.** The child

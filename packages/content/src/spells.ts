@@ -9112,11 +9112,18 @@ export const TRUE_STRIKE: SpellDefinition = {
  * > equal to the level of the slot expended, and a creature can be targeted
  * > only once by each casting of this spell."
  *
- * **Executed rather than tracked, and Scorching Ray is the reason the two
- * spells part company here.** One of three rays is a third of that spell's
- * damage, so resolving one would be resolving a third of it; this spell's
- * whole printed payload is the first orb, and the leap is a bonus that fires
- * on a coincidence. So the 3d8 lands, scales by slot, and the leap is quoted.
+ * **The orb leaps now, and it leaps where the caster said.** The trigger is a
+ * predicate over the whole roll — a pair among the spell's own d8s, which
+ * `DieRule` could not ask because it judges one die at a time — and the
+ * consequence is an attack roll at a creature the casting never named, which
+ * the format could not aim. Both are `leaps` on the attack: the request states
+ * `leapTo` in the caster's order, and when a pair shows the orb goes to the
+ * first stated creature within thirty feet of the one just struck that this
+ * casting has not yet targeted, with a new attack roll and a new damage roll
+ * through the same resolver. The cap is the slot's level — one leap at level
+ * 1, which is what "can't leap **again** unless" means — and a creature is
+ * targeted once per casting. A caster who names nobody has an orb that does
+ * not leap, which is what "of your choice" means for silence.
  */
 export const CHROMATIC_ORB: SpellDefinition = {
   id: 'chromatic-orb',
@@ -9134,12 +9141,11 @@ export const CHROMATIC_ORB: SpellDefinition = {
       attack: 'ranged',
       damage: { dice: '3d8', perSlotLevelAbove: '1d8' },
       damageType: 'acid',
+      // "If you roll the same number on two or more of the d8s, the orb leaps
+      // to a different target of your choice within 30 feet of the target …
+      // a maximum number of times equal to the level of the slot expended".
+      leaps: { onPair: true, withinFeet: 30, maximum: 'slot-level' },
     },
-  ],
-  unmodelled: [
-    'the orb does not leap, because the trigger reads the individual dice of a damage roll two at a time: "If you roll the same number on two or more of the d8s" asks whether a pair matched, and a `DieRule` — which Sorcerous Burst writes — judges one die at a time and is never handed the roll it is part of',
-    'nor is the leap resolved: hurling the orb at a second creature is a second attack roll and a second damage roll out of one casting, and an effect rolls one attack per target',
-    'the bounds on the leaping are not applied either: a maximum number of times equal to the level of the slot expended, and a creature targeted only once by each casting, both count something that never happens',
   ],
 };
 

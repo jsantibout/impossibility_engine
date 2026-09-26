@@ -1734,6 +1734,11 @@ export type SpellEffect =
        * what buys a second creature.
        */
       readonly rolls?: AttackRollCount;
+      /**
+       * SRD Chromatic Orb: the orb **leaps** off its own dice — see
+       * {@link OrbLeaps}. Absent is every other attack in the book.
+       */
+      readonly leaps?: OrbLeaps;
     } & OutcomeRiders)
   /**
    * A saving throw that deals damage, with what a success buys stated.
@@ -6864,6 +6869,50 @@ export function modifierRidersOf(effect: SpellEffect): readonly ModifierRider[] 
     default:
       return [];
   }
+}
+
+/**
+ * An attack that **leaps** to a further creature off the faces its own damage
+ * dice showed.
+ *
+ * SRD Chromatic Orb: "If you roll the same number on two or more of the d8s,
+ * the orb leaps to a different target of your choice within 30 feet of the
+ * target. Make an attack roll against the new target, and make a new damage
+ * roll. The orb can't leap again unless you cast the spell with a level 2+
+ * spell slot … The orb can leap a maximum number of times equal to the level
+ * of the slot expended, and a creature can be targeted only once by each
+ * casting of this spell."
+ *
+ * Two readings the format could not make until this. **A predicate over the
+ * whole roll**: {@link DieRule} judges one die at a time — `substitute` and
+ * `bonusOn` are both `(rolled, sides)` — and a pair is a question about two
+ * faces together, so `onPair` is asked of the spell's own counted dice once
+ * they have all been thrown and every reroll has settled. **A roll aimed at a
+ * creature the casting never named**: the leap is *elected* rather than
+ * offered — the request states `leapTo` in order (`CastSpellRequest.leapTo`,
+ * checked before anything is spent and pinned on a held casting), and when a
+ * pair shows the orb goes to the next stated creature within `withinFeet` of
+ * the one it just struck that this casting has not yet targeted, with a new
+ * attack roll and a new damage roll, through the same resolver the first orb
+ * went through. No window opens, and a leap with nobody stated does not
+ * happen — which is what "of your choice" means for a caller who has said
+ * nothing.
+ *
+ * `maximum` is named as a derivation rather than written as a number, for
+ * {@link DieRuleCap}'s reason: "equal to the level of the slot expended" is a
+ * fact about the casting, so the cap is read off `castLevel` — one leap at
+ * level 1, which is what "can't leap **again** unless" means, and one more per
+ * slot level above it. One member, because the book prints one sentence.
+ *
+ * A miss rolls no damage and so shows no pair; the orb stops there.
+ */
+export interface OrbLeaps {
+  /** The trigger: two or more of the spell's own dice showing one face. */
+  readonly onPair: true;
+  /** How far from the creature just struck the next may stand. */
+  readonly withinFeet: number;
+  /** How many leaps one casting may make, as a derivation from the casting. */
+  readonly maximum: 'slot-level';
 }
 
 /**

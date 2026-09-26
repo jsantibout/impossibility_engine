@@ -242,8 +242,8 @@ describe('toolSchemas', () => {
     // it — one tool and 596 bytes on each.
     expect(toolSchemas(player())).toHaveLength(87);
     expect(toolSchemas(dm())).toHaveLength(109);
-    expect(JSON.stringify(toolSchemas(player())).length).toBe(130736);
-    expect(JSON.stringify(toolSchemas(dm())).length).toBe(166246);
+    expect(JSON.stringify(toolSchemas(player())).length).toBe(131582);
+    expect(JSON.stringify(toolSchemas(dm())).length).toBe(167092);
   });
 });
 

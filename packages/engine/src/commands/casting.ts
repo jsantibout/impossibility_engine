@@ -641,6 +641,12 @@ export interface CastingPlan {
    */
   readonly fought?: readonly CharacterId[];
   /**
+   * Where the orb leaps, in the caster's order — SRD Chromatic Orb. Carried in
+   * the order stated, because the order is the choice; see
+   * `CastSpellRequest.leapTo`.
+   */
+  readonly leapTo?: readonly CharacterId[];
+  /**
    * Which of this casting's targets consent to it.
    *
    * The ninth fact stated at the casting, beside the third and for the same
@@ -1122,6 +1128,7 @@ function castSpellWith(
           ? {}
           : { endsAfterTrigger: command.hold.endsAfterTrigger }),
         ...(command.hold.fought === undefined ? {} : { fought: command.hold.fought }),
+        ...(command.hold.leapTo === undefined ? {} : { leapTo: command.hold.leapTo }),
         ...(command.hold.willing === undefined ? {} : { willing: command.hold.willing }),
         ...(command.hold.unaffected === undefined ? {} : { unaffected: command.hold.unaffected }),
         ...(command.hold.chosen === undefined ? {} : { chosen: command.hold.chosen }),

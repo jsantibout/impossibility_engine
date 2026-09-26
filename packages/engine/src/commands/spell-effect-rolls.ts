@@ -37,7 +37,7 @@ import { type DieEffect } from '../dice.js';
 import { bonusesFor, type ModeSource } from '../bonuses.js';
 import { type D20TestResult, rollSavingThrow } from '../checks.js';
 import { applyEvent, type CreatureState, type GameEvent, type GameState } from '../events.js';
-import { apartFromSource, sizeAtLeast } from '../positioning.js';
+import { apartFromSource, distanceBetween, sizeAtLeast } from '../positioning.js';
 import { effectiveSizeOf } from '../size.js';
 import { consumedRollModifiers } from '../roll-modifiers.js';
 import { classOfRoute } from '../spellcasting.js';
@@ -48,6 +48,7 @@ import {
   hasOutcomeRiders,
   isCreatureType,
   outcomeRidersOf,
+  type OrbLeaps,
   rollsDealtTo,
   scaledDiceFor,
   scaledFlatFor,
@@ -704,7 +705,88 @@ function resolveOneAttackRoll(
       : { conditions: riders.value.conditions }),
     affected: true,
   });
+
+  // — SRD Chromatic Orb: the orb leaps ——————————————————————————————————————
+  //
+  // "If you roll the same number on two or more of the d8s, the orb leaps to
+  // a different target of your choice within 30 feet of the target. Make an
+  // attack roll against the new target, and make a new damage roll." Read off
+  // the spell's own dice as they finally stood, after every reroll; aimed at
+  // the next creature the caster *stated*, in their order, that the book
+  // allows; and resolved by calling this very function again, so the second
+  // orb is an attack roll, a damage roll, a set of riders and an outcome
+  // exactly as the first was. The recursion ends when the cap is reached, the
+  // list runs out, nobody stated is in reach, or the dice show no pair — and
+  // a miss never reaches here, because a miss rolled no dice to pair.
+  if (effect.leaps !== undefined) {
+    const next = leapFrom(ctx, effect.leaps, target, own.value, current);
+    if (next !== null) {
+      ctx.leapt.push(next);
+      return resolveOneAttackRoll(ctx, effect, next, current);
+    }
+  }
   return ok(current);
+}
+
+/**
+ * Where the orb goes next, or null where it stops.
+ *
+ * Every clause of the sentence is a filter here and none is a choice the
+ * engine makes: the caster's list is walked in the caster's order and the
+ * first creature the book admits is taken. **A creature this casting has
+ * targeted** — named at the cast or leapt to since — is skipped ("a creature
+ * can be targeted only once by each casting"); one out of `withinFeet` of the
+ * creature just struck is skipped; a dead one is skipped, as `namedTargets`
+ * skips a corpse; and one that has left the game is skipped. The cap is the
+ * slot's level (`OrbLeaps.maximum`), counted against the leaps already made.
+ *
+ * **The pair is read off the spell's own counted dice**, which is the scope
+ * `DieRule` already takes: a Hunter's Mark riding along is not "the d8s" of
+ * this spell. The faces compared are what the dice *showed* — `rolled` rather
+ * than `value` — because that is the sentence.
+ *
+ * A scene nobody has laid out is reported once rather than guessed: thirty
+ * feet cannot be measured on a map that is not there, and the orb does not
+ * leap.
+ */
+function leapFrom(
+  ctx: EffectContext,
+  leaps: OrbLeaps,
+  from: CharacterId,
+  own: readonly DamageComponent[],
+  world: GameState,
+): CharacterId | null {
+  const stated = ctx.leapTo;
+  if (stated === undefined || stated.length === 0) return null;
+  if (ctx.leapt.length >= ctx.castLevel) return null;
+
+  const faces = own.flatMap((component) =>
+    (component.roll?.dice ?? [])
+      .filter((die) => die.disposition === 'counted')
+      .map((die) => die.rolled),
+  );
+  if (new Set(faces).size === faces.length) return null;
+
+  const scene = world.scene;
+  if (scene === null) {
+    if (ctx.leapt.length === 0) {
+      ctx.unverified.push(
+        `${ctx.name}: the orb's dice paired and it would leap up to ${leaps.withinFeet} feet, but nobody is placed on a map to measure that on, so it does not`,
+      );
+    }
+    return null;
+  }
+
+  const already = new Set<CharacterId>([...ctx.targets, ...ctx.leapt]);
+  for (const candidate of stated) {
+    if (already.has(candidate)) continue;
+    const creature = world.creatures[candidate];
+    if (creature === undefined || creature.vitals.dead) continue;
+    const apart = distanceBetween(scene, from, candidate);
+    if (!apart.ok || apart.value > leaps.withinFeet) continue;
+    return candidate;
+  }
+  return null;
 }
 
 /**
