@@ -545,6 +545,27 @@ export interface CastCommand extends CommandIdentity {
    * there.
    */
   readonly check?: EffectCheck;
+  /**
+   * The creature whose hand carried a Touch casting — SRD Find Familiar's "your
+   * familiar can deliver the touch".
+   *
+   * Written onto `spell-cast` as history and read back by nothing: the spell is
+   * its caster's throughout, and the one thing the delivery changed — the square
+   * the Touch was measured from — was settled before the slot went. The familiar's
+   * Reaction goes out as its own `reaction-spent` beside the casting, which is
+   * what the sentence charges.
+   */
+  readonly deliveredBy?: CharacterId;
+  /**
+   * The Reaction the delivering creature pays, already checked against its
+   * budget by `resolveSpell`'s pre-flight.
+   *
+   * Carried beside the name rather than derived from it, because the two are two
+   * facts: one is who the log records and the other is a slot of somebody else's
+   * turn being spent, and outside combat there is no economy for the second. Null
+   * where nothing is charged.
+   */
+  readonly delivererReaction?: GameEvent;
 }
 
 /**
@@ -1227,8 +1248,20 @@ function castSpellWith(
     // declaration to have written it down already. Elided when the spell hands
     // nothing over, so every log that predates the field folds unchanged.
     ...((command.dmDecides ?? []).length === 0 ? {} : { dmDecides: command.dmDecides }),
+    // And whose hand carried it, where it was not the caster's — SRD Find
+    // Familiar. History, elided everywhere else, so every log written before the
+    // field folds unchanged.
+    ...(command.deliveredBy === undefined ? {} : { deliveredBy: command.deliveredBy }),
     ...(stamp === null ? {} : { command: stamp }),
   });
+
+  // **The Reaction the delivery costs, inside the casting's own batch.** SRD
+  // Find Familiar: "it must take a Reaction to deliver the touch **when you cast
+  // the spell**" — one moment, so a second command would be a second moment, and
+  // a familiar that paid before the casting was known to be legal would have paid
+  // for nothing. `resolveSpell`'s pre-flight has already refused a Reaction that
+  // is gone; this is the spending.
+  if (command.delivererReaction !== undefined) events.push(command.delivererReaction);
 
   if (concentration) {
     events.push({ type: 'concentration-started', id, castingId, spell: name.value, level: castLevel });

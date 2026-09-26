@@ -4208,6 +4208,27 @@ export interface KeptSummons {
   /** SRD Find Steed: "or if you die". */
   readonly untilSummonerDies?: true;
   /**
+   * SRD Find Familiar: "when you cast a spell with a range of touch, your
+   * familiar can deliver the touch. Your familiar must be within 100 feet of
+   * you, and it must take a Reaction to deliver the touch when you cast the
+   * spell."
+   *
+   * **The permission is the spell's, not the command's**, which is why it is a
+   * field here rather than a rule in `resolveSpell`: SRD Find Steed keeps a
+   * creature on the same terms and prints no such sentence, so a steed may not
+   * carry its paladin's Cure Wounds and a familiar may. The engine compares a
+   * flag on a bond and names no spell.
+   *
+   * The hundred feet is here too, because it is the same sentence and there is
+   * nowhere else for it: a distance the book prints belongs with the permission
+   * it qualifies, and a number the command held would be the engine deciding how
+   * far somebody else's magic reaches. Pinned onto the bond at the binding, like
+   * {@link pocket}, so the casting a year later opens no book.
+   *
+   * Absent for every kept creature the book gives no such sentence.
+   */
+  readonly delivers?: { readonly within: number };
+  /**
    * SRD Find Familiar: "As a Magic action, you can temporarily dismiss the
    * familiar to a pocket dimension. … As a Magic action while it is
    * temporarily dismissed, you can cause it to reappear in an unoccupied space

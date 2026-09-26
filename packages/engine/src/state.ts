@@ -247,6 +247,16 @@ export interface KeptBond {
    * offers no pocket to.
    */
   readonly pocket?: { readonly within: number };
+  /**
+   * SRD Find Familiar: "your familiar can deliver the touch. Your familiar must
+   * be within 100 feet of you" — the permission and the distance, pinned from the
+   * spell at the binding so a casting an hour later opens no book.
+   *
+   * Read by `resolveSpell` where a casting names a `deliveredBy`, and by nothing
+   * else. Absent for every kept creature the book gives no such sentence, which
+   * is SRD Find Steed's steed.
+   */
+  readonly delivers?: { readonly within: number };
 }
 
 /**

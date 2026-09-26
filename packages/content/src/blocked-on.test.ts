@@ -1283,8 +1283,10 @@ describe('reading four families found blockers the bare lists had missed', () =>
     // which is where an executed-partial spell's debts are adjudicated.
     // The pocket dimension is built — `dismissKeptSummons` and
     // `recallKeptSummons` on the bond's pinned `pocket` — so its row is gone
-    // rather than kept.
-    ['find-familiar', 'unmodelled', 'your familiar can deliver the touch'],
+    // rather than kept, and **the delivered touch has gone the same way**:
+    // `KeptSummons.delivers` is the permission and the hundred feet, pinned onto
+    // the bond, and `cast_spell.deliveredBy` is the hand the Touch is measured
+    // from. One reading is left, and it is the one about sight.
     ['find-familiar', 'unmodelled', 'seeing through the familiar’s eyes'],
   ];
 

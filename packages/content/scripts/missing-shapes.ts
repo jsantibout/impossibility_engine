@@ -872,11 +872,6 @@ export const ADJUDICATED: Readonly<Record<string, readonly Adjudication[]>> = {
       note: 'Sight here is a pairwise declaration and there is nothing else, so one creature borrowing another’s senses — including any special senses it has — has no state to sit in. Filed under the nearest honest shape rather than a new one; the shape’s named consumer is an attacker’s Blindsight, and this is the same absence at the other end.',
     },
     {
-      clause: 'your familiar can deliver the touch',
-      why: 'an-activation-taken-by-somebody-other-than-the-caster',
-      note: 'A second casting measured from the familiar rather than from its caster, and a Reaction spent by the familiar for a spell that belongs to the caster. The rule that a casting is acted through by the caster and nobody else is exactly what this inverts, and the reach half has no field of its own either.',
-    },
-    {
       clause: 'the telepathic connection within 100 feet',
       why: 'table',
       note: 'The hundred feet is measurable and what it gates is conversation, which the engine’s resolution path never arrives at.',

@@ -2551,6 +2551,11 @@ const CAST_SPELL = tool({
       .describe(
         'Which of the targets you or your allies are already fighting, for a spell that prints the clause — Charm Person and Charm Monster roll that creature’s save with Advantage. A list, because an upcast Charm names several and the answer differs per creature. Send an empty list to say you are fighting none of them; leaving it out entirely is refused, because silence is not an answer the engine may fill in.',
       ),
+    deliveredBy: creatureId
+      .optional()
+      .describe(
+        'Send a familiar to carry a Touch spell — SRD Find Familiar’s "your familiar can deliver the touch". The spell is still yours: your slot, your action, your save DC. What moves is the hand the five feet is measured from, so a creature only the familiar can reach is a legal target. The engine refuses a spell whose range is not Touch, a creature that is not a familiar of yours that may deliver, one more than a hundred feet from you, and one whose Reaction has gone — all before the slot is spent — and then spends the familiar’s Reaction in the same breath as the casting.',
+      ),
     inAStorm: z
       .literal(true)
       .optional()
@@ -2714,6 +2719,8 @@ const CAST_SPELL = tool({
       // And the weather, which is absent-or-present for `willing`'s reason:
       // no storm is the book's own default rather than an unanswered question.
       ...(args.inAStorm === undefined ? {} : { inAStorm: args.inAStorm }),
+      // And the hand that carries a Touch, where it is not the caster's own.
+      ...(args.deliveredBy === undefined ? {} : { deliveredBy: who(args.deliveredBy) }),
       // The order is the choice, so the list goes through as it was said.
       ...(args.leapTo === undefined ? {} : { leapTo: args.leapTo.map(who) }),
       // And its opposite number, which **is** absent-or-present: neither

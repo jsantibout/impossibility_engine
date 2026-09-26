@@ -2006,6 +2006,21 @@ export type GameEvent =
        * so every log written before this folds to exactly the state it did.
        */
       readonly dmDecides?: readonly string[];
+      /**
+       * The creature whose hand carried a Touch casting — SRD Find Familiar's
+       * "your familiar can deliver the touch".
+       *
+       * **History, and it says so.** Nothing folds it and nothing reads it back:
+       * the spell is its caster's, off its caster's sheet and out of its caster's
+       * slot, and the one thing the delivery changed — the square the five feet
+       * was measured from — was settled before the slot went. What is left is a
+       * fact a reader of the log would otherwise have no way to recover, which is
+       * exactly what `spell-activated` exists for on the other side of the same
+       * question. The Reaction beside it is the familiar's own `reaction-spent`.
+       *
+       * Absent for every other casting in the book.
+       */
+      readonly deliveredBy?: CharacterId;
       /** The command that caused it, so a retry is recognised as one. */
       readonly command?: CommandStamp;
     }

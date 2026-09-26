@@ -13886,13 +13886,16 @@ export const FIND_FAMILIAR: SpellDefinition = {
       // pocket dimension … cause it to reappear in an unoccupied space within
       // 30 feet of you." The pocket is pinned on the bond, and
       // `dismissKeptSummons` / `recallKeptSummons` are the two doors.
-      kept: { pocket: { within: 30 } },
+      // "Your familiar must be within 100 feet of you, and it must take a
+      // Reaction to deliver the touch when you cast the spell." The permission
+      // and the distance are the spell's own sentence, so they are pinned on the
+      // bond and `cast_spell.deliveredBy` reads them.
+      kept: { pocket: { within: 30 }, delivers: { within: 100 } },
       cannotAttack: true,
     },
   ],
   unmodelled: [
     'seeing through the familiar’s eyes and hearing what it hears as a Bonus Action, with the benefits of any special senses it has, is not granted: sight here is a pairwise declaration, and one creature borrowing another’s senses has no state to sit in',
-    'the familiar delivering a touch spell — "your familiar can deliver the touch" — is not offered, and neither is the Reaction it must take to do so: a casting is acted through by its caster, and a second creature spending its own Reaction to deliver another’s spell has no field',
     'the telepathic connection within 100 feet is the table’s: the distance is measurable and what it gates is conversation',
     'what it leaves behind in its space when it disappears, and what it does with the turns it acts independently on while obeying your commands, are the DM’s',
   ],

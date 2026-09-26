@@ -54,6 +54,7 @@ import {
   type ContextRequest,
   contextRequestsOf,
   err,
+  type Err,
   needsContext,
   ok,
   type Result,
@@ -1016,6 +1017,14 @@ export function castOrRelease(
       altered.value.resolving,
     );
     if (!declared.ok) return declared;
+
+    // — the hand that carries a touch —————————————————————————————————————————
+    //
+    // SRD Find Familiar's delivery, asked beside the stated facts and for their
+    // reason: a Reaction the familiar cannot pay must cost it nothing. See
+    // {@link deliveryProblem}, which holds the four refusals.
+    const carried = deliveryProblem(state, casterId, definition, request);
+    if (carried !== null) return carried;
 
     // — targets ————————————————————————————————————————————————————————————
     //
@@ -2691,6 +2700,25 @@ function resolveOnTargets(
                 ...(request.slotKind === undefined ? {} : { slotKind: request.slotKind }),
               }),
       route: routeLabel(route),
+      // **And whose hand carried it**, where the caster sent a familiar — SRD
+      // Find Familiar. The name is history on the event and the Reaction is a
+      // slot of the familiar's own turn, so both ride here and are spent in the
+      // casting's own batch: "it must take a Reaction to deliver the touch **when
+      // you cast the spell**" is one moment, and `deliveryProblem` above has
+      // already refused a Reaction that had gone.
+      ...(request.deliveredBy === undefined
+        ? {}
+        : {
+            deliveredBy: request.deliveredBy,
+            ...(state.combat?.budgets[request.deliveredBy] === undefined
+              ? {}
+              : {
+                  delivererReaction: {
+                    type: 'reaction-spent' as const,
+                    id: request.deliveredBy,
+                  },
+                }),
+          }),
       // The printed text the book leaves to whoever is running the table, on
       // its way to the event that records the casting. Rule 5: a handover is
       // something this command read from content, so an atomic casting pins it
@@ -4322,6 +4350,77 @@ function withInsideAtTheCast(state: GameState, casting: OngoingSpell): OngoingSp
   const inside = creaturesStandingInCastingArea(state.scene, casting);
   if (inside === null) return casting;
   return { ...casting, insideAtTheCast: [...inside].sort() };
+}
+
+/**
+ * Whether a casting may be carried by the hand it named — SRD Find Familiar's
+ * delivered touch, or null where it is legal.
+ *
+ * > "when you cast a spell with a range of touch, your familiar can deliver the
+ * > touch. Your familiar must be within 100 feet of you, and it must take a
+ * > Reaction to deliver the touch when you cast the spell."
+ *
+ * **Four refusals and every one of them before a slot is spent**, which is why
+ * this is asked in the pre-flight beside the weapon's and the form's rather than
+ * at the target loop: a Reaction the familiar cannot pay must cost it nothing.
+ *
+ * **The permission is the spell that made the creature.** `KeptBond.delivers`
+ * is written at the binding off `KeptSummons.delivers`, which Find Familiar's
+ * definition prints and Find Steed's does not — so the engine compares a flag
+ * on a bond and names no spell, and a paladin's steed may not carry a Cure
+ * Wounds. It is the summoner's own creature or nobody's, because "**your**
+ * familiar" is what the sentence says.
+ *
+ * What it does *not* touch is whose casting this is: the slot, the Action, the
+ * save DC and the dice are the caster's throughout. The one thing that moves is
+ * the square the Touch is measured from, and `namedTargets` reads the request
+ * for it.
+ */
+function deliveryProblem(
+  state: GameState,
+  casterId: CharacterId,
+  definition: SpellDefinition,
+  request: CastSpellRequest,
+): Err | null {
+  const deliverer = request.deliveredBy;
+  if (deliverer === undefined) return null;
+  if (definition.range.kind !== 'touch') {
+    return err(
+      'not_a_touch',
+      `${definition.name} is not cast with a range of touch, so there is no touch for ${deliverer} to deliver`,
+    );
+  }
+  const carrier = creatureOf(state, deliverer);
+  if (carrier === null) {
+    return err('cannot_deliver', `${deliverer} is not a creature this table holds`);
+  }
+  const bond = carrier.summonedBy;
+  const allowed = bond !== null && bond.by === casterId ? bond.kept?.delivers : undefined;
+  if (allowed === undefined) {
+    return err(
+      'cannot_deliver',
+      `${deliverer} is not a creature ${casterId} keeps that may deliver a touch`,
+    );
+  }
+  if (state.scene !== null) {
+    const apart = distanceBetween(state.scene, casterId, deliverer);
+    if (apart.ok && apart.value > allowed.within) {
+      return err(
+        'deliverer_too_far',
+        `${deliverer} delivers a touch while it is within ${allowed.within} feet of ${casterId}, and it is ${apart.value} away`,
+      );
+    }
+  }
+  // "it must take a Reaction to deliver the touch". Outside combat there is no
+  // economy to spend, exactly as there is none for the caster's own Action.
+  const budget = state.combat?.budgets[deliverer];
+  if (budget !== undefined && !budget.reaction) {
+    return err(
+      'no_reaction',
+      `${deliverer} has spent its Reaction and cannot deliver ${definition.name}`,
+    );
+  }
+  return null;
 }
 
 /**
