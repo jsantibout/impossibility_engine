@@ -28,7 +28,7 @@ than to the table.
 
 | Parsed | Tracked | Executed | of which partial | Verified |
 |---|---|---|---|---|
-| 339 | 144 (42.5%) | 191 (56.3%) | 30 | 158 (46.6%) |
+| 339 | 143 (42.2%) | 192 (56.6%) | 30 | 158 (46.6%) |
 
 A **tracked** spell is not a half-finished executed one. Disguise Self will
 never be executed, because what the caster looks like is not arithmetic;
@@ -160,6 +160,7 @@ a plain statement of what the table decides.
 - **Mass Cure Wounds** (level 5) — verified
 - **Mass Healing Word** (level 3) — untested
 - **Mass Suggestion** (level 6) — untested
+- **Mending** (cantrip) — untested
 - **Mind Blank** (level 8) — verified
 - **Mind Spike** (level 2) — verified
 - **Mirror Image** (level 2) — untested
@@ -331,7 +332,6 @@ every casting; only one of them is waiting for anything.
 - **Major Image** (level 3) — 0 noted, 8 handed to the DM
 - **Mass Heal** (level 9) — 2 noted
 - **Meld into Stone** (level 3) — 0 noted, 10 handed to the DM
-- **Mending** (cantrip) — 0 noted, 1 read, 3 handed to the DM
 - **Message** (cantrip) — 0 noted, 1 read, 4 handed to the DM
 - **Meteor Swarm** (level 9) — 3 noted
 - **Minor Illusion** (cantrip) — 0 noted, 9 handed to the DM
@@ -934,7 +934,7 @@ stopped having to be handed:
 
 | Parsed | Carried | Attacking | Defence entries | of which qualified | of which unread | Printed lines | of which read |
 |---|---|---|---|---|---|---|---|
-| 330 | 332 | 329 | 723 | 2 | 3 | 1335 | 1105 |
+| 330 | 332 | 329 | 723 | 2 | 3 | 1335 | 1142 |
 
 **A stat block used to arrive as a body rather than as an actor.**
 `adaptMonster` has always carried across everything the block states as a
@@ -993,9 +993,9 @@ fact the book wrote for a person.
 
 | Line | Printed | Read |
 |---|---|---|
-| Traits | 338 | 245 |
+| Traits | 338 | 278 |
 | Actions | 813 | 788 |
-| Bonus actions | 78 | 57 |
+| Bonus actions | 78 | 61 |
 | Reactions | 24 | 13 |
 | Legendary actions | 82 | 2 |
 
@@ -1014,15 +1014,14 @@ and a bite whose hit buys a save.
 |---|---|---|
 | A save a line forces | 128 | 188 |
 | A recharge | 83 | 83 |
-| A use the block limits per day | 45 | 49 |
-| A hit whose line says more than the engine applies | 44 | 45 |
+| A hit whose line says more than the engine applies | 42 | 43 |
 | An effect a hit buys | 31 | 32 |
-| A save whose line says more than the engine spends | 19 | 19 |
-| A trait whose heading says more than the engine spends | 7 | 7 |
+| A save whose line says more than the engine spends | 18 | 18 |
+| A use the block limits per day | 14 | 14 |
+| A trait whose heading says more than the engine spends | 8 | 8 |
 | A trait shape nothing spends | 3 | 3 |
 | How many attacks the Attack action holds | 2 | 2 |
 | A creature that casts | 1 | 1 |
-| A Reaction whose printed response is handed over | 1 | 1 |
 
 **A printed line reaches the Attack action and nothing else.** An
 opportunity attack and a readied strike both name a weapon and have
@@ -1054,26 +1053,26 @@ never added.
 
 | Level | Held | Executed | In reach | Tracked | Executed |
 |---|---|---|---|---|---|
-| 1 | 32 | 32 | 211 | 62 | 149 |
-| 2 | 53 | 53 | 211 | 62 | 149 |
-| 3 | 91 | 91 | 345 | 79 | 266 |
-| 4 | 104 | 104 | 345 | 79 | 266 |
-| 5 | 120 | 120 | 481 | 108 | 373 |
-| 6 | 132 | 127 | 481 | 108 | 373 |
-| 7 | 144 | 133 | 562 | 151 | 411 |
-| 8 | 156 | 145 | 562 | 151 | 411 |
-| 9 | 165 | 149 | 668 | 220 | 446 |
-| 10 | 176 | 153 | 668 | 220 | 446 |
-| 11 | 183 | 155 | 727 | 256 | 467 |
-| 12 | 195 | 167 | 727 | 256 | 467 |
-| 13 | 200 | 168 | 784 | 302 | 478 |
-| 14 | 211 | 174 | 784 | 302 | 478 |
-| 15 | 218 | 177 | 821 | 323 | 493 |
-| 16 | 230 | 189 | 821 | 323 | 493 |
-| 17 | 235 | 189 | 859 | 358 | 494 |
-| 18 | 245 | 191 | 859 | 358 | 494 |
-| 19 | 257 | 203 | 859 | 358 | 494 |
-| 20 | 269 | 207 | 859 | 358 | 494 |
+| 1 | 32 | 32 | 211 | 57 | 154 |
+| 2 | 53 | 53 | 211 | 57 | 154 |
+| 3 | 91 | 91 | 345 | 74 | 271 |
+| 4 | 104 | 104 | 345 | 74 | 271 |
+| 5 | 120 | 120 | 481 | 103 | 378 |
+| 6 | 132 | 127 | 481 | 103 | 378 |
+| 7 | 144 | 133 | 562 | 146 | 416 |
+| 8 | 156 | 145 | 562 | 146 | 416 |
+| 9 | 165 | 149 | 668 | 215 | 451 |
+| 10 | 176 | 153 | 668 | 215 | 451 |
+| 11 | 183 | 155 | 727 | 251 | 472 |
+| 12 | 195 | 167 | 727 | 251 | 472 |
+| 13 | 200 | 168 | 784 | 297 | 483 |
+| 14 | 211 | 174 | 784 | 297 | 483 |
+| 15 | 218 | 177 | 821 | 318 | 498 |
+| 16 | 230 | 189 | 821 | 318 | 498 |
+| 17 | 235 | 189 | 859 | 353 | 499 |
+| 18 | 245 | 191 | 859 | 353 | 499 |
+| 19 | 257 | 203 | 859 | 353 | 499 |
+| 20 | 269 | 207 | 859 | 353 | 499 |
 
 The totals are every path added together, so a spell on two class lists is
 counted once for each path that can reach it — the row is the book at that
@@ -1134,11 +1133,11 @@ something other than its heading.
 
 | Path | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 13 | 14 | 15 | 16 | 17 | 18 | 19 | 20 |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
-| Bard (College of Lore) | 22/11/33 | 22/11/33 | 40/16/56 | 40/16/56 | 53/20/73 | 53/20/73 | 58/25/83 | 58/25/83 | 61/38/100 | 61/38/100 | 62/44/108 | 62/44/108 | 64/53/119 | 64/53/119 | 67/56/125 | 67/56/125 | 67/61/130 | 67/61/130 | 67/61/130 | 67/61/130 |
-| Cleric (Life Domain) | 16/6/22 | 16/6/22 | 31/8/39 | 31/8/39 | 44/14/58 | 44/14/58 | 45/22/67 | 45/22/67 | 49/31/80 | 49/31/80 | 52/39/91 | 52/39/91 | 53/46/99 | 53/46/99 | 54/50/104 | 54/50/104 | 54/55/109 | 54/55/109 | 54/55/109 | 54/55/109 |
-| Druid (Circle of the Land) | 20/9/29 | 20/9/29 | 38/12/50 | 38/12/50 | 48/15/63 | 48/15/63 | 55/26/81 | 55/26/81 | 59/37/96 | 59/37/96 | 63/43/106 | 63/43/106 | 64/48/112 | 64/48/112 | 67/53/120 | 67/53/120 | 67/57/124 | 67/57/124 | 67/57/124 | 67/57/124 |
+| Bard (College of Lore) | 23/10/33 | 23/10/33 | 41/15/56 | 41/15/56 | 54/19/73 | 54/19/73 | 59/24/83 | 59/24/83 | 62/37/100 | 62/37/100 | 63/43/108 | 63/43/108 | 65/52/119 | 65/52/119 | 68/55/125 | 68/55/125 | 68/60/130 | 68/60/130 | 68/60/130 | 68/60/130 |
+| Cleric (Life Domain) | 17/5/22 | 17/5/22 | 32/7/39 | 32/7/39 | 45/13/58 | 45/13/58 | 46/21/67 | 46/21/67 | 50/30/80 | 50/30/80 | 53/38/91 | 53/38/91 | 54/45/99 | 54/45/99 | 55/49/104 | 55/49/104 | 55/54/109 | 55/54/109 | 55/54/109 | 55/54/109 |
+| Druid (Circle of the Land) | 21/8/29 | 21/8/29 | 39/11/50 | 39/11/50 | 49/14/63 | 49/14/63 | 56/25/81 | 56/25/81 | 60/36/96 | 60/36/96 | 64/42/106 | 64/42/106 | 65/47/112 | 65/47/112 | 68/52/120 | 68/52/120 | 68/56/124 | 68/56/124 | 68/56/124 | 68/56/124 |
 | Paladin (Oath of Devotion) | 9/4/13 | 9/4/13 | 9/4/13 | 9/4/13 | 19/5/24 | 19/5/24 | 19/5/24 | 19/5/24 | 24/6/30 | 24/6/30 | 24/6/30 | 24/6/30 | 25/9/34 | 25/9/34 | 25/9/34 | 25/9/34 | 25/13/38 | 25/13/38 | 25/13/38 | 25/13/38 |
 | Ranger (Hunter) | 9/4/13 | 9/4/13 | 9/4/13 | 9/4/13 | 21/7/28 | 21/7/28 | 21/7/28 | 21/7/28 | 30/10/40 | 30/10/40 | 30/10/40 | 30/10/40 | 33/12/45 | 33/12/45 | 33/12/45 | 33/12/45 | 33/15/48 | 33/15/48 | 33/15/48 | 33/15/48 |
-| Sorcerer (Draconic Sorcery) | 28/9/37 | 28/9/37 | 53/11/64 | 53/11/64 | 69/16/85 | 69/16/85 | 79/19/98 | 79/19/98 | 84/26/110 | 84/26/110 | 90/31/121 | 90/31/121 | 91/38/129 | 91/38/129 | 94/41/135 | 94/41/135 | 94/45/140 | 94/45/140 | 94/45/140 | 94/45/140 |
+| Sorcerer (Draconic Sorcery) | 29/8/37 | 29/8/37 | 54/10/64 | 54/10/64 | 70/15/85 | 70/15/85 | 80/18/98 | 80/18/98 | 85/25/110 | 85/25/110 | 91/30/121 | 91/30/121 | 92/37/129 | 92/37/129 | 95/40/135 | 95/40/135 | 95/44/140 | 95/44/140 | 95/44/140 | 95/44/140 |
 | Warlock (Fiend Patron) | 13/6/19 | 13/6/19 | 23/6/29 | 23/6/29 | 32/8/40 | 32/8/40 | 36/9/45 | 36/9/45 | 37/15/52 | 37/15/52 | 37/15/52 | 37/15/52 | 37/15/52 | 37/15/52 | 37/15/52 | 37/15/52 | 37/15/52 | 37/15/52 | 37/15/52 | 37/15/52 |
-| Wizard (Evoker) | 32/13/45 | 32/13/45 | 63/18/81 | 63/18/81 | 87/23/110 | 87/23/110 | 98/38/136 | 98/38/136 | 102/57/160 | 102/57/160 | 109/68/179 | 109/68/179 | 111/81/194 | 111/81/194 | 116/87/206 | 116/87/206 | 117/97/218 | 117/97/218 | 117/97/218 | 117/97/218 |
+| Wizard (Evoker) | 33/12/45 | 33/12/45 | 64/17/81 | 64/17/81 | 88/22/110 | 88/22/110 | 99/37/136 | 99/37/136 | 103/56/160 | 103/56/160 | 110/67/179 | 110/67/179 | 112/80/194 | 112/80/194 | 117/86/206 | 117/86/206 | 118/96/218 | 118/96/218 | 118/96/218 | 118/96/218 |

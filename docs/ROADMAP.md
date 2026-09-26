@@ -1065,7 +1065,7 @@ roadmap covers the whole road.
 
 ### Engine side
 
-- `[ ]` **I-E1 Save and restore a campaign.** `restoreCampaign({ content,
+- `[x]` **I-E1 Save and restore a campaign.** (23224dc4) `restoreCampaign({ content,
   seed, log })` beside `createCampaign` in `packages/tools/src/campaign.ts`,
   a `serializeCampaign` that returns the record, a content version stamp on
   it; the append door promoted from private convention to public API; a test
@@ -1075,13 +1075,14 @@ roadmap covers the whole road.
   `SRD_CONTENT_INPUT` round-trips already (1.32 MB, 27 ms to revalidate).
   **First in the integration queue: the app's persistence starts with this
   call or with an argument.**
-- `[ ]` **I-E2 Tools as JSON Schema, in OpenAI function-calling format.**
+- `[x]` **I-E2 Tools as JSON Schema, in OpenAI function-calling format.** (23224dc4)
   `toolSchemas(surface)` through Zod 4's `z.toJSONSchema`, sorted, with a
   test that both surfaces convert with zero failures. Decide strict mode
   (every property required, no additional properties) and post-process if
   so. The probe's `drivers.ts` already builds the wire shape and is the
   reference.
-- `[ ]` **I-E3 Packaging.** Decide once: Infinite Realms as an `apps/*`
+- `[ ]` **I-E3 Packaging.** *Owner, 2026-09-26: separate repositories, so
+  the `file:` road; I-A0 does not run.* Decide once: Infinite Realms as an `apps/*`
   workspace in this repo (already declared in `package.json`), or a `file:`
   dependency with a `prepare` script that builds `dist`. Fix the `./dm`
   subpath the docs promise or correct the docs.
@@ -1192,7 +1193,7 @@ against three.
   nothing under `src/ui/**` or `src/application/**` imports
   `src/domain/encounter.ts` or names a die, a DC, an AC or hit-point
   arithmetic.
-- `[ ]` **I-A12 Monster turns.** The engine has no monster AI. Decide once
+- `[ ]` **I-A12 Monster turns.** *Owner, 2026-09-26: app code chooses.* The engine has no monster AI. Decide once
   whether the model takes each monster's turn through the same door (cost
   per beat) or app code chooses from `options` and the printed lines. The
   mock's tactics code is the fallback and is not the engine's business.
@@ -1282,6 +1283,14 @@ reshapes the casting pipeline, with a design note first.
   bestiary id at the casting with its restrictions enforced, and the steeds
   are catalogue entries; **the sight model is built**; the feature blocker
   map is widened.
+- 2026-09-26 (owner): crawling or climbing in Difficult Terrain costs 4 feet
+  per foot, a quarter Speed — `wayOf`'s reading stands; losing Hit Points is
+  damage (Concentration, Temporary Hit Points), and Temporary Hit Points that
+  absorb damage do not spare the Concentration save; a player character's
+  corpse Animate Dead raises **keeps its character record**, so a later
+  revival can bring the character back — the spell is not refused on player
+  characters; **Infinite Realms stays a separate repository** (I-E3); **app
+  code plays the monsters' turns**, not the model (I-A12).
 
 ## 10. Open questions and blocks
 
@@ -2830,3 +2839,44 @@ Appended after wave seven's first spells track (2026-09-24):
   share cannot be handed over by half); Protection from Evil and Good keeps
   its shape claimant narrowed to the printed-save road. The reviewer ran on
   Fable (five defects, fixed).
+- **Uses, lights and reactions.** Seven of the brief's lines: Reflexive
+  Antennae's Reaction performs the line its response names
+  (`performPrintedResponse`); Mending lifts a printed penalty (`repairs {
+  clears: 'printed-penalty' }`, `item-penalty-cleared`; `CastingPlan` now
+  carries the named `object` across a minute's casting); Legendary Resistance
+  is a third `ReactionEffect`, `succeed-instead`, costing no Reaction and
+  answering a save a DM asks for (not yet one a spell rolls inside its own
+  resolution); Unicorn's Blessing's cast line (`notSelf`); Rampage off
+  `LastDamage.wasBloodied`, derived by the fold (both frozen logs unchanged);
+  Soul Bag; Ignited Illumination. Bestiary 57 → 51 lines, 55 → 51 blocks;
+  Mending leaves the handed-over-whole column (34 → 33) for executed-partial.
+  Main re-ingested; every committed index reproduced. **Not built, to a
+  remainder brief:** Darkness Aura, Vanish, Redirect Attack, Nightmare
+  Haunting with the Soul Bag trait it requires, Loathsome Limbs. Fable review
+  (five defects, fixed).
+- **The ground track's six**, the review follow-ups of S19: Gust of Wind's
+  redirect re-lays its directional ground, Levitate's twenty feet is one
+  twenty across activations and a forced move spends none of it, Warding
+  Bond's two guards are driven (one hop; an unmeasurable pair gets neither
+  half), `terrainDamageAlong` reads its cutting patches through a sort, and
+  `docs/design/space-and-areas.md` describes the terrain vocabulary. No
+  ledger number moves, by construction. Fable review (two encoding defects,
+  fixed).
+
+Appended 2026-09-26, when the Fable budget ran out mid-wave:
+
+- **Wave seven continues on Opus alone.** Builders and reviewers are both
+  Opus until the owner says otherwise. S21 and B10 stopped mid-part; their
+  half-written edits are committed on their branches as `WIP (unverified)`
+  and resumed by Opus builders, who rebase onto main first.
+- **Gates G2–G4 were the architect's**, and the architect ran on Fable. Who
+  holds them now is the owner's call, asked 2026-09-26.
+- **Not yet briefed**, each a ledger line nothing covers: the Otherworldly
+  Steed's Fey Step, Healing Touch and Life Bond; the Wraith's Create
+  Specter; Protection from Evil and Good's printed-save road
+  (`settlePrintedSave` handing `PrintedSaveDebt.by` to the gatherer as
+  `forcedBy`); Gaseous Form's "can't talk" (awaiting a ruling).
+- **Criterion 3 stands at three handovers**, all the Wight's Life Drain: the
+  Multiattack's "replace one attack with a use of Life Drain" and the line
+  itself. Whether an honest fiction handover (the Zombie that rises 24 hours
+  later) counts against "zero" is asked of the owner.

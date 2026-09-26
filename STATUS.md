@@ -83,7 +83,7 @@ Divinity's shared pool, the defender answering first, recharge, `alsoHolding`,
 the Hydra's declared heads and derived Bites, a fight that ends; then Truesight
 and Blindsight satisfying "can somehow see" where Darkvision does not, Alert's
 swap and its window, Wild Shape's four answers, and Nimbus Quill's table
-rolling its own dice. **Each is quoted in full in `docs/archive/status-2026-09-21.md`.**
+rolling its own dice.
 
 **A builder's ruling, recorded rather than drifted into.** A creature at 0
 hit points, or dead, keeps its hit points when a maximum rises: raising them
@@ -96,6 +96,10 @@ player per campaign for the first release · Infinite Realms calls OpenAI, so th
 calling · movement modes are ordinary spatial dynamics and are built · Find Familiar names a bestiary id at the
 casting, and Find Steed's and Phantom Steed's stat blocks are catalogue entries · the
 sight model is built.
+
+**Owner, 2026-09-26.** Crawling in Difficult Terrain costs a quarter Speed ·
+losing Hit Points is damage · a raised player character keeps its record ·
+Infinite Realms stays separate; its code plays the monsters.
 
 ## Decisions genuinely open
 
