@@ -334,14 +334,14 @@ export const COUNTERSPELL: SpellDefinition = {
   requiresSight: true,
   targets: { count: 1 },
   effects: [{ kind: 'interrupt-casting', ability: 'con' }],
-  // The trigger reads "casting a spell with Verbal, Somatic, or Material
-  // components", and every SRD 5.2.1 spell prints one of the three — no SRD
-  // stat block casts with none — so the qualifier excludes nothing this
-  // catalogue can cast and the window is exactly the book's. W8-S26 took it
-  // out of `unmodelled`: nothing in reach is owed, and nothing about it is
-  // the DM's to decide. `counterspell.test.ts` (engine) holds the reason it
-  // is safe, and fails the day a spell with no component is parsed; the
-  // components are on the entry for the window to read on that day.
+  // **A debt, and the reading that called it safe was half right** (W8-S26,
+  // on review). Every SRD 5.2.1 spell prints a component, which
+  // `counterspell.test.ts` (engine) still proves; but seventeen stat blocks
+  // cast "requiring no spell components" — a Giant Owl's Clairvoyance, a
+  // Couatl's Sleep — and a casting of theirs opens the window all the same.
+  unmodelled: [
+    'the trigger reads "casting a spell with Verbal, Somatic, or Material components", and the qualifier is not checked: every SRD 5.2.1 spell prints one of the three, but a stat block that casts "requiring no spell components" — a Giant Owl’s Clairvoyance, a Couatl’s Sleep — opens the window where the book gives none',
+  ],
 };
 
 /**
@@ -4908,14 +4908,16 @@ export const NONDETECTION: SpellDefinition = {
   // before anything is spent, with this spell named.
   wardsTargets: { school: 'divination' },
   durationSeconds: 28_800,
-  // The place, the object and the scrying sensor, in the book's words
-  // (W8-S26): a place or an object warded against Divination spells the
-  // engine hands to the table whole — Locate Object and its kind read nothing
-  // — and a sensor is Clairvoyance's, which is handed over whole too. The ward
-  // on a creature in the second sentence is `wardsTargets` above.
+  // The scrying sensor, in the book's words (W8-S26): a sensor is
+  // Clairvoyance's, which is handed over whole, and nothing reads one. The
+  // ward on a creature in the same sentence is `wardsTargets` above. The place
+  // or the object is not the table's: the casting is refused without a
+  // creature to name, which a target rule reads.
   dmDecides: [
-    'The target can be a willing creature, or it can be a place or an object no larger than 10 feet in any dimension.',
     "The target can't be targeted by any Divination spell or perceived through magical scrying sensors.",
+  ],
+  unmodelled: [
+    'a place or an object as the target is refused: the casting must name a willing creature, where the book lets it ward a chest or a room — `targets.optional`, which Identify writes for the same choice, is not written here',
   ],
 };
 
@@ -14462,7 +14464,8 @@ export const HEX: SpellDefinition = {
  * (`cast_spell.deliveredBy`), and its senses lent to the caster for a Bonus
  * Action (`borrowSenses`, read by `canSee` and `sensesOf`) — the senses its
  * stat block prints among them, since the block's Senses line reaches its
- * sheet (W8-S25). What is left is written below, and it is the table's.
+ * sheet (W8-S25). What is left is written below: the telepathy and the
+ * independent turns are the table's, and the gear it leaves behind is a debt.
  */
 export const FIND_FAMILIAR: SpellDefinition = {
   id: 'find-familiar',

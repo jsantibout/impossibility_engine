@@ -791,7 +791,7 @@ describe('an executed spell with a clause nobody sorted is not executed', () => 
       .filter((one) => one.wait === 'definition')
       .map((one) => one.id)
       .sort();
-    expect(pending).toEqual(['flame-blade', 'produce-flame']);
+    expect(pending).toEqual(['flame-blade', 'nondetection', 'produce-flame']);
     for (const id of pending) {
       expect(unsortedInReach()[id], id).toBeUndefined();
       expect((ADJUDICATED[id] ?? []).map((entry) => entry.why), id).toContain('expressible');

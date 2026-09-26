@@ -618,8 +618,8 @@ export interface Adjudication {
    * {@link TrackedAdjudication.why} and {@link BlockedClause} have carried it
    * since gate G1: the existing kinds already say the clause and nobody wrote
    * the definition. Reading every clause of every executed spell in reach found
-   * four of that kind — a light a creature carries, a Cylinder's Dim Light, a
-   * cloud's obscurement — and without the value the only honest filing was no
+   * five of that kind — a light a creature carries, a Cylinder's Dim Light, a
+   * cloud's obscurement, a ward that may go on an object — and without the value the only honest filing was no
    * entry at all, which the ledger cannot tell from a paragraph nobody opened.
    * It names no shape, so it keeps no id alive; `LEDGER.md` counts it under
    * *waits on a definition*, which is the column for exactly this.
@@ -836,6 +836,13 @@ export const ADJUDICATED: Readonly<Record<string, readonly Adjudication[]>> = {
       clause: 'the flame springs from an object',
       why: 'light-and-obscurement-the-scene-holds',
       note: 'W8-S26 re-read this as a debt, and this id’s own description names the spell: "What is left is not about light at all: it is the object." The light is laid on the creature the casting names as the bearer, so a flame set on a table or a sconce is a point the table has to light by hand, and the Bright and Dim Light it sheds are read by every sight question.',
+    },
+  ],
+  'counterspell': [
+    {
+      clause: 'the qualifier is not checked',
+      why: 'a-target-rule-the-format-cannot-state',
+      note: 'W8-S26, on review, reversing a reading that called this safe. Every SRD spell prints a component, and seventeen SRD stat blocks — a Giant Owl, a Couatl, an Imp, a Quasit, a Sprite, a Unicorn among those in reach — cast with no spell components at all; `adaptMonster` compiles those lines into ordinary castings, and a Counterspell is let at one where the book gives no window. The fact is printed and dropped, and the trigger reads it. The closest id: a rule over which casting the reaction may be aimed at, which the format cannot state.',
     },
   ],
   'dancing-lights': [
@@ -1242,6 +1249,13 @@ export const ADJUDICATED: Readonly<Record<string, readonly Adjudication[]>> = {
       clause: 'a shape-shifted creature reverting to its true form',
       why: 'a-standing-effect-derived-from-where-a-creature-stands',
       note: 'W8-S26 re-read this as a debt, because the reason it gave, that shape-shifting is not modelled, stopped being true when Wild Shape and the printed shape-shifters were built. A creature holds a shape now; the failed save should end it, and "can’t shape-shift until it leaves the Cylinder" is a refusal derived from where the creature stands, which is this id. The forced revert rides with it.',
+    },
+  ],
+  'nondetection': [
+    {
+      clause: 'a place or an object as the target is refused',
+      why: 'expressible',
+      note: 'W8-S26, on review. The book lets the ward go on a place or an object, and the definition names a willing creature and nothing else, so warding a chest or a room is refused before anything is spent — a target rule reading the table’s fact. `targets.optional` is what Identify writes for the same object-or-creature choice, and nobody wrote it here; what the ward then does to a place is the table’s, as the sensors are.',
     },
   ],
   'phantasmal-killer': [
@@ -2190,7 +2204,8 @@ export const TRACKED_ADJUDICATED: Readonly<Record<string, readonly TrackedAdjudi
   // three benefits are executed off the two axes this batch built — a roll
   // mode narrowed by the attacker's creature type, and a condition Immunity
   // narrowed by the type of whatever is causing the condition — so the spell
-  // was executed-partial; W8-S24 paid the third, and possession stays `unmodelled`.
+  // was executed-partial; W8-S24 paid the third, and W8-S26 handed possession
+  // over.
   // **Dragon's Breath has left the tracked map**, and it took both of its
   // shapes with it: `SpellActivation.by` hands the Magic action to the creature
   // the casting is on, and `SpellActivation.area` draws the 15-foot Cone afresh
