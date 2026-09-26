@@ -1185,6 +1185,46 @@ function checkSpellCheck(
     }
   }
 
+  // SRD Spike Growth's "Wisdom (Perception or Survival)": a list the attempter
+  // picks from, held to the same two rules the single skill is held to, and
+  // never printed beside one — a spell names one skill or offers a choice.
+  // One entry is a single skill wearing a list's clothes and is refused as
+  // malformed rather than read as the other field. (W7-S21)
+  const skills = (check as { readonly skills?: unknown }).skills;
+  if (skills !== undefined) {
+    if (check.skill !== undefined) {
+      found.push({
+        field: `${path}.skills`,
+        code: 'check_skill_and_skills',
+        reason: 'a check names one skill or offers a choice of several, never both',
+      });
+    }
+    if (!Array.isArray(skills) || skills.length < 2 || new Set(skills).size !== skills.length) {
+      found.push({
+        field: `${path}.skills`,
+        code: 'malformed_field',
+        reason: 'a choice of skills is a list of two or more distinct skills; one skill is `skill`',
+      });
+    } else {
+      (skills as readonly unknown[]).forEach((entry, i) => {
+        const skill = entry as Skill;
+        if (!SKILL_NAMES.has(skill)) {
+          found.push({
+            field: `${path}.skills[${i}]`,
+            code: 'bad_skill',
+            reason: `"${String(entry)}" is not a skill`,
+          });
+        } else if (ABILITY_NAMES_SET.has(check.ability) && SKILL_ABILITY[skill] !== check.ability) {
+          found.push({
+            field: `${path}.skills[${i}]`,
+            code: 'skill_ability_mismatch',
+            reason: `SRD writes a check as "Wisdom (Perception or Survival)"; ${String(entry)} is a ${SKILL_ABILITY[skill]} skill and this names ${ability}`,
+          });
+        }
+      });
+    }
+  }
+
   if (check.dc !== undefined && (!Number.isInteger(check.dc) || check.dc < 1)) {
     found.push({
       field: `${path}.dc`,

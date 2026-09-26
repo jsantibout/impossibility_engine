@@ -1000,6 +1000,10 @@ const ANSWERS: Readonly<Record<string, Answer>> = {
   // one field along, and answered the same way: the engine names the shapes
   // and will not pick between them.
   shape_required: { fields: ['use_pool_option.shape'] },
+  // A check a spell offers with the attempter's choice of skill — SRD Spike
+  // Growth's "Wisdom (Perception or Survival)". The engine names the skills
+  // and will not pick between them. (W7-S21)
+  skill_required: { fields: ['attempt_effect_check.skill'] },
 
   // — a creature named for a roll that the split never gave one ——————————————
   // SRD Scorching Ray's "at one target within range or at several" with the

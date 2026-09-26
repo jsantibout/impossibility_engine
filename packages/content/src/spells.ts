@@ -10280,9 +10280,10 @@ export const PASS_WITHOUT_TRACE: SpellDefinition = {
  * > save DC to recognize the terrain as hazardous before entering it."
  *
  * **The damage is per five feet travelled**, which is the sentence that makes
- * this more than another Difficult Terrain spell: the engine charges movement
- * by the foot and never asks how far inside an area those feet were spent, so
- * there is no number for the dice to be multiplied by.
+ * this more than another Difficult Terrain spell: the patch the casting lays
+ * owes the dice for every five feet of a stated route inside the Sphere. The
+ * Search-action check is offered off the casting with the attempter's choice of
+ * skill (`SpellCheck.skills`); who has to make it is the table's.
  */
 export const SPIKE_GROWTH: SpellDefinition = {
   id: 'spike-growth',
@@ -10303,9 +10304,22 @@ export const SPIKE_GROWTH: SpellDefinition = {
   // reported rather than rolled for.
   areaTerrain: { costPerFoot: 2, damagePerFeet: { feet: 5, dice: '2d4', damageType: 'piercing' } },
   effects: [],
+  // "Any creature that can't see the area when the spell is cast must take a
+  // Search action and succeed on a Wisdom (Perception or Survival) check
+  // against your spell save DC to recognize the terrain as hazardous before
+  // entering it." A check the casting offers to anybody — `mayAttempt`'s
+  // casting-with-no-victim rule is this sentence — with the attempter's choice
+  // of skill (`skills`) and the Search action as its price, which is the Action
+  // `resolveEffectCheck` charges. Knowing changes nothing the engine holds.
+  check: { ability: 'wis', skills: ['perception', 'survival'], onSuccess: 'none' },
   durationSeconds: 600,
+  // The check is the engine's; *who has to make it* — a creature that could not
+  // see the casting — is a fact about the scene at a moment gone by, and the
+  // table's. Not `dmDecides`: the printed sentence names the check the engine
+  // rolls, and a handover may name no mechanic, so the gate is filed here with
+  // a `'table'` adjudication — Glyph of Warding's check to notice, the same way.
   unmodelled: [
-    'the Wisdom (Perception or Survival) check that spots the hazard is not offered off the casting: `SpellCheck` names one skill and the command that attempts a check (`resolveEffectCheck`) states none, so "Perception or Survival" — the attempter’s choice — has no field to be said in; the table calls it as a Search action with either skill against the casting’s DC, and "any creature that can’t see the area when the spell is cast" is the table’s to know',
+    'who has to make the Wisdom (Perception or Survival) check is not decided by the engine: "any creature that can’t see the area when the spell is cast" is a fact about the scene at a moment gone by, which the table holds and the engine does not — the check itself is offered off the casting to anybody who takes the Search action',
   ],
 };
 

@@ -317,8 +317,10 @@ describe('toolSchemas', () => {
     // untouched.
     expect(toolSchemas(player())).toHaveLength(93);
     expect(toolSchemas(dm())).toHaveLength(120);
-    expect(JSON.stringify(toolSchemas(player())).length).toBe(147836);
-    expect(JSON.stringify(toolSchemas(dm())).length).toBe(193536);
+    // Re-pinned for W7-S21 part 4: `attempt_effect_check.skill` (SRD Spike
+    // Growth's "Perception or Survival" — the attempter's pick) on both doors.
+    expect(JSON.stringify(toolSchemas(player())).length).toBe(148456);
+    expect(JSON.stringify(toolSchemas(dm())).length).toBe(194156);
   });
 });
 

@@ -3777,6 +3777,9 @@ export function resolveEffects(
         ...(becomes.inAStorm === undefined ? {} : { inAStorm: becomes.inAStorm }),
         // And the creature the spell picked out — see `OngoingSpell.singledOut`.
         ...(becomes.singledOut === undefined ? {} : { singledOut: becomes.singledOut }),
+        // And the skills its check offers a choice of — SRD Spike Growth's
+        // "Perception or Survival" — see `OngoingSpell.checkSkills`. (W7-S21)
+        ...(definition.check?.skills === undefined ? {} : { checkSkills: definition.check.skills }),
         // The casting this one turns aside, pinned at the cast — see
         // `OngoingSpell.negates`.
         ...(becomes.negates === undefined ? {} : { negates: becomes.negates }),

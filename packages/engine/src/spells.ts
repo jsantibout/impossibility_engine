@@ -1,4 +1,4 @@
-import { err, ok, type CharacterId, type Result } from '@ie/shared';
+import { err, ok, type CharacterId, type Result, type Skill } from '@ie/shared';
 import type { TurnMoment } from './time.js';
 import {
   areaPointAt,
@@ -770,6 +770,19 @@ export interface OngoingSpell {
    * action has not been taken yet.
    */
   readonly singledOut?: string;
+  /**
+   * The skills the casting's check offers a **choice** of — SRD Spike Growth's
+   * "Wisdom (Perception or Survival)" — pinned from `SpellCheck.skills` at the
+   * cast, so the attempt a minute later opens no book.
+   *
+   * **On the record and not on the timer's `EffectCheck`, for the reason
+   * {@link singledOut} is**: the check machinery reaches this record through
+   * the timer's `casting` target, and that is the seam the compulsions track
+   * used for the one creature a check is narrowed to. `availableChecks`
+   * publishes it and `resolveEffectCheck` holds the attempter's `skill` to it.
+   * Absent for every check that names one skill or none. (W7-S21)
+   */
+  readonly checkSkills?: readonly Skill[];
   /**
    * The turn this casting's point last moved on, counted as the fight counts
    * turns, or absent for one that has never moved or moved outside a fight.

@@ -913,9 +913,26 @@ export interface AvailableCheck {
   readonly by: CharacterId;
   readonly ability: Ability;
   readonly skill: Skill | null;
+  /**
+   * The skills the attempter may choose between, where the spell prints a
+   * choice — SRD Spike Growth's "Perception or Survival". Absent where it
+   * prints one skill or none; present, `EffectCheckCommand.skill` must name
+   * one of them. (W7-S21)
+   */
+  readonly skills?: readonly Skill[];
   readonly dc: number;
   readonly onSuccess: EffectCheck['onSuccess'];
   readonly label: string;
+}
+
+/**
+ * The skills a check offers a choice of, read off the casting record its
+ * timer names — see `OngoingSpell.checkSkills`. Undefined for a check that
+ * prints one skill or none, and for a check hung on anything but a casting.
+ */
+function offeredSkillsOf(state: GameState, timer: TimedEffect): readonly Skill[] | undefined {
+  if (timer.target.kind !== 'casting') return undefined;
+  return state.ongoing[timer.target.castingId]?.checkSkills;
 }
 
 /**
@@ -932,12 +949,14 @@ export function availableChecks(state: GameState, who: CharacterId): readonly Av
       const timer = state.timers[effectKey];
       if (timer?.check === undefined) return [];
       if (!mayAttemptOrReach(state, timer, who)) return [];
+      const skills = offeredSkillsOf(state, timer);
       return [
         {
           effectKey,
           by: who,
           ability: timer.check.ability,
           skill: timer.check.skill ?? null,
+          ...(skills === undefined ? {} : { skills }),
           dc: timer.check.dc,
           onSuccess: timer.check.onSuccess,
           label: timer.check.label,
@@ -959,6 +978,18 @@ export interface EffectCheckCommand extends CommandIdentity {
   readonly modes?: readonly (RollMode | ModeSource)[];
   /** Named modifiers the table supplies: Guidance's 1d4, a tool's bonus. */
   readonly bonuses?: readonly Bonus[];
+  /**
+   * Which skill this attempt is made with, where the spell offers a choice.
+   *
+   * SRD Spike Growth: "a Wisdom (**Perception or Survival**) check". The
+   * attempter's pick from the list the check publishes
+   * (`AvailableCheck.skills`), and a decision rather than a number: which
+   * proficiency and which Expertise reach the die. Required where the list is
+   * printed (`skill_required`), refused off it (`skill_not_offered`), and on a
+   * check that prints one skill only that skill may be restated. Never
+   * defaulted — the engine will not pick a skill for somebody. (W7-S21)
+   */
+  readonly skill?: Skill;
   /**
    * Which senses this particular attempt leans on.
    *
@@ -1093,6 +1124,29 @@ export function resolveEffectCheck(
       );
     }
 
+    // **The skill the die is rolled with**, where the spell leaves the choice
+    // to the attempter — SRD Spike Growth's "Perception or Survival". The list
+    // is pinned on the casting record and the pick is the command's; a pick
+    // off the list is refused, a list with no pick is refused rather than
+    // defaulted, and a check that prints one skill takes that skill restated
+    // and no other. Before the Action, so a refusal costs nothing. (W7-S21)
+    const offered = offeredSkillsOf(state, timer);
+    if (command.skill !== undefined) {
+      const admitted = offered === undefined ? command.skill === check.skill : offered.includes(command.skill);
+      if (!admitted) {
+        return err(
+          'skill_not_offered',
+          `${check.label} is made with ${offered === undefined ? (check.skill ?? 'no skill') : offered.join(' or ')}, not ${command.skill}`,
+        );
+      }
+    } else if (offered !== undefined) {
+      return err(
+        'skill_required',
+        `${check.label} is made with ${offered.join(' or ')} and the engine will not choose between them; name which in \`skill\``,
+      );
+    }
+    const skill = command.skill ?? check.skill;
+
     // Nothing is rolled until the whole operation is known to be valid, so a
     // refusal costs neither the Action nor a turn of the generator. Out of
     // combat there is no economy to spend, exactly as with a casting.
@@ -1113,7 +1167,7 @@ export function resolveEffectCheck(
       family: 'ability-check' as const,
       roller: who,
       ability: check.ability,
-      ...(check.skill === undefined ? {} : { skill: check.skill }),
+      ...(skill === undefined ? {} : { skill }),
       // **And what this check is about**, which is the axis a saving throw has
       // had since Brave and the one an ability check had no answer for. The
       // timer being settled holds it — a `condition` target is one condition
@@ -1131,13 +1185,13 @@ export function resolveEffectCheck(
     const sheet = sheetAsItStands(state, who) ?? creature.sheet;
     const rolled = rollAbilityCheck(supply.issuer, supply.rng, sheet, check.ability, {
       dc: check.dc,
-      ...(check.skill === undefined ? {} : { skill: check.skill }),
+      ...(skill === undefined ? {} : { skill }),
       conditions: effectiveConditions(state, who),
       modes: [...fromFeatures, ...(command.modes ?? [])],
       ...(command.senses === undefined ? {} : { conditionContext: command.senses }),
       // A worn item's "+1 bonus to ability checks", read rather than
       // remembered — the rule the modes above already follow.
-      bonuses: checkBonuses(state, who, command.bonuses, check.skill),
+      bonuses: checkBonuses(state, who, command.bonuses, skill),
     });
     if (!rolled.ok) return rolled;
 

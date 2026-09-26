@@ -444,6 +444,20 @@ export interface SpellCheck {
   readonly ability: Ability;
   /** The skill the SRD names: "Intelligence (Investigation)". */
   readonly skill?: Skill;
+  /**
+   * The skills the SRD offers a **choice** of: SRD Spike Growth's "a Wisdom
+   * (Perception or Survival) check".
+   *
+   * {@link skill}'s plural and never beside it (`check_skill_and_skills`): a
+   * spell prints one skill or a list, and the list is the attempter's to pick
+   * from — `EffectCheckCommand.skill` names the pick, refused off the list
+   * (`skill_not_offered`) and refused absent (`skill_required`), because the
+   * engine will not choose a skill for somebody any more than it chooses a
+   * damage type. Two or more, each a skill of {@link ability}. Pinned on the
+   * casting record (`OngoingSpell.checkSkills`) so the attempt a minute later
+   * opens no book. (W7-S21)
+   */
+  readonly skills?: readonly Skill[];
   /** A printed DC. Omitted, the caster's own spell save DC. */
   readonly dc?: number;
   /**

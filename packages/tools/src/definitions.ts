@@ -710,6 +710,9 @@ const OPTIONS = tool({
         effectKey: check.effectKey,
         label: check.label,
         dc: check.dc,
+        // The choice of skill a check offers, where it offers one, so the
+        // caller can name a pick `attempt_effect_check` will accept. (W7-S21)
+        ...(check.skills === undefined ? {} : { skills: check.skills }),
       })),
     });
   },
@@ -5078,6 +5081,11 @@ const ATTEMPT_EFFECT_CHECK = tool({
   input: z.object({
     who: creatureId,
     effectKey: z.string().min(1).describe('From `options`, which reports checksAvailable.'),
+    skill: skillSchema
+      .optional()
+      .describe(
+        'Which skill to make the check with, where the spell offers a choice — Spike Growth’s "Wisdom (Perception or Survival)". `options` lists the choice beside the check as `skills`; name one of them, because the engine will not pick a skill for you, and leaving it out for such a check is refused. A check that names one skill needs nothing here.',
+      ),
     ...sensesFields,
   }),
   run: (context, args) =>
@@ -5086,7 +5094,12 @@ const ATTEMPT_EFFECT_CHECK = tool({
       resolveEffectCheck(
         context.campaign.state(),
         who(args.who),
-        { effectKey: args.effectKey, ...senses(args), ...identity(context) },
+        {
+          effectKey: args.effectKey,
+          ...(args.skill === undefined ? {} : { skill: args.skill }),
+          ...senses(args),
+          ...identity(context),
+        },
         context.campaign.supply(),
       ),
       (value) => value.events,
