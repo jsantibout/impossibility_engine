@@ -3118,3 +3118,20 @@ Appended 2026-09-26, wave seven on Opus:
   property, which "requires two hands when you attack with it": the fact is
   the weapon's, not the caller's. A one-condition fix and a test; a model that
   omits the flag silently loses the reroll today.
+- **Treasure T-C1: the wand door.** `cast_spell` gains `item` and `charges`
+  (Zod had silently dropped both, so **no casting item was reachable from
+  either door** — `reachability.test.ts` walked class features only); `item`
+  takes a catalogue id or a copy's own. `pool.onLastCharge` (`{destroyed:
+  true, onD20AtOrBelow}` or `'always'`) read at the spend that empties the
+  pool (`commands/last-charge.ts`, at the casting and the priced conferral);
+  `confers.reach` with sight asked as a spell's range asks it. The item's
+  handover reaches a person: `itemHandovers` (`commands/item-handover.ts`)
+  reads `dmDecides` into `useItem`'s and the casting's `unverified` and onto
+  `sheet`'s carrying lines. **A new sweep, `item-reachability.test.ts`, drives
+  every magic item through the doors alone**: 30 casting items (44 pairs), 21
+  conferrals, 191 standing grants, the still-shut list empty. The Wand of
+  Paralysis is new; seven entries complete. Magic items 88 → 89 transcribed,
+  complete records 199 → 208. Pins: player 96 / 157375, DM 123 / 206069.
+  **Left:** `a-range-an-item-names`' description still says `confers` has no
+  range, and its map entries want re-deriving. Opus review, three defects,
+  fixed.

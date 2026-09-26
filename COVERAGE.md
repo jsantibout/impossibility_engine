@@ -684,7 +684,7 @@ is where a figure like that belongs.
 
 | Parsed | Transcribed | Instances | of which complete | of which partial |
 |---|---|---|---|---|
-| 258 | 88 | 249 | 199 | 50 |
+| 258 | 89 | 250 | 208 | 42 |
 
 | Records handing printed text to the DM |
 |---|
@@ -708,12 +708,12 @@ inventing a column that nothing checks.
 | Armor | 19 | 10 | 55 | 50 | 5 |
 | Potions | 24 | 11 | 14 | 9 | 5 |
 | Rings | 22 | 5 | 5 | 4 | 1 |
-| Rods | 7 | 1 | 1 | 0 | 1 |
+| Rods | 7 | 1 | 1 | 1 | 0 |
 | Scrolls | 1 | 0 | 0 | 0 | 0 |
-| Staffs | 12 | 1 | 1 | 0 | 1 |
-| Wands | 13 | 8 | 8 | 1 | 7 |
+| Staffs | 12 | 1 | 1 | 1 | 0 |
+| Wands | 13 | 9 | 9 | 7 | 2 |
 | Weapons | 33 | 15 | 128 | 115 | 13 |
-| Wondrous Items | 127 | 37 | 37 | 20 | 17 |
+| Wondrous Items | 127 | 37 | 37 | 21 | 16 |
 
 ### Entries transcribed
 
@@ -747,7 +747,7 @@ how many of those still carry a clause the engine does not say.
 - **Dwarven Plate** (Armor) — 1 recorded, 1 partial
 - **Elixir of Health** (Potions) — 1 recorded, complete
 - **Elven Chain** (Armor) — 1 recorded, 1 partial
-- **Eyes of Charming** (Wondrous Items) — 1 recorded, 1 partial
+- **Eyes of Charming** (Wondrous Items) — 1 recorded, complete
 - **Frost Brand** (Weapons) — 1 recorded, 1 partial
 - **Gauntlets of Ogre Power** (Wondrous Items) — 1 recorded, complete
 - **Giant Slayer** (Weapons) — 1 recorded, 1 partial
@@ -784,26 +784,27 @@ how many of those still carry a clause the engine does not say.
 - **Ring of Water Walking** (Rings) — 1 recorded, complete
 - **Robe of Stars** (Wondrous Items) — 1 recorded, 1 partial
 - **Robe of the Archmagi** (Wondrous Items) — 1 recorded, 1 partial
-- **Rod of Resurrection** (Rods) — 1 recorded, 1 partial
+- **Rod of Resurrection** (Rods) — 1 recorded, complete
 - **Scimitar of Speed** (Weapons) — 1 recorded, 1 partial
 - **Sentinel Shield** (Armor) — 1 recorded, complete
 - **Shield of the Cavalier** (Armor) — 1 recorded, 1 partial
 - **Shield, +1, +2, or +3** (Armor) — 3 recorded, complete
 - **Sovereign Glue** (Wondrous Items) — 1 recorded, complete
-- **Staff of Fire** (Staffs) — 1 recorded, 1 partial
+- **Staff of Fire** (Staffs) — 1 recorded, complete
 - **Stone of Good Luck (Luckstone)** (Wondrous Items) — 1 recorded, complete
 - **Sword of Wounding** (Weapons) — 1 recorded, 1 partial
 - **Universal Solvent** (Wondrous Items) — 1 recorded, complete
 - **Vicious Weapon** (Weapons) — 1 recorded, complete
 - **Vorpal Sword** (Weapons) — 1 recorded, 1 partial
-- **Wand of Binding** (Wands) — 1 recorded, 1 partial
+- **Wand of Binding** (Wands) — 1 recorded, complete
 - **Wand of Fear** (Wands) — 1 recorded, 1 partial
-- **Wand of Fireballs** (Wands) — 1 recorded, 1 partial
-- **Wand of Lightning Bolts** (Wands) — 1 recorded, 1 partial
+- **Wand of Fireballs** (Wands) — 1 recorded, complete
+- **Wand of Lightning Bolts** (Wands) — 1 recorded, complete
 - **Wand of Magic Detection** (Wands) — 1 recorded, complete
-- **Wand of Polymorph** (Wands) — 1 recorded, 1 partial
+- **Wand of Paralysis** (Wands) — 1 recorded, complete
+- **Wand of Polymorph** (Wands) — 1 recorded, complete
 - **Wand of Secrets** (Wands) — 1 recorded, 1 partial
-- **Wand of Web** (Wands) — 1 recorded, 1 partial
+- **Wand of Web** (Wands) — 1 recorded, complete
 - **Weapon of Warning** (Weapons) — 1 recorded, 1 partial
 - **Weapon, +1, +2, or +3** (Weapons) — 114 recorded, complete
 - **Wind Fan** (Wondrous Items) — 1 recorded, 1 partial
@@ -831,7 +832,7 @@ entry of "Magic Items A–Z" is in exactly one of them.
 
 | Parsed | Transcribed | Blocked | Ready | Fiction | Unread |
 |---|---|---|---|---|---|
-| 258 | 88 | 163 | 0 | 4 | 3 |
+| 258 | 89 | 162 | 0 | 4 | 3 |
 
 **Unread is the honest default**, not a backlog nobody got to. An entry
 whose blocker cannot be named from something this repository has already
@@ -892,7 +893,6 @@ the next tranche makes false.
 | `a-rider-on-a-later-weapon-attack` | 12 | 0 | 1 |
 | `a-rider-on-the-face-the-die-showed` | 12 | 0 | 1 |
 | `a-charge-spent-on-something-other-than-a-casting` | 9 | 0 | 1 |
-| `a-range-an-item-names` | 9 | 0 | 1 |
 | `damage-with-neither-an-attack-roll-nor-a-save` | 8 | 0 | 1 |
 | `senses-beyond-declared-sight` | 8 | 0 | 1 |
 | `a-bonus-narrowed-to-a-skill` | 6 | 1 | 0 |
@@ -906,6 +906,7 @@ the next tranche makes false.
 | `a-save-an-item-forces` | 11 | 0 | 0 |
 | `a-condition-an-item-imposes` | 10 | 0 | 0 |
 | `movement-modes` | 10 | 0 | 0 |
+| `a-range-an-item-names` | 8 | 0 | 0 |
 | `a-bonus-to-spell-attack-rolls` | 6 | 0 | 0 |
 | `an-exhaustion-level-a-spell-changes` | 4 | 0 | 0 |
 | `a-concentration-with-no-casting-behind-it` | 3 | 0 | 0 |
