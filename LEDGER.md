@@ -42,7 +42,7 @@ for exactly this reason.
 
 | Ledger | Size | Waits on an engine shape | Waits on a definition | Waits on none | Read to the end, handed over whole |
 |---|---|---|---|---|---|
-| Spells in reach, not executed | 5 spells | 5 | 0 | 0 | 33 |
+| Spells in reach, not executed | 4 spells | 4 | 0 | 0 | 33 |
 | Features manual, or a pool with nothing to buy | 0 features | 0 | 0 | 0 | 0 |
 | Items a level 1–5 party can buy | 157 items | 0 | 0 | 157 | 0 |
 | Glossary general rules nothing executes | 23 rules | 0 | 0 | 23 | 0 |
@@ -69,7 +69,6 @@ exactly the silently-missing entry this report’s header refuses.
 
 | Shape | Blocks | Finishes |
 |---|---|---|
-| `a-check-another-creature-may-attempt` | 1 | 1 |
 | `a-creature-somebody-else-is-playing` | 1 | 1 |
 | `a-mode-on-the-save-a-spell-forces` | 1 | 1 |
 | `an-action-the-engine-has-no-spender-for` | 1 | 1 |
@@ -79,10 +78,6 @@ exactly the silently-missing entry this report’s header refuses.
 **finishes** is what it is the *only* blocker for — the column a tranche
 is planned from. A spell can need more than one shape, so neither column
 sums to the population.
-
-#### `a-check-another-creature-may-attempt` — blocks 1, finishes 1
-
-- **Spike Growth** (level 2) — executed-partial
 
 #### `a-creature-somebody-else-is-playing` — blocks 1, finishes 1
 

@@ -28,7 +28,7 @@ than to the table.
 
 | Parsed | Tracked | Executed | of which partial | Verified |
 |---|---|---|---|---|
-| 339 | 143 (42.2%) | 192 (56.6%) | 30 | 158 (46.6%) |
+| 339 | 143 (42.2%) | 192 (56.6%) | 29 | 158 (46.6%) |
 
 A **tracked** spell is not a half-finished executed one. Disguise Self will
 never be executed, because what the caster looks like is not arithmetic;
@@ -206,7 +206,7 @@ a plain statement of what the table decides.
 - **Spare the Dying** (cantrip) — verified
 - **Speak with Plants** (level 3) — verified
 - **Spider Climb** (level 2) — untested
-- **Spike Growth** (level 2) — verified, partial — a clause the engine owns is still unbuilt
+- **Spike Growth** (level 2) — verified
 - **Spirit Guardians** (level 3) — verified
 - **Spiritual Weapon** (level 2) — verified
 - **Starry Wisp** (cantrip) — verified
@@ -460,7 +460,6 @@ of *Tracked* and is never added to it.
 | `an-activation-that-forces-a-saving-throw` | 3 | 0 | 0 | 0 | 3 | 0 | 0 |
 | `an-area-that-moves-by-itself` | 3 | 0 | 0 | 2 | 1 | 0 | 0 |
 | `healing-that-raises-the-dead` | 3 | 0 | 0 | 0 | 3 | 0 | 0 |
-| `a-check-another-creature-may-attempt` | 2 | 0 | 0 | 1 | 1 | 0 | 0 |
 | `a-condition-immunity-narrowed-to-its-source` | 2 | 0 | 0 | 0 | 2 | 0 | 0 |
 | `a-dc-the-caster-does-not-set` | 2 | 0 | 0 | 0 | 2 | 0 | 0 |
 | `a-flat-amount-with-no-dice` | 2 | 0 | 0 | 0 | 1 | 0 | 1 |
@@ -476,6 +475,7 @@ of *Tracked* and is never added to it.
 | `senses-beyond-declared-sight` | 2 | 0 | 0 | 1 | 1 | 1 | 0 |
 | `a-cap-on-how-many-castings-run-at-once` | 1 | 0 | 0 | 0 | 1 | 1 | 0 |
 | `a-casting-that-casts-another-spell` | 1 | 0 | 0 | 0 | 0 | 0 | 1 |
+| `a-check-another-creature-may-attempt` | 1 | 0 | 0 | 0 | 1 | 0 | 0 |
 | `a-duration-the-slot-changes` | 1 | 0 | 0 | 0 | 1 | 0 | 0 |
 | `a-fact-only-the-table-can-declare` | 1 | 0 | 0 | 0 | 1 | 0 | 0 |
 | `a-filter-on-the-attackers-creature-type` | 1 | 0 | 0 | 0 | 1 | 0 | 0 |

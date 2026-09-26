@@ -342,6 +342,9 @@ describe('no origin, feat, feature, item, language, alignment or monster is spec
         expect(namedIn(smuggled), `${file}: ${kind}`).toContain(`${kind} ${SAMPLE[kind]}`);
       }
     },
+    // Eight scans of the file each: `spell-definitions.ts` takes ~2.6 s alone
+    // and past the 5 s default under a full run beside other worktrees' suites.
+    30_000,
   );
 
   it('has a population and a catalogue worth sweeping', () => {

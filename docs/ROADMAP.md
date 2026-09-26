@@ -2932,3 +2932,25 @@ Appended 2026-09-26, wave seven on Opus:
   neither halves nor shares the Rug's damage; a passenger's own route is not
   read; `lapsedGrapples` measures every grapple at 5 feet, so the Roper's
   60-foot hold lapses until reeled. Two Opus reviews, every defect fixed.
+- **The remainders of two tracks** (W7-S21; part 4 by the Fable builder,
+  parts 1–3 and the review by Opus). Where a phantasm may stand:
+  `SpellArea.standsApart` on the Sphere, the one exception to "an area or a
+  target list, never both", stated in `docs/design/space-and-areas.md`. The
+  spell glyph: `cast_spell.stores`, both slots spent at the inscription,
+  `OngoingSpell.stored` pinned, released through `castOrRelease`'s held path
+  by `trigger_glyph.by` — no pending casting a Counterspell could answer, no
+  Concentration, the stored spell's own duration. A familiar's senses:
+  `borrow_senses`, `KeptSummons.lends`, `senses-borrowed`, `lenderOf` read by
+  `canSee` and `sensesOf`. A check with a choice of skill: `SpellCheck.skills`,
+  `attempt_effect_check.skill`. Spells in reach 5 → 4 (Spike Growth
+  executes; Phantasmal Force and Glyph of Warding lose their last mechanic).
+  Pins after merging with B10: player 96 / 155679, DM 123 / 203430.
+  **Find Familiar stays partial, and the reason is bigger than the spell:**
+  `adaptMonster` puts a stat block's Senses line nowhere `sensesOf` reads,
+  though the parser carries it on 252 of 330 blocks — a Goblin's Darkvision
+  sees nothing in the dark, a Wild Shape form carries no senses, and a
+  familiar has none to lend. To be briefed after B13 frees `monster.ts`.
+  **A reading for the owner:** `sensesOf` lends the familiar's senses at the
+  caster's own position (a borrowed Blindsight would reach the caster's attack
+  rolls), where the SRD ties them to seeing through the familiar's eyes.
+  One Opus review, five defects, fixed.
