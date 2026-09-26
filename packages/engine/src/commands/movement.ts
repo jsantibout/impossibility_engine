@@ -2368,10 +2368,15 @@ export interface OpportunityCommand extends CommandIdentity {
 /**
  * What a creature swings when it is provoked and nobody said with what.
  *
- * Three answers in the order a caller expects: what they named, what they are
- * holding, and — where the creature's block prints attacks of its own — its
- * best printed melee line. See {@link bestPrintedMeleeAttack} for what "best"
- * means and why each part of it is the book's rather than the engine's.
+ * Three answers, in order: what the caller named — a printed `action`, a
+ * weapon by catalogue id, or `null` for an Unarmed Strike asked for on
+ * purpose; failing that, where the creature's sheet prints attacks of its own,
+ * its best printed melee line; and failing that, an Unarmed Strike. **What the
+ * creature is holding is not consulted**: a character with a greataxe in hand
+ * who names nothing makes an Unarmed Strike, because a sheet prints no lines
+ * and nothing here reads the hands. See {@link bestPrintedMeleeAttack} for
+ * what "best" means and why each part of it is the book's rather than the
+ * engine's.
  *
  * Shared with the `damaged-by-creature` window, which asks the same question
  * about the same kind of Reaction: SRD Retaliation is "one melee attack", word

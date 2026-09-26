@@ -38,6 +38,7 @@ import {
   describeElapsed,
   itemHandovers,
 } from '@ie/engine';
+import { deathSavesOf, type ObservedDeathSaves } from './observe.js';
 
 const SLOT_LEVELS = [1, 2, 3, 4, 5, 6, 7, 8, 9] as const;
 
@@ -712,6 +713,8 @@ export interface Holdings {
   readonly hpMax: number;
   readonly temporaryHp: number;
   readonly dead: boolean;
+  /** `look`'s tally, read by the same function: see {@link ObservedDeathSaves}. */
+  readonly deathSaves: ObservedDeathSaves | null;
   readonly armorClass: number;
   readonly speed: number;
   readonly conditions: readonly string[];
@@ -1464,6 +1467,7 @@ export function holdingsOf(
     hpMax: creature.vitals.hpMax,
     temporaryHp: creature.vitals.temporaryHp,
     dead: creature.vitals.dead,
+    deathSaves: deathSavesOf(creature.vitals),
     armorClass: armorClassOf(state, creature.id),
     speed: speedOf(state, creature.id),
     conditions: creature.conditions.conditions,

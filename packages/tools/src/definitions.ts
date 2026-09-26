@@ -5083,14 +5083,23 @@ const DECLINE_DAMAGE_REACTION = tool({
  * wedges nothing, so there is nothing for a declining call to close — which is
  * exactly why the other two windows have one and this one does not.
  *
- * The only field beside the feature is which weapon, and it names a thing
+ * The fields beside the feature say what is swung, and each names a thing
  * rather than a number: who is swung at is forced by the trigger, and the
  * reach, the roll and the damage are the ordinary attack's.
+ *
+ * **What is swung takes `take_opportunity_attack`'s three asks** (W8-T3),
+ * because the engine answers both through `reactionSwing`: omitted is nobody
+ * having said, and the engine chooses — a creature wearing a stat block swings
+ * its best printed melee line, a character an Unarmed Strike; `null` is an
+ * Unarmed Strike asked for on purpose; a catalogue id or a printed `action`
+ * names the swing. This door used to say "Omit for an Unarmed Strike", which
+ * was false for a Druid in a wolf's shape, took no `null`, and published no
+ * `action`, so a printed name was stripped and the default swung instead.
  */
 const TAKE_DAMAGE_RESPONSE = tool({
   name: 'take_damage_response',
   description:
-    'Answer damage that has already landed by swinging back — SRD Retaliation. `options` lists it when something within reach has just hurt this creature. You name the feature and, if you like, the weapon; who it is aimed at is forced by whoever did the hurting, and the engine spends the Reaction and rolls the attack. Nothing is being held open here: the damage is done either way, so an offer nobody takes needs no call to close it.',
+    'Answer damage that has already landed by swinging back — SRD Retaliation. `options` lists it when something within reach has just hurt this creature. You name the feature; who it is aimed at is forced by whoever did the hurting, and the engine spends the Reaction and rolls the attack. Name neither `weapon` nor `action` and the engine picks the swing: a creature wearing a stat block that prints attacks — a Druid in Wild Shape — swings its best printed melee attack, and a character, whose sheet prints none, makes an Unarmed Strike. Name one to swing something else. Nothing is being held open here: the damage is done either way, so an offer nobody takes needs no call to close it.',
   mutates: true,
   input: z.object({
     who: creatureId.describe('Who is swinging back.'),
@@ -5101,8 +5110,17 @@ const TAKE_DAMAGE_RESPONSE = tool({
     weapon: z
       .string()
       .min(1)
+      .nullish()
+      .describe(
+        'A weapon the creature carries, by catalogue id, or null for an Unarmed Strike on purpose. Omit it, and `action`, to let the engine choose.',
+      ),
+    action: z
+      .string()
+      .min(1)
       .optional()
-      .describe('Catalogue id of the weapon swung. Omit for an Unarmed Strike.'),
+      .describe(
+        'An attack the stat block this creature wears prints, by its printed name — a wolf’s "Bite". Use it instead of `weapon`, never beside it; a name the block does not print is refused.',
+      ),
   }),
   run: (context, args) =>
     settle(
@@ -5113,6 +5131,7 @@ const TAKE_DAMAGE_RESPONSE = tool({
         {
           feature: args.feature,
           ...(args.weapon === undefined ? {} : { weapon: args.weapon }),
+          ...(args.action === undefined ? {} : { action: args.action }),
           ...identity(context),
         },
         context.campaign.supply(),

@@ -1411,7 +1411,15 @@ export function orderSummonsAttack(
         command.summons,
         {
           target: command.target,
-          ...reactionSwing(sheetAsItStands(after, command.summons) ?? summons.sheet, command),
+          // `attack` is this command's name for what `reactionSwing` calls
+          // `action`, and has to be handed across under that name: passed as
+          // it stood, the field was never read and every familiar swung its
+          // default line whatever it was told. A name the block does not
+          // print meets `resolveAttack`'s `unknown_action`, before any die.
+          ...reactionSwing(sheetAsItStands(after, command.summons) ?? summons.sheet, {
+            ...(command.weapon === undefined ? {} : { weapon: command.weapon }),
+            ...(command.attack === undefined ? {} : { action: command.attack }),
+          }),
           // The Reaction above is what this costs; it is not the Attack action,
           // and the attack the holder gave up was the holder's.
           free: true,

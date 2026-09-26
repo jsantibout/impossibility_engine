@@ -344,17 +344,17 @@ describe('Pact of the Chain', () => {
 describe('the attack a Warlock forgoes', () => {
   const OGRE = asCharacterId('ogre');
   /** What the casting called the creature it raised: `<casting id>:<block>`. */
-  const impIn = (log: readonly GameEvent[]): CharacterId => {
+  const impIn = (log: readonly GameEvent[], form = 'imp'): CharacterId => {
     const arrived = log.find(
       (event): event is Extract<GameEvent, { type: 'creature-added' }> =>
-        event.type === 'creature-added' && event.id.endsWith(':imp'),
+        event.type === 'creature-added' && event.id.endsWith(`:${form}`),
     );
     if (arrived === undefined) throw new Error('no familiar arrived');
     return arrived.id;
   };
 
   /** The Warlock, an ogre, a fight, a familiar, and the Attack action taken. */
-  const fought = (): GameEvent[] => {
+  const fought = (form = 'imp'): GameEvent[] => {
     const start: GameEvent[] = [
       ...(unwrap(createCharacter(SRD_CONTENT, chained(), WHO), 'creation') as GameEvent[]),
       {
@@ -388,8 +388,8 @@ describe('the attack a Warlock forgoes', () => {
       },
     ];
     // The familiar, summoned before the fight so it has a rung of its own.
-    const summoned = unwrap(castFamiliar(start, 'imp', 'the imp'), 'find familiar').events;
-    const imp = impIn(summoned);
+    const summoned = unwrap(castFamiliar(start, form, `the ${form}`), 'find familiar').events;
+    const imp = impIn(summoned, form);
     return [
       ...start,
       ...summoned,
@@ -405,13 +405,67 @@ describe('the attack a Warlock forgoes', () => {
     ];
   };
 
-  const order = (log: readonly GameEvent[], over: Record<string, unknown> = {}) =>
+  const order = (log: readonly GameEvent[], over: Record<string, unknown> = {}, form = 'imp') =>
     orderSummonsAttack(
       fold('seed', log),
       WHO,
-      { feature: FIEND, summons: impIn(log), target: OGRE, commandId: 'sting', ...over },
+      { feature: FIEND, summons: impIn(log, form), target: OGRE, commandId: 'sting', ...over },
       supply('sting'),
     );
+
+  /** The label of the attack roll a swing threw — `<printed name> attack`. */
+  const swungWith = (events: readonly GameEvent[]): readonly string[] =>
+    events.flatMap((event) =>
+      event.type === 'roll-recorded' && event.attackRoll === true ? [event.label] : [],
+    );
+
+  /**
+   * "to make one attack **of its own**" — and which of its own is the
+   * Warlock's to say. SRD Sprite prints a Needle Sword and an Enchanting Bow;
+   * the engine's default is the best melee line, so the bow is the one a
+   * caller has to be able to name. `SummonsAttackCommand.attack` carried the
+   * name and nothing read it: the swing went through `reactionSwing`, which
+   * reads `action`, so every familiar swung its default line whatever it was
+   * told (W8-T3).
+   */
+  it('swings the printed line it was told to', () => {
+    const log = fought('sprite');
+    const out = unwrap(order(log, { attack: 'Enchanting Bow' }, 'sprite'), 'the bow');
+    expect(swungWith(out.events)).toEqual(['Enchanting Bow attack']);
+  });
+
+  it('swings its best printed melee line when told nothing', () => {
+    const log = fought('sprite');
+    const out = unwrap(order(log, {}, 'sprite'), 'the sword');
+    expect(swungWith(out.events)).toEqual(['Needle Sword attack']);
+  });
+
+  /** A name the block does not print is refused, and both prices stay unpaid. */
+  it('refuses a line the block does not print, with nothing spent', () => {
+    const log = fought('sprite');
+    const out = order(log, { attack: 'Fireball' }, 'sprite');
+    expect(out.ok).toBe(false);
+    expect(out.ok ? '' : out.code).toBe('unknown_action');
+    // A refusal is a value with no events in it, so nothing reaches the log
+    // and neither price is paid; the order given properly, on the same log,
+    // is taken. (The door-level proof that the log does not move is
+    // `damage-response-swing.test.ts`'s, on the same `reactionSwing` road.)
+    const again = unwrap(order(log, { commandId: 'again' }, 'sprite'), 'the sword after');
+    expect(again.events.some((event) => event.type === 'reaction-spent')).toBe(true);
+  });
+
+  /**
+   * SRD Pseudodragon prints a Bite, which is an attack, and a Sting, which is
+   * a Constitution saving throw and not an attack at all — so "one attack of
+   * its own" cannot be the Sting. Told to Sting, it used to Bite; it is
+   * refused now, which is the difference between the two.
+   */
+  it('refuses a Pseudodragon’s Sting rather than biting instead', () => {
+    const log = fought('pseudodragon');
+    const out = order(log, { attack: 'Sting' }, 'pseudodragon');
+    expect(out.ok).toBe(false);
+    expect(out.ok ? '' : out.code).toBe('unknown_action');
+  });
 
   it('buys the familiar one attack of its own, at its Reaction', () => {
     const log = fought();
