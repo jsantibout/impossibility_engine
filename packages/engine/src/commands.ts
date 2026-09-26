@@ -130,6 +130,7 @@ export type {
   TakeItemUpCommand,
 } from './commands/inventory.js';
 export { useItem } from './commands/item-use.js';
+export { itemHandovers } from './commands/item-handover.js';
 export type { ItemUse, UseItemCommand } from './commands/item-use.js';
 export {
   ongoingSpellOf,

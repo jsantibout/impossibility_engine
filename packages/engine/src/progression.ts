@@ -1259,6 +1259,40 @@ export interface ImbuedWeapon {
 }
 
 /**
+ * What spending an item's last charge does to the item.
+ *
+ * Two shapes, and the SRD prints both:
+ *
+ * - **A die.** "If you expend the wand's last charge, roll 1d20. On a 1, the
+ *   wand crumbles into ashes and is destroyed" — nine wands and staffs, and
+ *   the Rod of Resurrection's "disappears in a harmless burst of radiance".
+ *   The engine throws the d20 at the spend that takes the pool to 0, and a
+ *   face at or below {@link onD20AtOrBelow} destroys the copy.
+ * - **Always.** A talisman's "When you expend the last charge, the talisman
+ *   ... is destroyed", and the Chime of Opening's tenth strike. No die.
+ *
+ * **`destroyed` is stated rather than assumed**, which is the Wind Fan's
+ * `failsCumulatively.destroyed` rule one clause along: a last charge that says
+ * nothing about what it costs is a better item than the book prints, so
+ * `checkContent` refuses anything but `true` or `'always'`.
+ *
+ * What is *not* here is the other things the book does on a last charge —
+ * Staff of Power "loses all other properties" and regains charges on a 20, a
+ * staff that "becomes a nonmagical Quarterstaff" — which are not the copy
+ * leaving the inventory, and stay notes on their records.
+ *
+ * A destroyed copy leaves by the Wind Fan's road: `item-unequipped`, then
+ * `items-lost` naming the copy, beside the recorded die.
+ */
+export type LastCharge =
+  | {
+      readonly destroyed: true;
+      /** The highest d20 face that destroys it: SRD's "On a 1" is 1. */
+      readonly onD20AtOrBelow: number;
+    }
+  | { readonly destroyed: 'always' };
+
+/**
  * The mechanical shapes a feature's choice can take.
  *
  * Deliberately few. A feature whose effect does not fit one of these is
@@ -2343,6 +2377,16 @@ export type FeatureGrant =
        */
       readonly regainsAtDawn?: string;
       /**
+       * What spending the **last** charge does to the item, where its line
+       * says. Item-only.
+       *
+       * SRD prints it under nine wands and staffs: "If you expend the wand's
+       * last charge, roll 1d20. On a 1, the wand crumbles into ashes and is
+       * destroyed." It is a clause that *limits* the item, so a record without
+       * it is a wand that outlasts the book's. See {@link LastCharge}.
+       */
+      readonly onLastCharge?: LastCharge;
+      /**
        * A **later feature** that rewrites this pool's recovery.
        *
        * SRD Font of Inspiration, at Bard level 5: "you regain all your expended
@@ -2903,6 +2947,28 @@ export type FeatureGrant =
        */
       readonly action: 'action' | 'bonus-action';
       readonly effects: readonly SpellEffect[];
+      /**
+       * How far the use reaches, in feet, where the item's line prints a
+       * distance — and then it is "a creature **you can see** within" it.
+       *
+       * SRD Wand of Paralysis: "cause a thin blue ray to streak from the tip
+       * toward a creature you can see within 60 feet of yourself." Absent is
+       * the five feet a potion is administered across — "another creature
+       * within 5 feet of yourself" — asked with no question of sight, because
+       * a bottle put to somebody's lips is a touch.
+       *
+       * **Sight comes with the distance**, asked as a spell's range asks it:
+       * the wielder's own senses, a declared no refused and an unstated one
+       * asked about. The one SRD line that prints a reach prints both, and an
+       * item whose line printed a reach and no sight would be a better item
+       * than this field could write — which is rule 3 of `items.ts` running
+       * the safe way.
+       *
+       * Refused on a conferral whose effect is its wearer's alone
+       * (`source-item-removed`), where `useItem` lands it on the user and a
+       * distance could never be measured across.
+       */
+      readonly reach?: number;
       /**
        * How long what it hangs lasts, in seconds — SRD Potion of Heroism's
        * "for 1 hour".

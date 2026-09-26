@@ -1359,6 +1359,33 @@ describe('the one door refuses what it cannot execute, with a path', () => {
   });
 
   /**
+   * And an item's last charge, which destroys the item it was spent out of —
+   * a feature's pool runs out into a refusal and has nothing to crumble.
+   */
+  it('refuses a last charge on a class feature, which is not an item', () => {
+    const cls = JSON.parse(BLOODHUNTER);
+    cls.features = [
+      {
+        id: 'bloodhunter:brittle-rite',
+        name: 'Brittle Rite',
+        level: 1,
+        automation: 'engine',
+        note: 'A feature pretending to be a wand.',
+        grants: {
+          kind: 'pool',
+          key: 'brittle-rite',
+          usesByLevel: Array.from({ length: 20 }, () => 2),
+          recovers: 'long-rest',
+          onLastCharge: { destroyed: 'always' },
+        },
+      },
+    ];
+    expect(checkContent({ classes: [cls] }).map((problem) => problem.code)).toContain(
+      'last_charge_on_a_feature',
+    );
+  });
+
+  /**
    * And the third door in the same wall. SRD "Spells Cast from Items" is about
    * an *item*, the charges it spends are looked up by the granting item's id,
    * and a class feature has none — so a feature carrying the grant would name

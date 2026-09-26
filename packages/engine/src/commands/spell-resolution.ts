@@ -40,6 +40,7 @@ import {
   CONFERRED_LEVEL,
   cumulativeChance,
   itemCasting,
+  itemChargePool,
   itemFailureCount,
   itemSource,
 } from '../catalogue.js';
@@ -176,6 +177,8 @@ import {
   numbersFor,
   routeLabel,
 } from './item-casting.js';
+import { itemHandovers } from './item-handover.js';
+import { lastChargeSpent } from './last-charge.js';
 import {
   alteredCasting,
   electedCastingOptions,
@@ -1073,6 +1076,9 @@ export function castOrRelease(
       ...(route.kind === 'granted' && route.grant.handOver !== undefined
         ? [handedOver(definition.name, route.grant.handOver)]
         : []),
+      // And what the *item* hands to the table, where an item is casting it —
+      // the same question one host along again. See `itemHandovers`.
+      ...(route.kind === 'item' ? itemHandovers(supply.content.item(route.item)) : []),
       // **A check that had nowhere to hang, said out loud.** `SpellCheck`
       // rides on the casting's own timer — which is why the validator refuses
       // one on an Instantaneous spell — and a slot that makes this casting run
@@ -2984,6 +2990,30 @@ function resolveOnTargets(
       );
     }
     events.push({ type: 'resource-spent', id: casterId, key: charge.key, amount: charge.amount });
+
+    // **And what the last charge does to the item**, right behind the spend
+    // that took it: SRD Wand of Fireballs' "If you expend the wand's last
+    // charge, roll 1d20. On a 1, the wand crumbles into ashes and is
+    // destroyed." The casting still happens — the charge paid for it — and the
+    // copy the charge came out of leaves the hand and the pack. See
+    // `lastChargeSpent`.
+    const item = route.kind === 'item' ? supply.content.item(route.item) : null;
+    if (item !== null) {
+      const copy = caster.equipped.find(
+        (worn) => worn.id === item.id && itemChargePool(item, worn.instance)?.key === charge.key,
+      );
+      const last = lastChargeSpent(
+        casterId,
+        caster,
+        item,
+        copy?.instance,
+        stored,
+        charge.amount,
+        supply,
+      );
+      if (!last.ok) return last;
+      events.push(...last.value.rolled, ...last.value.destroyed);
+    }
   }
 
   // **And whether the item works at all**, which stands exactly where the

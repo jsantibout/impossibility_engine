@@ -847,6 +847,9 @@ describe('the mark is written only from a filed field', () => {
       'commands/spell-effect-chance.ts': 1,
       // A stat block's `forTheTable`, through `reportFiled` and nowhere else.
       'commands/filed-handovers.ts': 1,
+      // An item's `dmDecides`, through `itemHandovers` — the reader `useItem`,
+      // the casting route and the sheet share. (T-C1)
+      'commands/item-handover.ts': 1,
     });
   });
 

@@ -164,9 +164,9 @@ export interface CatalogueItem {
    * sentence filed in both lists, and the mark `handedOver` writes,
    * spelled by hand in either.
    *
-   * **Nothing reads it at runtime yet**, and nothing read `unmodelled` either:
-   * the door that carries an item's handover out of a use or a casting under
-   * its mark is a later track's, so moving a sentence here loses no caller.
+   * **It reaches a person** from the doors that use an item: `useItem`'s
+   * `unverified`, the casting route's, and the flagged line `sheet` shows
+   * beside the item — each under the mark, through `itemHandovers`.
    */
   readonly dmDecides?: readonly string[];
 }

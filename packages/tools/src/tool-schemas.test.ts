@@ -341,10 +341,17 @@ describe('toolSchemas', () => {
     // `force_printed_save` says it measures a one-creature reach (and the sight
     // the line needs) and marks what a line files for the table. The DM's door
     // alone; +943 bytes.
+    // Re-pinned for the wand door (treasure T-C1): `cast_spell.item` and
+    // `cast_spell.charges` — the magic item a spell is cast from and how many
+    // of its charges go, which `CastSpellRequest` has carried since the
+    // casting route landed and no tool declared — and `use_item`'s description
+    // and target, which now say an item may reach further than five feet. Two
+    // fields and two descriptions on tools both doors publish: 1,696 bytes on
+    // each, and no tool added.
     expect(toolSchemas(player())).toHaveLength(96);
     expect(toolSchemas(dm())).toHaveLength(123);
-    expect(JSON.stringify(toolSchemas(player())).length).toBe(155679);
-    expect(JSON.stringify(toolSchemas(dm())).length).toBe(204373);
+    expect(JSON.stringify(toolSchemas(player())).length).toBe(157375);
+    expect(JSON.stringify(toolSchemas(dm())).length).toBe(206069);
   });
 });
 

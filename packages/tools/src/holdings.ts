@@ -25,7 +25,7 @@
  */
 
 import type { CharacterId } from '@ie/shared';
-import type { FeatureReactionWindow, GameState, WeaponSelector } from '@ie/engine';
+import type { Content, FeatureReactionWindow, GameState, WeaponSelector } from '@ie/engine';
 import {
   armorClassOf,
   attunedItems,
@@ -36,6 +36,7 @@ import {
   speedOf,
   spellSlotKey,
   describeElapsed,
+  itemHandovers,
 } from '@ie/engine';
 
 const SLOT_LEVELS = [1, 2, 3, 4, 5, 6, 7, 8, 9] as const;
@@ -650,6 +651,18 @@ export interface HeldItem {
   readonly instance?: string;
   /** The casting holding this line, where a spell conjured it. */
   readonly conjured?: string;
+  /**
+   * What the item's own line leaves to the table, each sentence flagged as
+   * handed over — `[the DM decides]` and the book's words, as a casting's
+   * `unverified` carries a spell's. Absent where the item hands nothing over.
+   *
+   * **The sheet is where a caller first meets the item**, and a Cube of
+   * Force's faces or a Chime's tone are facts about the object rather than
+   * about a use of it — so they are shown beside the line that owns it, not
+   * only when it is used. Read through the engine's `itemHandovers`, the one
+   * reader `useItem` and the casting route share.
+   */
+  readonly handedOver?: readonly string[];
 }
 
 /** One thing worn or wielded, and which copy of it where that is told apart. */
@@ -837,6 +850,15 @@ const leftIn = (state: GameState, who: string, key: string | null): number | nul
   return pool === undefined ? null : pool.max - pool.spent;
 };
 
+/** An item's flagged handover lines, as a spread: nothing where there are none. */
+const handedOverOf = (
+  content: Content | undefined,
+  itemId: string,
+): { readonly handedOver?: readonly string[] } => {
+  const lines = content === undefined ? [] : itemHandovers(content.item(itemId));
+  return lines.length === 0 ? {} : { handedOver: lines };
+};
+
 /**
  * Everything one character holds.
  *
@@ -844,7 +866,15 @@ const leftIn = (state: GameState, who: string, key: string | null): number | nul
  * turns into the request that would settle it — a thin record is homework
  * rather than a verdict.
  */
-export function holdingsOf(state: GameState, id: CharacterId): Holdings | null {
+export function holdingsOf(
+  state: GameState,
+  id: CharacterId,
+  /**
+   * The campaign's catalogue, for what an item's line hands to the table.
+   * Without it the sheet is everything else and flags nothing.
+   */
+  content?: Content,
+): Holdings | null {
   const who = String(id);
   const creature = state.creatures[who];
   if (creature === undefined) return null;
@@ -1444,6 +1474,7 @@ export function holdingsOf(state: GameState, id: CharacterId): Holdings | null {
       quantity: line.quantity,
       ...(line.instance === undefined ? {} : { instance: line.instance }),
       ...(line.casting === undefined ? {} : { conjured: line.casting }),
+      ...handedOverOf(content, line.id),
     })),
     equipped: creature.equipped.map((worn) => ({
       id: worn.id,
