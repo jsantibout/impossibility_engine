@@ -520,13 +520,20 @@ describe('the doors a copy is gained through are the doors that label it', () =>
   const emissions = (source: string): number =>
     (source.match(/type: 'items-gained'/g) ?? []).length;
 
-  it('is three of them, and every one labels what it buys, grants or packs', () => {
+  /**
+   * **And a fourth, since a last charge could leave another item behind**
+   * (treasure T-D1): SRD Staff of the Woodlands "becomes a nonmagical
+   * Quarterstaff", and the Quarterstaff arrives through `lastChargeSpent`,
+   * which labels it through the same compiler as the other three.
+   */
+  it('is four of them, and every one labels what it buys, grants, packs or leaves behind', () => {
     const labelling = emitters.filter(
       (file) => emissions(readFileSync(`${SRC}${file}`, 'utf8')) > conjurings(readFileSync(`${SRC}${file}`, 'utf8')),
     );
     expect(labelling).toEqual([
       'commands/declarations.ts',
       'commands/inventory.ts',
+      'commands/last-charge.ts',
       'creation.ts',
     ]);
   });

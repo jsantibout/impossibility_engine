@@ -44,17 +44,18 @@ import {
   type ItemCastsGrant,
 } from '../catalogue.js';
 import type { Content } from '../content.js';
-import type { CreatureState } from '../events.js';
+import type { CreatureState, GameEvent } from '../events.js';
 import { hasPool } from '../resources.js';
 import {
   castersAbilityRead,
   numbersRead,
   type SpellDefinition,
 } from '../spell-definitions.js';
-import type { CastingNumbers } from '../spells.js';
+import type { CastingNumbers, CastingTime } from '../spells.js';
 import { classOfRoute, statedNumbersOf, type CastingRoute } from '../spellcasting.js';
 import { standingSpellSaveDcBonus } from '../standing.js';
 import type { GameState } from '../state.js';
+import { spendFor } from './command.js';
 
 /** The item arm of {@link CastingRoute}, named once. */
 export type ItemRoute = Extract<CastingRoute, { kind: 'item' }>;
@@ -222,6 +223,17 @@ function chargesFor(
     }
     return ok({ charges: null, castLevel: grant.level ?? spellLevel });
   }
+  // And a bottle, which is paid for by being used up: the same answer, for the
+  // same reason — there are no charges to name.
+  if (grant.usedUp !== undefined) {
+    if (asked !== undefined) {
+      return err(
+        'bad_charges',
+        `${itemName} is used up by the casting and spends no charges, and ${asked} ${asked === 1 ? 'was' : 'were'} named`,
+      );
+    }
+    return ok({ charges: null, castLevel: grant.level ?? spellLevel });
+  }
 
   // `checkContent` has refused a grant that is neither priced nor at will, so
   // a cost is here by the time the catalogue is a `Content`.
@@ -259,6 +271,14 @@ function chargesFor(
  * - **A pool that was declared**, which arrives with the equip event — asked
  *   only of an item that prices its casting, because an at-will one has no
  *   pool to declare and nothing that could run out.
+ *
+ * **A bottle is the exception to the first, and only a bottle.** SRD Potion
+ * of Animal Friendship: "When you drink this potion, you can cast ..." — a
+ * potion is drunk out of a pack and never held, so a casting whose grant says
+ * it uses the item up (`usedUp`) asks that the item is **carried and not
+ * worn**, which is the fork `useItem` takes between a bottle and a staff. It
+ * has no pool either: the price is the copy, taken in the casting's batch by
+ * {@link itemUsedUp}.
  */
 export function itemRoute(
   creature: CreatureState,
@@ -298,10 +318,22 @@ export function itemRoute(
     );
   }
 
+  // **A bottle, from the pack.** Carried, and not in hand: a copy worn or
+  // wielded would leave `equipped` naming something nobody owns once it is
+  // used up — `useItem`'s refusal, in `useItem`'s words.
+  if (grant.usedUp !== undefined) {
+    if (!creature.inventory.some((line) => line.id === item.id)) {
+      return err('not_owned', `${creature.id} does not have ${item.name}`);
+    }
+    if (creature.equipped.some((worn) => worn.id === item.id)) {
+      return err('equipped', `${item.name} is worn or wielded by ${creature.id}; take it off first`);
+    }
+  }
+
   const held = creature.equipped.find(
     (worn) => worn.id === item.id && (copy === undefined || worn.instance === copy.instance),
   );
-  if (held === undefined) {
+  if (held === undefined && grant.usedUp === undefined) {
     return err(
       'not_equipped',
       copy === undefined
@@ -325,8 +357,8 @@ export function itemRoute(
   // ever reached by a casting that really does have something to spend.
   // Keyed by the copy in hand, where the copies are told apart: a wand casts
   // out of its own charges and not out of the other wand's in the same pack.
-  const priced = grant.atWill !== true;
-  const pool = priced ? itemChargePool(item, held.instance) : null;
+  const priced = grant.atWill !== true && grant.usedUp === undefined;
+  const pool = priced ? itemChargePool(item, held?.instance) : null;
   if (priced) {
     if (pool === null) {
       return err('no_charges', `${item.name} has no charges to spend on a casting`);
@@ -571,4 +603,83 @@ export function chargeSpend(
   // be a `resource-spent` for a pool that does not exist.
   if (route.pool === undefined || route.charges === undefined) return null;
   return { key: route.pool, amount: route.charges, id: casterId };
+}
+
+/**
+ * What a casting that uses its item up costs, for the batch that pays it.
+ *
+ * SRD Potion of Animal Friendship: "When you drink this potion, you can cast
+ * the level 3 version of the _Animal Friendship_ spell (save DC 13)." Under
+ * Potions: "Drinking a potion or administering it to another creature requires
+ * a Bonus Action. Once used, a potion takes effect immediately, and it is used
+ * up." So the batch that casts also drinks: the action the grant names, where
+ * the action economy exists, and then one copy off the inventory — the
+ * `items-lost` `useItem` writes for a bottle, written where a wand's charge is
+ * written, after every validation and before the first die.
+ *
+ * **The action is beside the casting's own**, because the SRD prints both:
+ * the spell "uses its normal casting time", and Animal Friendship's Action is
+ * spent by the casting as any casting spends it. A record that spent only the
+ * Action would be a potion drunk for free, which is a better potion than the
+ * book's.
+ *
+ * **One turn has one of each**, so a drink and a casting that want the same
+ * one are refused rather than both paid out of it: a homebrew bottle drunk
+ * with a Bonus Action that casts a Bonus Action spell needs two, and the
+ * casting's own spend and this one are each asked of the state before the
+ * batch, so neither would see the other.
+ *
+ * Nothing for any other route, and nothing for an item that is not used up.
+ * The grant is read off the catalogue here as `itemRoute` read it a moment
+ * earlier in the same command, which is the reading the last-charge rule
+ * beside it takes.
+ */
+export function itemUsedUp(
+  state: GameState,
+  route: CastingRoute,
+  casterId: CharacterId,
+  caster: CreatureState,
+  definition: SpellDefinition,
+  /** The time this casting takes, as the casting resolved it — a branch may print its own. */
+  castingTime: CastingTime,
+  content: Content,
+): Result<readonly GameEvent[]> {
+  if (route.kind !== 'item') return ok([]);
+  const item = content.item(route.item);
+  const usedUp = item === null ? undefined : itemCasting(item, definition.id)?.usedUp;
+  if (item === null || usedUp === undefined) return ok([]);
+
+  // `itemRoute` has asked this already; asked again rather than assumed,
+  // because the copy taken has to be named and a miss would be a loss that
+  // removes nothing.
+  const copy = caster.inventory.find((line) => line.id === item.id);
+  if (copy === undefined) return err('not_owned', `${casterId} does not have ${item.name}`);
+
+  const events: GameEvent[] = [];
+  if (usedUp.action !== undefined && state.combat !== null) {
+    if (usedUp.action === castingTime) {
+      const which = usedUp.action === 'bonus-action' ? 'a Bonus Action' : 'an action';
+      return err(
+        usedUp.action === 'bonus-action' ? 'no_bonus_action' : 'no_action',
+        `${item.name} is used with ${which} and ${definition.name} is cast with ${which} as well, and ${casterId} has one this turn`,
+      );
+    }
+    const spent = spendFor(state, casterId, usedUp.action);
+    if (!spent.ok) return spent;
+    events.push(spent.value);
+  }
+  events.push({
+    type: 'items-lost',
+    id: casterId,
+    items: [
+      {
+        id: item.id,
+        quantity: 1,
+        ...(copy.instance === undefined ? {} : { instance: copy.instance }),
+        ...(copy.casting === undefined ? {} : { casting: copy.casting }),
+      },
+    ],
+    source: `${item.name}, used up`,
+  });
+  return ok(events);
 }

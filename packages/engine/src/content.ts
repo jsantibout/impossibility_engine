@@ -1562,13 +1562,43 @@ function itemPoolProblems(
   // ashes and is destroyed." The Wind Fan's `failure_costs_nothing` rule one
   // clause along: a consequence that names no cost is a better item than the
   // book prints, so `destroyed` is `true` beside a die or `'always'` with none.
+  //
+  // The third form leaves another item behind — SRD Staff of the Woodlands'
+  // "becomes a nonmagical Quarterstaff" — and says it with `becomes` beside
+  // the die instead of `destroyed`. Whether the named item exists is asked
+  // where the whole catalogue is in view (`checkContent`'s item loop).
   const last: unknown = grant.onLastCharge;
   if (last !== undefined) {
     const record =
       last !== null && typeof last === 'object' ? (last as Record<string, unknown>) : {};
     const destroyed = record['destroyed'];
     const face = record['onD20AtOrBelow'];
-    if (destroyed !== true && destroyed !== 'always') {
+    const dieProblem =
+      typeof face !== 'number' || !Number.isInteger(face) || face < 1 || face > 19;
+    if ('becomes' in record) {
+      const becomes = record['becomes'];
+      if (typeof becomes !== 'string' || becomes.trim() === '') {
+        say(
+          'last_charge_becomes_nothing',
+          `${item.id} leaves another item behind on its last charge and names ${JSON.stringify(becomes)}; "becomes" is the catalogue id of what is left`,
+          `${at}.onLastCharge.becomes`,
+        );
+      }
+      if (destroyed !== undefined) {
+        say(
+          'last_charge_said_twice',
+          `${item.id} both becomes another item and is destroyed on its last charge; the SRD prints one or the other, and a staff that becomes a Quarterstaff has already left`,
+          `${at}.onLastCharge.destroyed`,
+        );
+      }
+      if (dieProblem) {
+        say(
+          'bad_last_charge_die',
+          `${item.id} rolls a d20 on its last charge and becomes another item at or below a face from 1 to 19 ("On a 1" is 1), and names ${String(face)}`,
+          `${at}.onLastCharge.onD20AtOrBelow`,
+        );
+      }
+    } else if (destroyed !== true && destroyed !== 'always') {
       say(
         'last_charge_costs_nothing',
         `${item.id} says what its last charge does and not what it costs; the SRD's wands crumble on a d20 and its talismans are destroyed outright, so "destroyed" is true beside a die or "always" with none`,
@@ -1580,10 +1610,7 @@ function itemPoolProblems(
         `${item.id} is destroyed by its last charge outright, so a d20 face beside it is a die nothing throws`,
         `${at}.onLastCharge.onD20AtOrBelow`,
       );
-    } else if (
-      destroyed === true &&
-      (typeof face !== 'number' || !Number.isInteger(face) || face < 1 || face > 19)
-    ) {
+    } else if (destroyed === true && dieProblem) {
       // A 20 would be every face, which is "always" said with a die thrown for
       // an outcome already decided — the generator moved for nothing.
       say(
@@ -1796,26 +1823,62 @@ function itemCastsProblems(
   // would otherwise be the same record; a grant that names both is refused,
   // because an item prices its casting once.
   const atWill = grant.atWill === true;
-  if (atWill && grant.charges !== undefined) {
+  // **Or the item itself is the price**: SRD Potion of Animal Friendship's
+  // "When you drink this potion, you can cast ...", under "Once used, a potion
+  // ... is used up." A third answer, and like the other two it is given once —
+  // a bottle that also cost charges, or was also free, is two prices.
+  const usedUp: unknown = grant.usedUp;
+  if (usedUp !== undefined) {
+    const record =
+      usedUp !== null && typeof usedUp === 'object' && !Array.isArray(usedUp)
+        ? (usedUp as Record<string, unknown>)
+        : null;
+    const action = record?.['action'];
+    if (
+      record === null ||
+      Object.keys(record).some((key) => key !== 'action') ||
+      (action !== undefined && action !== 'action' && action !== 'bonus-action')
+    ) {
+      say(
+        'bad_used_up',
+        `${item.id} is used up by casting ${String(grant.spell)}, and says so with an object naming at most the action the use costs beside the casting ("bonus-action" for a potion drunk), not ${JSON.stringify(usedUp)}`,
+        `${at}.usedUp`,
+      );
+    }
+    if (grant.charges !== undefined || atWill || grant.upToCharges !== undefined) {
+      say(
+        'used_up_and_a_price',
+        `${item.id} is used up by casting ${String(grant.spell)} and also prices it in charges or at will, and an item's line prices a casting once`,
+        `${at}.usedUp`,
+      );
+    }
+  }
+  // Priced by the bottle, a used-up casting has answered the question the
+  // three rules below ask of the other two prices.
+  if (usedUp === undefined && atWill && grant.charges !== undefined) {
     say(
       'at_will_and_a_price',
       `${item.id} casts ${String(grant.spell)} at will and for ${String(grant.charges)} charges, and an item's line prices a casting once`,
       `${at}.atWill`,
     );
-  } else if (!atWill && grant.charges === undefined) {
+  } else if (usedUp === undefined && !atWill && grant.charges === undefined) {
     say(
       'casts_for_no_price',
       `${item.id} casts ${String(grant.spell)} and says neither what it costs nor that the book charges nothing for it; an item whose line prints no limit says so with "atWill"`,
       `${at}.charges`,
     );
-  } else if (!atWill && (!Number.isInteger(grant.charges) || (grant.charges ?? 0) < 1)) {
+  } else if (
+    usedUp === undefined &&
+    !atWill &&
+    (!Number.isInteger(grant.charges) || (grant.charges ?? 0) < 1)
+  ) {
     say(
       'bad_charge_cost',
       `the SRD prints what a casting from an item costs on the item's own line, and ${item.id} names ${String(grant.charges)}`,
       `${at}.charges`,
     );
   }
-  if (grant.upToCharges !== undefined) {
+  if (grant.upToCharges !== undefined && usedUp === undefined) {
     if (atWill) {
       say(
         'at_will_and_a_charge_range',
@@ -1890,7 +1953,7 @@ function itemCastsProblems(
   // **Asked only of a casting that has a price.** An at-will casting spends
   // nothing, so there is nothing for a pool to be behind, and requiring one
   // would put a limit on the page that the page does not print.
-  if (!atWill && itemChargePool(item) === null) {
+  if (!atWill && usedUp === undefined && itemChargePool(item) === null) {
     say(
       'casts_without_charges',
       `${item.id} casts ${String(grant.spell)} for charges and declares no charge pool for them to come out of`,
@@ -5971,6 +6034,23 @@ export function checkContent(input: ContentInput): readonly ContentProblem[] {
     for (const line of item.contents) {
       if (!itemOf.has(line.id)) {
         problems.push({ field: `items[${item.id}].contents`, code: 'unknown_item', reason: `${item.id} contains ${line.id}, which this content does not hold` });
+      }
+    }
+    // What a last charge leaves behind must be something, and something that
+    // keeps no charges: a copy with a pool is labelled and its pool declared
+    // at the door it is gained through, and a spend is not one of those doors
+    // — becoming *itself* would be a staff that turns into a full staff.
+    for (const [index, grant] of (item.grants ?? []).entries()) {
+      if (grant.kind !== 'pool') continue;
+      const last = grant.onLastCharge as Record<string, unknown> | undefined;
+      const becomes = last?.['becomes'];
+      if (typeof becomes !== 'string' || becomes.trim() === '') continue;
+      const field = `items[${item.id}].grants[${index}].onLastCharge.becomes`;
+      const target = itemOf.get(becomes);
+      if (target === undefined) {
+        problems.push({ field, code: 'last_charge_becomes_nothing', reason: `${item.id} becomes ${becomes} on its last charge, which this content does not hold` });
+      } else if ((target.grants ?? []).some((other) => other.kind === 'pool')) {
+        problems.push({ field, code: 'last_charge_becomes_a_charged_item', reason: `${item.id} becomes ${becomes} on its last charge, which keeps charges of its own; a copy with charges is labelled at the door it arrives through, and a spend is not one` });
       }
     }
     // "Requires attunement by a Druid" names a class this catalogue has to

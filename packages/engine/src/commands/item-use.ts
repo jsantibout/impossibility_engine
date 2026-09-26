@@ -412,7 +412,16 @@ export function useItem(
       const held = creature.equipped.find((worn) => worn.id === item.id);
       const pool = itemChargePool(item, held?.instance);
       const left = pool === null ? 0 : remaining(creature.resources, pool.key);
-      const last = lastChargeSpent(id, creature, item, held?.instance, left, asked.value, supply);
+      const last = lastChargeSpent(
+        id,
+        creature,
+        state.itemsIssued,
+        item,
+        held?.instance,
+        left,
+        asked.value,
+        supply,
+      );
       if (!last.ok) return last;
       lastCharge = last.value;
       events.push(...lastCharge.rolled);

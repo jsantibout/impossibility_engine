@@ -461,8 +461,14 @@ describe('the two shapes the re-derivation was sent to check', () => {
    * The blocker the reading found underneath them. The entry that showed it
    * cleanest — a Wand of Paralysis, every clause writable but the sixty feet
    * its ray travels — is transcribed now: `confers.reach` said the distance
-   * and the pool's `onLastCharge` the crumble, so it left the map and the
-   * shape finishes nothing.
+   * and the pool's `onLastCharge` the crumble, so it left the map.
+   *
+   * **And the field paid the shape for five more** (treasure T-D1): a gem's
+   * beam, an iron sphere, a ram's head, a rope and a compelled Elemental each
+   * aim at one creature the user can see at a printed distance, which is the
+   * reach, so each was re-pointed to what else it waits on. What is left is
+   * the two halves a reach does not say — a spell's own Range an item
+   * narrows, and a target that must stand on the ground.
    */
   it('names the distance that was really in the way', () => {
     // Pinned by name rather than by size, which is what the two assertions
@@ -470,21 +476,31 @@ describe('the two shapes the re-derivation was sent to check', () => {
     // floor would let three of these be dropped in silence.
     const range = itemConsumersOf('a-range-an-item-names');
     expect(range.blocks).toEqual([
-      'gem-of-brightness',
-      'iron-bands',
       'necklace-of-fireballs',
-      'ring-of-elemental-command',
-      'ring-of-the-ram',
-      'rope-of-entanglement',
       'talisman-of-pure-good',
       'talisman-of-ultimate-evil',
     ]);
+    for (const id of [
+      'gem-of-brightness',
+      'iron-bands',
+      'ring-of-elemental-command',
+      'ring-of-the-ram',
+      'rope-of-entanglement',
+    ]) {
+      expect(itemBlockersOf(id), id).not.toContain('a-range-an-item-names');
+      expect(itemBlockersOf(id).length, id).toBeGreaterThan(0);
+    }
+    // And the two whose range clause also filters who may be aimed at keep
+    // the filter on the map: "a Huge or smaller creature", "an Elemental". A
+    // conferral has no target rule, so each is a limit rather than a note.
+    for (const id of ['iron-bands', 'ring-of-elemental-command']) {
+      expect(itemBlockersOf(id), id).toContain('a-target-rule-the-format-cannot-state');
+    }
 
-    // **The entry a range field finished, and the reason it was the only
-    // one.** The Necklace of Fireballs wants a second field as well — "increase
-    // the damage of the _Fireball_ by 1d6 for each bead after the first" is a
-    // benefit that grows with the count spent — so it is blocked and not
-    // finished; every other entry here has a second blocker of its own.
+    // **Nothing a range field would finish.** The Necklace of Fireballs wants
+    // a second field as well — "increase the damage of the _Fireball_ by 1d6
+    // for each bead after the first" is a benefit that grows with the count
+    // spent — and each talisman has four blockers beside it.
     expect(range.finishes).toEqual([]);
     expect(TRANSCRIBED.has('wand-of-paralysis')).toBe(true);
     expect(ITEM_BLOCKED_ON['wand-of-paralysis']).toBeUndefined();
