@@ -2014,6 +2014,37 @@ function printedToggledLight(line: MonsterLine, key: string): readonly StandingE
   ];
 }
 
+/**
+ * The requirement a heading's "Requires X" clause compiles to, or null.
+ *
+ * SRD prints the clause on **two** headings, and only one of them is a thing
+ * this engine can see: the Night Hag's "Requires Soul Bag" names the noun of her
+ * own `carries-printed-object` trait, and the Erinyes' "Requires Magic Rope"
+ * names a rope no trait, no Gear line and no item record puts anywhere. A gate
+ * compiled for the second would be a printed action nothing could ever take —
+ * a rule the book did not print, which is worse than a rule it did print and the
+ * engine does not check.
+ *
+ * So the gate is compiled **only where the same block carries the thing**, folded
+ * the way `carriedObjectId` folds it, and the clause is otherwise left on the
+ * line as the word the parser read — reported at the door that spends the line,
+ * where every other unenforceable fact about a heading is reported. See
+ * `unenforcedRequirementOf`. (W7-B11)
+ */
+function carryingRequirement(
+  monster: Monster,
+  line: MonsterLine,
+): readonly StandingRequirement[] | null {
+  const wanted = line.requiresObject;
+  if (wanted === undefined) return null;
+  const fold = (noun: string): string => noun.trim().toLowerCase();
+  const carried = monster.traits.some(
+    (trait) =>
+      trait.trait?.kind === 'carries-printed-object' && fold(trait.trait.noun) === fold(wanted),
+  );
+  return carried ? [{ kind: 'while-carrying', object: wanted }] : null;
+}
+
 function printedStanding(monster: Monster): { readonly standing?: readonly StandingEffect[] } {
   const sections: readonly (readonly [readonly MonsterLine[], boolean])[] = [
     [monster.traits, false],
@@ -2670,10 +2701,14 @@ export function adaptMonster(printed: Monster, id: CharacterId): AdaptedMonster 
       ...(line.onlyInForms === undefined ? {} : { onlyInForms: [...line.onlyInForms] }),
       // And the thing the heading says the line may not be taken without — SRD
       // Night Hag's "Requires Soul Bag", compiled into the requirement
-      // vocabulary a standing effect is already gated by. (W7-B11)
-      ...(line.requiresObject === undefined
+      // vocabulary a standing effect is already gated by. **The word is carried
+      // whether or not a gate was compiled**, because the two say different
+      // things: the word is what the heading printed, and the gate is the half
+      // the engine can check. See `carryingRequirement`. (W7-B11)
+      ...(line.requiresObject === undefined ? {} : { requiresObject: line.requiresObject }),
+      ...(carryingRequirement(monster, line) === null
         ? {}
-        : { requires: [{ kind: 'while-carrying' as const, object: line.requiresObject }] }),
+        : { requires: carryingRequirement(monster, line)! }),
     }));
 
   // **The Bonus Actions section, carried whole and executed not at all.** A
@@ -2731,9 +2766,10 @@ export function adaptMonster(printed: Monster, id: CharacterId): AdaptedMonster 
     // And the thing the heading requires, on this section for the reason
     // everything else here is: a heading says what a use costs. No SRD Bonus
     // Action prints the clause. (W7-B11)
-    ...(line.requiresObject === undefined
+    ...(line.requiresObject === undefined ? {} : { requiresObject: line.requiresObject }),
+    ...(carryingRequirement(monster, line) === null
       ? {}
-      : { requires: [{ kind: 'while-carrying' as const, object: line.requiresObject }] }),
+      : { requires: carryingRequirement(monster, line)! }),
   }));
 
   const stated: StatedValues = {

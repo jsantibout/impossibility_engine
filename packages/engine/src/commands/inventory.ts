@@ -1812,7 +1812,6 @@ export function endAttunement(
   });
 }
 
-
 /**
  * Take the penalty off a copy somebody is wearing or holding — SRD *Mending*,
  * and the only sentence in the book that lifts one.

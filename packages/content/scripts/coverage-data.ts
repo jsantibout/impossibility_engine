@@ -1361,7 +1361,16 @@ export interface StatBlockLine {
   readonly name: string;
   readonly text: string;
   readonly attack?: unknown;
-  readonly trait?: unknown;
+  /**
+   * The mechanic the parser read out of the line's sentence, if it read one.
+   *
+   * `unknown` but for the **kind**, which two predicates here read: a trait's
+   * kind is what decides whether anything spends it, and one of them —
+   * `chooses-to-succeed-on-a-failed-save` — is compiled into a Reaction rather
+   * than into a standing effect, which is a fact about the kind and not about
+   * the section. (W7-B11)
+   */
+  readonly trait?: { readonly kind: string } | undefined;
   readonly save?: unknown;
   readonly multiattack?: unknown;
   /** The spells a Spellcasting line declares, where the parser read them. */
@@ -1463,8 +1472,10 @@ export const isReadLine = (line: StatBlockLine): boolean =>
   line.jumps !== undefined ||
   line.dashes !== undefined ||
   line.treeStride !== undefined ||
-  // And the move a blow on an already-Bloodied creature buys — W7-B11.
+  // And the move a blow on an already-Bloodied creature buys, and the light a
+  // use switches on — W7-B11.
   line.rampages !== undefined ||
+  line.togglesLight !== undefined ||
   line.addsToRoll !== undefined ||
   line.addsToAc !== undefined ||
   line.usesLine !== undefined ||
@@ -1934,6 +1945,12 @@ export const isExecutedLine = (line: StatBlockLine): boolean =>
   // the swing should be made with is reported rather than enforced, because
   // `GrantedAttacks` narrows by `unarmedOnly` and by nothing else.
   line.rampages !== undefined ||
+  // **And a light a use switches on is spent** — W7-B11. The two radii are a
+  // `light` standing grant gated on this very line being active, which is the
+  // shape `activatedLight` reads and SRD Sacred Weapon's glow already compiles
+  // to, and the spender flips `activeFeatures`. No patch is written: `lightAt`
+  // derives it off the sheet on every read.
+  line.togglesLight !== undefined ||
   // **SRD Parry, executed at the window SRD *Shield* already answered.** The
   // number goes onto the Armour Class the held attack was measured against and
   // the hit is re-decided, which is the whole of what the sentence says — so
@@ -1954,7 +1971,20 @@ export const isExecutedLine = (line: StatBlockLine): boolean =>
   // claiming a Reaction no sheet carries. No SRD line reaches it today, which
   // is exactly why the two readings have to be written down together rather
   // than left to agree by luck.
-  (line.addsToRoll !== undefined && !line.addsToRoll.tests.includes('attack-roll'));
+  (line.addsToRoll !== undefined && !line.addsToRoll.tests.includes('attack-roll')) ||
+  // **And a trait the adapter compiles into a Reaction is spent** — W7-B11. SRD
+  // Legendary Resistance is printed under **Traits** and names an instant the
+  // engine holds: `printedSucceedInsteadReaction` compiles it onto the sheet at
+  // the `test-rolled` window with `costsReaction: false`, and
+  // `takeTestReaction` turns the failure into a success out of the heading's own
+  // `dawn` pool. Where a line is printed says what it *costs*, so a row that
+  // went on calling this a use nothing spends would be making a false claim
+  // about thirty-two headings.
+  //
+  // **The kind rather than the section**, because that is what decides it: a
+  // trait the adapter compiles into nothing is still a debt, and this names the
+  // one kind that becomes a Reaction. A second such kind joins this arm.
+  line.trait?.kind === 'chooses-to-succeed-on-a-failed-save';
 
 /**
  * **The row a cast line used to have is gone**, and this is where it was.
@@ -1979,27 +2009,32 @@ export const isExecutedLine = (line: StatBlockLine): boolean =>
  * SRD Rust Monster, Reflexive Antennae: "_Trigger:_ An attack roll hits the
  * rust monster. _Response:_ The rust monster uses Antennae."
  *
- * {@link SAVE_HANDOVER_SHAPE}'s sibling and on the ledger's over-read list for
- * its reason: the line **is** read — the trigger is `hit-by-attack`, the
- * window the engine holds, and the name of the response is structure on the
- * sheet — and it is not **paid**, because the engine performs no printed line
- * as a Reaction's response. What it does instead is offer the Reaction and
- * hand the response to the table by name.
+ * **The row "A Reaction whose printed response is handed over" is gone, and this
+ * is where it was** (W7-B11) — written down rather than deleted, because a row
+ * that leaves a report is a claim somebody may want to check.
  *
- * **That seam is closed (W7-B11).** `takeAttackReaction` looks the named
- * heading up on the reactor's own sheet and, where the printed-save reader got
- * a saving throw out of it, rolls the response through the same body the
- * Action-priced door goes through — with the weapon that hit as the object the
- * prelude names, which is the one fact a DM had to state and the trigger
- * already holds. So the row counts what is still *named* rather than every
- * `usesLine`: a response whose heading the reader read nothing out of is still
- * a sentence handed over, and a homebrew block printing one would appear here
- * rather than passing for executed.
+ * It was on the ledger's over-read list for {@link SAVE_HANDOVER_SHAPE}'s
+ * reason: the line **is** read — the trigger is `hit-by-attack`, the window the
+ * engine holds, and the name of the response is structure on the sheet — and it
+ * was not **paid**, because the engine performed no printed line as a Reaction's
+ * response. `takeAttackReaction` performs it now: the named heading is looked up
+ * on the reactor's own sheet and, where the printed-save reader got a saving
+ * throw out of it, rolled through the same body the Action-priced door goes
+ * through, with the weapon that hit as the object the prelude names. That is the
+ * one fact a DM had to state, and the trigger already held it.
  *
- * It retired the same way the Multiattack and Spellcasting rows shrank: the
- * sentence became something the engine runs.
+ * SRD prints one such line and it is executed, so the row came to `0 / 0` — and
+ * a row that counts nothing is a claim the report should not be printing, which
+ * is exactly what `coverage.test.ts` asserts of every shape. So the row retires
+ * the way the Multiattack, Spellcasting, cast-line and legendary-economy rows
+ * did.
+ *
+ * **The predicate stays**, and that is the half that is not bookkeeping: a
+ * homebrew block whose named response the reader gets nothing out of is a
+ * sentence still handed over, and `ledger.ts`'s `unpaid` asks this so such a
+ * line is counted unpaid rather than passing for executed. The day one exists,
+ * the row comes back with it.
  */
-export const REACTION_USE_SHAPE = 'A Reaction whose printed response is handed over';
 export const hasHandedOverResponse = (line: StatBlockLine): boolean =>
   line.usesLine !== undefined && line.responsePerformed !== true;
 
@@ -2069,7 +2104,6 @@ export const MONSTER_LINE_SHAPES: readonly (readonly [
   ['A save a line forces', (line) => line.attack === undefined && /Saving Throw:_/.test(line.text)],
   // The rows above are held to the catalogue by {@link UNREAD_SAVE_SEAMS}.
   [SAVE_HANDOVER_SHAPE, hasHandedOverSave],
-  [REACTION_USE_SHAPE, hasHandedOverResponse],
   [RIDER_SHAPE, hasUnappliedRider],
   [RIDER_HANDOVER_SHAPE, hasHandedOverRider],
   [UNEXECUTED_TRAIT_SHAPE, hasUnexecutedTrait],

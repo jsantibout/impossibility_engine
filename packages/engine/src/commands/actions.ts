@@ -633,14 +633,44 @@ function grantsOfPrintedLine(
  * what keeps two replays from reading differently.
  */
 /**
+ * The clause a heading printed that the engine could **not** turn into a gate,
+ * as the sentence a door hands back — or null.
+ *
+ * SRD prints "Requires X" on two headings and the adapter compiles a gate for
+ * one of them: the Night Hag's "Requires Soul Bag" names the noun of her own
+ * `carries-printed-object` trait, and the Erinyes' "Requires Magic Rope" names a
+ * rope nothing in the game holds. Refusing that line for ever would be a printed
+ * action nothing could ever take; performing it silently would be the engine
+ * claiming to have checked. So it is performed and *said*, which is what
+ * `unverified` is for and what every other unenforceable fact about a heading
+ * already gets. See `carryingRequirement`. (W7-B11)
+ */
+function unenforcedRequirementOf(line: {
+  readonly name: string;
+  readonly requires?: readonly StandingRequirement[];
+  readonly requiresObject?: string;
+}): string | null {
+  const wanted = line.requiresObject;
+  if (wanted === undefined) return null;
+  if ((line.requires ?? []).some((one) => one.kind === 'while-carrying')) return null;
+  return `${line.name} requires ${wanted}, and nothing on this creature's block gives it one — whether it still has ${wanted} is the table's`;
+}
+
+/**
  * Why this creature may not take the line its heading put a condition on, or
  * null.
  *
- * SRD Night Hag: "Nightmare Haunting (1/Day; **Requires Soul Bag**)", which is
- * the one heading in the book that prints one. `requirementsHold` is the reader
- * — the same one a standing effect, a strike style and a granted spell route are
- * asked through — so "does this creature still have the thing" has exactly one
- * answer however it is asked.
+ * SRD Night Hag: "Nightmare Haunting (1/Day; **Requires Soul Bag**)".
+ * `requirementsHold` is the reader — the same one a standing effect, a strike
+ * style and a granted spell route are asked through — so "does this creature
+ * still have the thing" has exactly one answer however it is asked, and all four
+ * doors that spend a heading ask it.
+ *
+ * **It reads the compiled requirement and never the heading's word**, which is
+ * what keeps it from refusing a line the engine cannot check: the book prints the
+ * clause on two headings and only one of them names a thing the game holds, so
+ * the adapter compiles a gate for one and `unenforcedRequirementOf` says the
+ * other out loud. See `carryingRequirement`.
  *
  * The **source** handed to it is the line's own name, which is what
  * `while-worn` and `while-attuned` would look an item up by. Neither of those is
@@ -767,6 +797,13 @@ export function takeStatedBonusAction(
       const wrongForm = wrongFormFor(creature, line);
       if (wrongForm !== null) return err('wrong_form', wrongForm);
 
+      // **And what the heading requires**, asked here for the reason the form
+      // is: four doors spend one heading and they must not disagree about
+      // whether it may be taken. No SRD Bonus Action prints the clause; a
+      // homebrew one would. (W7-B11)
+      const missing = missingRequirementFor(state, id, line);
+      if (missing !== null) return err('requirement_unmet', missing);
+
       // **A line already used and not yet back.** Before the economy, because
       // a refusal after the Bonus Action is gone is a refusal with a
       // footprint — the rule every other argument on this command follows.
@@ -847,9 +884,15 @@ export function takeStatedBonusAction(
         ],
         // A line whose sentence the engine applied says only what it did not;
         // every other line is handed over whole, as it always was.
-        unverified: granted.value.applied
-          ? granted.value.unverified
-          : [`${id}'s block prints "${line.name}: ${line.text}" — the engine does not apply that; a DM does`],
+        unverified: [
+          ...(granted.value.applied
+            ? granted.value.unverified
+            : [`${id}'s block prints "${line.name}: ${line.text}" — the engine does not apply that; a DM does`]),
+          // And the clause the heading printed that the engine could not gate
+          // on — W7-B11. Said rather than enforced, because enforcing it would
+          // refuse a printed line for ever.
+          ...(unenforcedRequirementOf(line) === null ? [] : [unenforcedRequirementOf(line)!]),
+        ],
         duplicate: false,
       });
     },
@@ -1047,9 +1090,15 @@ export function takeStatedAction(
           },
           ...granted.value.events,
         ],
-        unverified: granted.value.applied
-          ? granted.value.unverified
-          : [`${id}'s block prints "${line.name}: ${line.text}" — the engine does not apply that; a DM does`],
+        unverified: [
+          ...(granted.value.applied
+            ? granted.value.unverified
+            : [`${id}'s block prints "${line.name}: ${line.text}" — the engine does not apply that; a DM does`]),
+          // And the clause the heading printed that the engine could not gate
+          // on — W7-B11. Said rather than enforced, because enforcing it would
+          // refuse a printed line for ever.
+          ...(unenforcedRequirementOf(line) === null ? [] : [unenforcedRequirementOf(line)!]),
+        ],
         duplicate: false,
       });
     },
@@ -1222,6 +1271,13 @@ export function forcePrintedSave(
           `no line called ${command.line} is printed under this creature's Actions or Bonus Actions with nothing the engine could read beneath it; a heading the parser did read as an attack, and a heading printed under another section, are each taken by the command that owns them`,
         );
       }
+
+      // **And what the heading requires**, before the save and before the
+      // economy: this is the door the Erinyes' Entangling Rope actually comes
+      // through, and four doors on one heading must not disagree about whether
+      // it may be taken. (W7-B11)
+      const missingHere = missingRequirementFor(state, id, line);
+      if (missingHere !== null) return err('requirement_unmet', missingHere);
 
       const printed = line.save;
       if (printed === undefined) {
@@ -1543,6 +1599,10 @@ export function forcePrintedSave(
           ...(printed.handedOver ?? []).map(
             (sentence) => `${line.name}: "${sentence}" — the engine applied the rest of the line; this sentence is the table's`,
           ),
+          // And the clause the heading printed that the engine could not gate
+          // on — W7-B11: SRD Erinyes' "Requires Magic Rope" names a thing
+          // nothing in the game holds, so it is said rather than enforced.
+          ...(unenforcedRequirementOf(line) === null ? [] : [unenforcedRequirementOf(line)!]),
           ...unsettled,
         ],
         duplicate: false,
@@ -3028,6 +3088,9 @@ export function castPrintedLine(
                 `${line.name}: "requiring no spell components" — the engine models no components at all, so the clause changes nothing it could check`,
               ]
             : []),
+          // And the clause the heading printed that the engine could not gate
+          // on — W7-B11.
+          ...(unenforcedRequirementOf(line) === null ? [] : [unenforcedRequirementOf(line)!]),
         ],
         duplicate: false,
       });

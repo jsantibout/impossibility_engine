@@ -3188,11 +3188,14 @@ export const FeatureSchema = z.object({
   /**
    * The thing this line may not be taken without, where its **heading** says so.
    *
-   * SRD Night Hag: "Nightmare Haunting (1/Day; **Requires Soul Bag**)". The one
-   * heading in the book that carries the clause, and what it names is the noun
-   * of a `carries-printed-object` trait on the same block — the one place the
-   * thing's statistics are. Read off the name for {@link onlyInForms}' reason.
-   * (W7-B11)
+   * SRD Night Hag: "Nightmare Haunting (1/Day; **Requires Soul Bag**)", and SRD
+   * Erinyes: "Entangling Rope (Requires Magic Rope)" — the two headings in the
+   * book that carry the clause. The hag's names the noun of a
+   * `carries-printed-object` trait on the same block, which is where that
+   * thing's statistics are; the Erinyes' names a rope nothing in the game holds.
+   * This field is the **word**, for both, because the word is what the book
+   * printed; whether the engine can gate on it is the adapter's question. Read
+   * off the name for {@link onlyInForms}' reason. (W7-B11)
    */
   requiresObject: z.string().min(1).optional(),
   /**

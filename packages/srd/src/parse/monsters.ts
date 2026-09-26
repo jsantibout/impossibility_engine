@@ -2474,9 +2474,16 @@ export function parseFormQualification(name: string): readonly string[] | null {
  * {@link parseFormQualification}'s sibling and read the same way and in the same
  * place: the book prints the clause inside the heading, which is exactly what
  * nothing downstream may branch on, so it is read here once into a word the
- * engine can act on. What it names is the **trait's** noun, which is the one
- * place the object's own statistics are. One heading in the book carries it.
- * (W7-B11)
+ * engine can act on.
+ *
+ * **Two headings in the book carry it, and they are not the same case.** The
+ * Night Hag's names the noun of her own `carries-printed-object` trait — a thing
+ * with an Armour Class and Hit Points that the arrival raises beside her. The
+ * Erinyes' "Requires Magic Rope" names a rope no trait, no Gear line and no item
+ * record puts anywhere. This reader reads the word for both, because the word is
+ * what the book printed; which of them becomes a **gate** is the adapter's
+ * question, and `carryingRequirement` refuses to compile one for a thing the
+ * engine cannot see. (W7-B11)
  */
 export function parseObjectRequirement(name: string): string | null {
   const matched = /\(?(?:.*; )?Requires ([A-Z][A-Za-z' -]*)\)\s*$/.exec(name);

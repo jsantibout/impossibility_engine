@@ -33,8 +33,11 @@ import {
   beginCombat,
   damageCreature,
   declareCreatureSide,
+  forcePrintedSave,
   takeStatedAction,
 } from './commands.js';
+import { createRng, type Rng } from './dice.js';
+import { createRollIssuer } from './rolls.js';
 import { applyEvent, fold, type GameEvent, type GameState } from './events.js';
 import { adaptMonster, statedActionOf } from './monster.js';
 import { armorClassOf } from './standing.js';
@@ -50,6 +53,12 @@ const TRAIT = SRD_CONTENT.monsterById('night-hag')!.traits.find((t) => t.name ==
 const HAUNTING = SRD_CONTENT.monsterById('night-hag')!.actions.find((a) =>
   a.name.startsWith('Nightmare Haunting'),
 )!.name;
+
+const supply = (seed = 'hovel') => ({
+  issuer: createRollIssuer('r'),
+  rng: createRng(seed) as Rng,
+  content: SRD_CONTENT,
+});
 
 const unwrap = <T>(result: Result<T>, label = 'ok'): T => {
   if (!result.ok) throw new Error(`${label}: ${result.code} — ${result.reason}`);
@@ -146,5 +155,57 @@ describe('the gate the heading prints', () => {
     if (!refused.ok) expect(refused.reason).toContain('Soul Bag');
     // Nothing was spent being refused.
     expect(dusted.combat!.budgets[HAG]!.action).toBe(true);
+  });
+});
+
+/**
+ * **The book prints the clause on two headings, and only one of them names a
+ * thing the game holds.**
+ *
+ * SRD Erinyes: "Entangling Rope (Requires Magic Rope)". No trait of that block
+ * carries a printed object, its Gear line names nothing the engine records, and
+ * `carriedObjectId(erinyes, 'Magic Rope')` would name a creature that can never
+ * exist — so a gate compiled from that heading would be a printed action nothing
+ * could ever take, which is a rule the book did not print. The adapter compiles
+ * the gate only where the same block carries the thing; the clause is otherwise
+ * the word the parser read, said at the door and enforced by nobody. (W7-B11)
+ */
+describe('a heading that requires a thing the block does not give it', () => {
+  const ERINYES = id('erinyes');
+  const ROPE = SRD_CONTENT.monsterById('erinyes')!.actions.find((a) =>
+    a.name.startsWith('Entangling Rope'),
+  )!.name;
+
+  it('reads the word off the heading and compiles no gate from it', () => {
+    const erinyes = adaptMonster(SRD_CONTENT.monsterById('erinyes')!, ERINYES);
+    const line = statedActionOf(erinyes.sheet, ROPE);
+    expect(line?.requiresObject).toBe('Magic Rope');
+    expect(line?.requires).toBeUndefined();
+    expect(erinyes.carries).toEqual([]);
+  });
+
+  it('lets the line be taken, and says the clause it did not check', () => {
+    let state = after(
+      fold('hell', []),
+      unwrap(addCreature(fold('hell', []), SRD_CONTENT, ERINYES, 'erinyes'), 'the erinyes').events,
+    );
+    state = after(state, unwrap(declareCreatureSide(state, ERINYES, 'devils'), 'side'));
+    state = after(
+      state,
+      unwrap(beginCombat(state, [{ id: ERINYES, initiative: 20, speed: 30 }]), 'combat'),
+    );
+
+    // The door the line actually comes through is the save's, and it is not
+    // refused: the rope is fiction the engine never held.
+    const forced = forcePrintedSave(
+      state,
+      ERINYES,
+      { line: ROPE, targets: [ERINYES], commandId: 'rope' },
+      supply(),
+    );
+    expect(isErr(forced) && forced.code).not.toBe('requirement_unmet');
+    if (forced.ok) {
+      expect(forced.value.unverified.join(' ')).toContain('Magic Rope');
+    }
   });
 });

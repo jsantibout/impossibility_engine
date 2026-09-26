@@ -67,7 +67,6 @@ import {
   MONSTER_LINE_SHAPES,
   PARTIAL_SPELLS,
   RIDER_HANDOVER_SHAPE,
-  REACTION_USE_SHAPE,
   hasHandedOverResponse,
   RIDER_SHAPE,
   SAVE_HANDOVER_SHAPE,
@@ -509,11 +508,13 @@ const OVER_READ_LINES: ReadonlySet<string> = new Set([
   // its spells to the casting pipeline — and `castPrintedLine` is that door:
   // the heading's recharge or day's use is spent and the casting is an
   // ordinary casting. A shape leaving this list is the list working.
-  // A Reaction whose response is another line of the same block. Read — the
-  // trigger is a window the engine holds and the response is a name on the
-  // sheet — and not paid, because the engine offers the Reaction and hands the
-  // response over rather than performing it.
-  REACTION_USE_SHAPE,
+  // **A Reaction whose response is another line of the same block has left this
+  // list, because its row has left the report** — W7-B11. It was here on this
+  // same argument (read, and not paid, because nothing performed the named
+  // line) and `takeAttackReaction` performs it now. `hasHandedOverResponse` is
+  // still asked by `unpaid` below, so a homebrew line whose response the reader
+  // got nothing out of is still counted unpaid; what is gone is the row, which
+  // counted nothing.
   // A **trait** the engine reads a mechanic out of and hands the rest of the
   // heading back, on the same argument as the two above it: SRD Swarm's
   // healing sentence is spent and the two space clauses beside it are not, so

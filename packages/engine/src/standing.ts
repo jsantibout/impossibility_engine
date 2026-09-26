@@ -1971,7 +1971,7 @@ export type StandingRequirement =
    * Nightmare Haunting action."
    *
    * **The thing is a printed object the block arrived holding**, raised by
-   * `raisePrintedObject` under the id `printedObjectId` derives from the noun
+   * `raisePrintedObject` under the id `carriedObjectId` derives from the noun
    * and the creature — so this member carries the *noun* and derives the id at
    * the moment of the question, exactly as `in-sunlight` derives the light. The
    * requirement holds while that object is in the game and has not been
@@ -3569,7 +3569,7 @@ export function requirementsHold(
       return false;
     }
     // The printed object the block arrived holding, derived rather than
-    // remembered: the id is what `printedObjectId` mints out of the noun and
+    // remembered: the id is what `carriedObjectId` mints out of the noun and
     // this creature, and the question is whether that thing is still in the
     // game and not destroyed. A bag the log never raised and a bag turned to
     // dust answer the same way, which is what the sentence says.
