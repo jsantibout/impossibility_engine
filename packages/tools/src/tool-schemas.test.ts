@@ -176,8 +176,8 @@ describe('toolSchemas', () => {
     // — SRD Unseen Servant's Bonus Action, a placement and never a number.
     // And two on each for the insides-and-holds track (W7-B10),
     // `escape_from_inside` and `pull_out_of_creature`.
-    expect(toolSchemas(player())).toHaveLength(93);
-    expect(toolSchemas(dm())).toHaveLength(120);
+    expect(toolSchemas(player())).toHaveLength(95);
+    expect(toolSchemas(dm())).toHaveLength(122);
     // Re-pinned 2026-09-24 for the printed-lines track, which opened one door
     // on the DM's surface alone: `teleport_printed_line` takes the teleport a
     // stat block prints, at the distance the block prints, to a space the DM
@@ -320,11 +320,14 @@ describe('toolSchemas', () => {
     // Re-pinned for the insides-and-holds track — W7-B10: `escape_from_inside`
     // and `pull_out_of_creature` on both surfaces (a creature's own way out of
     // the creature holding it inside, and a neighbour's), and `landings` on
-    // the DM's `move_printed_line` for a line whose success steps clear.
-    expect(toolSchemas(player())).toHaveLength(93);
-    expect(toolSchemas(dm())).toHaveLength(120);
-    expect(JSON.stringify(toolSchemas(player())).length).toBe(147836);
-    expect(JSON.stringify(toolSchemas(dm())).length).toBe(193536);
+    // the DM's `move_printed_line` for a line whose success steps clear;
+    // `move.carrying` on both (SRD Grappled's "drag or carry you", whom and
+    // to which space beside the grappler); and `target` on the DM's
+    // `pull_printed_line` for the Ettercap's one webbed creature.
+    expect(toolSchemas(player())).toHaveLength(95);
+    expect(toolSchemas(dm())).toHaveLength(122);
+    expect(JSON.stringify(toolSchemas(player())).length).toBe(152545);
+    expect(JSON.stringify(toolSchemas(dm())).length).toBe(199694);
   });
 });
 
