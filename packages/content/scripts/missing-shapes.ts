@@ -4751,18 +4751,6 @@ export const ITEM_BLOCKED_ON: Readonly<Record<string, ItemEntry>> = {
     'what-ends-attunement-besides-a-command',
     'a-save-an-item-forces',
   ],
-  // Re-read against the conferral that doubles a Speed, and one id lighter:
-  // the doubling is writable now, and the Potion of Speed carries it. What
-  // keeps the boots out is what it would be hung on. "If you do, the boots
-  // double your Speed" is the boots' own effect, and "If you click your heels
-  // together again, you end the effect" is a switch, where a conferral is a
-  // moment with a lifetime the item states — one that would run its ten
-  // minutes on after the boots came off, which is a better pair than the book
-  // prints. The ten minutes "for a total" and the Long Rest are the rest.
-  'boots-of-speed': [
-    'a-benefit-an-item-switches-on-and-off',
-    'a-deadline-anchored-to-a-rest',
-  ],
   'boots-of-striding-and-springing': ['a-speed-an-item-grants'],
   'bowl-of-commanding-water-elementals': ['a-stat-block-created-mid-fight'],
   'bracers-of-archery': ['a-language-or-a-proficiency-an-item-grants'],
@@ -4782,15 +4770,6 @@ export const ITEM_BLOCKED_ON: Readonly<Record<string, ItemEntry>> = {
   'censer-of-controlling-air-elementals': ['a-stat-block-created-mid-fight'],
   'cloak-of-arachnida': ['movement-modes', 'a-speed-an-item-grants'],
   'cloak-of-displacement': ['a-benefit-an-item-suspends-on-a-trigger'],
-  // Re-pointed, and the condition was never the blocker: three charges
-  // regaining 1d3 at dawn is a pool, a Magic action that spends one is a
-  // priced conferral, and "the Invisible condition for 1 hour" is the Potion
-  // of Invisibility's own grant. What has no reader is the sentence that ends
-  // it — "if you pull the hood down (no action required) or cease wearing the
-  // cloak" — which is a decision and a doffing, and `EFFECT_END_CAUSES` holds
-  // neither. Granting the hour without them would be a cloak nobody can take
-  // off, which is rule 3 in packages/content/src/items.ts.
-  'cloak-of-invisibility': ['a-benefit-an-item-switches-on-and-off'],
   // Polymorph is defined and tracked, and "on yourself" is `targetsSelfOnly`,
   // so the casting the cloak prints is writable and the per-dawn limit is a
   // pool of one. What is left is the Stealth Advantage and the Fly Speed.

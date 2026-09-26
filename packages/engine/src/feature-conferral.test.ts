@@ -630,6 +630,27 @@ describe('a homebrew feature conferring a save', () => {
     expect(content().classById('warden')?.id).toBe('warden');
   });
 
+  /**
+   * **An option ends on a deed and on nothing an item adds.** The removal and
+   * the fall are `CONFERRAL_END_CAUSES`: a feature's source is no garment, and
+   * no SRD feature prints the fall — so both are refused rather than read as
+   * a sentence that could never fire.
+   */
+  it('refuses the two causes only an item’s conferral may name', () => {
+    for (const cause of ['source-item-removed', 'target-drops-to-0']) {
+      const warden = JSON.parse(JSON.stringify(WARDEN)) as {
+        features: { grants?: { options?: { endsEarly?: string[] }[] } }[];
+      };
+      warden.features[1]!.grants!.options![0]!.endsEarly = [cause];
+      expect(
+        checkContent({ classes: [warden as unknown as ClassDefinition] }).map(
+          (problem) => problem.code,
+        ),
+        cause,
+      ).toEqual(['unknown_option_end_trigger']);
+    }
+  });
+
   it('forces its save and lands its condition, with no engine change', () => {
     const made = createCharacter(content(), warden, id('bryn'));
     if (!made.ok) throw new Error(`${made.code} — ${made.reason}`);

@@ -49,7 +49,12 @@ import {
 } from './standing.js';
 import { SENSE_NAMES } from './positioning.js';
 import { dawnRollProblem } from './resources.js';
-import { EFFECT_END_CAUSES } from './timers.js';
+import {
+  CONFERRAL_END_CAUSES,
+  type ConferralEndCause,
+  type DeedEndCause,
+  EFFECT_END_CAUSES,
+} from './timers.js';
 import type { ActionRule } from './combat.js';
 import { TURN_ANCHORS } from './time.js';
 import { oneShotProblem, rollSelectorProblems } from './roll-modifiers.js';
@@ -3615,29 +3620,59 @@ function itemConfersProblems(
   // **And the same rule about the other half of the same clause.** SRD Potion
   // of Invisibility prints the duration and what cuts it short in one breath —
   // "for 1 hour. The effect ends early if you make an attack roll ..." — so a
-  // trigger with no condition to end is `conferral_lifetime_ends_nothing`
-  // asked about the sentence rather than about the number: a line that reads as
+  // trigger with nothing to end is `conferral_lifetime_ends_nothing` asked
+  // about the sentence rather than about the number: a line that reads as
   // transcribed and could never fire.
+  //
+  // **What a cause can end is which list it is on.** A deed — the four
+  // `EFFECT_END_CAUSES` — ends a conferred condition's timer and nothing else;
+  // the two `CONFERRAL_END_CAUSES` end a hung grant's as well, because SRD
+  // Armor of Invulnerability's "or until you are no longer wearing the armor"
+  // is printed over an Immunity, which is a grant.
   if (grant.endsEarly !== undefined) {
     if (!Array.isArray(grant.endsEarly) || grant.endsEarly.length === 0) {
       say(
         'bad_conferral_end_trigger',
-        'what ends a conferred condition early is a non-empty list of causes, and an item that prints no such sentence omits the field',
+        'what ends a conferred effect early is a non-empty list of causes, and an item that prints no such sentence omits the field',
         `${at}.endsEarly`,
       );
     } else {
+      const grantsHung = grant.effects.some((effect) =>
+        CONFERRED_GRANT_KINDS.has(String((effect as unknown as Record<string, unknown>)['kind'])),
+      );
+      let deedEndsNothing = false;
+      let fallEndsNothing = false;
       grant.endsEarly.forEach((cause, index) => {
-        if (EFFECT_END_CAUSES.includes(cause)) return;
-        say(
-          'unknown_conferral_end_trigger',
-          `"${String(cause)}" is not something the engine can see happen to the creature a timer sits on; a conferral has no caster, so the one cause that needs one is not among them either`,
-          `${at}.endsEarly[${index}]`,
-        );
+        if (EFFECT_END_CAUSES.includes(cause as DeedEndCause)) {
+          if (conditions === 0) deedEndsNothing = true;
+          return;
+        }
+        if (!CONFERRAL_END_CAUSES.includes(cause as ConferralEndCause)) {
+          say(
+            'unknown_conferral_end_trigger',
+            `"${String(cause)}" is not something the engine can see happen to the creature a timer sits on; a conferral has no caster, so the one cause that needs one is not among them either`,
+            `${at}.endsEarly[${index}]`,
+          );
+          return;
+        }
+        if (conditions === 0 && !grantsHung) fallEndsNothing = true;
+        // **A bottle is never worn while it is used** — `useItem` refuses one
+        // still in hand — and it is gone afterwards, so a removal printed on
+        // an item used up rather than spent is a sentence that cannot fire.
+        if (cause === 'source-item-removed' && grant.charges === undefined) {
+          say(
+            'conferral_removal_of_a_used_up_item',
+            `${item.id} is used up rather than spent, so it is never worn once its effect has landed and "until it comes off" could never happen`,
+            `${at}.endsEarly[${index}]`,
+          );
+        }
       });
-      if (conditions === 0) {
+      if (deedEndsNothing || fallEndsNothing) {
         say(
           'conferral_end_trigger_ends_nothing',
-          `${item.id} confers no condition, and what a trigger ends early is the condition's own timer — so this sentence could never fire`,
+          deedEndsNothing
+            ? `${item.id} confers no condition, and what a deed ends early is the condition's own timer — so this sentence could never fire`
+            : `${item.id} confers no condition and hangs no grant, so there is no timer for this sentence to end`,
           `${at}.endsEarly`,
         );
       }

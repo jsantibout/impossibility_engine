@@ -142,6 +142,11 @@
     "endTriggeredCastings",
     "endEarlyEndedConditions",
     "closeHealedWounds",
+    "TimerFact",
+    "timerFactsOf",
+    "pulls",
+    "ENDS_A_GRANT",
+    "endTimedGrants",
     "endTriggeredEffects"
   ],
   "fold/inventory.ts": [
