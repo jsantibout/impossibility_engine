@@ -4424,6 +4424,27 @@ function checkEffect(
           reason: 'a spell either prints "can\'t attack" or does not; the only value is true',
         });
       }
+      // SRD Unseen Servant's command: the one price the book prints for it and
+      // a whole number of feet. That the casting runs is checked at the
+      // definition, where the duration is — see `checkSummonCommand`. (W7-S19)
+      const commanded = (effect as { commanded?: unknown }).commanded;
+      if (commanded !== undefined) {
+        const { costs, moveUpTo } = (commanded ?? {}) as { costs?: unknown; moveUpTo?: unknown };
+        if (
+          typeof commanded !== 'object' ||
+          commanded === null ||
+          costs !== 'bonus-action' ||
+          !Number.isInteger(moveUpTo) ||
+          (moveUpTo as number) <= 0
+        ) {
+          found.push({
+            field: `${path}.commanded`,
+            code: 'bad_summon_command',
+            reason:
+              'a command a caster gives a summons costs a Bonus Action — the one price the book prints — and moves it a positive whole number of feet',
+          });
+        }
+      }
       for (const field of ['armorClass', 'hitPoints'] as const) {
         const scaled = effect[field];
         if (scaled === undefined) continue;
@@ -5554,6 +5575,30 @@ function checkSharesDamage(
       code: 'shared_damage_with_nobody',
       reason:
         'damage is shared from a creature the casting is on while the casting runs; a spell with no target or no duration has nobody’s damage to share',
+    });
+  }
+}
+
+/**
+ * SRD Unseen Servant's command reaches the creature through the casting's
+ * record, so the casting has to be running to be commanded through — see
+ * `SpellEffect.summon.commanded`. The shape of the field is checked with the
+ * effect; this is the half that needs the duration. (W7-S19)
+ */
+function checkSummonCommand(
+  definition: SpellDefinition,
+  lasts: boolean,
+  found: SpellDefinitionProblem[],
+): void {
+  const summon = definition.effects.find((effect) => effect.kind === 'summon');
+  if (summon?.kind !== 'summon' || summon.commanded === undefined) return;
+  const persists = lasts || definition.untilDispelled === true || definition.concentration;
+  if (!persists) {
+    found.push({
+      field: 'effects.commanded',
+      code: 'bad_summon_command',
+      reason:
+        'a command reaches the creature through the casting that holds it, and an Instantaneous casting leaves no record to command through',
     });
   }
 }
@@ -7533,6 +7578,7 @@ export function checkSpellDefinition(
   checkOnEnd(definition, lasts, found);
   checkRecastOnEither(definition, found);
   checkSharesDamage(definition, lasts, found);
+  checkSummonCommand(definition, lasts, found);
 
   // — a grant with nothing to hang on ——————————————————————————————————————
   //

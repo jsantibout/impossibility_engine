@@ -146,6 +146,7 @@ import {
   takePrintedForm,
   takePrintedPull,
   takePrintedTeleport,
+  commandSummons,
   dismissKeptSummons,
   enterElsewhere,
   recallKeptSummons,
@@ -2048,6 +2049,43 @@ const KEPT: readonly GameEvent[] = [
   ).events,
 ];
 
+/**
+ * A servant A holds through a running casting, in the fight — SRD Unseen
+ * Servant's, whose command costs A a Bonus Action and moves it fifteen feet.
+ * Cast rather than summoned by hand, because the command reads the casting's
+ * own record for its price and its feet. (W7-S19)
+ */
+const CONJURED: readonly GameEvent[] = (() => {
+  const armed: readonly GameEvent[] = [
+    ...SETUP,
+    {
+      type: 'spellcasting-declared',
+      id: A,
+      spellcasting: declaredCasting({ ability: 'int', prepared: ['unseen-servant'] }),
+    },
+  ];
+  return [
+    ...armed,
+    ...unwrap(
+      resolveSpell(fold('s', armed), A, { spellId: 'unseen-servant', targets: [A], slotLevel: 1 }, supply()),
+      'the servant',
+    ).events,
+  ];
+})();
+
+/** The servant CONJURED wrote, read off the arrival. */
+const SERVANT: CharacterId = (() => {
+  const arrived = CONJURED.find((event) => event.type === 'creature-summoned');
+  if (arrived?.type !== 'creature-summoned') throw new Error('no servant was conjured');
+  return arrived.id;
+})();
+
+/** And placed, because a summons arrives with no position and a command moves it from one. */
+const SERVING: readonly GameEvent[] = [
+  ...CONJURED,
+  { type: 'creature-placed', id: SERVANT, placement: { from: { creature: A }, feet: 5, bearing: 90 } },
+];
+
 /** And the same owl dismissed to its pocket, so a recall has something to recall. */
 const POCKETED: readonly GameEvent[] = [
   ...KEPT,
@@ -2355,6 +2393,19 @@ const GUARDED: readonly Guarded[] = [
     name: 'dismissKeptSummons',
     log: KEPT,
     run: (s, commandId) => dismissKeptSummons(s, A, { who: id('an-owl'), commandId }),
+  },
+  {
+    // In the fight, because what a retry could spend twice is A's Bonus Action
+    // — and the servant would walk twice.
+    name: 'commandSummons',
+    log: SERVING,
+    run: (s, commandId) =>
+      commandSummons(
+        s,
+        A,
+        { who: SERVANT, to: { from: { creature: SERVANT }, feet: 10, bearing: 180 }, commandId },
+        supply(),
+      ),
   },
   {
     name: 'recallKeptSummons',
@@ -3878,6 +3929,13 @@ const SPENDERS: readonly Spender[] = [
   // it does.
   { name: 'dismissKeptSummons', run: (s) => dismissKeptSummons(s, B, { who: A }) },
   { name: 'recallKeptSummons', run: (s) => recallKeptSummons(s, B, { who: A }) },
+  // The command a caster gives a summons spends the caster's Bonus Action, and
+  // the debt is asked before the bond is looked at — the same guard, on the
+  // third door. (W7-S19)
+  {
+    name: 'commandSummons',
+    run: (s) => commandSummons(s, B, { who: A, to: { from: { creature: A }, feet: 5, bearing: 0 } }, supply()),
+  },
   // And the two printed roads, refused for the debt before the line is read.
   { name: 'takePrintedSwallow', run: (s) => takePrintedSwallow(s, B, { line: 'A Printed Line', target: A }) },
   { name: 'takePrintedPlaneShift', run: (s) => takePrintedPlaneShift(s, B, { line: 'A Printed Line' }) },

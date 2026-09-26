@@ -1293,18 +1293,6 @@ export const ADJUDICATED: Readonly<Record<string, readonly Adjudication[]>> = {
       note: 'The mode itself is ordinary — a `RollModifier` naming a Charisma ability check narrowed to the Intimidation skill, which is the pair `RollSelector` already carries. What it has nowhere to land is a creature: Thaumaturgy prints Range 30 feet and `targets: { count: 0 }`, because the wonder happens within range rather than on somebody, so the per-target loop runs no times at all. The target rule that would hand the mode its creature is "the caster and nobody else", and `TargetRule` cannot state it — `notTheCaster` is the only sentence of that family it has, and it is the other one. Writing `{ count: 1, self: true }` instead would let a caster boom an ally’s voice, which is a rule the book does not grant.',
     },
   ],
-  'unseen-servant': [
-    {
-      clause: 'more than 60 feet from the caster',
-      why: 'a-casting-ended-by-a-trigger',
-      note: 'a distance two creatures drift apart, which that shape’s own description names for Faithful Hound, Warding Bond and Antilife Shell: the servant is a creature on the map and the sixty feet are measurable after its move, but the move command reads no casting’s ending and another track owns it, so the spell runs on past the distance the book ends it at.',
-    },
-    {
-      clause: 'the Bonus Action the command costs its caster is not spent',
-      why: 'a-creature-somebody-else-is-playing',
-      note: 'the servant moves when the DM moves it and does what the table says it does, and the caster’s own Bonus Action — the price the book puts on issuing the order — is a charge on one creature’s economy for deciding what another does, which no spender is told apart by.',
-    },
-  ],
   web: [
     {
       clause: 'flammable',

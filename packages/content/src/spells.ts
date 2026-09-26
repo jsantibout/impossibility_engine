@@ -11589,15 +11589,23 @@ export const UNSEEN_SERVANT: SpellDefinition = {
         conditions: ['invisible'],
       },
       cannotAttack: true,
+      // "Once on each of your turns as a Bonus Action, you can mentally
+      // command the servant to move up to 15 feet and interact with an
+      // object." The price is the caster's and the feet are the servant's;
+      // `commandSummons` is the door, and the object is the table's.
+      commanded: { costs: 'bonus-action', moveUpTo: 15 },
     },
   ],
   durationSeconds: 3600,
   // "If it drops to 0 Hit Points, the spell ends" — the whole casting, which is
-  // what then takes the fallen servant away.
-  endsEarly: [{ on: 'summon-drops-to-0', ends: 'casting' }],
+  // what then takes the fallen servant away. And "If you command the servant
+  // to perform a task that would move it more than 60 feet away from you, the
+  // spell ends" — a distance the fold reads off the servant's arrival.
+  endsEarly: [
+    { on: 'summon-drops-to-0', ends: 'casting' },
+    { on: 'separated-beyond', feet: 60, ends: 'casting' },
+  ],
   unmodelled: [
-    'the spell does not end when a command would take the servant more than 60 feet from the caster: that is a distance the engine can measure after the servant’s move and does not yet read at the move command, which another track owns',
-    'the Bonus Action the command costs its caster is not spent: the servant is moved by the DM’s move command on the servant itself, and the caster’s own economy is not charged for issuing the order',
     'what the servant fetches, cleans, mends, folds, lights, serves or pours is the DM’s and always will be',
   ],
 };

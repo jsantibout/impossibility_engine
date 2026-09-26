@@ -225,6 +225,10 @@ export {
   takePrintedPlaneShift,
   takePrintedSwallow,
 } from './commands/elsewhere.js';
+// The command a caster gives a creature a casting holds — SRD Unseen Servant's
+// Bonus Action and fifteen feet. (W7-S19)
+export { commandSummons } from './commands/spell-effect-summon.js';
+export type { CommandSummonsCommand, CommandSummonsOutcome } from './commands/spell-effect-summon.js';
 export type {
   EnterCommand,
   EnterOutcome,

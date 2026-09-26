@@ -176,6 +176,7 @@ import {
   declineDamageReaction,
   declineOpportunity,
   declineTestReaction,
+  commandSummons,
   dismissKeptSummons,
   dismissStrandedSummons,
   dismountRider,
@@ -1216,6 +1217,63 @@ const DISMISS_FAMILIAR = tool({
       }),
       (value) => value.events,
       (value) => ({ dismissed: args.who, duplicate: value.duplicate }),
+      (value) => value.unverified,
+    ),
+});
+
+/**
+ * SRD Unseen Servant: "Once on each of your turns as a Bonus Action, you can
+ * mentally command the servant to move up to 15 feet and interact with an
+ * object."
+ *
+ * The third door on a summons and the first on one a casting holds: the price
+ * is the caster's, the feet are the spell's, and both are read off the
+ * casting's own record. On the player's door and so on the DM's, because it
+ * carries no number the caller produced — a placement and, at most, the
+ * caller's words for what the servant does with an object. (W7-S19)
+ */
+const COMMAND_SUMMONS = tool({
+  name: 'command_summons',
+  description:
+    'Command a creature a casting of yours holds — SRD Unseen Servant’s servant — to move up to the feet its spell prints and, if you like, to do something with an object. Spends **your** Bonus Action in a fight, so once a turn; the creature spends nothing of its own. Say where it goes, measured from a landmark or a creature, and the engine refuses a move past the feet the spell prints, into a space somebody stands in, or across ground that asks for its route; leave the destination out to have it act where it stands. What it does with the object is yours to say and the engine reports it back as such. Refused for a creature you do not hold through a running casting and for one whose spell prints no command. If the move would take it more than the distance its spell allows from you, the spell ends and the creature is owed its departure.',
+  mutates: true,
+  establishes: ['route'],
+  input: z.object({
+    caster: creatureId.describe('The caster, whose Bonus Action this is.'),
+    who: creatureId.describe('The creature the casting holds.'),
+    to: placementSchema.optional().describe('Where it goes. Omit it to have the creature act where it stands.'),
+    route: routeSchema
+      .optional()
+      .describe(
+        'The 5-foot spaces the move passes through, in order, when a move came back `route_required`.',
+      ),
+    interact: z
+      .string()
+      .min(1)
+      .optional()
+      .describe('What it does with an object, in your words: "open the door", "pour the wine". Reported back as the table’s.'),
+  }),
+  run: (context, args) =>
+    settle(
+      context,
+      commandSummons(
+        context.campaign.state(),
+        who(args.caster),
+        {
+          who: who(args.who),
+          ...(args.to === undefined ? {} : { to: placementOf(args.to) }),
+          ...(args.route === undefined ? {} : { route: args.route.map(point) }),
+          ...(args.interact === undefined ? {} : { interact: args.interact }),
+          ...identity(context),
+        },
+        context.campaign.supply(),
+      ),
+      (value) => value.events,
+      (value) => ({
+        commanded: args.who,
+        ...(value.moved === null ? {} : { feetMoved: value.moved.feet }),
+        duplicate: value.duplicate,
+      }),
       (value) => value.unverified,
     ),
 });
@@ -5758,6 +5816,7 @@ export const TOOLS: readonly ToolDefinition[] = [
   DECLINE_OPPORTUNITY,
   DECLINE_TEST_REACTION,
   CLIMB_INTO_SPACE,
+  COMMAND_SUMMONS,
   DISMISS_FAMILIAR,
   DISMISS_STRANDED_SUMMONS,
   DRAW_ON_HEALING_POOL,

@@ -320,6 +320,14 @@ export interface OngoingSpell {
    */
   readonly sharesDamage?: { readonly with: 'caster'; readonly withinFeet?: number };
   /**
+   * SRD Unseen Servant's "as a Bonus Action, you can mentally command the
+   * servant to move up to 15 feet" — the summon effect's `commanded`, pinned
+   * verbatim so `commandSummons` charges the price and the feet the casting
+   * was made with. Absent for every casting written before the field and for
+   * every spell that prints no such sentence. (W7-S19)
+   */
+  readonly commanded?: { readonly costs: 'bonus-action'; readonly moveUpTo: number };
+  /**
    * What this casting leaves on its targets the moment it ends — SRD Haste's
    * lethargy. See `SpellDefinition.onEnd`, where the rule is argued.
    *

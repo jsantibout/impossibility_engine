@@ -383,6 +383,9 @@ const ESTABLISHING_FIELDS: Readonly<Record<string, readonly string[]>> = {
   // than by a declaration of its own, so the field is the whole of the door.
   'move:route': ['route'],
   'activate_spell:route': ['via'],
+  // The same odd door on the command a caster gives a summons: the servant's
+  // move is a move, and the ground asks it the same question. (W7-S19)
+  'command_summons:route': ['route'],
 };
 
 describe('every kind a tool declares it establishes has fields to carry it', () => {
@@ -823,7 +826,11 @@ type Answer = { readonly fields: readonly string[] } | { readonly unanswerable: 
 
 const ANSWERS: Readonly<Record<string, Answer>> = {
   // — the two the split in `commands/command.ts` is about ——————————————————
-  route_required: { fields: ['move.route', 'activate_spell.via'] },
+  route_required: { fields: ['move.route', 'activate_spell.via', 'command_summons.route'] },
+  // The third question a move can be asked about the room — SRD Levitate's
+  // "a fixed object or surface within reach" — answered the way a route is:
+  // the same call again with the field filled in. (W7-S19)
+  surface_required: { fields: ['move.alongSurface'] },
   single_steps_required: {
     unanswerable:
       'not a field: the remedy is the same walk re-sent as several calls of one space each, each settled before the next. `routes.test.ts` drives that loop end to end.',

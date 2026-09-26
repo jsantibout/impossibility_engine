@@ -4142,6 +4142,21 @@ export type SpellEffect =
        * record of, for as long as it stands. The only value is `true`.
        */
       readonly cannotAttack?: true;
+      /**
+       * SRD Unseen Servant: "Once on each of your turns as a Bonus Action, you
+       * can mentally command the servant to move up to 15 feet and interact
+       * with an object."
+       *
+       * The price a **caster** pays to decide what the creature does, and how
+       * far it goes for it — a charge on one creature's economy for another's
+       * move, which no ordinary spender is told apart by. `commandSummons` is
+       * the door: it spends the caster's slot, moves the creature up to the
+       * feet out of no budget of its own, and the object is the table's.
+       * Pinned onto the ongoing record, so the door opens no book; only on a
+       * summons a casting holds, because the command reaches the creature
+       * through the record. (W7-S19)
+       */
+      readonly commanded?: { readonly costs: 'bonus-action'; readonly moveUpTo: number };
     };
 
 /**
@@ -7523,6 +7538,19 @@ export function teleportOf(
   definition: SpellDefinition,
 ): Extract<SpellEffect, { kind: 'teleport' }> | null {
   return definition.effects.find((effect) => effect.kind === 'teleport') ?? null;
+}
+
+/**
+ * The command a spell's caster may give the creature it summons, or undefined
+ * — SRD Unseen Servant's Bonus Action and fifteen feet. {@link teleportOf}'s
+ * discipline: one reader for the record-writer that pins it and the validator
+ * that holds it to a running casting. (W7-S19)
+ */
+export function summonCommandOf(
+  definition: SpellDefinition,
+): { readonly costs: 'bonus-action'; readonly moveUpTo: number } | undefined {
+  const summon = definition.effects.find((effect) => effect.kind === 'summon');
+  return summon?.kind === 'summon' ? summon.commanded : undefined;
 }
 
 /**

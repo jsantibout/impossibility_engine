@@ -25,6 +25,13 @@
 import { asCharacterId, err, ok, type Ability, type CharacterId, type Result } from '@ie/shared';
 import type { Monster } from '@ie/srd';
 import { applyEvent, type GameEvent, type GameState } from '../events.js';
+import { type CommandIdentity, once } from '../idempotency.js';
+import type { Placement, Point } from '../positioning.js';
+import { creatureOf, spendFor } from './command.js';
+import { mayAct } from './holds.js';
+// `sceneFor` and `unknownCreature` are imported with the arrival below.
+import { moveWithin, type MoveResolution } from './movement.js';
+import type { Supply } from './casting.js';
 import {
   type InlineStatBlock,
   type PrintedSummonSpeeds,
@@ -445,4 +452,140 @@ function printedSpeedsAt(
     paid[mode] = printed.feet;
   }
   return Object.keys(paid).length === 0 ? undefined : paid;
+}
+
+// — the command a caster gives a creature a casting holds (W7-S19) ——————————
+
+export interface CommandSummonsCommand extends CommandIdentity {
+  /** The creature the casting holds and the caster commands. */
+  readonly who: CharacterId;
+  /**
+   * Where it goes, measured as every destination is. Absent for a command
+   * that moves it nowhere — an object interacted with where it stands.
+   */
+  readonly to?: Placement;
+  /** The spaces the move passes through, where the ground asks — see `MoveCommand.route`. */
+  readonly route?: readonly Point[];
+  /**
+   * What the creature does with an object, in the caller's words — SRD Unseen
+   * Servant's "interact with an object". The engine holds no objects for a
+   * servant to fetch, clean or pour, so this is reported as the table's rather
+   * than performed; it is on the command so the log says what was ordered.
+   */
+  readonly interact?: string;
+}
+
+export interface CommandSummonsOutcome {
+  readonly events: readonly GameEvent[];
+  /** The move the creature made, or null for a command that moved it nowhere. */
+  readonly moved: MoveResolution | null;
+  readonly unverified: readonly string[];
+  readonly duplicate: boolean;
+}
+
+/**
+ * SRD Unseen Servant: "Once on each of your turns as a Bonus Action, you can
+ * mentally command the servant to move up to 15 feet and interact with an
+ * object." / "If you command the servant to perform a task that would move it
+ * more than 60 feet away from you, the spell ends."
+ *
+ * **A charge on one creature's economy for deciding what another does**, which
+ * no ordinary spender is told apart by: the Bonus Action is the caster's and is
+ * spent where there is an economy to spend it from, the feet are the
+ * creature's and come out of no budget of its own — `moveWithin`'s allowance
+ * road, the one SRD Ready's response move already takes for a move the turn
+ * budget knows nothing about — and "once on each of your turns" is the Bonus
+ * Action's own rule. The price and the feet are read off the casting's record
+ * (`OngoingSpell.commanded`), pinned at the cast, so a servant conjured under
+ * last year's book is commanded on last year's terms.
+ *
+ * The sixty feet are not this door's: the fold reads `separated-beyond` off the
+ * servant's arrival, as it reads Warding Bond's, and the spell ends whoever
+ * moved it and however.
+ *
+ * Refused for a creature this caster does not hold through a running casting
+ * (`not_your_summons`) and for one whose spell prints no command
+ * (`not_commanded`); the destination's own refusals — the feet, the ground, a
+ * space somebody stands in — are the move's and pass through under their own
+ * codes.
+ */
+export function commandSummons(
+  state: GameState,
+  casterId: CharacterId,
+  command: CommandSummonsCommand,
+  supply: Supply,
+): Result<CommandSummonsOutcome> {
+  return once(
+    state,
+    `command-summons:${casterId}`,
+    command,
+    () => ({ events: [], moved: null, unverified: [], duplicate: true }),
+    (stamp) => {
+      const owedHere = mayAct(state, casterId);
+      if (owedHere !== null) return owedHere;
+      const creature = creatureOf(state, command.who);
+      if (creature === null) return unknownCreature(command.who);
+      const bond = creature.summonedBy;
+      const record = bond?.castingId == null ? undefined : state.ongoing[bond.castingId];
+      if (bond === null || bond.by !== casterId || record === undefined) {
+        return err(
+          'not_your_summons',
+          `${command.who} is not a creature ${casterId} holds through a running casting`,
+        );
+      }
+      if (record.commanded === undefined) {
+        return err(
+          'not_commanded',
+          `${record.spell} prints no command for ${casterId} to give ${command.who}`,
+        );
+      }
+
+      const events: GameEvent[] = [];
+      const unverified: string[] = [];
+      let current = state;
+      // The caster's price, where there is an economy to pay it from — and
+      // paid before the move, so a second command this turn is refused before
+      // anything moves.
+      if (current.combat !== null) {
+        const spent = spendFor(current, casterId, record.commanded.costs);
+        if (!spent.ok) return spent;
+        events.push(spent.value);
+        current = applyEvent(current, spent.value);
+      }
+
+      let moved: MoveResolution | null = null;
+      if (command.to !== undefined) {
+        // The move carries no id of its own: the command's stamp rides the
+        // first event below, and a move stamped again would be a second claim
+        // on one command.
+        const walked = moveWithin(
+          current,
+          command.who,
+          {
+            placement: command.to,
+            ...(command.route === undefined ? {} : { route: command.route }),
+          },
+          supply,
+          record.commanded.moveUpTo,
+        );
+        if (!walked.ok) return walked;
+        moved = walked.value;
+        events.push(...walked.value.events);
+        unverified.push(...walked.value.unverified);
+      }
+
+      if (command.interact !== undefined) {
+        unverified.push(
+          `${record.spell}: ${command.who} was commanded to ${command.interact}; the engine holds no objects, so what that comes to is the table's`,
+        );
+      }
+
+      // The stamp rides the first event the command wrote, so a retry finds
+      // it whether the command spent a Bonus Action or only moved.
+      if (stamp !== null && events.length > 0) {
+        events[0] = { ...events[0]!, command: stamp } as GameEvent;
+      }
+      return ok({ events, moved, unverified, duplicate: false });
+    },
+  );
 }
