@@ -2129,8 +2129,6 @@ export const MONSTER_LINE_SHAPES: readonly (readonly [
 export const LINE_RESIDUE_SEAMS: Readonly<Record<string, string>> = {
   'ettercap/Reel':
     'a pull whose **gate** is a hold. The web is a thing the engine keeps a record of now — the Web Strand save raises an object and files the Restrained under `held-by:<it>` — and the Roper\'s Reel under the same heading is executed. What is left is the clause between the two: "one creature within 30 feet of itself **that is Restrained by its Web Strand**" is a printed pull narrowed to whoever this creature\'s own web is holding, and `takePrintedPull` drags whoever it is holding by a *grapple*. It lands the day a printed pull may say which hold it reads.',
-  'magmin/Ignited Illumination':
-    'a light a use turns on and off. `sheds-light` exists and `carriedLight` derives a patch that moves with its holder — but the magmin\'s block prints no such trait: the radii are printed on this Bonus Action and nowhere else, so what is missing is a *toggle*, a light patch a use hangs and a second use takes away, rather than a reader for a trait the block does not have.',
   'will-o-wisp/Vanish':
     'Concentration on something that is not a casting. "The wisp and its light have the Invisible condition until the wisp\'s Concentration ends on this effect, which ends early immediately after the wisp makes an attack roll or uses Consume Life." Every clause but the first is machinery the engine holds — the condition, the trigger that ends it, the light — and all of it hangs off `CreatureState.concentration`, which only a casting may occupy.',
   'succubus/Charm':

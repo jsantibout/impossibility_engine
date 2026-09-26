@@ -610,6 +610,9 @@ describe('the bestiary row counts blocks, and the prose it cannot read', () => {
       'swallows',
       'teleports',
       'text',
+      // The light a use switches on and the next switches off — W7-B11, read out
+      // of the sentence like the moves above it.
+      'togglesLight',
       'trait',
       'treeStride',
       'usesLine',

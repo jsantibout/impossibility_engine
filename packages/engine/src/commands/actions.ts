@@ -566,11 +566,50 @@ function grantsOfPrintedLine(
     );
   }
 
+  // **The light a use switches on, and which this same use switches off** — SRD
+  // Magmin's Ignited Illumination: "The magmin sets itself ablaze or
+  // extinguishes its flames." One sentence and one line for both directions, so
+  // the direction is read off the world rather than stated: a magmin that is
+  // ablaze puts itself out, and one that is not lights up. What the events flip
+  // is `activeFeatures`, because the light is a `light` standing grant gated on
+  // this line being active — the shape `activatedLight` reads and SRD Sacred
+  // Weapon's glow already compiles to. No patch is written anywhere: `lightAt`
+  // derives it from the sheet on every read. (W7-B11)
+  if (line.togglesLight !== undefined) {
+    // **The key is read off the sheet**, where the adapter put it, rather than
+    // rebuilt here: it is derived from the *stat block's* id and this command
+    // holds the creature's. One string, minted once, and no second spelling of
+    // the rule that mints it.
+    const glow = (state.creatures[id]?.sheet.standing ?? []).find(
+      (effect) => effect.name === line.name && effect.grant.kind === 'light',
+    );
+    if (glow === undefined) {
+      unverified.push(
+        `${line.name} switches a light on and this creature's sheet carries none for it; nothing was lit`,
+      );
+    } else {
+      const ablaze = state.creatures[id]?.activeFeatures.includes(glow.feature) === true;
+      events.push(
+        ablaze
+          ? { type: 'feature-ended', id, feature: glow.feature, reason: 'dismissed' }
+          : { type: 'feature-activated', id, feature: glow.feature },
+      );
+      unverified.push(
+        ablaze
+          ? `${line.name} put ${id}'s flames out; the light it was shedding is gone`
+          : `${line.name} set ${id} ablaze; the light it sheds is on until the line is taken again`,
+      );
+    }
+  }
+
   return ok({
     events,
     unverified,
     applied:
-      line.jumps !== undefined || line.dashes !== undefined || line.rampages !== undefined,
+      line.jumps !== undefined ||
+      line.dashes !== undefined ||
+      line.rampages !== undefined ||
+      line.togglesLight !== undefined,
   });
 }
 

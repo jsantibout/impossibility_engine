@@ -30,6 +30,7 @@ import type {
   MonsterForms,
   MonsterMultiattack,
   MonsterDash,
+  MonsterLightToggle,
   MonsterRampage,
   MonsterJump,
   MonsterPlaneShift,
@@ -244,6 +245,12 @@ export interface StatedBonusAction {
    * under this heading**: the Gnoll Warrior's Rampage and the Giant Hyena's.
    */
   readonly rampages?: MonsterRampage;
+  /**
+   * The light this line switches on, and which its next use switches off — see
+   * {@link StatedAction.togglesLight}, the same field. **SRD prints the one line
+   * in the book under this heading**: the Magmin's Ignited Illumination.
+   */
+  readonly togglesLight?: MonsterLightToggle;
   /**
    * The step between two trees this line makes — see
    * {@link StatedAction.treeStride}. SRD Dryad prints it under this heading.
@@ -469,6 +476,18 @@ export interface StatedAction {
    * enforced, which is the honest half. (W7-B11)
    */
   readonly rampages?: MonsterRampage;
+  /**
+   * The light this line switches **on**, and which its next use switches off —
+   * see `MonsterLightToggleSchema`.
+   *
+   * SRD Magmin's Ignited Illumination, the one line in the book of that shape.
+   * The spender flips `activeFeatures`, and the light itself is a `light`
+   * standing grant on the sheet gated on this very line being active — the shape
+   * `activatedLight` reads and SRD Sacred Weapon's glow is already compiled as,
+   * so a magmin ablaze and a paladin's blade shed light through one reader.
+   * (W7-B11)
+   */
+  readonly togglesLight?: MonsterLightToggle;
   /**
    * The step between two trees this line makes — see
    * `MonsterTreeStrideSchema`. SRD Dryad's Tree Stride; `takePrintedTeleport`

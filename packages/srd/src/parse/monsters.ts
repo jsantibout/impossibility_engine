@@ -26,6 +26,8 @@ import {
   type MonsterDash,
   MonsterRampageSchema,
   type MonsterRampage,
+  MonsterLightToggleSchema,
+  type MonsterLightToggle,
   type MonsterJump,
   type MonsterTreeStride,
   type MonsterForm,
@@ -2201,6 +2203,42 @@ const RAMPAGE_LINE = new RegExp(
 /** The counts the book writes out in words, which is how it writes every one. */
 const WRITTEN_COUNTS: Readonly<Record<string, number>> = { one: 1, two: 2, three: 3 };
 
+/**
+ * SRD Magmin, Ignited Illumination, under **Bonus Actions**: "The magmin sets
+ * itself ablaze or extinguishes its flames. While ablaze, the magmin sheds
+ * Bright Light in a 10-foot radius and Dim Light for an additional 10 feet."
+ *
+ * **A light a use turns on and the next use turns off**, which is the one thing
+ * the six Illumination traits are not: those glow always and are read straight
+ * off the sheet, and this one has a *state*. The engine's word for that state is
+ * already there — a `light` standing grant gated on a `feature-active`
+ * requirement, which is how SRD Sacred Weapon's glow is compiled and what
+ * `activatedLight` reads — so the line needs no light machinery of its own. What
+ * it needs is the two radii and the fact that a use flips the switch.
+ *
+ * Anchored end to end over both sentences, so a line that turned something else
+ * on, or shed some other run of light, stays prose. The second sentence's radii
+ * are the shape's; the first is consumed, because "sets itself ablaze or
+ * extinguishes its flames" *is* the toggle and there is nothing else in it.
+ * (W7-B11)
+ */
+const TOGGLES_LIGHT_LINE = new RegExp(
+  `^The ${SUBJECT} sets itself ablaze or extinguishes its flames\\. ` +
+    `While ablaze, the ${SUBJECT} sheds Bright Light in a (\\d+)-foot radius ` +
+    `and Dim Light for an additional (\\d+) feet\\.$`,
+);
+
+/** The light a use switches on and off, or null for every other line. */
+export function parseLightToggleLine(text: string): MonsterLightToggle | null {
+  const matched = TOGGLES_LIGHT_LINE.exec(oneLine(text));
+  if (matched === null) return null;
+  const checked = MonsterLightToggleSchema.safeParse({
+    brightRadiusFeet: Number(matched[1]),
+    dimBeyondFeet: Number(matched[2]),
+  });
+  return checked.success ? checked.data : null;
+}
+
 /** The move and the swing this line takes after a blow, or null for every other line. */
 export function parseRampageLine(text: string): MonsterRampage | null {
   const matched = RAMPAGE_LINE.exec(oneLine(text));
@@ -3180,6 +3218,8 @@ function parseFeatures(
       const dashes = parseDashLine(text);
       // And the move-and-swing a blow on a Bloodied creature buys — W7-B11.
       const rampages = parseRampageLine(text);
+      // And the light a use switches on and the next switches off — W7-B11.
+      const togglesLight = parseLightToggleLine(text);
       const treeStride = parseTreeStrideLine(text);
       const addsToRoll = parseRollAddendLine(text);
       // The Reactions section's other two templates, read off the sentence for
@@ -3215,6 +3255,7 @@ function parseFeatures(
         ...(jumps === null ? {} : { jumps }),
         ...(dashes === null ? {} : { dashes }),
         ...(rampages === null ? {} : { rampages }),
+        ...(togglesLight === null ? {} : { togglesLight }),
         ...(treeStride === null ? {} : { treeStride }),
         ...(addsToRoll === null ? {} : { addsToRoll }),
         ...(addsToAc === null ? {} : { addsToAc }),

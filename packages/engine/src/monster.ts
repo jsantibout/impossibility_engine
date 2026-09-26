@@ -1975,6 +1975,45 @@ type MonsterLine = Monster['traits'][number];
  * and compiles nothing outside Bonus Actions. Nothing else here is told,
  * because nothing else depends on it.
  */
+/**
+ * SRD Magmin's Ignited Illumination, onto the sheet as the light it is.
+ *
+ * "The magmin sets itself ablaze or extinguishes its flames. While ablaze, the
+ * magmin sheds Bright Light in a 10-foot radius and Dim Light for an additional
+ * 10 feet."
+ *
+ * **A `light` grant gated on this very line being active**, which is exactly how
+ * SRD Sacred Weapon's glow is compiled and exactly what `activatedLight` reads
+ * off a sheet — so the magmin ablaze and the paladin's blade shed light through
+ * one reader, and the toggle is `activeFeatures` rather than a second record.
+ * That is why nothing about light is new: `lightAt` already carries a patch
+ * whose origin is a creature, and it was already reading this shape.
+ *
+ * The two radii are the line's own. The level is Bright because the sentence
+ * says Bright; the dim run beyond it is what `AreaLight.dimBeyond` is, laid as
+ * the wider patch `carriedLight` derives. (W7-B11)
+ */
+function printedToggledLight(line: MonsterLine, key: string): readonly StandingEffect[] {
+  const shed = line.togglesLight;
+  if (shed === undefined) return [];
+  return [
+    {
+      feature: key,
+      name: line.name,
+      reach: { kind: 'self' },
+      grant: {
+        kind: 'light',
+        level: 'bright',
+        radius: shed.brightRadiusFeet,
+        ...(shed.dimBeyondFeet === 0 ? {} : { dimBeyond: shed.dimBeyondFeet }),
+      },
+      // The switch, and the one shape `activatedLight` honours besides an
+      // unconditional glow.
+      requires: [{ kind: 'feature-active', feature: key }],
+    },
+  ];
+}
+
 function printedStanding(monster: Monster): { readonly standing?: readonly StandingEffect[] } {
   const sections: readonly (readonly [readonly MonsterLine[], boolean])[] = [
     [monster.traits, false],
@@ -1996,6 +2035,7 @@ function printedStanding(monster: Monster): { readonly standing?: readonly Stand
         ...printedBlur(line, key),
         ...printedCarryingCapacity(line, key),
         ...printedBonusActionAllowance(line, key, costsABonusAction),
+        ...printedToggledLight(line, key),
       ];
     }),
   );
@@ -2610,6 +2650,7 @@ export function adaptMonster(printed: Monster, id: CharacterId): AdaptedMonster 
       ...(line.jumps === undefined ? {} : { jumps: line.jumps }),
       ...(line.dashes === undefined ? {} : { dashes: line.dashes }),
       ...(line.rampages === undefined ? {} : { rampages: line.rampages }),
+      ...(line.togglesLight === undefined ? {} : { togglesLight: line.togglesLight }),
       ...(line.treeStride === undefined ? {} : { treeStride: line.treeStride }),
       // And the forms the heading gates the line to, where it names any.
       ...(line.onlyInForms === undefined ? {} : { onlyInForms: [...line.onlyInForms] }),
@@ -2667,6 +2708,8 @@ export function adaptMonster(printed: Monster, id: CharacterId): AdaptedMonster 
     // **Both Rampages are printed here**, which is why the field is read on
     // this section as well as the other — W7-B11.
     ...(line.rampages === undefined ? {} : { rampages: line.rampages }),
+    // **The one line in the book is printed here** — W7-B11.
+    ...(line.togglesLight === undefined ? {} : { togglesLight: line.togglesLight }),
     ...(line.treeStride === undefined ? {} : { treeStride: line.treeStride }),
     // And the forms the heading gates it to: SRD Weretiger's Prowl is the one
     // Bonus Action in the book that prints the clause.

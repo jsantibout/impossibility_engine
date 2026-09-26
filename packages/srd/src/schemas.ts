@@ -1928,6 +1928,32 @@ export const MonsterRampageSchema = z.object({
 export type MonsterRampage = z.infer<typeof MonsterRampageSchema>;
 
 /**
+ * One line that switches a light **on**, and which the next use switches off.
+ *
+ * SRD Magmin, Ignited Illumination: "The magmin sets itself ablaze or
+ * extinguishes its flames. While ablaze, the magmin sheds Bright Light in a
+ * 10-foot radius and Dim Light for an additional 10 feet."
+ *
+ * The two radii and nothing else, for the reason `sheds-light` carries its two:
+ * the blocks that print this shape would differ in the numbers and in nothing
+ * the engine can see. **The toggle is not a field**, because it is the whole of
+ * what the shape *is* — a line that has this record is a line a use flips.
+ *
+ * `sheds-light`'s sibling and the difference is a *state*: that trait glows
+ * always and is read straight off the sheet, and this glows while the creature
+ * has switched it on. What the engine already had for "while switched on" is a
+ * `feature-active` requirement over a `light` grant, which is how SRD Sacred
+ * Weapon's glow is compiled, so nothing about light is new here. (W7-B11)
+ */
+export const MonsterLightToggleSchema = z.object({
+  /** The radius of Bright Light while it is on, in feet. */
+  brightRadiusFeet: z.number().int().min(0),
+  /** The Dim Light **beyond** that radius, in feet, as the book adds it. */
+  dimBeyondFeet: z.number().int().min(0),
+});
+export type MonsterLightToggle = z.infer<typeof MonsterLightToggleSchema>;
+
+/**
  * One line that teleports its creature from beside one tree to beside another.
  *
  * SRD Dryad, Tree Stride: "If within 5 feet of a Large or bigger tree, the
@@ -3132,6 +3158,13 @@ export const FeatureSchema = z.object({
    * the reason everything here is: the heading says what a use costs. (W7-B11)
    */
   rampages: MonsterRampageSchema.optional(),
+  /**
+   * The light this line switches on, and which its next use switches off — see
+   * {@link MonsterLightToggleSchema}. SRD prints the one line under Bonus
+   * Actions, and it is read on every section for the reason everything here is.
+   * (W7-B11)
+   */
+  togglesLight: MonsterLightToggleSchema.optional(),
   /**
    * The teleport between two trees this line makes — see
    * {@link MonsterTreeStrideSchema}. SRD prints the one line under Bonus
