@@ -43,6 +43,7 @@ import {
   liftWhatBrokenObjectsHeld,
 } from './expiry.js';
 import {
+  closeHealedWounds,
   endEarlyEndedConditions,
   endTriggeredCastings,
   endTriggeredEffects,
@@ -356,6 +357,13 @@ function applyEventUnder(state: GameState, event: GameEvent, legacy: Content | n
                   // one: a Sleep released above has already taken its
                   // Unconscious away, leaving this walk only the instances a
                   // printed line put there. See {@link endEarlyEndedConditions}.
+                  // Beside the two above it and outermost of the three,
+                  // because it is the same kind of fact read off the same
+                  // event: something happened, and a thing standing on a
+                  // creature is over. SRD Bearded Devil's wound closes on a
+                  // spell's healing, which is a `healed` neither of the two
+                  // inside it has a sentence for.
+                  closeHealedWounds(
                   endEarlyEndedConditions(
                     endTriggeredEffects(
                       endTriggeredCastings(
@@ -367,6 +375,8 @@ function applyEventUnder(state: GameState, event: GameEvent, legacy: Content | n
                       event,
                     ),
                     event,
+                  ),
+                  event,
                   ),
                 ),
               ),

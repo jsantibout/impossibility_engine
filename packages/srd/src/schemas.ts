@@ -981,6 +981,68 @@ const PRINTED_SAVE_CLAUSES = [
     /** SRD's "for 24 hours", in seconds. */
     seconds: z.number().int().min(1),
   }),
+  /**
+   * SRD Bearded Devil's Infernal Glaive: "The target receives an infernal
+   * wound. While wounded, the target loses 5 (1d10) Hit Points at the start of
+   * each of its turns. The wound closes after 1 minute, after a spell restores
+   * Hit Points to the target, or after the target or a creature within 5 feet
+   * of it takes an action to stanch the wound, doing so by succeeding on a DC
+   * 12 Wisdom (Medicine) check." SRD Horned Devil's Infernal Tail prints the
+   * same three sentences over 3d6 and a DC of 17.
+   *
+   * **Three printed sentences read as one clause**, for {@link readCurse}'s
+   * reason: each is useless without the others. A wound with no loss costs
+   * nothing, a loss with no ending runs for ever, and an ending with nothing to
+   * end is a check against nothing. So the reader takes all three or carries
+   * all three.
+   *
+   * **A kind of its own, and not a condition, a payout or a hazard.** It is
+   * none of the fifteen conditions; a bare payout has no ending in the
+   * vocabulary and no check; and the glossary's hazards are a closed list with
+   * their own printed dice. What it *is* is the three of them at once — a
+   * start-of-turn loss, a deadline and an escape — which is exactly what one
+   * clause carrying three fields says.
+   *
+   * **One wound per target**, which the book states and the executor keeps:
+   * SRD gates the save on "doesn't already have an infernal wound", and the
+   * Horned Devil writes the same words into the failure itself. No field
+   * carries it, because there is nothing for a definition to vary — every line
+   * that prints this sentence prints that one.
+   */
+  z.object({
+    kind: z.literal('wound'),
+    /**
+     * SRD's "loses 5 (1d10) Hit Points", and the book gives it no damage type.
+     *
+     * Not a {@link MonsterDamageSchema}, and the missing field is why: every
+     * other amount in this file is damage *of a type*, and this sentence is
+     * the only one in the corpus that takes Hit Points away without naming
+     * one. A type invented here would be a Resistance the book does not offer.
+     */
+    loss: z.object({
+      /** `1d10`, or null where a homebrew line prints a flat number alone. */
+      dice: z.string().regex(/^\d+d\d+$/).nullable(),
+      flat: z.number().int(),
+      /** The average the block prints outside the parenthesis. */
+      average: z.number().int().min(0),
+    }),
+    /** SRD's "The wound closes after 1 minute", in seconds. */
+    closesAfterSeconds: z.number().int().min(1),
+    /**
+     * SRD's "a DC 12 Wisdom (Medicine) check", which "the target **or a
+     * creature within 5 feet of it**" may take an action to make.
+     *
+     * The reach is not a field: every line that prints this prints five feet,
+     * and the engine already has the clause — `byAnotherWithinReach`, built
+     * for SRD Ensnaring Strike's "or a creature within reach of it".
+     */
+    stanch: z.object({
+      ability: z.enum(['str', 'dex', 'con', 'int', 'wis', 'cha']),
+      /** The skill the parenthesis names — SRD's "(Medicine)". */
+      skill: z.string().min(1),
+      dc: z.number().int().min(1),
+    }),
+  }),
 ] as const;
 
 const PrintedSaveClauseSchema = z.discriminatedUnion('kind', PRINTED_SAVE_CLAUSES);

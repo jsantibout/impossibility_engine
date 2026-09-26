@@ -943,8 +943,12 @@ function checkAreaStanding(
 }
 
 /**
- * A clause's `outside` marker — SRD Magic Circle's reverse — is printed or it
- * is not, so the only value is `true`.
+ * A clause's two side markers — SRD Magic Circle's reverse, read whole — are
+ * printed or they are not, so the only value of either is `true`.
+ *
+ * `outside` narrows whom the clause protects and `attackerInside` narrows whom
+ * it protects them from. Neither implies the other and both are checked the
+ * same way, which is why one function asks about both.
  */
 function checkOutside(
   standing: Record<string, unknown>,
@@ -956,6 +960,13 @@ function checkOutside(
       field: `${path}.outside`,
       code: 'bad_area_side',
       reason: `a clause protects whoever is outside the area or it does not, so the only value is true, and this is ${nameOf(standing['outside'])}`,
+    });
+  }
+  if (standing['attackerInside'] !== undefined && standing['attackerInside'] !== true) {
+    found.push({
+      field: `${path}.attackerInside`,
+      code: 'bad_area_side',
+      reason: `a clause holds against whoever is inside the area or it asks nothing about them, so the only value is true, and this is ${nameOf(standing['attackerInside'])}`,
     });
   }
 }
@@ -1722,6 +1733,31 @@ function checkConditionRider(
 
   checkDamageTrigger(rider?.repeats?.alsoWhenDamaged, `${riderPath}.repeats`, found);
   checkRepeatGate(rider?.repeats?.onlyIf, `${riderPath}.repeats`, found);
+
+  // **SRD Hideous Laughter's "it can't end the Prone condition on itself",
+  // and only about a Prone.** The clause names the one condition a creature
+  // ends on itself by spending movement; on any other it would forbid
+  // something nothing charges for, and `standUp` would refuse a creature that
+  // was never on the floor. `true` and nothing else, the rule every clause of
+  // this shape follows.
+  const forbids = (rider as { readonly forbidsStandingUp?: unknown } | undefined)
+    ?.forbidsStandingUp;
+  if (forbids !== undefined) {
+    if (forbids !== true) {
+      found.push({
+        field: `${riderPath}.forbidsStandingUp`,
+        code: 'malformed_field',
+        reason:
+          'a spell either forbids the creature to right itself or it does not; the only value is true',
+      });
+    } else if (rider?.name !== 'prone') {
+      found.push({
+        field: `${riderPath}.forbidsStandingUp`,
+        code: 'forbids_standing_without_prone',
+        reason: `SRD writes "it can't end the Prone condition on itself" about a Prone, and this rider imposes ${String(rider?.name)}`,
+      });
+    }
+  }
 
   // **A check that ends the casting needs one the rider has not disowned**
   // (SRD Ensnaring Strike's "On a success, the spell ends"). `outlivesCasting`

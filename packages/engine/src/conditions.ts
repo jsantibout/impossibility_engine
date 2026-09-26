@@ -113,6 +113,25 @@ export interface ConditionInstance {
    * is where the mark is read.
    */
   readonly endsWhenWoken?: true;
+  /**
+   * While this instance stands, the creature may not right itself.
+   *
+   * SRD Hideous Laughter: "it has the Prone and Incapacitated conditions for
+   * the duration. During that time … **it can't end the Prone condition on
+   * itself**."
+   *
+   * **A mark on the instance, for {@link endsOnDamage}'s reason exactly.** The
+   * sentence is not a condition of its own, it is not a deadline, and it is
+   * not an action rule — standing up spends movement and no slot, so
+   * `ActionRule`'s five members cannot say it. What it *is* is a fact about
+   * the thing holding the creature down, which is precisely what an instance
+   * is; so it ends when that instance ends, through both doors a condition
+   * leaves by, and `standUp` reads it rather than reading a catalogue.
+   *
+   * Absent on every instance in every log written before this existed, and
+   * absent is what it always meant: a creature that is down may get up.
+   */
+  readonly forbidsStandingUp?: true;
 }
 
 /**
@@ -267,6 +286,15 @@ export function applyCondition(
    * took. See {@link EarlyEndings} for why it names conditions.
    */
   endsEarly: EarlyEndings = {},
+  /**
+   * SRD Hideous Laughter's "it can't end the Prone condition on itself".
+   *
+   * Sixth and last, for the fifth's reason. It marks the **named** condition
+   * and never what that condition implies: the sentence is about the posture
+   * the spell put the creature in, and an implied instance is a different
+   * condition with a different way out.
+   */
+  forbidsStandingUp = false,
 ): ConditionState {
   const id = conditionInstanceId(condition, source);
   if (state.instances.some((i) => i.id === id)) return state;
@@ -277,7 +305,14 @@ export function applyCondition(
   });
 
   const added: ConditionInstance[] = [
-    { id, condition, source, impliedBy: null, ...marks(condition) },
+    {
+      id,
+      condition,
+      source,
+      impliedBy: null,
+      ...marks(condition),
+      ...(forbidsStandingUp ? { forbidsStandingUp: true as const } : {}),
+    },
   ];
 
   for (const implied of expandConditions([condition, ...implies]).filter((c) => c !== condition)) {
@@ -304,6 +339,24 @@ export function instancesEndingEarly(
   return state.instances.filter((instance) =>
     by === 'damage' ? instance.endsOnDamage === true : instance.endsWhenWoken === true,
   );
+}
+
+/**
+ * What is stopping this creature from getting up, or null.
+ *
+ * SRD Hideous Laughter's "it can't end the Prone condition on itself", read
+ * off the instances rather than out of a book. The **source** comes back
+ * rather than a flag, because the refusal has to say what is holding them
+ * down — a table told only "you can't" has no sentence to narrate and no idea
+ * what to end.
+ *
+ * Any instance may carry the mark, not only a Prone one: the book writes the
+ * sentence about the effect rather than about the posture, and a spell that
+ * pinned a creature down with two conditions and marked either of them means
+ * the same thing.
+ */
+export function standingForbiddenBy(state: ConditionState): string | null {
+  return state.instances.find((instance) => instance.forbidsStandingUp === true)?.source ?? null;
 }
 
 /**

@@ -134,6 +134,7 @@
     "endingKey",
     "endTriggeredCastings",
     "endEarlyEndedConditions",
+    "closeHealedWounds",
     "endTriggeredEffects"
   ],
   "fold/inventory.ts": [

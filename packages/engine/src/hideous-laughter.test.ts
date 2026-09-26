@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { SRD_CONTENT } from '@ie/content';
-import { asCharacterId, expect as unwrap, type CharacterId } from '@ie/shared';
+import { asCharacterId, expect as unwrap, isErr, type CharacterId } from '@ie/shared';
 import type { CharacterSheet } from './character.js';
 import { createRng, restoreRng, type Rng } from './dice.js';
 import { createRollIssuer } from './rolls.js';
@@ -8,7 +8,7 @@ import { fold, type GameEvent, type GameState } from './events.js';
 import { declaredCasting } from './spellcasting.js';
 import { checkSpellDefinitionValue } from './spell-schema.js';
 import type { ReactionFeature } from './reactions.js';
-import { resolveAttack, resolveSpell, resolveTurn, settleDamage } from './commands.js';
+import { resolveAttack, resolveSpell, resolveTurn, settleDamage, standUp } from './commands.js';
 
 /**
  * SRD Hideous Laughter, and the save a **blow** raises.
@@ -329,11 +329,83 @@ describe('a repeat save raised by a trigger', () => {
   });
 });
 
+/**
+ * "During that time … **it can't end the Prone condition on itself**."
+ *
+ * The last clause of the spell, and it needed two things that did not exist:
+ * a command that stands a creature up, and somewhere for the prohibition to
+ * live. It lives on the condition instance the failure creates — so it ends
+ * when the Laughter does, through the door the Prone itself leaves by, and
+ * nothing has to remember to take it away.
+ *
+ * **A second Prone from somewhere else is what makes the test mean
+ * something.** The Laughter owns the Prone it imposed, so a spell that ended
+ * takes that instance with it and "the goblin may now stand" would be true of
+ * a creature that was no longer on the floor. The shove is the reason there is
+ * still a floor to get up from.
+ */
+describe('the clause that keeps a laughing creature down', () => {
+  const SHOVED: GameEvent = {
+    type: 'condition-applied',
+    id: GOBLIN,
+    condition: 'prone',
+    source: 'the shove',
+  };
+
+  it('refuses the goblin its own feet while the spell runs, and returns them when it ends', () => {
+    const game = new Game().laugh(DOOMED).push([SHOVED]);
+    game.until(GOBLIN);
+
+    const held = standUp(game.state, GOBLIN);
+    expect(isErr(held) && held.code).toBe('cannot_stand');
+    expect(isErr(held) && held.reason).toContain('Hideous Laughter');
+
+    // A repeat save the goblin cannot fail: "On a successful save, the spell
+    // ends", and with it the Prone the Laughter owned and the mark on it.
+    game.turn(SPARED);
+    expect(game.conditionsOn(GOBLIN)).toContain('prone');
+
+    game.until(GOBLIN);
+    const up = unwrap(standUp(game.state, GOBLIN), 'stand');
+    expect(up.some((event) => event.type === 'movement-spent' && event.feet === 15)).toBe(true);
+    game.push(up);
+    expect(game.conditionsOn(GOBLIN)).not.toContain('prone');
+  });
+
+  /** And the mark is on the Prone alone: a definition that marked anything else is refused. */
+  it('is refused by the validator on a condition that is not Prone', () => {
+    const problems = checkSpellDefinitionValue({
+      id: 'homebrew-pinning',
+      name: 'Homebrew Pinning',
+      level: 1,
+      school: 'enchantment',
+      castingTime: 'action',
+      concentration: true,
+      range: { kind: 'ranged', feet: 30 },
+      targets: { count: 1 },
+      durationSeconds: 60,
+      effects: [
+        { kind: 'save', ability: 'wis', condition: 'restrained', forbidsStandingUp: true },
+      ],
+    });
+    expect(problems.map((problem) => problem.code)).toContain('forbids_standing_without_prone');
+  });
+});
+
 describe('the catalogue says what this spell does', () => {
-  it('keeps the self-cure it cannot close and nothing else about the save', () => {
+  it('says nothing about the damage-triggered save, which it executes', () => {
     const definition = SRD_CONTENT.spell('hideous-laughter')!;
     expect(definition.unmodelled ?? []).not.toContain(
       'the second Wisdom save each time the target takes damage, which is made with Advantage',
     );
+  });
+
+  /** The clause the engine could not say, now said. */
+  it('no longer hands the self-cure back to the table', () => {
+    const definition = SRD_CONTENT.spell('hideous-laughter')!;
+    expect(definition.unmodelled ?? []).not.toContain(
+      'the target being unable to end the Prone condition on itself, so it may stand up while the spell runs',
+    );
+    expect(definition.effects[0]).toMatchObject({ forbidsStandingUp: true });
   });
 });

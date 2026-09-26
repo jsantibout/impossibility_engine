@@ -38,6 +38,8 @@ import {
   needsContext,
   ok,
   type Result,
+  type Skill,
+  SKILLS,
 } from '@ie/shared';
 // From the subpath that is schemas and no data: a value imported from the
 // barrel loads the whole parsed SRD into every process that imports the
@@ -51,7 +53,7 @@ import type { Duration } from '../time.js';
 import type { RepeatSave } from '../timers.js';
 import { conditionInstanceId, hasCondition } from '../conditions.js';
 import { rollSavingThrow, type D20TestResult } from '../checks.js';
-import { printedLineSource } from '../monster.js';
+import { isWoundSource, printedLineSource, woundSource } from '../monster.js';
 import { evadesHalfDamage, sheetAsItStands } from '../standing.js';
 import { dropToZero } from '../vitals.js';
 import { applyConditionTo, schedule } from './conditions.js';
@@ -150,8 +152,85 @@ const PRINTED_ROLL: Readonly<
 };
 
 /** How a condition reads in a sentence handed to a table: the book's own word. */
-const conditionTitle = (condition: ConditionName): string =>
+const conditionTitle = (condition: string): string =>
   condition.charAt(0).toUpperCase() + condition.slice(1);
+
+/** The skills a stanch may be rolled with, for the one clause that names one. */
+const SKILL_NAMES: ReadonlySet<string> = new Set<string>(SKILLS);
+
+/**
+ * What the log calls hit points a wound takes away.
+ *
+ * SRD Bearded Devil: "the target **loses** 5 (1d10) Hit Points" — the one
+ * sentence in the bestiary that lowers hit points and names no kind of damage.
+ * The engine has one arithmetic for hit points going down, `dealSpellDamage`,
+ * and every amount that goes through it carries a type; so this is the book's
+ * own noun in that slot rather than a damage type invented for it.
+ *
+ * **It matches no defence, which is the point.** `defensesOf` compares names,
+ * no creature in the catalogue is Resistant to this, and none can be: the
+ * sentence offers no Resistance and a type borrowed from the glaive would have
+ * handed one to every devil-hunter in mail. What a table reads in the log is
+ * the phrase the book printed.
+ *
+ * ### What riding the damage funnel costs, said out loud
+ *
+ * A loss that goes through `dealSpellDamage` is **damage in every respect but
+ * its type**, and that is a reading rather than a detail. The funnel writes a
+ * `damage-taken`, so the loss puts the wounded creature's Concentration at
+ * risk, eats a pool of Temporary Hit Points, wakes a sleeper whose condition is
+ * marked `endsOnDamage`, raises a repeat save whose trigger is taking damage,
+ * and is seen by every feature that reads "when you take damage" — SRD Rage's
+ * Resistance among them, which is exactly a Resistance the sentence does not
+ * offer being asked about a type nothing holds one to.
+ *
+ * Whether SRD's "loses Hit Points" should do any of that is a question the book
+ * does not settle, and this engine has no second arithmetic to put it through.
+ * So the seam is the one the brief chose, the consequences are written here
+ * rather than left to be discovered, and the day a "lose hit points that is not
+ * damage" primitive exists this constant is what names every site to move.
+ *
+ * Exported so the tests assert the same string the executor writes.
+ */
+export const HIT_POINT_LOSS = 'hit point loss';
+
+/**
+ * The wound a creature is already carrying, by the source it is filed under —
+ * or null.
+ *
+ * SRD Bearded Devil: "if the target … doesn't already have an infernal wound".
+ * *Any* wound, which is why the question is asked of the mark rather than of a
+ * particular devil's line: a creature bleeding from one glaive takes nothing
+ * further from the next.
+ *
+ * Read off the payouts, because the payout is the wound — the deadline over it
+ * is a second record of the same fact and either one would answer, and the
+ * grant is the one that says what it costs.
+ */
+export function woundOn(state: GameState, who: CharacterId): string | null {
+  return state.creatures[who]?.payouts.find((held) => isWoundSource(held.source))?.source ?? null;
+}
+
+/**
+ * Whether this line's save could leave a wound, whichever way it goes.
+ *
+ * Every arm, because the gate the book prints is on the **effect** and not on
+ * the failure: a line that wounded on a success or on a margin rung would be
+ * gated the same way, and a reader that looked only at `onFailure` would throw
+ * a die the sentence forbids. A `branch`'s arms are walked for the same reason.
+ */
+function imposesAWound(printed: MonsterSave): boolean {
+  const wounds = (clauses: readonly PrintedSaveEffect[]): boolean =>
+    clauses.some(
+      (clause) => clause.kind === 'wound' || (clause.kind === 'branch' && wounds(clause.then)),
+    );
+  return (
+    wounds(printed.onFailure ?? []) ||
+    wounds(printed.onFailureBy?.effects ?? []) ||
+    wounds(printed.onSuccessEffects ?? []) ||
+    wounds(printed.either ?? [])
+  );
+}
 
 /** Which arm of a printed branch the target's Hit Points chose, and what is left to do. */
 export interface BranchesTaken {
@@ -1094,6 +1173,80 @@ export function applyPrintedClauses(
         ]);
         break;
       }
+
+      case 'wound': {
+        // SRD Bearded Devil's Infernal Glaive: "The target receives an
+        // infernal wound. While wounded, the target loses 5 (1d10) Hit Points
+        // at the start of each of its turns. The wound closes after 1 minute,
+        // after a spell restores Hit Points to the target, or after the target
+        // or a creature within 5 feet of it takes an action to stanch the
+        // wound, doing so by succeeding on a DC 12 Wisdom (Medicine) check."
+        //
+        // **Three primitives the engine already had, filed under one source.**
+        // The loss is a `GrantedPayout` at the holder's own start of turn —
+        // the shape SRD Stirge's drink and the glossary's Burning both take.
+        // The minute is that grant's `grants` deadline. The stanch is the
+        // `EffectCheck` on the same timer, with SRD Ensnaring Strike's "or a
+        // creature within reach of it" widening who may attempt it. One source
+        // and one timer, so all three endings take the whole wound.
+        //
+        // **One wound per target**, which the book states twice — as a gate on
+        // the Bearded Devil's rider and inside the Horned Devil's own failure
+        // — and it is *any* wound rather than this devil's: a creature already
+        // bleeding takes nothing further from a second glaive.
+        //
+        // **The door above has already refused the save**, so nothing reaches
+        // here on a wounded creature today; this is the second reading of one
+        // sentence, kept so that a caller reaching the executor another way
+        // cannot stack one. See `forcePrintedSaveOn`.
+        if (woundOn(current, target) !== null) break;
+
+        const woundedBy = woundSource(lineSource);
+        const skill = SKILL_NAMES.has(clause.stanch.skill)
+          ? (clause.stanch.skill as Skill)
+          : undefined;
+        if (skill === undefined) {
+          unverified.push(
+            `${line} asks for a ${clause.stanch.skill} check to stanch the wound, which is not a skill the engine holds; the check is rolled on the bare ability`,
+          );
+        }
+        const timer = schedule(
+          current,
+          { kind: 'grants', on: target, source: woundedBy },
+          { kind: 'seconds', seconds: clause.closesAfterSeconds },
+          undefined,
+          {
+            ability: clause.stanch.ability,
+            ...(skill === undefined ? {} : { skill }),
+            dc: clause.stanch.dc,
+            // What a success ends is the wound and nothing else: no casting is
+            // behind it, so the timer's own release is the whole of it.
+            onSuccess: 'end-on-target',
+            byAnotherWithinReach: true,
+            label: `${ABILITY_NAMES[clause.stanch.ability]}${skill === undefined ? '' : ` (${conditionTitle(skill)})`} check to stanch ${line}`,
+          },
+        );
+        if (!timer.ok) return timer;
+
+        land([
+          {
+            type: 'turn-payout-granted',
+            id: target,
+            payout: {
+              source: woundedBy,
+              at: 'start-of-turn',
+              payout: 'damage',
+              // A notation thrown at each boundary and never here, the rule
+              // every repeating amount in the engine follows.
+              ...(clause.loss.dice === null ? {} : { dice: clause.loss.dice }),
+              flat: clause.loss.flat,
+              damageType: HIT_POINT_LOSS,
+            },
+          },
+          timer.value,
+        ]);
+        break;
+      }
     }
   }
 
@@ -1190,6 +1343,29 @@ export function forcePrintedSaveOn(
   if (source === undefined) return unknownCreature(by, 'has no record here yet; add it first');
   const victim = state.creatures[target];
   if (victim === undefined) return unknownCreature(target);
+
+  // **A creature that already has an infernal wound is not asked to save.**
+  // SRD Bearded Devil: "If the target is a creature **and doesn't already have
+  // an infernal wound**, it is subjected to the following effect.
+  // _Constitution Saving Throw:_ DC 12." The gate is on the whole effect and
+  // the save is inside it, so a second glaive on a bleeding rogue throws no
+  // die: nothing comes out of the generator and the log records no saving
+  // throw the book never called for.
+  //
+  // **Before the roll rather than at the clause**, which is where it used to
+  // be. The executor still refuses to hang a second wound — a caller that
+  // reached it another way must not stack one — and that is a second reading
+  // of one sentence kept on purpose, exactly as `applyConditionTo` re-refuses
+  // a repeat save the validator has already rejected.
+  if (imposesAWound(printed) && woundOn(state, target) !== null) {
+    return ok({
+      events: [],
+      outcome: { target, save: null, damage: 0, concentration: { kind: 'none' } },
+      unverified: [
+        `${target} already has an infernal wound, and ${line} gives no creature a second — no save was rolled`,
+      ],
+    });
+  }
 
   let current = state;
   const events: GameEvent[] = [];

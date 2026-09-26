@@ -168,8 +168,16 @@ export const MISSING_SHAPES = {
     '**Gate G1 read this id as five mechanisms and it is a bundle no longer: four of the five have left it, two of them built by the batch that read them apart.** The action-rule vocabulary says four things now, and the catalogue writes all four: a slot or a named action **taken away** (`forbids`), one slot **narrowed** to a named few and failing closed (`permits-only`), a named action **paid for out of a cheaper slot** (`allows`), and — the member that creates rather than governs — an **extra action** handed to a turn (`grants`), once as a casting resolves or at the start of every turn the casting sees. SRD Expeditious Retreat’s "You take the Dash action" is the first of those and SRD Haste’s "it gains an additional action on each of its turns" the second, and both spells are executed. **Spending somebody else’s budget left on the owner’s ruling of 2026-09-22**: a spell may and a caller may not, `OutcomeRiders.spends` in packages/engine/src/spell-definitions.ts is the vocabulary that charges a slot and performs nothing, and SRD Dissonant Whispers is executed off it. The self-cure went to `a-self-cure-a-spell-forbids` and the rule coupling two slots to an id of its own, which has since been **built and retired**: `ActionRule`’s fifth member is `one-of`, the spenders ask the turn’s own budget whether a coupled slot has gone, and SRD Slow, the Dretch and the Copper Dragons all execute it; the sentences that need somebody to **play** the creature went to `a-creature-somebody-else-is-playing`; and the two mis-filings G1 found went to `an-action-the-engine-has-no-spender-for` before any of it. **Seven spells and two magic items are left under it, and they are four things.** A **lifetime** rather than a rule: SRD Befuddlement’s clause never ends at all, which an Instantaneous casting may not hang, and `RiderDuration` offers four named moments and a span in seconds with no member for a grant that simply does not end. The **attacks counted inside** one Attack action rather than the actions in a turn — SRD Slow’s "it can make only one attack if it takes the Attack action" — which is the spell-side face of the gap docs/archive/design/characters-and-equipment.md names from the feature side, "Extra attacks inside the Attack action. The economy counts one Attack action, not the attacks in it". A Reaction the spell **hands over** for an errand no spender is told apart by — SRD Wall of Stone’s "it can use its Reaction to move up to its Speed", SRD Power Word Heal’s standing up, and SRD Wind Walk’s Magic action "to begin reverting" — which is `allows` polarity over a name that is not one of the engine’s, and is the same want that sent Speak with Animals to the feature book. And two spells whose definitions execute nothing — SRD Confusion and SRD Tsunami, both tracked, both carrying an empty effect list because the sentence that blocks them is the economy whole — which is where the Mace of Terror and the Ring of Elemental Command sit too, each naming the id as a bare blocker for what a creature it has caught must then do with its turns. Narrowed rather than retired, which is `a-mode-on-the-save-a-spell-forces`’ precedent — and a reader should note the four are still four, so nobody should brief this id as a unit either.',
   'an-action-the-engine-has-no-spender-for':
     'an action the book prints that no command takes, so no rule could name it. `NAMED_ACTIONS` in packages/engine/src/combat.ts **names its own absences and the price of leaving one**: a member arrives with its spender, which is why the file says "`hide` was the member that arrived with its spender" and, of the four that stood beside it, "And the last five arrived the same way, in one commit with their five spenders." **It is a spell shape now and was a feature shape**, and the move is the vocabulary rule working rather than a re-filing: the last feature under it was SRD Fast Hands, which wanted a Utilize priced out of a Bonus Action and had nothing to be priced, and `takeUtilize` gave it one. What is left is a **spell** asking for an errand no spender is told apart by — SRD Gaseous Form’s forbidden talking, SRD Haste’s five narrowed actions, and the Reaction SRD Wall of Stone hands over "to move up to its Speed" — together with SRD Ready, which the book prints as an action and the list still leaves out because `takeReady` spends the Action without naming itself.',
-  'a-self-cure-a-spell-forbids':
-    'a spell that closes **one** way out of a condition and leaves the condition standing. SRD Hideous Laughter: the target drops with the Prone and Incapacitated conditions and "it can’t end the Prone condition on itself". Three vocabularies sit next to this and none of them says it. A rule about a turn governs a **spend**, and standing up is not one of the named actions a spender can be told apart by — it is movement the ruler charges — so nothing forbids it by name. `condition-immunity` refuses a condition **arriving**, where this one has already arrived and is meant to stay. And `DeniedBenefit` in packages/engine/src/spell-definitions.ts switches off what a condition *confers*, where the Prone confers nothing here and what is denied is the exit. Gate G1 read this as the fifth arm of the bundle above, and it is a different verb from all four members of that vocabulary: three of them govern a spend, the fourth creates one, and this one shuts a door the condition layer holds open for everybody.',
+  // **`a-self-cure-a-spell-forbids` is built and gone.** It described a spell
+  // that closes one way out of a condition and leaves the condition standing —
+  // SRD Hideous Laughter's "it can’t end the Prone condition on itself" — and
+  // its diagnosis was right about all three neighbouring vocabularies and
+  // wrong about one thing: the exit it shut was a door **no command opened**.
+  // Nothing in the engine stood a creature up at all. So the shape was built
+  // from both ends: `standUp` charges the glossary's half a Speed and ends the
+  // condition, and `ConditionRider.forbidsStandingUp` is the mark on the
+  // instance the failure creates that refuses it. The id is removed rather
+  // than kept, because a shape nothing is blocked on is one the guard deletes.
   'a-creature-somebody-else-is-playing':
     'a sentence that needs somebody to **decide** what another creature does, rather than to charge it for doing something. The owner ruled on 2026-09-22 that a spell may spend another creature’s budget, and `OutcomeRiders.spends` in packages/engine/src/spell-definitions.ts is that ruling built: a slot goes, the phrase the book prints goes into the log beside it, and the table narrates from that. **This is what the ruling did not reach**, and the distinction is one word. SRD Dissonant Whispers says the Reaction is *used*, which is arithmetic; SRD Command says the target must "follow the command on its next turn", the three Dominates hand the caster a telepathic link that issues orders, SRD Compulsion gives the caster a Bonus Action to "designate a direction" for somebody else to walk in, and SRD Irresistible Dance makes a creature "use all its movement to dance in place". Every one of those is a **choice** made for a creature by somebody who is not playing it — which way it runs, which of five commands it obeys, what a whole turn is spent on — and the doctrine that the engine adjudicates reality and does not play creatures is why no vocabulary here answers it. It is a shape rather than a refusal because two people at a table settle it in a sentence: what is missing is somewhere for the engine to record that a turn is being directed by somebody else, and what a turn so directed may legally contain.',
   // **`a-repeat-save-with-no-condition-to-hang-it-on` was here and is
@@ -518,9 +526,10 @@ export const SPLIT_BUNDLES: Readonly<Record<string, SplitBundle>> = {
       // entry has no marker, which is this one and is why the lookup takes
       // the clause as well. See `SplitBundle.held`.
       ['speak-with-animals', 'skill options with them', 'an-action-the-engine-has-no-spender-for'],
-      // Arm five, filed rather than built: a cure closed while the condition
-      // it belongs to stands, which is neither a spend governed nor an
-      // arrival refused.
+      // Arm five, filed and then built: a cure closed while the condition it
+      // belongs to stands, which is neither a spend governed nor an arrival
+      // refused. `standUp` is the cure and `forbidsStandingUp` closes it, so
+      // the destination id is gone and this clause is in `BUILT_CLAUSES`.
       [
         'hideous-laughter',
         'unable to end the Prone condition on itself',
@@ -971,13 +980,15 @@ export const ADJUDICATED: Readonly<Record<string, readonly Adjudication[]>> = {
   // carrying the mode the sentence prints, and `repeatsRaisedByDamage` rolls
   // it where the blow lands rather than owing it as a debt — because a debt is
   // keyed by the turn and a creature struck twice in one turn owes two saves.
-  'hideous-laughter': [
-    {
-      clause: 'unable to end the Prone condition on itself',
-      why: 'a-self-cure-a-spell-forbids',
-      note: 'SRD: "it can’t end the Prone condition on itself." Standing up is something a creature does and no rule about a turn can forbid it: it is movement the ruler charges rather than one of the named actions a spender is told apart by. Gate G1 read this as the fifth arm of the bundle it used to sit in, and it is filed under its own id now — a **cure** closed while the condition stands, which is neither a spend governed nor an arrival refused.',
-    },
-  ],
+  // **And the self-cure is built, so this spell has no entry at all.** SRD:
+  // "it can’t end the Prone condition on itself." Standing up had no command
+  // for as long as this clause was filed — `liftConditionFrom` was a DM's
+  // ruling and charged nothing — and `standUp` is that command, charging the
+  // glossary's half a Speed out of the turn's own movement. The prohibition is
+  // `ConditionRider.forbidsStandingUp`, a mark on the condition instance the
+  // failure creates, so it lifts when the Laughter does and `standUp` refuses
+  // `cannot_stand` while it stands. What is left of the paragraph is the
+  // laughing itself, which is narration.
   'hunters-mark': [
     {
       clause: 'Advantage on a Wisdom (Perception or Survival) check made to find the quarry',

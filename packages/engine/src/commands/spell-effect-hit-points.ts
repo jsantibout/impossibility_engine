@@ -134,7 +134,12 @@ export function resolveHealEffect(
   // lifts exactly the unconsciousness that having no hit points caused.
   // The cap at the maximum is `heal`'s, in vitals, where it always was.
   const before = victim.vitals.hp;
-  const healed = healCreature(current, target, Math.max(1, amount));
+  // **And the casting is named on the event**, for the one rule that asks
+  // which hit points came from a spell: SRD Bearded Devil's infernal wound
+  // closes "after a spell restores Hit Points to the target". This is the
+  // door every spell's healing goes through, so naming it here is naming it
+  // everywhere it matters.
+  const healed = healCreature(current, target, Math.max(1, amount), {}, ctx.source);
   if (!healed.ok) return healed;
 
   events.push(...healed.value);

@@ -383,6 +383,32 @@ export type AreaSilenceStanding = {
 interface AreaSide {
   /** The clause reaches a placed creature **outside** the area rather than inside it. */
   readonly outside?: true;
+  /**
+   * The clause holds only against a creature standing **inside** the area.
+   *
+   * SRD Magic Circle's reverse, read whole: "preventing a creature of the
+   * specified type from leaving the Cylinder and protecting targets outside
+   * it." The creature the sentence is about is the one *penned in* — the Fiend
+   * the circle is holding — and who it is protected from is therefore that
+   * Fiend and nobody else.
+   *
+   * {@link outside} alone said only half of it. A reversed circle gave its
+   * clauses to every creature standing outside, so a second Fiend that walked
+   * past on the road had Disadvantage attacking a cleric on the far side of
+   * the field, and the cleric could not be Charmed by it — a protection the
+   * spell does not grant and one no Magic Circle the caster ever put down
+   * would have to be near.
+   *
+   * So this is the **other** end of the same pair: `outside` narrows whom the
+   * clause protects, and this narrows whom it protects them *from*. Read off
+   * the same catch the clause was measured with — the attacker's position for
+   * an `attack-mode`, the causer's for a `condition-immunity` — so no reader
+   * asks the geometry a second time and neither can disagree with the other.
+   *
+   * Absent everywhere but the reversed circle, and absent means what it always
+   * meant: the clause asks nothing about where the other creature stands.
+   */
+  readonly attackerInside?: true;
 }
 
 /**
@@ -4485,15 +4511,19 @@ export function conditionImmunitiesOf(
   // exactly as a granted one is. `'stated'` never reaches a record, because the
   // casting substitutes the list before pinning; a clause that somehow still
   // says it names nobody, which is the withholding direction.
-  for (const { standing } of areaStandingOn(state, who)) {
+  for (const { standing, inside } of areaStandingOn(state, who)) {
     if (standing.kind !== 'condition-immunity') continue;
-    const from = standing.fromTypes;
+    const fromTypes = standing.fromTypes;
     if (
-      from !== undefined &&
-      (from === 'stated' || causerType === null || !from.includes(causerType))
+      fromTypes !== undefined &&
+      (fromTypes === 'stated' || causerType === null || !fromTypes.includes(causerType))
     ) {
       continue;
     }
+    // And the other end of the reversed circle's pair: the protection is from
+    // the creature it is holding in, and a causer nobody has placed is nowhere.
+    // See {@link AreaSide.attackerInside}.
+    if (standing.attackerInside === true && (from === undefined || !inside.has(from))) continue;
     for (const condition of standing.conditions) names.add(condition);
   }
   return [...names].sort();
@@ -6164,11 +6194,28 @@ export function combineSpeed(
 export function areaStandingOn(
   state: GameState,
   who: CharacterId,
-): readonly { readonly spell: string; readonly standing: AreaStanding }[] {
+): readonly {
+  readonly spell: string;
+  readonly standing: AreaStanding;
+  /**
+   * Whom the geometry caught for **this** clause, for the one narrowing that
+   * asks about a second creature: {@link AreaSide.attackerInside}.
+   *
+   * Handed over rather than re-derived, because it has already been computed
+   * here under exactly the reading this clause was measured with — ordinary or
+   * wholly inside — and a reader that asked the lattice again would be a second
+   * answer to one question.
+   */
+  readonly inside: ReadonlySet<CharacterId>;
+}[] {
   const scene = state.scene;
   if (scene === null) return [];
 
-  const found: { spell: string; standing: AreaStanding }[] = [];
+  const found: {
+    spell: string;
+    standing: AreaStanding;
+    inside: ReadonlySet<CharacterId>;
+  }[] = [];
   for (const castingId of Object.keys(state.ongoing).sort()) {
     const record = state.ongoing[castingId];
     const standings = record?.areaStanding;
@@ -6198,7 +6245,7 @@ export function areaStandingOn(
           ? !inside.has(who) && positionOf(scene, who) !== null
           : inside.has(who);
       if (!reaches) continue;
-      found.push({ spell: record.spell, standing });
+      found.push({ spell: record.spell, standing, inside });
     }
   }
   return found;
@@ -6525,12 +6572,16 @@ export function areaAttackModesAgainst(
   const swinger = state.creatures[attacker];
   const type = swinger === undefined ? null : typeMagicSees(swinger);
   const modes: ModeSource[] = [];
-  for (const { spell, standing } of areaStandingOn(state, target)) {
+  for (const { spell, standing, inside } of areaStandingOn(state, target)) {
     if (standing.kind !== 'attack-mode') continue;
     const types = standing.attackerType;
     if (types !== undefined && (types === 'stated' || type === null || !types.includes(type))) {
       continue;
     }
+    // SRD Magic Circle's reverse, read whole: the creature the sentence is
+    // about is the one the circle is penning in, so a Fiend outside a reversed
+    // circle is nothing to do with it. See {@link AreaSide.attackerInside}.
+    if (standing.attackerInside === true && !inside.has(attacker)) continue;
     modes.push({ source: spell, mode: standing.mode });
   }
   return modes;

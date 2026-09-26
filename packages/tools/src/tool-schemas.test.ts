@@ -169,8 +169,9 @@ describe('toolSchemas', () => {
     // And four more on each for the second-place track, plus two on the DM's
     // alone — see the pin below.
     // And one more on the DM's alone for the compulsions track, `trigger_glyph`.
-    expect(toolSchemas(player())).toHaveLength(91);
-    expect(toolSchemas(dm())).toHaveLength(117);
+    // And one on each for the standing-up track, `stand_up`.
+    expect(toolSchemas(player())).toHaveLength(92);
+    expect(toolSchemas(dm())).toHaveLength(118);
     // Re-pinned 2026-09-24 for the printed-lines track, which opened one door
     // on the DM's surface alone: `teleport_printed_line` takes the teleport a
     // stat block prints, at the distance the block prints, to a space the DM
@@ -281,10 +282,14 @@ describe('toolSchemas', () => {
     // no such door. One tool on one surface; the model's pins do not move.
     // And `activate_spell.option`, the word a re-choosing Magic action speaks —
     // SRD Alter Self — on a tool both doors publish: 340 bytes each.
-    expect(toolSchemas(player())).toHaveLength(91);
-    expect(toolSchemas(dm())).toHaveLength(117);
-    expect(JSON.stringify(toolSchemas(player())).length).toBe(138552);
-    expect(JSON.stringify(toolSchemas(dm())).length).toBe(180707);
+    // Re-pinned 2026-09-25 for the standing-up track, on both doors at once:
+    // `stand_up` is a creature's own movement and carries no number, so it is
+    // the player's door and therefore the DM's too. One tool and the same
+    // bytes on each.
+    expect(toolSchemas(player())).toHaveLength(92);
+    expect(toolSchemas(dm())).toHaveLength(118);
+    expect(JSON.stringify(toolSchemas(player())).length).toBe(139309);
+    expect(JSON.stringify(toolSchemas(dm())).length).toBe(181464);
   });
 });
 

@@ -646,7 +646,10 @@ function settleTurnPayouts(
 
     const paid =
       payout.payout === 'healing'
-        ? healCreature(current, target, rolled)
+        ? // The arrangement's own source, named on the event for the rule that
+          // asks where hit points came from: SRD Regenerate paying out a
+          // minute after the cast is still a spell restoring them.
+          healCreature(current, target, rolled, {}, payout.source)
         : grantTemporaryHpTo(current, target, rolled);
     if (!paid.ok) return paid;
     events.push(...paid.value);
@@ -993,7 +996,11 @@ const WITHIN_REACH_FEET = 5;
  */
 function mayAttemptOrReach(state: GameState, timer: TimedEffect, who: CharacterId): boolean {
   if (mayAttempt(timer, who)) return true;
-  if (timer.check?.byAnotherWithinReach !== true || timer.target.kind !== 'condition') return false;
+  // Whoever the timer is on, which is three of the four members: SRD Bearded
+  // Devil's infernal wound is a `grants` timer and its stanch reads exactly
+  // the same five feet. A `casting` names nobody to be within reach of, and
+  // `mayAttempt` has already said yes to it.
+  if (timer.check?.byAnotherWithinReach !== true || timer.target.kind === 'casting') return false;
   const scene = state.scene;
   if (scene === null) return false;
   const apart = distanceBetween(scene, who, timer.target.on);

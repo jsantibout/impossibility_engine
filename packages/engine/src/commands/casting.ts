@@ -1644,6 +1644,14 @@ export interface SpellEffectOptions {
    * remove, and `releaseCasting` walks past it.
    */
   readonly unowned?: true;
+  /**
+   * The casting forbids its victim to right itself.
+   *
+   * SRD Hideous Laughter: "it can't end the Prone condition on itself." A
+   * mark on the condition instance rather than a rule standing beside it, so
+   * it lifts when the Laughter does; `standUp` is the one reader.
+   */
+  readonly forbidsStandingUp?: true;
 }
 
 export function applySpellEffect(
@@ -1689,6 +1697,9 @@ export function applySpellEffect(
     // source — the record a casting leaves is written *after* its effects
     // resolve, so there would be nothing to derive it from.
     casterId,
+    // SRD Hideous Laughter's "it can't end the Prone condition on itself",
+    // carried from the rider onto the instance the failure creates.
+    options.forbidsStandingUp,
   );
 }
 

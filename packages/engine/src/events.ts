@@ -1271,6 +1271,23 @@ export type GameEvent =
       readonly type: 'healed';
       readonly id: CharacterId;
       readonly amount: number;
+      /**
+       * What restored them, where the healer knows: a casting's own source
+       * (`Cure Wounds#cast:3`), a feature, a pool.
+       *
+       * `temporary-hp-granted.source` one member along and for a sharper
+       * reason than the audit trail that field carries: SRD Bearded Devil's
+       * infernal wound closes "**after a spell** restores Hit Points to the
+       * target", and a `healed` that said only "six hit points appeared"
+       * cannot tell a Cure Wounds from a swig of a potion. `castingIdOf` reads
+       * the answer out of it, so the fold opens no catalogue and asks nobody.
+       *
+       * The fold reads it for that one rule and for nothing else: how many hit
+       * points came back is the whole of what `fold/vitals.ts` needs. Absent
+       * on every heal written before this existed, and absent means what it
+       * always meant — hit points from somewhere nobody named.
+       */
+      readonly source?: string;
       readonly command?: CommandStamp;
     }
   | {
@@ -1387,6 +1404,23 @@ export type GameEvent =
        */
       readonly endsOnDamage?: readonly ConditionName[];
       readonly endsWhenWoken?: readonly ConditionName[];
+      /**
+       * This application forbids the creature to right itself.
+       *
+       * SRD Hideous Laughter: "it can't end the Prone condition on itself."
+       * Pinned for `implies`' reason — the fold opens no catalogue, and a
+       * replay that had to look the spell up to know whether its victim may
+       * stand would be a fold reading a book.
+       *
+       * A flag rather than a list of names, where the two above are lists:
+       * the clause is about the one condition a creature ends on itself by
+       * spending movement, `checkSpellDefinition` refuses it on any other, and
+       * so the condition this event names is the one it marks.
+       *
+       * Absent on every log written before this existed, which folds exactly
+       * as it always did.
+       */
+      readonly forbidsStandingUp?: true;
       readonly command?: CommandStamp;
     }
   /**

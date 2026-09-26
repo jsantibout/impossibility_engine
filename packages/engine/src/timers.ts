@@ -469,9 +469,17 @@ export interface TimedEffect {
  * through. Derived rather than declared because every SRD spell the engine can
  * currently offer a check for reads this way, and a field with one exception
  * is a guess dressed as a structure.
+ *
+ * **The question is "is this on a creature", and it used to be "is this a
+ * condition".** Three of the four `EffectTarget` members name a creature and
+ * only `casting` does not, so the old spelling gave *anybody* the check
+ * against a `grants` timer — harmless while nothing but a condition carried
+ * one, and a leak the moment SRD Bearded Devil's infernal wound did: a wound
+ * on the rogue could have been stanched by a cleric three rooms away. The
+ * sentence the docstring writes is the one that is now written down.
  */
 export const mayAttempt = (timer: TimedEffect, who: CharacterId): boolean =>
-  timer.target.kind !== 'condition' || timer.target.on === who;
+  timer.target.kind === 'casting' || timer.target.on === who;
 
 /**
  * A save a **moment** raised and nobody has rolled yet.

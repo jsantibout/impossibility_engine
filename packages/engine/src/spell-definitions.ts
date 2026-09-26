@@ -868,6 +868,35 @@ export interface ConditionRider {
    * its own would be a second place for one sentence to be got wrong.
    */
   readonly repeats?: SpellRepeatSave;
+  /**
+   * While this condition stands, the creature may not right itself.
+   *
+   * SRD Hideous Laughter: "it has the Prone and Incapacitated conditions for
+   * the duration. During that time … **it can't end the Prone condition on
+   * itself**."
+   *
+   * **A field on the rider rather than a rule of its own**, for
+   * {@link outlivesCasting}'s reason exactly: it is a sentence about the
+   * condition this spell imposed and about nothing else, so it lives and dies
+   * with that condition instance — no deadline of its own, no grant, no
+   * second door to end by. `standUp` reads the mark off the instance and
+   * refuses `cannot_stand`; when the Laughter ends the Prone ends, and the
+   * mark with it.
+   *
+   * **It is not an `action` rider**, which is the near miss worth naming:
+   * `ActionRule`'s five members govern slots and named actions, and standing
+   * up spends movement and no slot at all. A `forbids` on the movement slot
+   * would take the crawl away too, which the same sentence explicitly leaves.
+   *
+   * **Only on a Prone**, which `checkSpellDefinition` enforces: the book
+   * writes the clause about the one condition a creature ends on itself by
+   * spending movement, and a mark on any other would forbid something nothing
+   * charges for.
+   *
+   * `true` and nothing else: absence is how a spell says it does not print the
+   * clause, and `false` would be a second way to say the same thing.
+   */
+  readonly forbidsStandingUp?: true;
 }
 
 /**
@@ -2862,6 +2891,17 @@ export type SpellEffect =
        * two one vocabulary.
        */
       readonly endsWhenOutsideArea?: true;
+      /**
+       * The creature may not right itself while this condition stands.
+       *
+       * SRD Hideous Laughter's "it can't end the Prone condition on itself",
+       * and the flat spelling of {@link ConditionRider.forbidsStandingUp},
+       * which is where the rule is written down. Here for the reason `lasts`,
+       * `check`, `outlivesCasting` and `endsWhenOutsideArea` are: `save` keeps
+       * its flat layout, and {@link conditionRiderOf} is the view that makes
+       * the two one vocabulary.
+       */
+      readonly forbidsStandingUp?: true;
     }
   /**
    * A saving throw that interrupts a casting already in progress.
@@ -7372,6 +7412,9 @@ export function conditionRiderOf(effect: SpellEffect): readonly ConditionRider[]
                   ? {}
                   : { endsWhenOutsideArea: effect.endsWhenOutsideArea }),
                 ...(effect.repeats === undefined ? {} : { repeats: effect.repeats }),
+                ...(effect.forbidsStandingUp === undefined
+                  ? {}
+                  : { forbidsStandingUp: effect.forbidsStandingUp }),
               },
             ]),
         ...(effect.conditions ?? []),

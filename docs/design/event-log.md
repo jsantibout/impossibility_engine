@@ -22,7 +22,8 @@ it writes (`roster`, `vitals`, `casting`, `ongoing`, `timers`, `combat`,
 then runs the derived passes: Concentration lost to Incapacitation, features
 whose conditions stop holding, effects expiring, readied actions lapsing,
 orphaned debts dropping, castings ended by a trigger, a worn form put back
-once the feature wearing it has ended (`settleShapes`). Those passes are rules,
+once the feature wearing it has ended (`settleShapes`), a wound closed by a
+spell's healing (`closeHealedWounds`). Those passes are rules,
 deliberately eventless: nobody decides that a stunned wizard's spell ends.
 
 A malformed or contradicting log throws `CorruptLogError`. Every seam

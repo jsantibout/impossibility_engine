@@ -157,6 +157,9 @@ const AUDIT: readonly {
       optionByTarget: because(
         'which branch each creature runs, for the one spell that prints "(choose for each creature)" — SRD Calm Emotions. The same decision as `option` above, made creature by creature, and not a number: the engine still rolls every save and refuses a creature left out or one the Sphere did not catch. No benchmark caster has Calm Emotions prepared, so a published field would refuse every value it could be sent today; publish it the day one does, beside the list of whom the Sphere caught, because a model cannot name a branch for a creature it has not been told is in the area',
       ),
+      leapTo: because(
+        'the creature SRD Chromatic Orb leaps to when two of its damage dice match — a decision taken after the dice are seen, answered on the pending casting the orb opens; nothing on this surface settles a pending casting, which is the reason `hold` and `answers` are excluded below',
+      ),
       fought: because(
         'SRD Charm Person: "It does so with Advantage if you or your allies are fighting it." Five spells print the clause, the engine refuses a casting of one that does not answer it, and the answer is a list because an upcast casting names several targets — so this is required rather than optional the day any of them is castable here, and no benchmark character has one prepared',
       ),
