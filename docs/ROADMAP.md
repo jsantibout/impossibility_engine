@@ -3135,3 +3135,12 @@ Appended 2026-09-26, wave seven on Opus:
   **Left:** `a-range-an-item-names`' description still says `confers` has no
   range, and its map entries want re-deriving. Opus review, three defects,
   fixed.
+- **A Two-Handed weapon is held in two hands** (W8-E2, closing the follow-up
+  above). `weaponNarrowingHolds` reads the weapon's Two-Handed property beside
+  the caller's flag, so Great Weapon Fighting reaches a Greatsword swing that
+  never said how it was held; a Versatile weapon still takes the caller's
+  word. `twoHanded: false` on a Two-Handed weapon is overruled rather than
+  refused (a held blow stores the hand as `=== true`, so refusing would make a
+  swing settle differently by road). **Left:** the Lance's "Two-Handed
+  (unless mounted)" is read as always two-handed, as `handsFor` already
+  counts it. Opus review: PASS.
