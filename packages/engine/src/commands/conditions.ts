@@ -167,6 +167,17 @@ export function applyConditionTo(
           'a condition from anything else ends on its target',
       );
     }
+    // The same rule at the same door for the check a condition offers — SRD
+    // Ensnaring Strike's "On a success, the spell ends" — since a check's
+    // `end-casting` reads its casting out of the source exactly as the repeat's
+    // does, and would otherwise be a log the fold refuses.
+    if (check?.onSuccess === 'end-casting' && castingIdOf(source) === null) {
+      return err(
+        'check_needs_a_casting',
+        `a check that ends the casting on a success needs one, and "${source}" is not a casting; ` +
+          'a condition from anything else ends on its target',
+      );
+    }
 
     const events: GameEvent[] = [
       {

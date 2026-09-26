@@ -211,9 +211,10 @@ describe('SRD Chromatic Orb is not this shape, and is written on its own', () =>
  * 3. **The supply.** `AttackOptions.damageEffects` is the attack-wide scope a
  *    fighting style wants, and `standingDamageEffects` is what fills it.
  *
- * What is left under `a-die-behaviour-a-spell-asks-for` is therefore two
- * things rather than three: a predicate over a whole roll, and a reroll the
- * roller chooses. The attack's scope has a writer.
+ * `a-die-behaviour-a-spell-asks-for` is retired: the attack's scope has a
+ * writer, the predicate over a whole roll is `OrbLeaps.onPair`, and the
+ * reroll the roller chooses was settled by ruling — Empowered Spell throws
+ * the lowest dice.
  *
  * The end-to-end behaviour is `fighting-styles.test.ts`'s; what this asserts
  * is that the catalogue declares it rather than describing it.

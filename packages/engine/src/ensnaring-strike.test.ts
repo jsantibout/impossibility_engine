@@ -10,6 +10,7 @@ import { createCharacter, type CharacterChoices } from './creation.js';
 import { checkSpellDefinition } from './spell-schema.js';
 import type { SpellDefinition, SpellEffect } from './spell-definitions.js';
 import {
+  applyConditionTo,
   availableChecks,
   resolveAttack,
   resolveAttackDamage,
@@ -309,6 +310,88 @@ describe('the definition is written to the book', () => {
   it('leaves nothing for the table to adjudicate', () => {
     expect(strike().unmodelled).toBeUndefined();
     expect(checkSpellDefinition(strike())).toEqual([]);
+  });
+
+  /**
+   * Each rule the definition leans on refuses something, driven one at a
+   * time — `spell-schema.test.ts`'s standing obligation, met here beside the
+   * definition that made the rules necessary.
+   */
+  describe('the validator holds the strike to its shape', () => {
+    const save = (): Extract<SpellEffect, { kind: 'save' }> =>
+      strike().effects[0] as Extract<SpellEffect, { kind: 'save' }>;
+    const codes = (
+      over: Partial<SpellDefinition>,
+      effect: Record<string, unknown> = save(),
+    ): readonly string[] =>
+      checkSpellDefinition({
+        ...strike(),
+        ...over,
+        effects: [effect as unknown as SpellEffect],
+      } as SpellDefinition).map((problem) => problem.code);
+
+    it('refuses a size the engine does not rank, and a mode a save cannot take', () => {
+      expect(
+        codes({}, { ...save(), saveModeIf: { sizeAtLeast: 'colossal', mode: 'advantage' } }),
+      ).toContain('bad_size');
+      expect(codes({}, { ...save(), saveModeIf: { sizeAtLeast: 'large', mode: 'lucky' } })).toContain(
+        'bad_mode',
+      );
+    });
+
+    it('refuses the on-the-hit mark on a spell that names its own targets or takes an Action', () => {
+      expect(codes({ targets: { count: 1 } })).toContain('on_the_hit_outside_a_smite');
+      expect(codes({ castingTime: 'action' })).toContain('on_the_hit_outside_a_smite');
+    });
+
+    it('refuses a success that ends a casting no hit made, or that lasts no time', () => {
+      const unhit: Record<string, unknown> = { ...save() };
+      delete unhit['onTheHit'];
+      expect(codes({}, unhit)).toContain('ends_casting_without_a_hit');
+      const timeless: Record<string, unknown> = { ...strike() };
+      delete timeless['durationSeconds'];
+      expect(
+        checkSpellDefinition(timeless as unknown as SpellDefinition).map((problem) => problem.code),
+      ).toContain('ends_casting_without_a_duration');
+    });
+
+    it('refuses any value but true on the three marks', () => {
+      expect(codes({}, { ...save(), onTheHit: false })).toContain('malformed_field');
+      expect(codes({}, { ...save(), endsCastingOnSuccess: 'yes' })).toContain('malformed_field');
+      expect(
+        codes({}, { ...save(), check: { ...save().check, byAnotherWithinReach: false } }),
+      ).toContain('malformed_field');
+    });
+
+    /**
+     * A check that ends the casting needs a casting to end: `outlivesCasting`
+     * files the condition under the spell's bare name, and the fold would meet
+     * the success with nothing to release. Refused at authoring, and at the
+     * command's door for a source with no casting in it — the twin of
+     * `repeat_ends_no_casting` / `repeat_needs_a_casting`.
+     */
+    it('refuses a check ending the casting on a condition the casting has disowned', () => {
+      expect(codes({}, { ...save(), outlivesCasting: true })).toContain('check_ends_no_casting');
+      const refused = applyConditionTo(
+        state(SETUP),
+        GOBLIN,
+        'restrained',
+        'a tangle of rope',
+        [],
+        undefined,
+        undefined,
+        {},
+        {
+          ability: 'str',
+          skill: 'athletics',
+          dc: 12,
+          onSuccess: 'end-casting',
+          label: 'Strength (Athletics) check vs the rope',
+        },
+      );
+      expect(refused.ok).toBe(false);
+      if (!refused.ok) expect(refused.code).toBe('check_needs_a_casting');
+    });
   });
 });
 

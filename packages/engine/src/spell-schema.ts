@@ -1432,6 +1432,21 @@ function checkConditionRider(
 
   checkDamageTrigger(rider?.repeats?.alsoWhenDamaged, `${riderPath}.repeats`, found);
 
+  // **A check that ends the casting needs one the rider has not disowned**
+  // (SRD Ensnaring Strike's "On a success, the spell ends"). `outlivesCasting`
+  // records the condition under the spell's bare name, so the fold would meet
+  // the success with nothing to release and throw; the pair is refused here,
+  // where a definition's defects belong, and again at `applyConditionTo`'s
+  // door. The repeat's twin rule is the paragraph below.
+  if (rider?.check?.onSuccess === 'end-casting' && rider.outlivesCasting === true) {
+    found.push({
+      field: `${riderPath}.check.onSuccess`,
+      code: 'check_ends_no_casting',
+      reason:
+        'outlivesCasting records the condition under the spell’s name with no casting in it, so a check that ends the casting on a success has none to end; such a check ends on its target',
+    });
+  }
+
   // **And a repeat that ends the casting needs one the rider has not
   // disowned.** `outlivesCasting` is exactly the field that records the
   // condition under the spell's bare name with no casting mark in it, so a

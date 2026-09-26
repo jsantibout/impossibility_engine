@@ -219,6 +219,20 @@ describe('the definition is written to the book', () => {
     expect(orb().unmodelled).toBeUndefined();
     expect(checkSpellDefinition(orb())).toEqual([]);
   });
+
+  /** Each field of the leap refuses something, driven one at a time. */
+  it.each([
+    ['a trigger the book does not print', { onPair: false, withinFeet: 30, maximum: 'slot-level' }],
+    ['a reach of no spaces', { onPair: true, withinFeet: 3, maximum: 'slot-level' }],
+    ['a cap the engine does not derive', { onPair: true, withinFeet: 30, maximum: 4 }],
+  ] as const)('refuses %s on the leap', (_what, leaps) => {
+    const attack = orb().effects[0] as Extract<SpellEffect, { kind: 'attack' }>;
+    const codes = checkSpellDefinition({
+      ...orb(),
+      effects: [{ ...attack, leaps } as unknown as SpellEffect],
+    }).map((problem) => problem.code);
+    expect(codes).toEqual(['bad_leap']);
+  });
 });
 
 describe('the orb leaps when its dice pair', () => {

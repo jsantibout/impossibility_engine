@@ -215,9 +215,14 @@ export function resolveSummonEffect(
  * documents: an unprinted ability is 10, an unprinted Speed is 0, no skills,
  * no defences, no senses, no lines, a rating of 0 — and a type the arrival
  * pins as none (`Summons.block.untyped`), with a placeholder here only because
- * the adapter's input requires the field. Nothing here is a number the engine
- * invented: the modifier and the save beside each score are the glossary's own
- * arithmetic, and the Hit Point formula is the flat total the sentence prints.
+ * the adapter's input requires the field. The numbers the sentence does not
+ * print are the absences `InlineStatBlock` documents and nothing more: an
+ * unprinted score is 10, so the Initiative and Passive Perception derived from
+ * it are +0 and 10; the rating and its XP are 0, the lowest the schema
+ * admits, because the book rates the servant nowhere; and the Proficiency
+ * Bonus is 2, the lowest any creature has, read by nothing the servant can do.
+ * The modifier and the save beside each score are the glossary's own
+ * arithmetic, and the Hit Point total is the one the sentence prints.
  */
 function inlineBlock(inline: InlineStatBlock, id: string): Monster {
   const score = (ability: Ability): number => inline.abilities[ability] ?? 10;

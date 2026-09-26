@@ -92,9 +92,13 @@ export function applyTimers({ state, next }: Applying, event: TimersEvent): Game
       const castingId = castingIdOf(timer.target.instance);
       if (castingId === null) {
         if (timer.check.onSuccess === 'end-casting') {
-          // Refused at authoring — `checkContent` admits no check on a
-          // conferral — so a log that says it is a log this engine did not
-          // write. The same reading `effect-save-resolved` takes below.
+          // Refused at both doors before it could be written — `checkContent`
+          // admits no check on a conferral, `checkSpellDefinition` refuses the
+          // pair with `outlivesCasting` (`check_ends_no_casting`), and
+          // `applyConditionTo` refuses a source with no casting in it
+          // (`check_needs_a_casting`) — so a log that says it is a log this
+          // engine did not write. The same reading `effect-save-resolved`
+          // takes below.
           throw new CorruptLogError(
             event,
             `${event.effectKey} ends a casting on a success and ${timer.target.instance} is not one's`,
