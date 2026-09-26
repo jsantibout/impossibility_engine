@@ -28,6 +28,8 @@ import { fold, type GameEvent, type GameState } from './events.js';
 import { spellSlotKey } from './resources.js';
 import { declaredCasting } from './spellcasting.js';
 import { benefitsFrom } from './conditions.js';
+import { checkSpellDefinition } from './spell-schema.js';
+import type { SpellDefinition } from './spell-definitions.js';
 import { lightAt } from './positioning.js';
 import { effectiveConditions } from './standing.js';
 import {
@@ -243,5 +245,25 @@ describe('SRD Shining Smite: what the casting leaves on the creature it struck',
 
   it('leaves the definition owing the table nothing', () => {
     expect(SRD_CONTENT.spell('shining-smite')?.unmodelled).toBeUndefined();
+  });
+
+  /**
+   * And the one rule the nested slot could have slipped past: a grant lasts as
+   * long as its casting, so a smite that is over the moment it resolves has
+   * nothing to lift any of these three with.
+   */
+  it('refuses the same riders on a smite with no duration', () => {
+    const shining = SRD_CONTENT.spell('shining-smite')!;
+    const instant: SpellDefinition = {
+      ...shining,
+      id: 'flashing-smite',
+      name: 'Flashing Smite',
+      concentration: false,
+    };
+    delete (instant as { durationSeconds?: number }).durationSeconds;
+
+    expect(checkSpellDefinition(instant).map((one) => one.code)).toContain('grant_without_lifetime');
+    // And the real spell, which prints its minute, is clean.
+    expect(checkSpellDefinition(shining)).toEqual([]);
   });
 });

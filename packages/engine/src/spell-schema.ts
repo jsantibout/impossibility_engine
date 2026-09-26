@@ -5417,7 +5417,21 @@ function checkEndsEarly(
  * nobody can read carries no lifetime worth reporting, so it falls through to
  * the reader that will report what is actually wrong with it.
  */
-function grantCarried(effect: SpellEffect): string | null {
+function grantCarried(given: SpellEffect): string | null {
+  // **One kind nests its riders and the rest spell them inline**, and this is
+  // where the two layouts are made one question. SRD Shining Smite's are on
+  // `attack-damage.riders`, because a smite's own fields are its damage and its
+  // repeat and a reader should not have to tell those from a glow; every other
+  // host carries `& OutcomeRiders` flat. A normalisation here is the alternative
+  // to teaching the four reads below about a second place to look — and without
+  // it an Instantaneous smite carrying a grant would slip past the one rule that
+  // exists to catch exactly that.
+  const nested = (given as { readonly riders?: unknown }).riders;
+  const effect: SpellEffect =
+    typeof nested === 'object' && nested !== null && !Array.isArray(nested)
+      ? ({ ...given, ...(nested as object) } as SpellEffect)
+      : given;
+
   switch (effect.kind) {
     case 'buff':
       return 'a bonus';
