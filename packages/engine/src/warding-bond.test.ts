@@ -359,7 +359,7 @@ describe('a blow travels one hop and no further', () => {
     // A fixture bond rather than a printed spell: the shared damage is the
     // whole of what it does, and the validator asks a spell that resolves
     // nothing to say so.
-    unmodelled: ['whatever the connection is besides the damage it passes on is the DM’s'],
+    unmodelled: ['whatever the connection is besides the damage it passes on is the DMâ€™s'],
   };
 
   const content = unwrap(extendContent(SRD_CONTENT, { spells: [TWINNED] }), 'the homebrew bond');

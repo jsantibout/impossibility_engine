@@ -109,7 +109,7 @@ const blowing = (): readonly GameEvent[] => {
 
 /**
  * The druid's next turn, so the Bonus Action that re-aims the Line is there to
- * spend — with the end-of-turn save the fighter owed for standing in the Line
+ * spend â€” with the end-of-turn save the fighter owed for standing in the Line
  * settled, because no action is taken into a world somebody is still owed one.
  */
 const druidsTurn = (log: readonly GameEvent[]): readonly GameEvent[] => {
