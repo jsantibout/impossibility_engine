@@ -4545,6 +4545,21 @@ export interface KeptSummons {
    * offers no pocket to, which is SRD Find Steed's steed.
    */
   readonly pocket?: { readonly within: number };
+  /**
+   * SRD Find Familiar: "As a Bonus Action, you can see through the familiar's
+   * eyes and hear what it hears until the start of your next turn, gaining the
+   * benefits of any special senses it has."
+   *
+   * The third door on the bond — `borrowSenses` in `commands/elsewhere.ts`,
+   * beside `dismissKeptSummons` and `recallKeptSummons` — and, like
+   * {@link delivers}, **the permission is the spell's and not the command's**:
+   * SRD Find Steed keeps a creature on the same terms and prints no such
+   * sentence, so a paladin does not look through the steed's eyes. The door
+   * reads this off the definition the bond names, at the moment of borrowing,
+   * and pins what it granted into the event it writes. Absent for every kept
+   * creature the book gives no such sentence. (W7-S21)
+   */
+  readonly lends?: true;
 }
 
 /**

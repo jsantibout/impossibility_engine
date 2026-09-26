@@ -177,6 +177,7 @@ import {
   declineOpportunity,
   declineTestReaction,
   commandSummons,
+  borrowSenses,
   dismissKeptSummons,
   dismissStrandedSummons,
   dismountRider,
@@ -1221,6 +1222,37 @@ const DISMISS_FAMILIAR = tool({
       (value) => value.events,
       (value) => ({ dismissed: args.who, duplicate: value.duplicate }),
       (value) => value.unverified,
+    ),
+});
+
+/**
+ * SRD Find Familiar: "As a Bonus Action, you can see through the familiar's
+ * eyes and hear what it hears until the start of your next turn, gaining the
+ * benefits of any special senses it has."
+ *
+ * The third door on a kept summons, beside the two either side of it, and the
+ * same shape: whose Bonus Action and which creature, and nothing else — the
+ * permission is the spell's, read off the bond, and the deadline is the
+ * engine's. On the player's door and so on the DM's. (W7-S21)
+ */
+const BORROW_SENSES = tool({
+  name: 'borrow_senses',
+  description:
+    'See through the eyes of a creature you keep from a spell, and hear what it hears, until the start of your next turn — SRD Find Familiar’s familiar. A Bonus Action. While it lasts, every "a creature you can see" you are asked about is answered yes wherever your familiar can see that creature, and you have the senses it has (a Darkvision it was given, say). Only in a fight, because "the start of your next turn" is a moment in the turn order; outside one the engine asks for the order. Refused for a creature you do not keep and for one whose spell lends nothing — a Find Steed steed.',
+  mutates: true,
+  input: z.object({
+    caster: creatureId.describe('The summoner, whose Bonus Action this is.'),
+    who: creatureId.describe('The creature they keep, whose senses they borrow.'),
+  }),
+  run: (context, args) =>
+    settle(
+      context,
+      borrowSenses(context.campaign.state(), context.campaign.content, who(args.caster), {
+        who: who(args.who),
+        ...identity(context),
+      }),
+      (value) => value.events,
+      (value) => ({ borrowedFrom: args.who, duplicate: value.duplicate }),
     ),
 });
 
@@ -5899,6 +5931,7 @@ export const TOOLS: readonly ToolDefinition[] = [
   ATTEMPT_EFFECT_CHECK,
   ATTUNE_ITEM,
   BEGIN_REST,
+  BORROW_SENSES,
   CAST_SPELL,
   CONFER_REACTION,
   CONTINUE_CASTING,

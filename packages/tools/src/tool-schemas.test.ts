@@ -174,8 +174,10 @@ describe('toolSchemas', () => {
     // `move_printed_line`; `teleport_printed_line` and `move` grew fields.
     // And one on each for the ground-move-and-bond track, `command_summons`
     // — SRD Unseen Servant's Bonus Action, a placement and never a number.
-    expect(toolSchemas(player())).toHaveLength(93);
-    expect(toolSchemas(dm())).toHaveLength(120);
+    // And one on each for W7-S21, `borrow_senses` — SRD Find Familiar's Bonus
+    // Action, the third door on the kept bond.
+    expect(toolSchemas(player())).toHaveLength(94);
+    expect(toolSchemas(dm())).toHaveLength(121);
     // Re-pinned 2026-09-24 for the printed-lines track, which opened one door
     // on the DM's surface alone: `teleport_printed_line` takes the teleport a
     // stat block prints, at the distance the block prints, to a space the DM
@@ -315,14 +317,16 @@ describe('toolSchemas', () => {
     // — the creature a Perception or Survival check is made to find, SRD
     // Hunter's Mark's purpose — on the DM's door alone; the player's is
     // untouched.
-    expect(toolSchemas(player())).toHaveLength(93);
-    expect(toolSchemas(dm())).toHaveLength(120);
+    expect(toolSchemas(player())).toHaveLength(94);
+    expect(toolSchemas(dm())).toHaveLength(121);
     // Re-pinned for W7-S21 part 4: `attempt_effect_check.skill` (SRD Spike
     // Growth's "Perception or Survival" — the attempter's pick) on both doors.
     // And for part 2: `cast_spell.stores` (SRD Glyph of Warding's spell glyph)
     // on both doors, and `trigger_glyph.by` — who set it off — on the DM's.
-    expect(JSON.stringify(toolSchemas(player())).length).toBe(149866);
-    expect(JSON.stringify(toolSchemas(dm())).length).toBe(196168);
+    // And for part 3: `borrow_senses` (SRD Find Familiar's Bonus Action, the
+    // third door on the kept bond), one tool more on both doors.
+    expect(JSON.stringify(toolSchemas(player())).length).toBe(150774);
+    expect(JSON.stringify(toolSchemas(dm())).length).toBe(197076);
   });
 });
 

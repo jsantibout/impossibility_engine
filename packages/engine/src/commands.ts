@@ -220,6 +220,7 @@ export type { RelocateCommand, RelocateOutcome } from './commands/teleport.js';
 export { takePrintedMove } from './commands/printed-move.js';
 export type { PrintedMoveCommand, PrintedMoveOutcome } from './commands/printed-move.js';
 export {
+  borrowSenses,
   dismissKeptSummons,
   enterElsewhere,
   recallKeptSummons,
@@ -232,6 +233,7 @@ export {
 export { commandSummons } from './commands/spell-effect-summon.js';
 export type { CommandSummonsCommand, CommandSummonsOutcome } from './commands/spell-effect-summon.js';
 export type {
+  BorrowSensesOutcome,
   EnterCommand,
   EnterOutcome,
   KeptSummonsCommand,

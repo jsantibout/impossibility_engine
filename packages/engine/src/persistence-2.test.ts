@@ -891,6 +891,9 @@ const UNCOVERED_EVENT_TYPES: readonly string[] = [
   // drives every ending: the hours, a second use, Incapacitated, death and
   // the Bonus Action, each putting the original sheet back.
   'sense-granted',
+  // SRD Find Familiar's borrowed eyes: an optional record on the borrower,
+  // absent from every creature in this log, which folds unchanged. (W7-S21)
+  'senses-borrowed',
   'shape-assumed',
   // A size moved by a category — SRD Enlarge/Reduce's step, a sourced grant in
   // the family `grantsOf` enumerates. Neither log was written when a casting

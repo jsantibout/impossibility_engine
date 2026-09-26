@@ -147,6 +147,7 @@ import {
   takePrintedPull,
   takePrintedTeleport,
   commandSummons,
+  borrowSenses,
   dismissKeptSummons,
   enterElsewhere,
   recallKeptSummons,
@@ -2437,6 +2438,13 @@ const GUARDED: readonly Guarded[] = [
     run: (s, commandId) => dismissKeptSummons(s, A, { who: id('an-owl'), commandId }),
   },
   {
+    // The third door on the bond, in the fight: a retry that was not guarded
+    // would spend a second Bonus Action. (W7-S21)
+    name: 'borrowSenses',
+    log: KEPT,
+    run: (s, commandId) => borrowSenses(s, SRD_CONTENT, A, { who: id('an-owl'), commandId }),
+  },
+  {
     // In the fight, because what a retry could spend twice is A's Bonus Action
     // — and the servant would walk twice.
     name: 'commandSummons',
@@ -3971,6 +3979,8 @@ const SPENDERS: readonly Spender[] = [
   // it does.
   { name: 'dismissKeptSummons', run: (s) => dismissKeptSummons(s, B, { who: A }) },
   { name: 'recallKeptSummons', run: (s) => recallKeptSummons(s, B, { who: A }) },
+  // And the third door, which spends a Bonus Action: the same guard. (W7-S21)
+  { name: 'borrowSenses', run: (s) => borrowSenses(s, SRD_CONTENT, B, { who: A }) },
   // The command a caster gives a summons spends the caster's Bonus Action, and
   // the debt is asked before the bond is looked at — the same guard, on the
   // third door. (W7-S19)

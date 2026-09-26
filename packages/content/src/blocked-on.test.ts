@@ -1294,8 +1294,10 @@ describe('reading four families found blockers the bare lists had missed', () =>
     // rather than kept, and **the delivered touch has gone the same way**:
     // `KeptSummons.delivers` is the permission and the hundred feet, pinned onto
     // the bond, and `cast_spell.deliveredBy` is the hand the Touch is measured
-    // from. One reading is left, and it is the one about sight.
-    ['find-familiar', 'unmodelled', 'seeing through the familiar’s eyes'],
+    // from. One reading is left, and it is the one about sight — narrower
+    // since W7-S21 built the borrowing (`borrowSenses`): what is still owed is
+    // the senses the familiar's own stat block prints, which no sheet holds.
+    ['find-familiar', 'unmodelled', 'special senses printed on the familiar’s own stat block'],
     // Sending, defined on the owner's ruling of 2026-09-25. Three of its four
     // rows were spent by being built or by being a fact the caster states —
     // the die is the `chance` effect, the other plane is `otherPlane` on the

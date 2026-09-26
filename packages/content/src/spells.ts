@@ -14200,9 +14200,12 @@ export const HEX: SpellDefinition = {
  * familiar can't attack" arrives on the creature as a stored rule the action
  * economy refuses on.
  *
- * What is left is written below and adjudicated in `missing-shapes.ts`: its
- * senses lent to the caster, the touch spell it delivers, and the pocket
- * dimension it can be sent to.
+ * Its three doors are the bond's: the pocket dimension it can be sent to
+ * (`dismissKeptSummons`, `recallKeptSummons`), the touch spell it delivers
+ * (`cast_spell.deliveredBy`), and its senses lent to the caster for a Bonus
+ * Action (`borrowSenses`, read by `canSee` and `sensesOf`). What is left is
+ * written below: the senses its **stat block** prints, which no sheet holds
+ * yet, and the rest, which is the table's.
  */
 export const FIND_FAMILIAR: SpellDefinition = {
   id: 'find-familiar',
@@ -14249,12 +14252,16 @@ export const FIND_FAMILIAR: SpellDefinition = {
       // Reaction to deliver the touch when you cast the spell." The permission
       // and the distance are the spell's own sentence, so they are pinned on the
       // bond and `cast_spell.deliveredBy` reads them.
-      kept: { pocket: { within: 30 }, delivers: { within: 100 } },
+      // "As a Bonus Action, you can see through the familiar's eyes and hear
+      // what it hears until the start of your next turn, gaining the benefits
+      // of any special senses it has." The permission is this sentence, and
+      // `borrowSenses` is the door that reads it.
+      kept: { pocket: { within: 30 }, delivers: { within: 100 }, lends: true },
       cannotAttack: true,
     },
   ],
   unmodelled: [
-    'seeing through the familiar’s eyes and hearing what it hears as a Bonus Action, with the benefits of any special senses it has, is not granted: sight here is a pairwise declaration, and one creature borrowing another’s senses has no state to sit in',
+    'the benefits of the special senses printed on the familiar’s own stat block (an Owl’s Darkvision, a Bat’s Blindsight) are not lent, because a block’s Senses line reaches no sheet: `borrowSenses` lends the eyes and every sense the engine holds for the familiar, and a printed one is not among them',
     'the telepathic connection within 100 feet is the table’s: the distance is measurable and what it gates is conversation',
     'what it leaves behind in its space when it disappears, and what it does with the turns it acts independently on while obeying your commands, are the DM’s',
   ],

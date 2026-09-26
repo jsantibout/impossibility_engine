@@ -323,6 +323,9 @@ const KNOWN_EVENT_TYPES: readonly string[] = [
   'scene-set',
   'scheduled-damage-collected',
   'sense-granted',
+  // SRD Find Familiar's borrowed eyes — an optional record on the borrower
+  // with its deadline, absent from every creature in this log. (W7-S21)
+  'senses-borrowed',
   'shape-assumed',
   'sight-declared',
   'size-overridden',
