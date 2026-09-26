@@ -15,7 +15,7 @@ import { fold, type GameEvent, type GameState } from './events.js';
 import { spellSlotKey } from './resources.js';
 import { declaredCasting } from './spellcasting.js';
 import { altitudeOf } from './positioning.js';
-import { resolveMove, resolveSpell } from './commands.js';
+import { activateSpell, resolveMove, resolveSpell } from './commands.js';
 
 /**
  * SRD Levitate, the half about the lifted creature's own Speed:
@@ -115,6 +115,16 @@ const lifted = (target: CharacterId): readonly GameEvent[] => {
 
 /** …and the turn passes to the rogue. */
 const roguesTurn = (log: readonly GameEvent[]): readonly GameEvent[] => [...log, { type: 'turn-advanced' }];
+
+/** …and round again, so the wizard has a fresh action and a fresh twenty. */
+const wizardsNextTurn = (log: readonly GameEvent[]): readonly GameEvent[] => [
+  ...log,
+  { type: 'turn-advanced' },
+  { type: 'turn-advanced' },
+];
+
+/** The one casting this fixture ever has running. */
+const castingIn = (world: GameState): string => Object.keys(world.ongoing)[0]!;
 
 describe('the definition', () => {
   it('prints the twenty feet the caster may move the target a turn on its activation', () => {
@@ -269,6 +279,78 @@ describe('a caster holding themself up', () => {
       supply('rise'),
     );
     expect(isErr(out) && out.code).toBe('altitude_spent');
+  });
+
+  /**
+   * **A move somebody else made spends none of it.** `checkLevitating` exempts
+   * forced movement by name — "it is not the creature's movement" — and the
+   * fold's stamp says the same thing, so a wizard thrown ten feet down the
+   * wall by a Thunderwave still has the whole twenty to climb with. (W7-S19R)
+   */
+  it('keeps the whole twenty when somebody else moved them', () => {
+    const log = lifted(WIZARD);
+    const shoved = unwrap(
+      resolveMove(
+        state(log),
+        WIZARD,
+        { placement: { from: { creature: WIZARD }, feet: 0, elevation: -10 }, forced: true },
+        supply('shove'),
+      ),
+      'a wizard shoved ten feet down',
+    );
+    const down = state([...log, ...shoved.events]);
+    expect(height(down, WIZARD)).toBe(10);
+    // Nothing of the caster's own allowance was spent by being shoved.
+    expect(down.creatures[WIZARD]!.lifts[0]!.altered).toBeUndefined();
+
+    const climb = resolveMove(
+      down,
+      WIZARD,
+      { placement: { from: { creature: WIZARD }, feet: 0, elevation: 20 }, mode: 'climb', alongSurface: true },
+      supply('rise'),
+    );
+    expect(climb.ok).toBe(true);
+    expect(height(state([...log, ...shoved.events, ...(climb.ok ? climb.value.events : [])]), WIZARD)).toBe(30);
+  });
+
+  /**
+   * **One twenty a turn, whichever way it is spent.** SRD prints the allowance
+   * once — "You can change the target's altitude by up to 20 feet in either
+   * direction on your turn" — and then two ways to spend it: "If you are the
+   * target, you can move up or down as part of your move. Otherwise, you can
+   * take a Magic action to move the target." A caster holding themself up who
+   * has already climbed the twenty has nothing left for the action. (W7-S19R)
+   */
+  it('has no Magic action left for feet the caster’s own climb already spent', () => {
+    const log = wizardsNextTurn(lifted(WIZARD));
+    const castingId = castingIn(state(log));
+    const twenty = unwrap(
+      resolveMove(
+        state(log),
+        WIZARD,
+        { placement: { from: { creature: WIZARD }, feet: 0, elevation: 20 }, mode: 'climb', alongSurface: true },
+        supply('rise'),
+      ),
+      'twenty feet up the wall',
+    );
+    const risen = state([...log, ...twenty.events]);
+
+    const again = activateSpell(
+      risen,
+      WIZARD,
+      { castingId, targets: [WIZARD], altitude: 5 },
+      supply('action'),
+    );
+    expect(isErr(again) && again.code).toBe('altitude_spent');
+    // A refusal costs nothing: the action is still there to spend on something else.
+    expect(risen.combat!.budgets[WIZARD]!.action).toBe(true);
+
+    // And the twenty is back on the caster's next turn, the same boundary the
+    // move's own cap resets at.
+    const later = state(wizardsNextTurn([...log, ...twenty.events]));
+    expect(
+      activateSpell(later, WIZARD, { castingId, targets: [WIZARD], altitude: 20 }, supply('action')).ok,
+    ).toBe(true);
   });
 
   it('has the twenty back on a later turn', () => {

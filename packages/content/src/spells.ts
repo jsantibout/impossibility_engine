@@ -7391,8 +7391,14 @@ export const LEVITATE: SpellDefinition = {
   // surface the move states (`alongSurface`), and a caster holding themself up
   // spends their own vertical feet against the twenty the activation prints,
   // which the hold pins (`GrantedLift.altitudePerTurn`).
+  //
+  // **And it is one twenty, not two**: the Magic action above reads the same
+  // tally the move does (`GrantedLift.altered`), so a caster who has climbed
+  // the twenty has nothing left to take the action with. The half of that
+  // sentence the engine cannot yet see is written below. (W7-S19R)
   unmodelled: [
     'the object the spell may target instead, and its 500-pound limit, are the DM’s: objects are not modelled',
+    'the twenty feet a turn are charged in one direction only: the Magic action reads what the caster’s own climb has already spent, but its own feet are not added to the tally, because the move it makes is a forced one exactly as a shove is and nothing on the event tells the two apart — so a caster holding themself up who takes the action first and climbs afterwards gets forty feet in a turn',
   ],
 };
 
@@ -8889,9 +8895,10 @@ export const ANIMAL_MESSENGER: SpellDefinition = {
  * `areaTrigger` is: everyone caught when the Line is conjured, and "a creature
  * that ends its turn in the Line" every round after.
  *
- * A Line that **turns** is still not a shape the engine has — the Bonus Action
- * re-aims it every round, and an area is fixed where the casting put it, which
- * is the same sentence SRD Sunbeam's later Magic action waits on.
+ * A Line that **turns** is a bearing on the record rather than a shape: the
+ * Bonus Action writes the new one (`redirects`), the recurring save reads it
+ * when the moment arrives, and the expensive ground is laid again down it —
+ * so everything the Line prints turns together. (W7-S19R)
  */
 export const GUST_OF_WIND: SpellDefinition = {
   id: 'gust-of-wind',
@@ -8907,7 +8914,9 @@ export const GUST_OF_WIND: SpellDefinition = {
   // it moves when moving closer to you." Difficult Terrain by another name,
   // narrowed to the step: the patch lies on the Line the caster blows and
   // charges a step of a stated route only when it ends nearer the caster than
-  // it began, read against where the caster stands now.
+  // it began, read against where the caster stands now. The Line is carried, so
+  // the patch walks with the druid; the Bonus Action below is what re-lays it
+  // when the *bearing* changes, because that is the one fact a region pins.
   areaTerrain: { costPerFoot: 2, onlyTowards: 'caster' },
   effects: [
     {
@@ -8941,6 +8950,12 @@ export const GUST_OF_WIND: SpellDefinition = {
   // creature that ends its turn in the Line must make the same save" — which
   // reads the new bearing when that moment arrives. A save at the re-aim would
   // be a third sentence the spell does not print.
+  //
+  // **What it does lay again is the ground**: "Any creature in the Line must
+  // spend 2 feet of movement for every 1 foot it moves when moving closer to
+  // you" is a sentence about the Line, so the patch is re-declared down the new
+  // bearing under the name the cast gave it and the ground the wind has left is
+  // ordinary again. (W7-S19R)
   activation: {
     action: 'bonus-action',
     label: 'Gust of Wind (the direction the Line blasts)',
