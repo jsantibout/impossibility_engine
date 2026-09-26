@@ -43,6 +43,7 @@ import { type SpellcastingState } from './spellcasting.js';
 import type { RestState } from './rest.js';
 import type { HitOption, StandingEffect } from './standing.js';
 import { type Deadline } from './time.js';
+import type { Elsewhere } from './elsewhere.js';
 import {
   type GrantedPayout,
   type PendingSave,
@@ -220,6 +221,14 @@ export interface KeptBond {
    */
   readonly lastsSeconds?: number;
   readonly since?: number;
+  /**
+   * SRD Find Familiar: "you can temporarily dismiss the familiar to a pocket
+   * dimension … cause it to reappear in an unoccupied space within 30 feet of
+   * you." The one number the two doors read, pinned from the spell at the
+   * binding so the recall opens no book. Absent for a kept creature the spell
+   * offers no pocket to.
+   */
+  readonly pocket?: { readonly within: number };
 }
 
 /**
@@ -651,6 +660,19 @@ export interface CreatureState {
    * the same rule: see {@link FallMoment}.
    */
   readonly falling: FallMoment | null;
+  /**
+   * Where this creature is instead of in the scene, or null while it stands
+   * in it.
+   *
+   * SRD Blink's Ethereal Plane, SRD Find Familiar's pocket dimension, SRD
+   * Rope Trick's extradimensional space, SRD Swallow's gullet: a creature that
+   * is **elsewhere** has no position, is caught by no area, holds whatever the
+   * record hung on it under the record's `source`, and comes back only to a
+   * space checked against the rule the record pinned when it left. See
+   * {@link Elsewhere}. Null is what every log written before this existed
+   * says, so both frozen fixtures fold unchanged.
+   */
+  readonly elsewhere: Elsewhere | null;
   /**
    * Named bonuses a running effect has hung on this creature.
    *

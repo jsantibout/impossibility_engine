@@ -229,6 +229,7 @@ import { aimsHarmAtATarget } from '../spell-definitions.js';
 import { wardAgainst } from './passive-defenses.js';
 import { resolveTeleportEffect } from './spell-effect-teleport.js';
 import { resolveSummonEffect } from './spell-effect-summon.js';
+import { resolveElsewhereEffect } from './elsewhere.js';
 import { bindSummonsToCasting } from './creatures.js';
 import {
   anchoringFor,
@@ -1164,6 +1165,9 @@ export function castOrRelease(
         // names both for the same reason, on every later swing of the same
         // spell.
         if (!apart.ok) {
+          // A creature that is **elsewhere** is not a fact that is missing but
+          // one that is settled: nobody can place it, and the geometry says so.
+          if (apart.code === 'not_here') return apart;
           const unplaced =
             positionOf(state.scene, casterId) === null ? casterId : target;
           needs.push({
@@ -2954,6 +2958,8 @@ function resolveOneEffect(
     // second creature, so the target is read off `ctx`.
     case 'summon':
       return resolveSummonEffect(ctx, effect, world);
+    case 'elsewhere':
+      return resolveElsewhereEffect(ctx, effect, target, world);
 
     // An on-hit spell never reaches here: `resolveSpell` refuses one up
     // front, because the attack it rides on is not this command's to give.

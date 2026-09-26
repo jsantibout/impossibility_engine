@@ -429,6 +429,15 @@ const SELF_ANSWERED_FIELDS: Readonly<Record<string, readonly string[]>> = {
   // nobody has said, and the answer is this call again with the creature
   // named.
   'cast_spell:route': ['willing'],
+  // The second place's way back. SRD Blink's "an unoccupied space of your
+  // choice … within 10 feet of the space you vanished from" is a `position`
+  // the engine asks for and will not pick, and the three calls that bring a
+  // creature back each carry the answer on themselves: the boundary that
+  // returns a Blink caster, the command for a creature whose way back is
+  // open, and a summoner's recall.
+  'end_turn:position': ['returns'],
+  'recall_familiar:position': ['to'],
+  'return_from_elsewhere:position': ['to'],
 };
 
 describe('every kind a tool answers on itself has a field to carry it', () => {
@@ -842,6 +851,14 @@ const ANSWERS: Readonly<Record<string, Answer>> = {
   // slot, with the same code and the list of words in the reason.
   option_required: { fields: ['cast_spell.option'] },
   fought_fact_required: { fields: ['cast_spell.fought', 'take_ready.response.fought'] },
+  // The second place's way back: SRD Blink's "an unoccupied space of your
+  // choice … within 10 feet", the space a Rope Trick's climber drops to, the
+  // corpse a swallowed creature climbs out of. Three doors, because three
+  // moments bring a creature back — the boundary, a command of its own, and
+  // its summoner's recall — and each carries the same placement.
+  return_space_required: {
+    fields: ['end_turn.returns', 'return_from_elsewhere.to', 'recall_familiar.to'],
+  },
   destination_required: {
     fields: [
       'activate_spell.to',

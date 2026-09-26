@@ -2391,6 +2391,10 @@ export function namedTargets(
       } else if (!self) {
         const apart = distanceBetween(state.scene, casterId, target);
         if (!apart.ok) {
+          // A creature that is **elsewhere** is a settled fact rather than a
+          // missing one: the geometry refuses `not_here`, nobody can place it,
+          // and a request to would send the caller to a door that refuses.
+          if (apart.code === 'not_here') return apart;
           needs.push({
             kind: 'position',
             subject: target,

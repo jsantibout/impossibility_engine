@@ -87,6 +87,8 @@ import { resolveEffects } from './spell-resolution.js';
 import { type SpellTargetOutcome } from './targeting.js';
 import { grapplerOf, grapplesOn, attachmentsOf } from './unarmed.js';
 import { attachedTo } from '../state.js';
+import { strandedElsewhere } from '../elsewhere.js';
+import { settleElsewhereAtBoundary, type StatedReturn } from './elsewhere.js';
 
 /** One turn-boundary save, rolled and settled. */
 export interface ResolvedRepeatSave {
@@ -1886,6 +1888,17 @@ export interface TurnCommand extends CommandIdentity {
    * caught.
    */
   readonly burns?: readonly CharacterId[];
+  /**
+   * Where a creature that comes back at this boundary should stand.
+   *
+   * SRD Blink: "you return to an unoccupied space of your choice … within 10
+   * feet of the space you vanished from"; SRD Giant Frog: "the frog disgorges
+   * it". A choice the book hands to whoever is running the creature, so the
+   * caller names the space and the engine checks it — and where nobody names
+   * one, the engine takes the single space that qualifies or asks
+   * `return_space_required`.
+   */
+  readonly returns?: readonly StatedReturn[];
 }
 
 export function resolveTurn(
@@ -2009,6 +2022,20 @@ export function resolveTurn(
       );
     }
 
+    // **A creature elsewhere whose casting has ended.** SRD Rope Trick's
+    // "drops out when the spell ends", SRD Blink's "when the spell ends if
+    // you are on the Ethereal Plane, you return": the casting ends in the
+    // fold, which may choose no space, so the return is a debt of exactly
+    // `summons_stranded`'s kind — derived from the world as it stands, and
+    // settled by `returnFromElsewhere` naming where the creature lands.
+    const away = strandedElsewhere(state);
+    if (away.length > 0) {
+      return err(
+        'elsewhere_stranded',
+        `${away.join(', ')} ${away.length === 1 ? 'is' : 'are'} still elsewhere under a casting that has ended; returnFromElsewhere brings ${away.length === 1 ? 'it' : 'them'} back before the turn moves on`,
+      );
+    }
+
     // What a persistent area caught somebody doing, still undealt. Advancing
     // past it would carry the debt into a turn whose boundary may raise another,
     // and a creature would be two saves behind by the time anybody looked. The
@@ -2126,6 +2153,25 @@ export function resolveTurn(
     advanced.push(...barbed.value.events);
     unverified.push(...barbed.value.unverified);
     after = barbed.value.events.reduce(applyEvent, after);
+
+    // **The second place, at both moments.** SRD Blink's d6 at the end of the
+    // finisher's turn and its return at the start of the beginner's; SRD
+    // Swallow's damage at the host's boundary and the disgorging that follows
+    // the frog's. Beside the printed boundary damage because it is the same
+    // kind of thing — a block's or a casting's own sentence about a moment —
+    // and after it so that a creature disgorged this boundary is not also
+    // burnt by an aura it was not standing in.
+    const vanished = settleElsewhereAtBoundary(after, supply, ending, 'end-of-turn', command.returns ?? []);
+    if (!vanished.ok) return vanished;
+    advanced.push(...vanished.value.events);
+    unverified.push(...vanished.value.unverified);
+    after = vanished.value.events.reduce(applyEvent, after);
+
+    const returned = settleElsewhereAtBoundary(after, supply, beginning, 'start-of-turn', command.returns ?? []);
+    if (!returned.ok) return returned;
+    advanced.push(...returned.value.events);
+    unverified.push(...returned.value.unverified);
+    after = returned.value.events.reduce(applyEvent, after);
 
     const paid = settleBoundaryPayouts(after, supply, ending, beginning);
     if (!paid.ok) return paid;

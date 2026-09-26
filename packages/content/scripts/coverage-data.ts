@@ -190,6 +190,13 @@ export const VERIFIED_SPELLS: readonly string[] = [
   'bless',
   'blight',
   'blindness-deafness',
+  // `blink.test.ts`: the d6 thrown and recorded at the end of the caster's
+  // turn, both faces reached, the Ethereal Plane with the space left pinned,
+  // an attack and a Fireball reaching nothing of the caster, and the return
+  // at the start of the next turn asked for, refused at fifteen feet and into
+  // an occupied space, and taken where stated — and the same return when the
+  // spell ends first.
+  'blink',
   'blur',
   'burning-hands',
   'charm-monster',
@@ -391,6 +398,11 @@ export const VERIFIED_SPELLS: readonly string[] = [
   // its death saves afresh, one ninety seconds old refused, a living creature
   // refused, and the slot neither refusal spends.
   'revivify',
+  // `rope-trick-and-familiar.test.ts`: the rope kept as a point, a climber
+  // within five feet, the Large creature and the ninth refused, a Fire Bolt
+  // at a climber refusing `not_here`, the climb down, and the drop at the
+  // spell's end to spaces the caller names.
+  'rope-trick',
   'sacred-flame',
   // Driven end to end by `several-attack-rolls.test.ts`, and partial as well,
   // which is the pairing `sorcerous-burst` already stands for: three rays

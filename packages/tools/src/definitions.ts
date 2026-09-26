@@ -176,8 +176,12 @@ import {
   declineDamageReaction,
   declineOpportunity,
   declineTestReaction,
+  dismissKeptSummons,
   dismissStrandedSummons,
   dismountRider,
+  enterElsewhere,
+  recallKeptSummons,
+  returnFromElsewhere,
   eligibleTargets,
   endAttunement,
   endCombat,
@@ -1113,6 +1117,135 @@ const DISMISS_STRANDED_SUMMONS = tool({
       { dismissed },
     );
   },
+});
+
+/**
+ * The second place: a creature that is elsewhere, brought back to a space the
+ * caller names.
+ *
+ * SRD Blink's "when the spell ends if you are on the Ethereal Plane, you
+ * return", SRD Rope Trick's "Anything inside the space drops out when the
+ * spell ends", SRD Swallow's "can escape from the corpse". Where the creature
+ * lands is a choice the book hands to whoever is running it and the engine
+ * makes none of them; what the engine does is check the space against the
+ * rule the record pinned when the creature left — the distance, the
+ * occupancy, the scene's extent and the sight where the book says "a space
+ * you can see" — and take the one space that qualifies where only one does.
+ * No number is stated: `feet` is a placement on the lattice, as every other
+ * placement is.
+ */
+const RETURN_FROM_ELSEWHERE = tool({
+  name: 'return_from_elsewhere',
+  description:
+    'Bring a creature back into the scene from wherever a spell or a stat-block line sent it — the Ethereal Plane, an extradimensional space, another creature’s gullet — once the way back is open: the casting that sent it has ended, the Rope Trick is still hanging to climb down, or the creature that swallowed it has died. Name the space it stands in, measured from a landmark or a creature; the engine checks it against the rule pinned when the creature left (how far from the space it left or from the creature the rule names, whether it must be one the creature can see) and refuses one too far, one somebody is standing in, or one outside the scene. Omit the space and the engine takes the one space that qualifies, or asks which. `end_turn` refuses while a creature is stranded elsewhere by a casting that has ended, and names it.',
+  mutates: true,
+  selfAnswers: ['position'],
+  input: z.object({
+    who: creatureId.describe('The creature coming back.'),
+    to: placementSchema.optional().describe('Where it stands. Omit it to take the one qualifying space or be asked.'),
+  }),
+  run: (context, args) =>
+    settle(
+      context,
+      returnFromElsewhere(context.campaign.state(), who(args.who), {
+        ...(args.to === undefined ? {} : { to: placementOf(args.to) }),
+        ...identity(context),
+      }),
+      (value) => value.events,
+      (value) => ({ returned: args.who, at: value.at, duplicate: value.duplicate }),
+      (value) => value.unverified,
+    ),
+});
+
+/**
+ * SRD Rope Trick: "Up to eight Medium or smaller creatures can climb into the
+ * extradimensional space by moving up the rope."
+ *
+ * The creature's own act, so the call names the climber; the casting is the
+ * rope. Everything the sentence gates is the engine's — within five feet of
+ * the rope's point, no larger than the space admits, only while it has room —
+ * and the movement the climb costs is the table's, which the outcome says.
+ */
+const CLIMB_INTO_SPACE = tool({
+  name: 'climb_into_space',
+  description:
+    'Have a creature climb into a place a running casting has opened — SRD Rope Trick’s extradimensional space. Name the climber and the casting; the engine refuses a climber too far from the casting’s point, one too large for the space, a space already holding as many as the book allows, and a casting that opens no such place. While inside, the creature has no position, is caught by no area and is reached by nothing; it climbs down with `return_from_elsewhere`, and drops out when the spell ends.',
+  mutates: true,
+  input: z.object({
+    who: creatureId.describe('The creature climbing in.'),
+    castingId: z.string().min(1).describe('The casting whose place is being entered, from `look`.'),
+  }),
+  run: (context, args) =>
+    settle(
+      context,
+      enterElsewhere(context.campaign.state(), who(args.who), context.campaign.content, {
+        castingId: args.castingId,
+        ...identity(context),
+      }),
+      (value) => value.events,
+      (value) => ({ entered: args.who, castingId: args.castingId, duplicate: value.duplicate }),
+      (value) => value.unverified,
+    ),
+});
+
+/**
+ * SRD Find Familiar: "As a Magic action, you can temporarily dismiss the
+ * familiar to a pocket dimension."
+ *
+ * Two doors on a kept summons, and both are the summoner's: the pocket is a
+ * number the spell printed and the bond pinned, so a caller states nothing
+ * but which creature. A steed's spell prints no pocket, and the refusal says
+ * so.
+ */
+const DISMISS_FAMILIAR = tool({
+  name: 'dismiss_familiar',
+  description:
+    'Temporarily dismiss a creature you keep from a spell to the pocket dimension its spell prints — SRD Find Familiar’s familiar. A Magic action in a fight. The creature keeps existing and cannot be targeted or caught by anything while away; `recall_familiar` brings it back within the distance the spell prints. Refused for a creature you do not keep, for one whose spell prints no pocket (a Find Steed steed), and for one already away.',
+  mutates: true,
+  input: z.object({
+    caster: creatureId.describe('The summoner, whose Magic action this is.'),
+    who: creatureId.describe('The creature they keep.'),
+  }),
+  run: (context, args) =>
+    settle(
+      context,
+      dismissKeptSummons(context.campaign.state(), who(args.caster), {
+        who: who(args.who),
+        ...identity(context),
+      }),
+      (value) => value.events,
+      (value) => ({ dismissed: args.who, duplicate: value.duplicate }),
+      (value) => value.unverified,
+    ),
+});
+
+/**
+ * SRD Find Familiar: "As a Magic action while it is temporarily dismissed, you
+ * can cause it to reappear in an unoccupied space within 30 feet of you."
+ */
+const RECALL_FAMILIAR = tool({
+  name: 'recall_familiar',
+  description:
+    'Cause a creature you dismissed to its pocket dimension to reappear in an unoccupied space within the distance its spell prints of you — SRD Find Familiar’s 30 feet. A Magic action in a fight. Name the space, measured from a landmark or a creature; the engine refuses one too far, one somebody is standing in, or one outside the scene. Omit the space and the engine takes the one that qualifies, or asks which.',
+  mutates: true,
+  selfAnswers: ['position'],
+  input: z.object({
+    caster: creatureId.describe('The summoner, whose Magic action this is.'),
+    who: creatureId.describe('The creature they dismissed.'),
+    to: placementSchema.optional().describe('Where it reappears. Omit it to take the one qualifying space or be asked.'),
+  }),
+  run: (context, args) =>
+    settle(
+      context,
+      recallKeptSummons(context.campaign.state(), who(args.caster), {
+        who: who(args.who),
+        ...(args.to === undefined ? {} : { to: placementOf(args.to) }),
+        ...identity(context),
+      }),
+      (value) => value.events,
+      (value) => ({ recalled: args.who, duplicate: value.duplicate }),
+      (value) => value.unverified,
+    ),
 });
 
 /**
@@ -5456,13 +5589,32 @@ const END_TURN = tool({
       .describe(
         'Whom the creature whose turn is ending chooses to catch with a printed aura that says "of its choice". Omit it and nobody is caught.',
       ),
+    /**
+     * SRD Blink: "you return to an unoccupied space of your choice that you
+     * can see within 10 feet of the space you vanished from"; SRD Giant
+     * Frog: "the frog disgorges it". A choice the book hands to whoever is
+     * running the creature, so the caller names the space and the engine
+     * checks it. Omitted, the engine takes the one space that qualifies or
+     * refuses `return_space_required` naming the creature, and this same
+     * call is sent again with the answer on it.
+     */
+    returns: z
+      .array(z.object({ who: creatureId.describe('The creature coming back at this boundary.') }).and(placementSchema))
+      .optional()
+      .describe(
+        'Where each creature that returns from elsewhere at this boundary should stand — a Blink caster at the start of their turn, a creature a frog disgorges. Omit it and the engine takes the one qualifying space, or asks.',
+      ),
   }),
+  selfAnswers: ['position'],
   run: (context, args) =>
     settle(
       context,
       resolveTurn(context.campaign.state(), context.campaign.supply(), {
         ...identity(context),
         ...(args.burns === undefined ? {} : { burns: args.burns.map(who) }),
+        ...(args.returns === undefined
+          ? {}
+          : { returns: args.returns.map((entry) => ({ who: who(entry.who), to: placementOf(entry) })) }),
       }),
       (value) => value.events,
       (value) => ({
@@ -5516,6 +5668,8 @@ export const TOOLS: readonly ToolDefinition[] = [
   DECLINE_DAMAGE_REACTION,
   DECLINE_OPPORTUNITY,
   DECLINE_TEST_REACTION,
+  CLIMB_INTO_SPACE,
+  DISMISS_FAMILIAR,
   DISMISS_STRANDED_SUMMONS,
   DRAW_ON_HEALING_POOL,
   DROP_ITEM,
@@ -5540,8 +5694,10 @@ export const TOOLS: readonly ToolDefinition[] = [
   ORDER_SUMMONS_ATTACK,
   PLACE_CREATURE,
   PURCHASE_ITEM,
+  RECALL_FAMILIAR,
   REGAIN_USES,
   RELEASE_READY,
+  RETURN_FROM_ELSEWHERE,
   REVERT_SHAPE,
   RESOLVE_DECLARED_CAST,
   ROLL_INITIATIVE,

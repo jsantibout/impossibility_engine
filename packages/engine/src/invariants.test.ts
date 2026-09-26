@@ -143,6 +143,10 @@ import {
   takePrintedForm,
   takePrintedPull,
   takePrintedTeleport,
+  dismissKeptSummons,
+  enterElsewhere,
+  recallKeptSummons,
+  returnFromElsewhere,
   takeStatedAction,
   takeStatedBonusAction,
   takeTestReaction,
@@ -559,6 +563,7 @@ const PULLING: readonly GameEvent[] = SETUP.map((event) =>
     ? { ...event, sheet: sheet({ stated: { unreadActions: [PULLING_LINE] } }) }
     : event,
 );
+
 
 /**
  * The same invented line with the book's cast template read off it.
@@ -1888,6 +1893,69 @@ const ZOMBIE = 'zombie';
  * about its identity. A's Disguise Self holds a Zombie; the Disguise Self is
  * then dismissed, and the Zombie is owed a departure.
  */
+/**
+ * B elsewhere under a casting that has ended, so the way back is open and the
+ * return is the debt `resolveTurn` refuses on.
+ */
+const AWAY: readonly GameEvent[] = [
+  ...SETUP,
+  { type: 'creature-sent-elsewhere', id: B, kind: 'ethereal', source: 'Gone#cast:9', returns: { within: 10 } },
+];
+
+/** A's Rope Trick hanging beside B, with room inside for B to climb. */
+const ROPED: readonly GameEvent[] = (() => {
+  const roped: readonly GameEvent[] = [
+    ...SETUP.map((event) =>
+      event.type === 'spellcasting-declared' && event.id === A
+        ? { ...event, spellcasting: declaredCasting({ ability: 'int', prepared: ['rope-trick'] }) }
+        : event,
+    ),
+    {
+      type: 'resource-pool-declared',
+      id: A,
+      pool: { key: spellSlotKey(2), label: 'level 2 spell slot', max: 2, recovers: 'long-rest' },
+    },
+  ];
+  const cast = unwrap(
+    resolveSpell(
+      fold('s', roped),
+      A,
+      { spellId: 'rope-trick', targets: [], at: { x: 100, y: 100, z: 0 }, slotLevel: 2 },
+      supply(),
+    ),
+    'the rope',
+  );
+  return [...roped, ...cast.events];
+})();
+
+/** An owl A keeps on Find Familiar's terms, with the pocket the spell prints. */
+const KEPT: readonly GameEvent[] = [
+  ...SETUP,
+  ...unwrap(
+    summonCreature(fold('s', SETUP), SRD_CONTENT, {
+      id: id('an-owl'),
+      monsterId: 'owl',
+      by: A,
+      kept: { spell: 'find-familiar', untilSummonerDies: false, pocket: { within: 30 } },
+      placement: { from: { creature: A }, feet: 10, bearing: 180 },
+      initiative: 15,
+    }),
+    'the owl',
+  ).events,
+];
+
+/** And the same owl dismissed to its pocket, so a recall has something to recall. */
+const POCKETED: readonly GameEvent[] = [
+  ...KEPT,
+  {
+    type: 'creature-sent-elsewhere',
+    id: id('an-owl'),
+    kind: 'extradimensional',
+    source: 'kept:a/find-familiar',
+    returns: { within: 30, near: A },
+  },
+];
+
 const STRANDED: readonly GameEvent[] = (() => {
   const cast = unwrap(
     resolveSpell(fold('s', SETUP), A, { spellId: 'disguise-self', targets: [] }, supply()),
@@ -2136,6 +2204,33 @@ const GUARDED: readonly Guarded[] = [
     name: 'takePrintedPull',
     log: PULLING,
     run: (s, commandId) => takePrintedPull(s, A, { line: PULLING_LINE.name, commandId }),
+  },
+  /**
+   * The second place. A retry that was not guarded would stand B in the scene
+   * twice — the second time refused by the fold as a return from nowhere —
+   * and the two doors on a kept summons would spend a second Action.
+   */
+  {
+    name: 'returnFromElsewhere',
+    log: AWAY,
+    run: (s, commandId) =>
+      returnFromElsewhere(s, B, { to: { from: { landmark: 'here' }, feet: 5, bearing: 90 }, commandId }),
+  },
+  {
+    name: 'enterElsewhere',
+    log: ROPED,
+    run: (s, commandId) => enterElsewhere(s, B, SRD_CONTENT, { castingId: 'cast:1', commandId }),
+  },
+  {
+    name: 'dismissKeptSummons',
+    log: KEPT,
+    run: (s, commandId) => dismissKeptSummons(s, A, { who: id('an-owl'), commandId }),
+  },
+  {
+    name: 'recallKeptSummons',
+    log: POCKETED,
+    run: (s, commandId) =>
+      recallKeptSummons(s, A, { who: id('an-owl'), to: { from: { creature: A }, feet: 10, bearing: 180 }, commandId }),
   },
   /**
    * And the sixth, which is the most expensive retry of them: a second
@@ -3618,6 +3713,12 @@ const owing = greased;
 
 const SPENDERS: readonly Spender[] = [
   { name: 'takeDash', run: (s) => takeDash(s, B, {}) },
+  // The two doors on a kept summons spend the summoner's Magic action, and
+  // the debt is asked before the bond is looked at — so a caster keeping
+  // nothing is still refused for the debt, which is the guard sitting where
+  // it does.
+  { name: 'dismissKeptSummons', run: (s) => dismissKeptSummons(s, B, { who: A }) },
+  { name: 'recallKeptSummons', run: (s) => recallKeptSummons(s, B, { who: A }) },
   { name: 'takeDisengage', run: (s) => takeDisengage(s, B, {}) },
   { name: 'takeDodge', run: (s) => takeDodge(s, B, {}) },
   // The debt is checked before the target is looked at, so a shake aimed at a

@@ -48,6 +48,7 @@ import { type SpellcastingState } from './spellcasting.js';
 import type { RestBenefit, RestKind } from './rest.js';
 import { type Deadline } from './time.js';
 import { type GrantedHealingRule, type GrantedHitPointMaximum } from './vitals.js';
+import type { ElsewhereDamage, ElsewhereKind, ElsewhereReturn } from './elsewhere.js';
 import {
   type EffectEndCause,
   type EffectTarget,
@@ -2629,6 +2630,45 @@ export type GameEvent =
       readonly command?: CommandStamp;
     }
   | { readonly type: 'creature-unplaced'; readonly id: CharacterId }
+  /**
+   * A creature has left the scene for a named kind of nowhere — SRD Blink's
+   * Ethereal Plane, Find Familiar's pocket dimension, Rope Trick's
+   * extradimensional space, a Giant Frog's gullet. See `Elsewhere`.
+   *
+   * **What is pinned is the way back and the price of staying**, because the
+   * fold opens no catalogue and a return a year later must not depend on this
+   * year's book: `returns` is the rule the space is checked against, `damage`
+   * what the host's turn boundary costs. What is *not* pinned is the space
+   * left and the clock, which the fold reads off the world at this moment —
+   * the only moment they are knowable and the only copy anything needs.
+   *
+   * What the record hangs on the creature — a Swallow's Blinded and
+   * Restrained — arrives as ordinary `condition-applied` events under the same
+   * `source`, and `creature-returned` lifts exactly that source.
+   */
+  | {
+      readonly type: 'creature-sent-elsewhere';
+      readonly id: CharacterId;
+      readonly kind: ElsewhereKind;
+      /** The creature this one is now inside, for the `inside` kind. */
+      readonly host?: CharacterId;
+      readonly source: string;
+      readonly returns: ElsewhereReturn;
+      readonly damage?: ElsewhereDamage;
+      readonly command?: CommandStamp;
+    }
+  /**
+   * A creature that was elsewhere stands in the scene again, at a space the
+   * command settled on — stated by the caller and checked, or the one space
+   * that qualified. The fold clears the record, lifts every condition it
+   * hung, and places the creature; nothing is chosen here.
+   */
+  | {
+      readonly type: 'creature-returned';
+      readonly id: CharacterId;
+      readonly at: Point;
+      readonly command?: CommandStamp;
+    }
   /**
    * Which side of the fight a creature is on.
    *

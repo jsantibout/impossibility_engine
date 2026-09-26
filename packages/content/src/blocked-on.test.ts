@@ -1276,7 +1276,9 @@ describe('reading four families found blockers the bare lists had missed', () =>
     // Find Familiar, written on the kept summons on 2026-09-22. Its three
     // readings survive in the definition's own notes and in the executed map,
     // which is where an executed-partial spell's debts are adjudicated.
-    ['find-familiar', 'unmodelled', 'you can temporarily dismiss the familiar to a pocket dimension'],
+    // The pocket dimension is built — `dismissKeptSummons` and
+    // `recallKeptSummons` on the bond's pinned `pocket` — so its row is gone
+    // rather than kept.
     ['find-familiar', 'unmodelled', 'your familiar can deliver the touch'],
     ['find-familiar', 'unmodelled', 'seeing through the familiar’s eyes'],
   ];
@@ -2609,10 +2611,12 @@ describe('a consumer count is a query', () => {
     // leader lost a consumer without anything being built for it, and
     // `a-casting-ended-by-a-trigger` drew level: a ranking is a measurement of
     // the populations rather than a statement about what is hard.
-    expect(leaders).toEqual([
-      'a-casting-ended-by-a-trigger',
-      'a-random-outcome-that-is-not-a-d20',
-    ]);
+    // **And the tie is broken from the other side.** Blink was executed on
+    // the second place, and its d6 went with it: the boundary throws the die
+    // the `elsewhere` effect prints, so `a-random-outcome-that-is-not-a-d20`
+    // lost a consumer to a build rather than to a reading, and the trigger
+    // shape leads alone.
+    expect(leaders).toEqual(['a-casting-ended-by-a-trigger']);
     expect(Object.keys(SPLIT_BUNDLES)).toContain('an-action-a-spell-compels-or-forbids');
     // And the split is visible from here rather than only in the record: the
     // bundle stands below the leader, and the largest piece to come out of it
@@ -2642,7 +2646,13 @@ describe('a consumer count is a query', () => {
       // effects run — and Command and Thaumaturgy left the undefined and
       // tracked maps through it, which took the shape out of this band rather
       // than moving it down inside one.
-      'a-second-place-to-put-a-creature',
+      //
+      // **`a-second-place-to-put-a-creature` stood here too, and left by a
+      // build.** Blink and Find Familiar's pocket were executed on the
+      // `elsewhere` effect, so the shape fell out of this band; and the die
+      // Blink threw went with it, which is what brought
+      // `a-random-outcome-that-is-not-a-d20` down from the top to here.
+      'a-random-outcome-that-is-not-a-d20',
       'a-stat-block-created-mid-fight',
       'an-effect-that-suppresses-other-magic',
     ]);
@@ -2966,24 +2976,18 @@ describe('a shape that gets built is content work, not a merge', () => {
         note.includes('a second place to put a creature'),
       ),
     ).toBe(true);
-    // And Blink kept the two halves this build did not reach until it was
-    // written. Both are in the definition's own notes, and **all three of its
-    // sentences are in the tracked map now**: the d6 was there because it
-    // trips a marker, and the other two were dropped on the way out of
-    // `BLOCKED_ON` because no marker could see them — which is the loss the
-    // marker-less entry form was added to stop, arriving a batch late on the
-    // spell this very row is about.
+    // And Blink is **executed** now: the d6 at the end of the caster's turn
+    // and the Ethereal Plane it sends them to are the `elsewhere` effect, so
+    // the two claims this shape and `a-random-outcome-that-is-not-a-d20` held
+    // on it are spent. What is left is the one sentence that was always the
+    // table's, in the executed map where an executed spell's debts live.
     expect(BLOCKED_ON['blink']).toBeUndefined();
-    expect(TRACKED_ADJUDICATED['blink']?.map((entry) => entry.why)).toEqual([
-      'a-random-outcome-that-is-not-a-d20',
-      'a-second-place-to-put-a-creature',
-      'table',
-    ]);
+    expect(TRACKED_ADJUDICATED['blink']).toBeUndefined();
+    expect(ADJUDICATED['blink']).toBeUndefined();
     expect(
-      (SRD_CONTENT.spell('blink')?.unmodelled ?? []).some((note) =>
-        note.includes('a second place to put a creature'),
-      ),
+      (SRD_CONTENT.spell('blink')?.unmodelled ?? []).some((note) => note.includes('shades of gray')),
     ).toBe(true);
+    expect(SRD_CONTENT.spell('blink')?.effects.map((effect) => effect.kind)).toEqual(['elsewhere']);
   });
 
   // And the two spells IE-014 defined leave the map entirely, with their debt

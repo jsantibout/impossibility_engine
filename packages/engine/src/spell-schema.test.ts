@@ -2125,6 +2125,8 @@ const FORMAT_EXEMPTIONS: Readonly<Record<string, string>> = {
     'The damage type a payout deals, which `checkSpellDefinition` requires when the payout is damage and refuses on any other kind — and both payouts the catalogue writes hand over hit points rather than taking them, so nothing writes it. The kind `payout: \'damage\'` beside it is unwritten too and is **not** reported here, because `PayoutKind` is a named vocabulary this reader does not expand the way it expands `TurnMoment`; that is a gap in the instrument and is recorded rather than exempted. The reader is live: the resolver copies the type into the event, and the day a spell deals damage at a boundary this fails.',
   'ForcedMovement.targetNoLargerThan?':
     'The size ceiling a shove prints, which no SRD *spell* prints: Thunderwave and Gust of Wind push whatever they catch, and the sentence that gates a push on a size is printed on a feature instead — SRD Repelling Blast\'s "when you hit a Large or smaller creature". So the writer is a `casting-rider` standing grant rather than a definition, and the field lives here because the rider it rides on is this one and a second copy of a push would be two vocabularies for one shove. The reader is live and driven: `shoveAwayFrom` asks `effectiveSizeOf`, leaves a creature too big standing and says so on the casting\'s `unverified`, and `eldritch-invocations.test.ts` drives both branches. The day a definition prints the clause, this fails rather than going on excusing a member that now has a writer.',
+  "SpellEffect[elsewhere].at='start-of-turn'":
+    'The moment a sending is read at, and SRD Blink prints the other one: "Roll 1d6 **at the end** of each of your turns." The reader is live — `settleElsewhereAtBoundary` compares the effect\'s `at` against the moment it is called with, at both moments — and a definition that vanished a creature at the start of its turn would be read exactly as Blink is. No SRD spell prints that sentence; the day one does, this fails rather than going on excusing a member that now has a writer.',
   "SpellArea[cone].origin='point'":
     'Four cones are defined — Burning Hands, Color Spray, Cone of Cold and Fear — and SRD prints "Self (15-foot Cone)" or its like on every one, so every cone this catalogue writes is anchored on the caster. The arm offers a point because the geometry does not care which it is: `resolveArea` reads `origin === \'self\'` once for every area kind, and the cube arm beside it writes both values, so the branch is live and driven. What is absent is a spell or an item that forms a cone somewhere other than where its caster is standing, and the day one is written this fails rather than going on excusing a member that now has a writer.',
 };
@@ -2482,12 +2484,22 @@ describe('every member of the definition format has a user or a written exemptio
       // and not a decision about the format: the probe reads a field name and
       // a value, and two types that spell one word alike collide by
       // construction.
-      "AreaTrigger.at='end-of-turn' + SpellRepeatSave.at='end-of-turn'",
-      "AreaTrigger.at='start-of-turn' + SpellRepeatSave.at='start-of-turn'",
       // One field over: a repeat save's `onSuccess` against a check's.
       // Different sentences that share two words, and both are written.
       "SpellCheck.onSuccess='end-on-target' + SpellRepeatSave.onSuccess='end-on-target'",
       'SpellDefinition.check? + ConditionRider.check?',
+      // **Three names now, and the third is the `elsewhere` arm's**: a
+      // definition's *nested* `returns.at` and the arm's own `at` are probed
+      // on the enclosing union under the bare field name, so Blink's two
+      // moments — vanishing at the end of a turn, returning at the start of
+      // the next — write both spellings and mask nothing here. The two rows
+      // after them are the same reading: the nested `returns.at?` and
+      // `returns.requiresSight?` share their probe with `AreaTrigger.at?` and
+      // the definition's own `requiresSight?`, both written by Blink.
+      "SpellEffect.at='end-of-turn' + AreaTrigger.at='end-of-turn' + SpellRepeatSave.at='end-of-turn'",
+      "SpellEffect.at='start-of-turn' + AreaTrigger.at='start-of-turn' + SpellRepeatSave.at='start-of-turn'",
+      'SpellEffect.at? + AreaTrigger.at?',
+      'SpellEffect.requiresSight? + SpellDefinition.requiresSight?',
       // **The second row that masks, and it is named because it does.** The
       // span a *deepening* may carry — `SpellRepeatSave.onFailure.lasts`,
       // nested and therefore probed under the bare word — collides with the
@@ -4272,6 +4284,23 @@ describe('every branch judges untyped input rather than throwing on it', () => {
       // `requiresSight` is a clause the book either prints or does not, which
       // the pairing rule below asserts by name rather than sweeping as junk.
       fields: { feet: required(NUMBER_JUNK) },
+    },
+    {
+      kind: 'elsewhere',
+      base: {
+        kind: 'elsewhere',
+        where: 'ethereal',
+        at: 'end-of-turn',
+        chance: { die: '1d6', onOrAbove: 4 },
+        returns: { within: 10, requiresSight: true, at: 'start-of-turn' },
+      },
+      // Where, and the way back; the moment and the die are pairing rules —
+      // a die only beside a moment, a way in never at a moment — asserted by
+      // name below rather than swept as junk. The base carries a duration
+      // because a creature sent elsewhere by an Instantaneous casting has no
+      // ending to bring it back: see `grantCarried`.
+      host: { durationSeconds: 60 },
+      fields: { where: required(STRING_JUNK), returns: required(OBJECT_JUNK) },
     },
     {
       kind: 'summon',

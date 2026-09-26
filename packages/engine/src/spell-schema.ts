@@ -3650,6 +3650,93 @@ function checkEffect(
     }
 
     /**
+     * A creature sent to a named kind of nowhere, and the rule it comes back
+     * by. Three shapes under one kind, and what is checked is that the fields
+     * agree about which one this is: a die only beside a moment, a moment
+     * only on a casting the boundary can read, and a way back on every one.
+     */
+    case 'elsewhere': {
+      if (effect.where !== 'ethereal' && effect.where !== 'extradimensional') {
+        found.push({
+          field: `${path}.where`,
+          code: 'unknown_elsewhere',
+          reason: `"${String(effect.where)}" is not a place a casting sends a creature; the two are ethereal and extradimensional`,
+        });
+      }
+      const at = (effect as { readonly at?: unknown }).at;
+      if (at !== undefined && !TURN_MOMENT_NAMES.has(at as string)) {
+        found.push({
+          field: `${path}.at`,
+          code: 'bad_elsewhere_moment',
+          reason: `"${String(at)}" is not the start or the end of a turn, and the two are a round apart`,
+        });
+      }
+      const chance = (effect as { readonly chance?: unknown }).chance;
+      if (chance !== undefined) {
+        if (at === undefined) {
+          found.push({
+            field: `${path}.chance`,
+            code: 'elsewhere_die_without_a_moment',
+            reason:
+              'a die thrown about whether the creature vanishes is thrown at a turn boundary, and a die thrown at the cast about whether the cast worked is `chance`',
+          });
+        }
+        const die = (chance as { readonly die?: unknown }).die;
+        const face = (chance as { readonly onOrAbove?: unknown }).onOrAbove;
+        if (typeof die !== 'string' || !parseNotation(die).ok) {
+          found.push({ field: `${path}.chance.die`, code: 'bad_dice', reason: `"${String(die)}" is not dice notation` });
+        }
+        if (!Number.isInteger(face) || (face as number) < 1) {
+          found.push({
+            field: `${path}.chance.onOrAbove`,
+            code: 'bad_elsewhere_face',
+            reason: `"${String(face)}" is not a face the die can show; the lowest face that sends the creature is a whole number from 1`,
+          });
+        }
+      }
+      const entry = (effect as { readonly entry?: unknown }).entry;
+      if (entry !== undefined) {
+        const gate = entry as { readonly within?: unknown; readonly holds?: unknown; readonly maxSize?: unknown };
+        if (at !== undefined) {
+          found.push({
+            field: `${path}.entry`,
+            code: 'elsewhere_entry_at_a_moment',
+            reason: 'a place creatures climb into is entered by their own command, not at a turn boundary',
+          });
+        }
+        if (!Number.isInteger(gate.within) || (gate.within as number) < 0) {
+          found.push({ field: `${path}.entry.within`, code: 'bad_elsewhere_distance', reason: 'the reach of the way in is a whole number of feet' });
+        }
+        if (!Number.isInteger(gate.holds) || (gate.holds as number) < 1) {
+          found.push({ field: `${path}.entry.holds`, code: 'bad_elsewhere_count', reason: 'a place holds a whole number of creatures, at least one' });
+        }
+        if (!CREATURE_SIZES.includes(gate.maxSize as (typeof CREATURE_SIZES)[number])) {
+          found.push({ field: `${path}.entry.maxSize`, code: 'unknown_size', reason: `"${String(gate.maxSize)}" is not one of the six sizes` });
+        }
+      }
+      const returns = (effect as { readonly returns?: unknown }).returns;
+      if (typeof returns !== 'object' || returns === null) {
+        found.push({
+          field: `${path}.returns`,
+          code: 'elsewhere_without_a_way_back',
+          reason: 'a creature sent elsewhere comes back by a rule the definition states: how far from the space it left, and whether it must see the space',
+        });
+        return;
+      }
+      const back = returns as { readonly within?: unknown; readonly requiresSight?: unknown; readonly at?: unknown };
+      if (!Number.isInteger(back.within) || (back.within as number) < 0) {
+        found.push({ field: `${path}.returns.within`, code: 'bad_elsewhere_distance', reason: 'the way back is a whole number of feet from the space left; 0 is that space itself' });
+      }
+      if (back.requiresSight !== undefined && back.requiresSight !== true) {
+        found.push({ field: `${path}.returns.requiresSight`, code: 'malformed_field', reason: 'a spell either prints "a space you can see" or does not; the only value is true' });
+      }
+      if (back.at !== undefined && !TURN_MOMENT_NAMES.has(back.at as string)) {
+        found.push({ field: `${path}.returns.at`, code: 'bad_elsewhere_moment', reason: `"${String(back.at)}" is not the start or the end of a turn, and the two are a round apart` });
+      }
+      return;
+    }
+
+    /**
      * A stat block by its id, and the two numbers a spell may print over it.
      *
      * The id is checked for *shape* here and for *existence* nowhere: this
@@ -4803,6 +4890,12 @@ function grantCarried(effect: SpellEffect): string | null {
     // every spell ever cast at it.
     case 'creature-type-override':
       return 'a creature type put over the target’s own';
+    // A creature elsewhere is brought back by the casting's ending where
+    // nothing else does it — SRD Blink's "when the spell ends", SRD Rope
+    // Trick's "drops out when the spell ends" — so an Instantaneous casting
+    // would send somebody nowhere with no moment that ever brings them back.
+    case 'elsewhere':
+      return 'a creature this casting sent elsewhere';
     default: {
       // **The rider whose undoing is part of the sentence that imposed it.**
       // SRD Levitate: "remains suspended there for the duration ... When the
@@ -6647,6 +6740,7 @@ function checkShape(value: unknown): readonly SpellDefinitionProblem[] {
       checkAltitudePlacement(entry.kind, where, at, found);
       checkObjectPlacement(effect as object, entry.kind, where, at, found);
       checkSummonPlacement(entry.kind, where, at, found);
+      checkElsewherePlacement(entry.kind, where, at, found);
       checkPreservesPlacement(entry.kind, where, at, found);
       checkChancePlacement(entry.kind, where, at, found);
       checkBranchPlacement(entry.kind, where, at, found);
@@ -7629,6 +7723,20 @@ function checkKeptSummons(kept: unknown, path: string, found: SpellDefinitionPro
       reason: 'a spell either prints "or if you die" or does not; the only value is true',
     });
   }
+  // SRD Find Familiar's pocket dimension: one number, how far from the
+  // summoner the creature reappears.
+  const pocket = (kept as { readonly pocket?: unknown }).pocket;
+  if (pocket !== undefined) {
+    const within = (pocket as { readonly within?: unknown } | null)?.within;
+    if (typeof pocket !== 'object' || pocket === null || !Number.isInteger(within) || (within as number) < 5) {
+      found.push({
+        field: `${path}.pocket.within`,
+        code: 'bad_elsewhere_distance',
+        reason:
+          'a pocket dimension is written as { within: feet }: how far from the summoner the creature may reappear, at least one space',
+      });
+    }
+  }
 }
 
 const PRINTED_SPEED_MODES: ReadonlySet<string> = new Set(['walk', 'fly', 'climb', 'swim', 'burrow']);
@@ -7976,6 +8084,31 @@ function checkPreservesPlacement(
   });
 }
 
+/**
+ * Where an `elsewhere` may be written, which is the casting's own list.
+ *
+ * The boundary that throws Blink's die and the door Rope Trick's climbers
+ * come through both read the effect **off the casting's definition**, by the
+ * casting id the ongoing record carries; an area trigger or an activation
+ * has no record of its own for either to find. And a sending that resolved
+ * inside an activation would have to be brought back by a casting that may
+ * already have ended.
+ */
+function checkElsewherePlacement(
+  kind: unknown,
+  where: string,
+  path: string,
+  found: SpellDefinitionProblem[],
+): void {
+  if (kind !== 'elsewhere' || where === 'effects') return;
+  found.push({
+    field: `${path}.kind`,
+    code: 'elsewhere_outside_the_casting',
+    reason:
+      'a creature sent elsewhere is sent and brought back by the casting, which only the casting’s own effect list is read for',
+  });
+}
+
 function checkSummonPlacement(
   kind: unknown,
   where: string,
@@ -8274,6 +8407,7 @@ export const EFFECT_KINDS: ReadonlySet<string> = new Set([
   'weapon-attack',
   'teleport',
   'summon',
+  'elsewhere',
   'turn-payout',
   'action-rule',
   'healing-rule',

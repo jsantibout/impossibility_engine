@@ -217,6 +217,22 @@ export type {
 export { relocateCreature } from './commands/teleport.js';
 export type { RelocateCommand, RelocateOutcome } from './commands/teleport.js';
 export {
+  dismissKeptSummons,
+  enterElsewhere,
+  recallKeptSummons,
+  returnFromElsewhere,
+} from './commands/elsewhere.js';
+export type {
+  EnterCommand,
+  EnterOutcome,
+  KeptSummonsCommand,
+  KeptSummonsOutcome,
+  RecallCommand,
+  ReturnCommand,
+  ReturnOutcome,
+  StatedReturn,
+} from './commands/elsewhere.js';
+export {
   declineDamageReaction,
   declineTestReaction,
   reactionOpportunities,

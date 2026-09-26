@@ -32,6 +32,7 @@ import { CorruptLogError } from './fold/common.js';
 
 import { CASTING_EVENTS } from './fold/casting.js';
 import { COMBAT_EVENTS } from './fold/combat.js';
+import { ELSEWHERE_EVENTS } from './fold/elsewhere.js';
 import { FEATURES_EVENTS } from './fold/features.js';
 import { GRANTS_EVENTS } from './fold/grants.js';
 import { HOLDS_EVENTS } from './fold/holds.js';
@@ -50,6 +51,7 @@ const SRC = fileURLToPath(new URL('./', import.meta.url));
 const CLAIMS: ReadonlyMap<string, readonly string[]> = new Map<string, readonly string[]>([
   ['fold/casting.ts', CASTING_EVENTS],
   ['fold/combat.ts', COMBAT_EVENTS],
+  ['fold/elsewhere.ts', ELSEWHERE_EVENTS],
   ['fold/features.ts', FEATURES_EVENTS],
   ['fold/grants.ts', GRANTS_EVENTS],
   ['fold/holds.ts', HOLDS_EVENTS],

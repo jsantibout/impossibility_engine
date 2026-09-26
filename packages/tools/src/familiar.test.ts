@@ -161,8 +161,10 @@ describe('Find Familiar through the door', () => {
     // Nothing is owed: the familiar is kept, not held by a casting that ended.
     expect(t.look().owed.strandedSummons).toEqual([]);
     // And what the engine could not check reaches the caller marked as such:
-    // the senses, the touch, the pocket dimension.
-    expect(settled.unverified.some((line) => line.includes('pocket dimension'))).toBe(true);
+    // the senses and the touch. The pocket dimension is not among them any
+    // more — `dismiss_familiar` and `recall_familiar` are its two doors.
+    expect(settled.unverified.some((line) => line.includes('familiar’s eyes'))).toBe(true);
+    expect(settled.unverified.some((line) => line.includes('pocket dimension'))).toBe(false);
   });
 
   it('refuses to choose the form or the type on the caster’s behalf', () => {

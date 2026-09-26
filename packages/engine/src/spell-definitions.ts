@@ -3534,6 +3534,75 @@ export type SpellEffect =
    * spell prints: how far, and whether the space has to be one the caster can
    * see.
    */
+  /**
+   * The target leaves the scene for a named kind of nowhere, and comes back to
+   * a space checked against the rule written here.
+   *
+   * SRD Blink: "Roll 1d6 at the end of each of your turns. On a roll of 4–6,
+   * you vanish from your current plane of existence and appear in the Ethereal
+   * Plane … At the start of your next turn and when the spell ends if you are
+   * on the Ethereal Plane, you return to an unoccupied space of your choice
+   * that you can see within 10 feet of the space you vanished from." SRD Rope
+   * Trick: "Up to eight Medium or smaller creatures can climb into the
+   * extradimensional space … Anything inside the space drops out when the
+   * spell ends."
+   *
+   * **Three sentences, one kind, and the fields say which is which.** With
+   * neither `at` nor `entry`, the target is sent the moment the effect
+   * resolves. With `at`, nothing happens at the cast: the **boundary** reads
+   * the casting at that moment of the target's turn, throws `chance`'s die
+   * where one is printed, and sends the target on the printed faces — which is
+   * Blink, and why the die is here rather than a `chance` effect: that kind
+   * throws a d100 once for the casting, and this is a d6 thrown at every turn
+   * boundary whose two halves put the caster in two places. With `entry`, the
+   * casting opens a place creatures enter **by their own command**
+   * (`enterElsewhere`), within reach of the casting's origin, up to a count and
+   * a size — which is Rope Trick.
+   *
+   * **The way back is pinned into the record when the creature leaves**, so
+   * the return opens no book: `returns` is copied onto `creature-sent-elsewhere`
+   * and read from there. A casting that ends while somebody is away leaves them
+   * stranded, which `resolveTurn` refuses and `returnFromElsewhere` settles —
+   * the same debt a summons whose casting has ended is.
+   *
+   * Refused on an Instantaneous casting, because the ending is the casting's:
+   * see `grantCarried`.
+   */
+  | {
+      readonly kind: 'elsewhere';
+      readonly where: 'ethereal' | 'extradimensional';
+      /**
+       * The moment of the **target's** turn the boundary reads this at, where
+       * the sentence names one. Absent, the sending is the resolution's.
+       */
+      readonly at?: TurnMoment;
+      /**
+       * The die the boundary throws, and the faces that send the target.
+       *
+       * SRD Blink's "Roll 1d6 … On a roll of 4–6": the notation the book
+       * prints and the lowest face that vanishes. Only beside `at`, because a
+       * die thrown at the cast about whether the cast worked is `chance`.
+       */
+      readonly chance?: { readonly die: string; readonly onOrAbove: number };
+      /**
+       * A place creatures enter by their own command, rather than a sending.
+       *
+       * SRD Rope Trick: within `within` feet of the casting's origin (the
+       * rope), up to `holds` of them, each no larger than `maxSize`.
+       */
+      readonly entry?: {
+        readonly within: number;
+        readonly holds: number;
+        readonly maxSize: CreatureSize;
+      };
+      /** The rule the way back is checked against — see `ElsewhereReturn`. */
+      readonly returns: {
+        readonly within: number;
+        readonly requiresSight?: true;
+        /** The moment of the target's turn the boundary performs the return at. */
+        readonly at?: TurnMoment;
+      };
+    }
   | {
       readonly kind: 'teleport';
       /**
@@ -3739,6 +3808,19 @@ export type SummonedForm =
 export interface KeptSummons {
   /** SRD Find Steed: "or if you die". */
   readonly untilSummonerDies?: true;
+  /**
+   * SRD Find Familiar: "As a Magic action, you can temporarily dismiss the
+   * familiar to a pocket dimension. … As a Magic action while it is
+   * temporarily dismissed, you can cause it to reappear in an unoccupied space
+   * within 30 feet of you."
+   *
+   * Two doors on the bond — `dismissKeptSummons` and `recallKeptSummons` in
+   * `commands/elsewhere.ts` — and this is the one number they read: how far
+   * from the summoner the creature may reappear. Pinned onto the bond at the
+   * arrival, so the recall opens no book. Absent for a kept creature the spell
+   * offers no pocket to, which is SRD Find Steed's steed.
+   */
+  readonly pocket?: { readonly within: number };
 }
 
 /**
@@ -7010,6 +7092,10 @@ export function numbersRead(definition: SpellDefinition): NumbersRead {
       // number about them decides whether it happens.
       case 'change-altitude':
       case 'summon':
+      // A creature sent elsewhere reads nothing of the caster either: the die
+      // Blink throws is the book's, with no modifier, and where the creature
+      // comes back to is a space somebody names.
+      case 'elsewhere':
         break;
       default: {
         const unhandled: never = effect;
