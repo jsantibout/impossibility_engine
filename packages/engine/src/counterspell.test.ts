@@ -917,8 +917,12 @@ describe('the trigger clause, checked against what the SRD actually says', () =>
    * SRD Counterspell triggers on "casting a spell with Verbal, Somatic, or
    * Material components". Every spell in SRD 5.2.1 has at least one of the
    * three, so the qualifier excludes nothing the engine can be asked about —
-   * which is why the definition reports it in `unmodelled` instead of
-   * modelling a field whose only reachable value is "yes".
+   * which is why no field models it whose only reachable value is "yes".
+   *
+   * **Safe for spells, and not for stat blocks** (W8-S26): seventeen SRD
+   * blocks cast "requiring no spell components", and a casting of theirs
+   * opens the window all the same. So the clause is a debt the definition
+   * reports in `unmodelled`, and this test holds both halves.
    */
   it('is safe to leave the components clause unchecked, and says so', () => {
     const spells = JSON.parse(

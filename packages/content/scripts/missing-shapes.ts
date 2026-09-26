@@ -612,8 +612,30 @@ export interface Adjudication {
    * spells have left it since: Haste's narrowing was paid by the same
    * spender, and Gaseous Form's talking was handed over on the owner's ruling
    * of 2026-09-26.
+   *
+   * ### `'expressible'`, which W8-S26 brought over from the other two maps
+   *
+   * {@link TrackedAdjudication.why} and {@link BlockedClause} have carried it
+   * since gate G1: the existing kinds already say the clause and nobody wrote
+   * the definition. Reading every clause of every executed spell in reach found
+   * five of that kind — a light a creature carries, a Cylinder's Dim Light, a
+   * cloud's obscurement, a ward that may go on an object — and without the value the only honest filing was no
+   * entry at all, which the ledger cannot tell from a paragraph nobody opened.
+   * It names no shape, so it keeps no id alive; `LEDGER.md` counts it under
+   * *waits on a definition*, which is the column for exactly this.
+   *
+   * ### `'table'` anchored to a handed-over sentence
+   *
+   * A `'table'` entry over a clause still in `unmodelled` is a handover filed
+   * in the list of debts, and W8-S26 moved every such clause in reach to
+   * `dmDecides`. What stays is the other use the tracked map already makes of
+   * the value: where the handed-over sentence trips a mechanical marker — SRD
+   * Barkskin's "Armor Class of 17" beside the bark-like appearance — a
+   * `'table'` entry anchored to a phrase of **that sentence** is the recorded
+   * reading that lets it past `dm-handover.test.ts`'s marker rule, exactly as
+   * `docs/design/content.md` describes for the tracked map.
    */
-  readonly why: 'table' | BlockerId;
+  readonly why: 'table' | 'expressible' | BlockerId;
   readonly note: string;
 }
 
@@ -626,14 +648,14 @@ export interface Adjudication {
 export const ADJUDICATED: Readonly<Record<string, readonly Adjudication[]>> = {
   'animate-dead': [
     {
-      clause: 'checks nothing about the bones',
-      why: 'table',
-      note: 'The corpse is a creature the engine holds and the target rule names — dead, Humanoid, Small or Medium — and a pile of bones is not: it is an object the scene holds no state for, so where one lies is the table’s fiction and the caster states the point. What the engine does own is measured: the Skeleton stands where the caster pointed, the ruler reads the distance from the caster, and a pile beyond the ten feet is refused before anything is spent.',
+      clause: 'whether any bones lie there',
+      why: 'a-fact-only-the-table-can-declare',
+      note: 'W8-S26 re-read this as a debt. The corpse is a creature the engine holds and the target rule names; a pile of bones is not, so the Skeleton is raised at whatever point the caster states. That there are bones at that point is a fact only the table holds, and it is read — the spell refuses to raise anything where there are none — so it is a fact the table must be able to state and no request yet can. A declared object would be the natural place to put it.',
     },
     {
-      clause: 'nothing spends the Bonus Action or measures the sixty feet',
-      why: 'table',
-      note: 'Commanding a creature the caster controls is taking its turn, which a bonded creature’s summoner already does through the same doors as for any creature on their side — so the command itself is not a mechanism the engine lacks. The Bonus Action the order costs and the sixty feet it reaches are a price and a gate on an act the engine does not represent (an order given), and the book’s sentences about them go to the table whole under `dmDecides`.',
+      clause: 'the Bonus Action that commands the undead',
+      why: 'an-action-a-spell-compels-or-forbids',
+      note: 'W8-S26 re-read this as a debt. The command sentences are in `dmDecides` and stay there — which action a Zombie takes is the table’s — but the price of giving the order is not: the Bonus Action the caster spends and the sixty feet it reaches are the action economy and the ruler, and nothing charges either. It is the Magic-action-for-an-errand shape this id describes for Wind Walk: an action a spell hands over for something no spender is told apart by. A line that is both, which `docs/design/content.md` says to say.',
     },
   ],
   'arcane-sword': [
@@ -641,6 +663,13 @@ export const ADJUDICATED: Readonly<Record<string, readonly Adjudication[]>> = {
       clause: 'to a spot you can see',
       why: 'table',
       note: 'SRD: "move the sword up to 30 feet to a spot you can see". Sight here is a declared fact from one creature to another — `sight-declared` names a `from` and a `to`, both creatures — and a destination is a coordinate. There is no pairwise declaration for the relocation to read and nothing it could read instead, so this is the line declared cover and declared sight already draw: the DM says what the caster can see, and the engine measures the thirty feet.',
+    },
+  ],
+  'arcanists-magic-aura': [
+    {
+      clause: 'thirty consecutive daily castings',
+      why: 'a-duration-the-slot-changes',
+      note: 'SRD: "If you cast the spell on the same target every day for 30 days, the illusion lasts until dispelled." The Mask it would keep is a creature type `mustBeType` reads on every casting, so the permanence is read; what is missing is a duration that something other than the casting itself changes. The closest id: it names a duration a casting’s circumstances lengthen, built for the slot, and a count of earlier castings is the circumstance here. W8-S26.',
     },
   ],
   banishment: [
@@ -653,6 +682,13 @@ export const ADJUDICATED: Readonly<Record<string, readonly Adjudication[]>> = {
       clause: 'not returning if the spell runs',
       why: 'a-second-place-to-put-a-creature',
       note: 'SRD: "If the target is an Aberration, a Celestial, an Elemental, a Fey, or a Fiend, the target doesn’t return if the spell lasts for 1 minute. The target is instead transported to a random location on a plane (GM’s choice) associated with its creature type." The creature type is no longer the blocker — an effect reads one now — and neither half of what is left is about it: nobody was transported to a demiplane, so there is nothing to fail to return from, and the plane it would go to instead is a second place the engine has nowhere to put anybody.',
+    },
+  ],
+  barkskin: [
+    {
+      clause: 'Armor Class of 17',
+      why: 'table',
+      note: 'The reading that lets the handed-over sentence past the marker rule (W8-S26). SRD: "Until the spell ends, the target’s skin assumes a bark-like appearance, and the target has an Armor Class of 17 if its AC is lower than that." The marker fires on the floor, which the `armor-class` effect executes whatever the table reads; the rest of the sentence is what the skin looks like, which nothing reads. It is anchored here rather than to a line of `unmodelled`, because the clause is not a debt.',
     },
   ],
   befuddlement: [
@@ -733,14 +769,14 @@ export const ADJUDICATED: Readonly<Record<string, readonly Adjudication[]>> = {
   // thrown. What is left is the sight the clauses are gated on and the word "can".
   'conjure-animals': [
     {
-      clause: 'the caster\u2019s sight of whoever the pack reaches is not read at the boundary',
-      why: 'table',
-      note: 'SRD gates all three of the pack\u2019s clauses on "a creature you can see", and an area trigger catches whoever the geometry catches: the debt is raised in the fold, which holds no pairwise sight declaration for a creature the caster has never looked at, and a boundary that asked would be asking a question only the table can answer at a moment no command is running. The ten feet, the once-per-turn cap and the 3d10 are all executed; whether the druid saw is the DM\u2019s, who may decline the save.',
+      clause: 'the caster’s sight of whoever the pack reaches is not read at the boundary',
+      why: 'an-area-that-filters-its-catch',
+      note: 'W8-S26 re-read this as a debt. SRD gates all three of the pack’s clauses on "a creature you can see", and sight is a declared fact the engine reads — `canSee` answers it everywhere else. An area trigger catches whoever the geometry catches, and a boundary raised in the fold cannot ask a question nobody has declared an answer to; that is an area that catches only some of the creatures in it, which is what this id describes for Hypnotic Pattern’s sight of the pattern.',
     },
     {
-      clause: '"you **can** force that creature to make a Dexterity saving throw" is read as a save the pack forces',
-      why: 'table',
-      note: 'The word is a permission and the engine has no vocabulary for a trigger its caster may decline \u2014 every `AreaTrigger` in the book fires when its moment arrives. So the save is rolled, which is the reading that never quietly loses a rule, and a pack that chose not to bite is the table\u2019s to narrate over a die that was thrown.',
+      clause: 'is read as a save the pack forces',
+      why: 'an-area-that-filters-its-catch',
+      note: 'W8-S26 re-read this as a debt. "you can force that creature to make a Dexterity saving throw" is a permission, and the engine rolls the save and deals the 3d10 whatever the caster wanted — a number applied that the book lets the caster withhold. No trigger has a word for the caster declining it; the closest id is the one for an area that catches fewer than everybody in it, because a declined bite is a creature the pack did not catch.',
     },
   ],
   'conjure-fey': [
@@ -797,35 +833,44 @@ export const ADJUDICATED: Readonly<Record<string, readonly Adjudication[]>> = {
   // does not, so it carries no entry at all.
   'continual-flame': [
     {
-      clause: 'the flame springs from an object, and objects are not modelled',
-      why: 'table',
-      note: 'SRD: "A flame springs from an object that you touch." The light is executed — a `light` effect carried by the creature the casting names as the bearer, laid on a region whose origin is that creature and gone only when the casting is dispelled — and the object itself is the table’s: which thing was touched, and whether it is set down for good, in which case the DM lights the point with `declare_light`. "The flame can be covered or hidden but not smothered or quenched", and covering it is a fact about an object.',
+      clause: 'the flame springs from an object',
+      why: 'light-and-obscurement-the-scene-holds',
+      note: 'W8-S26 re-read this as a debt, and this id’s own description names the spell: "What is left is not about light at all: it is the object." The light is laid on the creature the casting names as the bearer, so a flame set on a table or a sconce is a point the table has to light by hand, and the Bright and Dim Light it sheds are read by every sight question.',
+    },
+  ],
+  'counterspell': [
+    {
+      clause: 'the qualifier is not checked',
+      why: 'a-target-rule-the-format-cannot-state',
+      note: 'W8-S26, on review, reversing a reading that called this safe. Every SRD spell prints a component, and seventeen SRD stat blocks — a Giant Owl, a Couatl, an Imp, a Quasit, a Sprite, a Unicorn among those in reach — cast with no spell components at all; `adaptMonster` compiles those lines into ordinary castings, and a Counterspell is let at one where the book gives no window. The fact is printed and dropped, and the trigger reads it. The closest id: a rule over which casting the reaction may be aimed at, which the format cannot state.',
     },
   ],
   'dancing-lights': [
     {
-      clause: 'You create up to four torch-size lights within range',
-      why: 'table',
-      note: 'SRD: "You create up to four torch-size lights within range, making them appear as torches, lanterns, or glowing orbs that hover for the duration." The engine lays one dim patch for all four at the point the caster names and moves it with the spell’s Bonus Action (`activation.movesArea`) — "As a Bonus Action, you can move the lights up to 60 feet to a space within range." Where the four motes are relative to each other is the table’s, and so is the sentence "A light must be within 20 feet of another light created by this spell, and a light vanishes if it exceeds the spell\'s range."',
+      clause: 'the engine lays one dim patch for all four',
+      why: 'light-and-obscurement-the-scene-holds',
+      note: 'W8-S26 re-read this as a debt, and this id’s own description names the spell: Dancing Lights sheds from a thing — four floating motes — and the engine lays one Dim patch at one point. Where the other three lights are, the twenty feet that must lie between them and the one that goes out past the spell’s range are all light a sight question reads.',
+    },
+  ],
+  darkness: [
+    {
+      clause: 'the 15-foot Emanation originating from it',
+      why: 'light-and-obscurement-the-scene-holds',
+      note: 'W8-S26 read this line for the first time. This id’s own description names it: Darkness prints "an alternative form originating from" an object, "with a bowl that can be put over it", and the engine holds no object for a patch to hang on. Magical Darkness is read by every sight question and by Daylight’s dispel, so where it sits and whether a helm covers it are debts.',
     },
   ],
   daylight: [
     {
-      clause: 'the 60-foot Emanation it carries',
-      why: 'table',
-      note: 'the object half, as Darkness prints it and for its reason: an Emanation originating from a thing state does not hold, and a bowl or a helm over it. The sixty feet of Bright Light, the sixty more of Dim and the dispel against a Darkness of level 3 or lower are all executed.',
+      clause: 'the object the spell may be cast on instead',
+      why: 'light-and-obscurement-the-scene-holds',
+      note: 'W8-S26 re-read this as a debt, and this id’s own description names the spell: Daylight prints an Emanation originating from an object, and a bowl or a helm over it, and the engine holds no object for a patch to hang on. Sunlight is read by every sight question and by Sunlight Sensitivity, so where it shines from is not the table’s alone.',
     },
   ],
   'detect-thoughts': [
     {
-      clause: 'Sense Thoughts is the DM’s',
-      why: 'table',
-      note: 'SRD: "You sense the presence of thoughts within 30 feet of yourself that belong to creatures that know languages or are telepathic." The thirty feet is a distance the engine measures, and everything the sentence measures it *to* is not: which creatures know a language, which are telepathic, and whether a foot of stone, an inch of metal or a thin sheet of lead stands between. What a caster senses is information the DM supplies, and the spell holds nothing for it to be recorded on.',
-    },
-    {
-      clause: 'which of the two options a Magic action turns on is the DM’s too',
-      why: 'table',
-      note: 'SRD: "Until the spell ends, you can activate either effect as a Magic action on your later turns." The probe is the one later action the engine resolves — it forces a save, ends on a success and pins the mind it read — and turning on Sense Thoughts or Read Thoughts buys information rather than state, so a second activation would be an action spent on a handover. `SpellActivation` carries one action for that reason and the DM narrates the other.',
+      clause: 'the Magic action a later Sense Thoughts or Read Thoughts costs',
+      why: 'an-action-a-spell-compels-or-forbids',
+      note: 'W8-S26 split this from the knowledge, which is handed over. SRD: "Until the spell ends, you can activate either effect as a Magic action on your later turns." The probe is the one later step the definition’s activation charges; a later Sense Thoughts or Read Thoughts buys only knowledge, and still costs the Action — which nothing spends. That is this id’s errand member: an action a spell hands over for something no spender is told apart by, as Wind Walk’s Magic action to begin reverting is.',
     },
   ],
   'dimension-door': [
@@ -845,6 +890,13 @@ export const ADJUDICATED: Readonly<Record<string, readonly Adjudication[]>> = {
       clause: 'disintegrated to dust',
       why: 'an-outcome-of-a-spells-own-damage',
       note: 'Not an outcome rider, and the distinction is the whole reason this has a shape of its own: a rider rides the roll its host made, and this fires on a number the engine went on to compute from it — the target reaching 0 Hit Points. The gear turned to dust and the restriction on reviving it ride on the same missing branch.',
+    },
+  ],
+  'dispel-magic': [
+    {
+      clause: 'only a creature can be named',
+      why: 'a-target-rule-the-format-cannot-state',
+      note: 'W8-S26 read this line for the first time. SRD: "Choose one creature, object, or magical effect within range." A Web or a Fog Cloud is a casting in `state.ongoing` that the ending would reach, and the casting has no way to name it: a target is a creature. A target that is not a creature is a target rule the format cannot state — the closest id, whose description is about the facts a rule selects by rather than the kind of thing it selects.',
     },
   ],
   'dominate-beast': [
@@ -883,30 +935,54 @@ export const ADJUDICATED: Readonly<Record<string, readonly Adjudication[]>> = {
       note: 'The commands the link carries are the target’s actions — not the slots they come out of, which a spell may now spend, but which action is taken and at what. That is a decision, and it is made by somebody who is not playing the creature.',
     },
   ],
+  'enhance-ability': [
+    {
+      clause: 'You can choose a different ability for each target',
+      why: 'a-spells-effects-applied-to-different-targets',
+      note: 'W8-S26 read this line for the first time, and it is this id word for word: "A casting that chooses per creature … is the same gap." The casting states one ability and every target gets Advantage on that one, so an upcast that gives the Rogue Dexterity and the Fighter Strength is refused its second choice.',
+    },
+  ],
+  'faerie-fire': [
+    {
+      clause: 'the objects in the Cube are not outlined',
+      why: 'light-and-obscurement-the-scene-holds',
+      note: 'W8-S26 read this line for the first time. The affected creatures’ glow left this id when `OutcomeRiders.light` was built, and what the description says is left is the object. An outlined chest sheds Dim Light that a sight question would read, and the Advantage on attacks against an outlined object is a roll the engine makes against declared objects.',
+    },
+  ],
   'feather-fall': [
     {
-      clause: 'a creature you can see',
-      why: 'table',
-      note: 'the Reaction’s printed trigger names a falling creature its caster can see within 60 feet, and the engine checks both halves it can count: the range against every target, and that each of them is falling. What it does not check is that the caster perceived **this** fall — the same condition Counterspell’s trigger carries, on the same window machinery. A fall is a fact the table declares, and who saw it happen is declared with it.',
+      clause: 'the rate of descent is not slowed',
+      why: 'falling',
+      note: 'W8-S26 read this line for the first time, and this id’s description says it: "the descent rate is a separate absence — nothing measures a descent, so the sixty feet a round has nothing to be measured against". How long a fall takes decides who can act before it lands.',
+    },
+    {
+      clause: 'goes unchecked, as Counterspell',
+      why: 'falling',
+      note: 'W8-S26 re-read this as a debt. The printed casting time is a Reaction taken when the caster or a creature the caster can see falls, and sight is a declared fact `canSee` reads for every other trigger; the window derived from `fall-declared` does not ask it. The closest id — the trigger half of falling is the one this description says is built, and the sight gate on it is not.',
     },
   ],
   'find-familiar': [
     {
-      clause: 'the telepathic connection within 100 feet',
-      why: 'table',
-      note: 'The hundred feet is measurable and what it gates is conversation, which the engine’s resolution path never arrives at.',
+      clause: 'what it leaves behind in its space when it disappears is not left',
+      why: 'what-a-creature-is-holding',
+      note: 'W8-S26 read this line for the first time, after W8-S25 paid the senses. SRD: "Whenever the familiar drops to 0 Hit Points or disappears into the pocket dimension, it leaves behind in its space anything it was wearing or carrying." Items and the floor they fall to are state the engine holds, and nothing puts the familiar’s onto it — Find Steed’s gear, the same sentence. The closest id, whose description is what a creature has in hand and on its body and the verb that takes it out. The telepathy and the independent turns went to `dmDecides`.',
     },
   ],
   'find-steed': [
     {
-      clause: 'the steed’s three Bonus Actions are carried as prose',
-      why: 'table',
-      note: 'The Otherworldly Slam is built: "Bonus equals your spell attack modifier" and "1d8 plus the spell’s level of Radiant (Celestial), Psychic (Fey), or Necrotic (Fiend)" are marks the parser reads (`bonusFromSummoner`, `flatFromSlotLevel`, `typeFromChoice`) and the casting resolves before the block is adapted, so the steed swings at the rider’s bonus for the slot’s flat of the chosen type. What stays prose is on the **stat block’s** books rather than the spell’s: Fell Glare’s DC is read the same way (`dcFromSummoner`) but its span is "until the end of **your** next turn" — the summoner’s turn, which a printed save’s span cannot name — and `UNREAD_SAVE_SEAMS` names that line with its seam; Fey Step and Healing Touch print no template, Life Bond is a trigger on the rider’s healing nothing raises, and each heading’s "(Fiend Only)" and "Recharges after a Long Rest" are read by no heading reader. Every one of those is a line the steed *has* and the table applies from the text the arrival hands over, which is the bestiary population’s debt and is counted there; the spell itself prints nothing more than it does.',
+      clause: 'the controlled-mount rules the steed is ridden under are not applied',
+      why: 'a-creature-somebody-else-is-playing',
+      note: 'W8-S26 read this line for the first time. SRD: "In combat, it shares your Initiative count, and it functions as a controlled mount while you ride it (as defined in the rules on mounted combat)." Mounting is built; what a controlled mount may do with its turn — move as its rider directs and take only the Dash, Disengage or Dodge action — is a turn directed by somebody else and narrowed to what such a turn may contain, which is this id.',
+    },
+    {
+      clause: 'the gear the steed leaves behind when it disappears is not left',
+      why: 'what-a-creature-is-holding',
+      note: 'W8-S26 read this line for the first time. SRD: "When it disappears, it leaves behind anything it was wearing or carrying." Items and the floor they fall to are state the engine holds, and nothing puts the steed’s onto it when the steed goes. The closest id, whose description is what a creature has in hand and on its body and the verb that takes it out.',
     },
     {
       clause: 'acts independently, focusing on protecting you',
       why: 'table',
-      note: 'What a creature in the scene chooses to do on its turn is nobody’s arithmetic. The engine declines to decide it for a summoned steed on exactly the reading it declines to decide it for every monster — `declareSpellcasting` states what an NPC casts and `declareCreatureSide` states whose side it is on, and what either of them does with a turn is the table’s.',
+      note: 'The reading that lets the handed-over sentence past the marker rule (W8-S26). SRD: "If you have the Incapacitated condition, the steed takes its turn immediately after yours and acts independently, focusing on protecting you." The marker fires on the Incapacitated; the turn immediately after its rider’s is the seating the summon already has, and what the steed does with that turn is the question left open for every creature in the scene — the table plays it.',
     },
   ],
   'finger-of-death': [
@@ -916,11 +992,32 @@ export const ADJUDICATED: Readonly<Record<string, readonly Adjudication[]>> = {
       note: 'SRD: "A Humanoid killed by this spell rises at the start of your next turn as a **Zombie**", one "that follows your verbal orders". Nothing creates a creature from a stat block during play, which is the summons seam every Conjure waits on.',
     },
   ],
+  'flame-blade': [
+    {
+      clause: 'the Bright Light in a 10-foot radius',
+      why: 'expressible',
+      note: 'W8-S26 read this line for the first time, and it said light is not modelled, which has been false since P3-S. A `light` effect carried by a creature is what SRD Light is written with, and `checkSpellDefinition` takes one on this definition; nobody wrote it. The ledger counts it under waits on a definition.',
+    },
+  ],
+  'flaming-sphere': [
+    {
+      clause: 'the unoccupied space on the ground the sphere must be conjured in',
+      why: 'a-target-rule-the-format-cannot-state',
+      note: 'W8-S26 split this from the room, which is handed over. SRD: "You create a 5-foot-diameter sphere of fire in an unoccupied space on the ground within range." Occupancy is a rule the engine owns and the lattice holds elevation, so a sphere put down in a goblin’s space or in the air is a casting the book refuses and the engine does not. The closest id: a legality rule over where the casting is put, which the format cannot state.',
+    },
+  ],
+  fly: [
+    {
+      clause: 'the fall when the spell ends on a creature still aloft',
+      why: 'falling',
+      note: 'W8-S26 read this line for the first time. SRD: "When the spell ends, the target falls if it is still aloft unless it can stop the fall." The creature is at an elevation the lattice holds and the landing is `resolveFall`’s, so the fall is read; what is missing is anything raising it when a Fly Speed goes away, because `flightLost` answers no-flight for a creature with none left.',
+    },
+  ],
   'fog-cloud': [
     {
-      clause: '"until a strong wind (such as one created by Gust of Wind) disperses it"',
-      why: 'table',
-      note: 'the wind is fiction here: nothing in the engine makes one, Gust of Wind itself is not executed, and a casting the engine ends is one it can see ending. The fog is on the lattice now, twenty feet of Heavily Obscured and twenty more for every slot level above the first, so this is the one sentence of the paragraph left to a person.',
+      clause: 'whether a wind blows is the table',
+      why: 'a-casting-ended-by-a-trigger',
+      note: 'W8-S26 re-read this as a debt. Whether a strong wind blows is the table’s, and what follows is not: the fog ends, and with it the Heavily Obscured every sight question reads. This id is every cause whose fact no consequence event holds, and the wind is one — the ending itself is a door the engine has.',
     },
   ],
   'freezing-sphere': [
@@ -935,6 +1032,13 @@ export const ADJUDICATED: Readonly<Record<string, readonly Adjudication[]>> = {
       note: 'SRD lets the caster keep the globe in hand to be thrown or slung later, or left to detonate on its own. A hand is a fact now and a casting may put a thing in one, but what sits there is an ordinary catalogue item with no state of its own \u2014 and this globe is a held *casting*, which detonates on a later action, may be thrown, and goes off by itself if it is not. Holding it is the half that is built; the rest of the sentence is not.',
     },
   ],
+  'gaseous-form': [
+    {
+      clause: 'can enter and occupy the space of another creature',
+      why: 'a-creature-fact-an-effect-overrides',
+      note: 'W8-S26 read this line for the first time. Occupancy is a rule the engine owns outright and refuses a move into another creature’s space; the cloud may end its move there and the engine refuses it. The closest id: an effect that changes what other rules believe about one creature, which this description built for the creature type and names for two more facts — occupancy is a third.',
+    },
+  ],
   // **Gaseous Form files nothing now.** Its last entry was "The target can't
   // talk", filed against `an-action-the-engine-has-no-spender-for` on the
   // reading that a sentence the engine three-quarters enforces could not go
@@ -943,9 +1047,38 @@ export const ADJUDICATED: Readonly<Record<string, readonly Adjudication[]>> = {
   // clauses inside it are still `forbids.objects`.
   'glyph-of-warding': [
     {
-      clause: 'Wisdom (Perception) check against your spell save DC to notice',
+      clause: 'refining the trigger so that only creatures of certain types',
+      why: 'a-creature-type-predicate-an-area-reads',
+      note: 'W8-S26 read this line for the first time, and it is this id’s own sentence: an area or a trigger that catches only named creature types. The rune catches whoever stands in the Sphere when the DM fires it.',
+    },
+    {
+      clause: 'to notice the glyph is not offered by the casting',
+      why: 'a-check-another-creature-may-attempt',
+      note: 'W8-S26 re-read this as a debt. SRD: "The glyph is nearly imperceptible and requires a successful Wisdom (Perception) check against your spell save DC to notice." Spike Growth writes the same sentence as a check the casting offers, and `checkSpellDefinition` refuses one here because a check rides on the casting’s timer and a glyph that lasts until dispelled has none — so the DM states a DC the rules fix. **No id names that gap**, a check on a casting with no deadline: this one built the checks a casting offers and its residue is a different attempter, so it is named as the closest rather than a shape being minted by a reading.',
+    },
+    {
+      clause: 'the glyph breaking when the surface or object it is on is moved',
+      why: 'a-casting-ended-by-a-trigger',
+      note: 'W8-S26 read this line for the first time. SRD: "If the surface or object is moved more than 10 feet from where you cast this spell, the glyph is broken, and the spell ends without being triggered." How far a thing moved is the table’s to watch; the ending is read, since an armed rune is one the DM’s door can still fire. A cause whose fact no consequence event holds, which is this id.',
+    },
+  ],
+  goodberry: [
+    {
+      clause: 'enough nourishment to sustain a creature for one day',
       why: 'table',
-      note: 'SRD: "The glyph is nearly imperceptible and requires a successful Wisdom (Perception) check against your spell save DC to notice." A check somebody makes when they search is the table’s to call for — `ability_check` rolls it against the DC the sheet derives — and the casting offers nothing of its own, because nothing in the engine says a creature is looking.',
+      note: 'The reading that lets the handed-over sentence past the marker rule (W8-S26). SRD: "Eating a berry restores 1 Hit Point, and the berry provides enough nourishment to sustain a creature for one day." The marker fires on the Hit Point, which the berry’s own conferral executes whatever the table reads. The nourishment is read by Malnutrition, a glossary hazard nothing in the engine executes — the reading Create Food and Water was handed over whole on.',
+    },
+  ],
+  'gust-of-wind': [
+    {
+      clause: 'the gas and vapor the gust disperses',
+      why: 'a-casting-ended-by-a-trigger',
+      note: 'W8-S26 re-read this as a debt. SRD: "The gust disperses gas or vapor, and it extinguishes candles and similar unprotected flames in the area." A Fog Cloud or a Stinking Cloud in the Line is a casting whose obscurement and whose Poisoned are read afterwards, so dispersing one is ending a casting on a cause no consequence event holds. The candles in the same sentence are light the table declares.',
+    },
+    {
+      clause: '50 percent chance to extinguish them',
+      why: 'light-and-obscurement-the-scene-holds',
+      note: 'W8-S26 re-read this as a debt. The 50 percent is a die the engine should throw and a lantern’s light is read by the sight question; what the die would land on is a light-shedding thing the engine does not hold, which this id’s description names as all that is left of it — the object.',
     },
   ],
   harm: [
@@ -965,8 +1098,20 @@ export const ADJUDICATED: Readonly<Record<string, readonly Adjudication[]>> = {
   'heat-metal': [
     {
       clause: 'an object nobody is wearing or wielding',
+      why: 'what-a-creature-is-holding',
+      note: 'W8-S26 re-read this as a debt. SRD: "Any creature in physical contact with the object takes 2d8 Fire damage when you cast the spell." What the engine keeps is what a creature has equipped, which is the whole of the contact it can read; a creature touching a heated gate is owed dice nobody throws. The closest id, whose description is what a creature has in hand and on its body.',
+    },
+    {
+      clause: 'whether the thing chosen is manufactured, metal',
+      why: 'a-target-rule-the-format-cannot-state',
+      note: 'W8-S26 read this line for the first time. SRD: "Choose a manufactured metal object, such as a metal weapon or a suit of Heavy or Medium metal armor, that you can see within range." Which object a casting may name is a target rule, and the catalogue records no material to hold it to. The closest id: a selection by a fact about the target that the format cannot state.',
+    },
+  ],
+  'hideous-laughter': [
+    {
+      clause: 'it laughs uncontrollably if it\'s capable of laughter',
       why: 'table',
-      note: 'SRD: "Any creature in physical contact with the object takes 2d8 Fire damage when you cast the spell." **What the engine keeps is what a creature has equipped** — armour on a body, a weapon in a hand — and that is the whole of the contact it can see. A metal gate, a chain across a door and a coin in a pouch are all objects nothing here is holding, so who is touching one is the DM’s and always will be. What follows from the contact is the engine’s and is executed: the wearer takes the dice, fails the save, and lets go of the thing if it can.',
+      note: 'The reading that lets the handed-over sentence past the marker rule (W8-S26). SRD: "During that time, it laughs uncontrollably if it’s capable of laughter, and it can’t end the Prone condition on itself." The marker fires on the self-cure, which `forbidsStandingUp` executes whatever the table reads; whether a creature is capable of laughter decides nothing, since the Prone and the Incapacitated land either way.',
     },
   ],
   // **The damage trigger is built and this spell is what built it.**
@@ -982,7 +1127,9 @@ export const ADJUDICATED: Readonly<Record<string, readonly Adjudication[]>> = {
   // `ConditionRider.forbidsStandingUp`, a mark on the condition instance the
   // failure creates, so it lifts when the Laughter does and `standUp` refuses
   // `cannot_stand` while it stands. What is left of the paragraph is the
-  // laughing itself, which is narration.
+  // laughing itself, which is narration — handed over since W8-S26, with the
+  // `hideous-laughter` entry above the reading that lets its sentence past the
+  // marker it trips.
   // **Hypnotic Pattern is off this map entirely**, and both of the clauses it
   // used to carry left by different doors. "Only a creature that can see the
   // pattern" is `mustSeeTheOrigin`: the pattern is at the casting's origin and
@@ -1035,20 +1182,25 @@ export const ADJUDICATED: Readonly<Record<string, readonly Adjudication[]>> = {
   light: [
     {
       clause: 'the spell targets an object, and objects are not modelled',
-      why: 'table',
-      note: 'SRD: "You touch one Large or smaller object that isn\'t being worn or carried by someone else." The light is executed — a `light` effect carried by the creature the casting names as the bearer, bright to 20 feet and dim to 40, moving with them and gone with the hour — and the object is the table’s: which thing was touched, whether somebody else is carrying it, and whether it was set down, in which case the DM lights the point with `declare_light`. "Covering the object with something opaque blocks the light" is a fact about an object too.',
+      why: 'light-and-obscurement-the-scene-holds',
+      note: 'W8-S26 re-read this as a debt, and this id’s own description names the spell among the three that shed from a thing. The light is laid on the creature named as the bearer; a lit stone thrown across a room is a patch the table re-declares by hand, and every sight question reads it.',
+    },
+    {
+      clause: 'covering the object with something opaque',
+      why: 'light-and-obscurement-the-scene-holds',
+      note: 'W8-S26 re-read this as a debt. SRD: "Covering the object with something opaque blocks the light." A covered light is no light, and every sight question reads the patch that is left on. The object and what is over it are this id’s residue.',
     },
   ],
   'magic-circle': [
     {
-      clause: 'possession is not a state the engine holds',
+      clause: 'can\'t be possessed by or gain the Charmed or Frightened condition',
       why: 'table',
-      note: 'SRD: "Targets within the Cylinder can’t be possessed by or gain the Charmed or Frightened condition from the creature." The two conditions are executed — an Immunity narrowed to the chosen types, read off the Cylinder — and the marker fires on their names. Possession is the third thing in the sentence and the one the engine has no state for: no condition, no grant and no event says a creature is possessed, so whether a Fiend possesses somebody standing in the circle is a fact only the table holds, and always will be.',
+      note: 'The reading that lets the handed-over sentence past the marker rule (W8-S26). The marker fires on the Charmed and Frightened, which the Immunity narrowed to the chosen types refuses whatever the table reads. Possession is the third thing in the sentence: the owner ruled on 2026-09-24 that a possession is a compulsion the table adjudicates for good — only a Ghost’s saving throw is the engine’s — so the protection against one reads nothing the engine will ever hold.',
     },
     {
       clause: 'interplanar travel is not modelled',
-      why: 'table',
-      note: 'SRD: "If the creature tries to use teleportation or interplanar travel to do so, it must first succeed on a Charisma saving throw." The teleport half is executed — `teleportTo` hands the save back and the spell’s own road rolls it before the creature arrives — and the markers fire on the save and the teleport. Interplanar travel is the other half, and there is one scene: a creature arriving from another plane has no position to arrive from, so nothing here could raise the save against it, and whether a Fiend steps in from the Abyss is the table’s.',
+      why: 'a-second-place-to-put-a-creature',
+      note: 'W8-S26 re-read this as a debt. SRD: "If the creature tries to use teleportation or interplanar travel to do so, it must first succeed on a Charisma saving throw." A creature returning from the Ethereal Plane is interplanar travel into the scene, and the engine holds that elsewhere; arriving from anywhere further is a second place to put a creature, which is this id.',
     },
   ],
   'magic-jar': [
@@ -1073,6 +1225,13 @@ export const ADJUDICATED: Readonly<Record<string, readonly Adjudication[]>> = {
       note: 'the container is an object with a place and a fate of its own, the hundred feet are measured to it, and the soul inside "can perceive from the container using its own senses" — all of it fiction the DM keeps, and a record carrying it would carry nothing the engine reads.',
     },
   ],
+  'magic-weapon': [
+    {
+      clause: 'the weapon is not refused for being magic already',
+      why: 'a-target-rule-the-format-cannot-state',
+      note: 'W8-S26 re-read this as a debt. SRD: "You touch a nonmagical weapon." Which weapon the casting may name is a target rule, and the catalogue holds a +1 Longsword apart from a Longsword; the weapon this casting makes magic is the one a second caster’s Magic Weapon is refused on. The closest id: a selection by a fact about the target that the format cannot state.',
+    },
+  ],
   'mind-blank': [
     {
       clause: 'the second sentence is the table’s',
@@ -1080,30 +1239,23 @@ export const ADJUDICATED: Readonly<Record<string, readonly Adjudication[]>> = {
       note: 'SRD: "The target is also unaffected by anything that would sense its emotions or alignment, read its thoughts, or magically detect its location, and no spell—not even _Wish_—can gather information about the target, observe it remotely, or control its mind." The mind-control half is answered by the Charmed Immunity the definition already grants: every spell in this catalogue that controls a mind does it by imposing that condition. The rest reaches nothing — no emotion, alignment, thought, remote sense or scrying result is a fact this engine holds, and no definition asks for one — so the clause is narration the DM owns rather than debt.',
     },
   ],
-  'mind-spike': [
-    {
-      clause: 'knowing the target',
-      why: 'table',
-      note: 'SRD: "the target can’t become hidden from you", and the knowledge of its location the sentence before that one grants. Both are the same fact and the fact is the table’s: the engine holds no knowledge model, and sight is a declaration, so a DM who declares the sight has said the whole of it. **The rest of the paragraph is executed now** — "it gains no benefit from that condition against you" is a `benefit` rider narrowed by an `against` naming the caster, which denies the Invisible condition’s benefits to the caster alone and leaves the Initiative Advantage standing, because that roll is against nobody. A blanket denial would have been wrong for this spell rather than merely coarse, which is what that narrowing was built for.',
-    },
-  ],
-  'mirror-image': [
-    {
-      clause: 'the duplicates are not in the world',
-      why: 'table',
-      note: 'three duplicates appearing in the caster’s space, moving with them and shifting position so it is impossible to track which image is real, is scenery: nothing can be aimed at one, so what the engine holds is the only part any rule reads — how many are left. The deflection itself is executed: each time a creature hits the caster, one d6 per remaining duplicate, a 3 or higher sends the blow to one of them, and the spell ends when the last is destroyed.',
-    },
-    {
-      clause: 'ignore all other damage and effects',
-      why: 'table',
-      note: 'a rule about a thing nothing can aim at. No command targets a duplicate — they are not creatures on the roster — so there is nothing for damage or an effect to bounce off, and the sentence is true for free.',
-    },
-  ],
   moonbeam: [
     {
-      clause: 'shape-shifted creature reverting',
-      why: 'table',
-      note: 'A creature’s form is not held anywhere: Wild Shape and every other shape-change is a `manual` feature a DM applies, so there is no form for a failed save to revert and nothing the engine resolves arrives at one.',
+      clause: 'the Dim Light that fills the Cylinder for the duration is not laid',
+      why: 'expressible',
+      note: 'W8-S26 read this line for the first time, and it said light is not modelled, which has been false since P3-S. `areaLight` on a Cylinder is what Flaming Sphere writes on its Sphere, laid again by the activation that moves it, and `checkSpellDefinition` takes one on this definition; nobody wrote it.',
+    },
+    {
+      clause: 'a shape-shifted creature reverting to its true form',
+      why: 'a-standing-effect-derived-from-where-a-creature-stands',
+      note: 'W8-S26 re-read this as a debt, because the reason it gave, that shape-shifting is not modelled, stopped being true when Wild Shape and the printed shape-shifters were built. A creature holds a shape now; the failed save should end it, and "can’t shape-shift until it leaves the Cylinder" is a refusal derived from where the creature stands, which is this id. The forced revert rides with it.',
+    },
+  ],
+  'nondetection': [
+    {
+      clause: 'a place or an object as the target is refused',
+      why: 'expressible',
+      note: 'W8-S26, on review. The book lets the ward go on a place or an object, and the definition names a willing creature and nothing else, so warding a chest or a room is refused before anything is spent — a target rule reading the table’s fact. `targets.optional` is what Identify writes for the same object-or-creature choice, and nobody wrote it here; what the ward then does to a place is the table’s, as the sensors are.',
     },
   ],
   'phantasmal-killer': [
@@ -1118,6 +1270,35 @@ export const ADJUDICATED: Readonly<Record<string, readonly Adjudication[]>> = {
       note: 'The ending itself is expressible — `onSuccess: end-casting` exists — and it has no save to ride on, because the repeat save that would carry it deals damage the hook cannot roll.',
     },
   ],
+  'phantom-steed': [
+    {
+      clause: 'can travel 13 miles in an hour',
+      why: 'table',
+      note: 'The reading that lets the handed-over sentence past the marker rule (W8-S26). SRD: "The steed uses the Riding Horse stat block (see "Monsters"), except it has a Speed of 100 feet and can travel 13 miles in an hour." The marker fires on the Speed, which the `phantom-steed` bestiary entry carries whatever the table reads; the thirteen miles are an overland pace nothing in the engine travels at.',
+    },
+    {
+      clause: 'the minute the rider has to dismount is not given',
+      why: 'an-effect-that-fires-when-the-casting-ends',
+      note: 'W8-S26 read this line for the first time. SRD: "When the spell ends, the steed gradually fades, giving the rider 1 minute to dismount." For that minute the steed is still a mount at a Speed of 100 feet; the departure takes it away the moment the casting ends. Something laid when a casting ends is this id.',
+    },
+    {
+      clause: 'who may ride it',
+      why: 'a-choice-made-at-the-casting',
+      note: 'W8-S26 read this line for the first time. SRD: "For the duration, you or a creature you choose can ride the steed." Mounting is a command the engine has, and it seats anybody willing; the caster’s choice of rider is a value the casting would have to state for the mount command to read. The closest id: a choice named at the casting and pinned for later reads.',
+    },
+  ],
+  'plant-growth': [
+    {
+      clause: 'the areas the caster excludes from the Sphere are not excluded',
+      why: 'a-wall-or-several-templates-in-one-area',
+      note: 'W8-S26 read this line for the first time. SRD: "You can exclude one or more areas of any size within the spell’s area from being affected." The terrain patch covers the whole Sphere and the ruler charges four feet a foot on every space of it. One area with others cut out of it is several templates in one area, which is this id.',
+    },
+    {
+      clause: 'whether or not normal plants grow there',
+      why: 'a-fact-only-the-table-can-declare',
+      note: 'W8-S26 read this for the first time. SRD: "All normal plants in a 100-foot-radius Sphere centered on that point become thick and overgrown." Where the plants are is a fact only the table holds, and the terrain the ruler charges for is read off it — bare rock inside the Sphere is not overgrown. A fact the table must state that no request yet can.',
+    },
+  ],
   // **Gone, and it is the spell that shape was named for.** "The spell ends if
   // the steed takes any damage" is `summon-takes-damage`: the creature a
   // casting is *sustaining* is neither a target nor an ally, so `isOn` answers
@@ -1126,32 +1307,64 @@ export const ADJUDICATED: Readonly<Record<string, readonly Adjudication[]>> = {
   // this spell prints is the table's.
   'prayer-of-healing': [
     {
+      clause: 'the benefits of a Short Rest are not conferred',
+      why: 'a-rest-an-effect-gives-or-denies',
+      note: 'W8-S26 read this line for the first time, and it is this id word for word: no effect confers the benefits of a rest without the hours, and Hit Point Dice and the features a Short Rest recovers are read by everything afterwards.',
+    },
+    {
+      clause: 'until that creature finishes a Long Rest',
+      why: 'a-deadline-anchored-to-a-rest',
+      note: 'W8-S26 read this line for the first time, and it is this id: a deadline is a span of seconds or a moment in the turn order, and a rest is neither, so the second casting on the same creature is not refused.',
+    },
+    {
       clause: 'remain within range for the spell',
-      why: 'table',
-      note: 'SRD: "Up to five creatures of your choice who remain within range for the spell\'s entire casting gain the benefits of a Short Rest". Range is measured against where the five stand when the rite settles, and nothing records where anybody stood for the ten minutes before it; a position history kept only so that one spell could read it would be a rule nothing else asks for, so whether they stayed is the DM\'s.',
+      why: 'a-casting-ended-by-a-trigger',
+      note: 'W8-S26 re-read this as a debt. Range is measured when the rite settles, and a creature that walked away during the ten minutes and came back is healed; a target leaving the range during the casting drops out of it by the book. The closest id: a consequence raised by two creatures drifting apart, which this description names for Warding Bond.',
+    },
+  ],
+  'produce-flame': [
+    {
+      clause: 'the Bright Light in a 20-foot radius',
+      why: 'expressible',
+      note: 'W8-S26 read this line for the first time, and it said light is not modelled, which has been false since P3-S. A `light` effect carried by a creature is what SRD Light is written with, and `checkSpellDefinition` takes one on this definition; nobody wrote it.',
+    },
+  ],
+  'remove-curse': [
+    {
+      clause: 'the curses the touch ends are not ended',
+      why: 'a-casting-ended-by-a-trigger',
+      note: 'W8-S26 re-read this as a debt, because the reason it gave, that nothing the engine applies is one, stopped being true when Bestow Curse was executed and a lycanthrope’s curse went on the record. SRD: "At your touch, all curses affecting one creature or object end." Another spell ending this one is a cause this id names for Geas, whose own text names Remove Curse; what is missing is knowing which of the castings and marks a creature holds is a curse.',
     },
   ],
   revivify: [
     {
-      clause: 'died of old age',
-      why: 'table',
-      note: 'SRD refuses it by name: "a creature that has died of old age". **The engine holds no cause of death**, and the field that would have to hold one is not missing by oversight: `creature-died.cause` is prose for the audit trail, and three of the four ways a creature dies write no such event at all. So the corpse this spell may not touch is one the table declines to hand it, exactly as the body parts it does not restore are an anatomy nothing here has. What the engine does own — whether the creature is dead, and how long it has been — it checks before a slot is spent.',
+      clause: 'a creature that died of old age is not refused',
+      why: 'a-fact-only-the-table-can-declare',
+      note: 'W8-S26 re-read this as a debt. SRD refuses it by name: "This spell can’t revive a creature that has died of old age, nor does it restore any missing body parts." How a creature died is the table’s fact and the revival reads it — the book refuses the spell on it — so it is a fact the table must be able to state and no request yet can. The body parts are narration nothing reads, and ride in the same sentence.',
     },
   ],
-  // Blink and Rope Trick left the tracked map on the second place and carry
-  // no entry here: the sentences they leave to the table — the shades of
-  // gray, the rope and the portal as things — name no mechanic, and are in
-  // each definition's own notes.
-  sanctuary: [
+  'rope-trick': [
     {
-      clause: 'choose a new target',
-      why: 'table',
-      note: 'the branch is the **attacker’s** and the engine aims nothing on a caller’s behalf, which is `eligibleTargets`’ own rule. So the book’s two branches are two commands rather than one: a failed ward loses the swing and spends nothing, and redirecting is a second swing at a creature nobody warded. Declining to make one is the other branch, which is what losing the attack looks like at a table.',
+      clause: 'the rope being pulled into or dropped out of the space',
+      why: 'a-second-place-to-put-a-creature',
+      note: 'W8-S26 split this from the rope’s hanging, which is handed over. SRD: "That space can be reached by climbing the rope, which can be pulled into or dropped out of it." The rope is the way in, and `enterElsewhere` offers the climb whether it hangs or not; a door that can be shut is the part of the extradimensional space this id’s description does not yet hold.',
     },
     {
-      clause: 'one save per ward per turn',
-      why: 'table',
-      note: 'owner’s ruling, 2026-09-22, and a limit the book does not print: it gives a save each time a creature targets the warded one. A failure here costs nothing, so without the limit an attacker re-declares until the save passes and the spell is undone. The ledger records both outcomes, so an attacker who cleared the ward is through for the turn and one who did not is barred for it.',
+      clause: 'the climb up the rope is not a move on the lattice',
+      why: 'a-second-place-to-put-a-creature',
+      note: 'W8-S26 read this as a debt, and filed it here on review rather than on the movement shape: climbing is charged on the lattice, and what is missing is that entering this space is not a move on the lattice at all — `enterElsewhere` takes a creature in within five feet of the rope for no movement, where the book has it climb the rope and pay for the climb. The way into a place off the scene is the part of this id the extradimensional space does not yet hold, which is the rope pulled up above for the same reason.',
+    },
+  ],
+  // Blink and Rope Trick left the tracked map on the second place. Blink
+  // carries no entry here: the shades of gray are in its `dmDecides` since
+  // W8-S26. Rope Trick's hanging rope and its portal went the same way, and
+  // its entries above are the two lines that are not the table's — the rope
+  // pulled up, and the climb that is no move.
+  sanctuary: [
+    {
+      clause: 'the branch the save buys spends nothing',
+      why: 'a-spell-that-answers-a-later-attack',
+      note: 'W8-S26 re-read this as a debt. SRD: "any creature who targets the warded creature with an attack roll or a damaging spell must succeed on a Wisdom saving throw or either choose a new target or lose the attack or spell." The engine aims nothing on a caller’s behalf, so choosing a new target is a second command — and losing the attack or the spell is a price, which an attacker who takes neither branch never pays: the ward refuses before the action, the slot or the die. The closest id: an ongoing spell that answers somebody else’s attack with nobody taking a Reaction, which is how the ward was built.',
     },
     // "if the warded creature makes an attack roll" was filed here as a gap —
     // `roll-recorded` was an audit line and the ending hung on the swing that
@@ -1159,6 +1372,16 @@ export const ADJUDICATED: Readonly<Record<string, readonly Adjudication[]>> = {
     // was an attack roll (`roll-recorded.attackRoll`) and the ending seam reads
     // it, so an Opportunity Attack that misses ends the ward where the book
     // ends it. Removed rather than reworded, because the map holds gaps.
+    // "One save per ward per turn" left the map with W8-S26: it is the
+    // owner's ruling of 2026-09-22 and the engine's rule, not a gap and not
+    // the table's, and the definition's docstring carries it.
+  ],
+  'sleet-storm': [
+    {
+      clause: 'the exposed flames the sleet douses are not doused',
+      why: 'a-standing-effect-derived-from-where-a-creature-stands',
+      note: 'W8-S26 filed this on review, after first handing it over. SRD: "The area is Heavily Obscured, and exposed flames in the area are doused." A torch in the open is light the table declares and takes away, but a creature on fire is not: the Burning hazard sits on the creature and deals 1d4 at the start of each of its turns, and `extinguishFire`’s own note names doused as the gap. Standing in the Cylinder is what should put it out, which is a standing effect derived from where a creature stands — the closest id.',
+    },
   ],
   // **The shaking has left this map**, and it left by being built: "someone
   // within 5 feet of it takes an action to shake it out of the spell's effect"
@@ -1175,9 +1398,8 @@ export const ADJUDICATED: Readonly<Record<string, readonly Adjudication[]>> = {
   // claimed — a standing effect derived from where a creature stands, a
   // condition that ends when its holder leaves an area, and a bonus narrowed
   // to a skill — go with them, because the vocabulary now says all three.
-  // Pass without Trace is the other and carries no entry at all: what is left
-  // of it prints no mechanic, so its `unmodelled` line names nothing for an
-  // adjudication to be written about.
+  // Pass without Trace is the other and carries no entry at all: what was
+  // left of it, the tracks, is handed over in its `dmDecides` since W8-S26.
   // **Two of Slow's four are gone and both were built.** The −2 on Dexterity
   // saving throws is a `bonus` rider carrying a `BonusNarrowing`, which is the
   // half of `a-bonus-narrowed-to-a-skill` the ongoing side had already grown —
@@ -1187,19 +1409,48 @@ export const ADJUDICATED: Readonly<Record<string, readonly Adjudication[]>> = {
   // the `grants` timer the casting's own source already keys, so "ending the
   // spell on itself" reaches the goblin that made its save and nobody else.
   slow: [
-  ],
-  'spider-climb': [
     {
-      clause: 'across vertical surfaces and along ceilings',
-      why: 'table',
-      note: 'SRD: "gains the ability to move up, down, and across vertical surfaces and along ceilings, while leaving its hands free". **The Climb Speed in the next sentence is executed and this is what is left.** A scene is a lattice of 5-foot cubes with landmarks and elevation, and no surfaces at all — there is no wall for the engine to say a creature may walk on, and inventing one would be the engine deciding where the room’s walls are. So the same line declared cover and declared sight already draw: the DM says which surface the spider took, and the engine charges the climb at the Climb Speed the spell gave it.',
+      clause: 'the 25 percent chance is thrown where a casting is made through the casting pipeline',
+      why: 'a-random-outcome-that-is-not-a-d20',
+      note: 'W8-S26 read this line for the first time. SRD: "If it casts a spell with a Somatic component, there is a 25 percent chance the spell fails as a result of the target making the spell’s gestures too slowly." The percentage is built and thrown where a casting goes through the pipeline; three roads that make a casting elsewhere do not throw it, so a slowed caster’s readied spell never fails. The closest id, whose built half is this percentage.',
     },
   ],
   'spike-growth': [
     {
-      clause: 'who has to make the Wisdom (Perception or Survival) check',
+      clause: 'Wisdom (Perception or Survival) check against your spell save DC',
       why: 'table',
-      note: 'SRD: "Any creature that can’t see the area when the spell is cast must take a Search action and succeed on a Wisdom (Perception or Survival) check against your spell save DC to recognize the terrain as hazardous before entering it." **The check is executed and this is the gate in front of it.** `SpellCheck.skills` offers the check off the casting to anybody, with the attempter’s pick of skill on `EffectCheckCommand.skill` and the Action `resolveEffectCheck` charges as the Search; whether a creature could see the area at the moment the spell was cast is a fact about a moment gone by that the scene never recorded, so the table says who looks — the line Glyph of Warding’s check to notice already draws.',
+      note: 'The reading that lets the handed-over sentence past the marker rule (W8-S26). The marker fires on the check, which the casting offers to anybody who takes the Search action whatever the table reads; who has to make it — a creature that could not see the area when the spell was cast — is a fact about a moment gone by, and what it buys is knowing, which changes nothing the engine holds.',
+    },
+  ],
+  'starry-wisp': [
+    {
+      clause: 'the target emits Dim Light in a 10-foot radius',
+      why: 'light-and-obscurement-the-scene-holds',
+      note: 'W8-S26 read this line for the first time. A glow hung off a settled outcome is built — Faerie Fire’s `light` rider — and it lasts as long as the casting; `checkSpellDefinition` refuses one on this cantrip (grant_without_lifetime) because an Instantaneous casting is over the moment it resolves and the rider has no deadline of its own. This id’s description says the glow left it and what remains is the object, so it is the closest rather than the residue: the gap is a lifetime on a light rider, and the light is read by every sight question.',
+    },
+  ],
+  'stinking-cloud': [
+    {
+      clause: 'the cloud being Heavily Obscured is not laid',
+      why: 'expressible',
+      note: 'W8-S26 read this line for the first time, and it said obscurement is not modelled, which has been false since P3-S. `areaObscurement` is what Fog Cloud, Web and Sleet Storm write, and `checkSpellDefinition` takes one on this definition; nobody wrote it.',
+    },
+    {
+      clause: 'a strong wind dispersing the cloud',
+      why: 'a-casting-ended-by-a-trigger',
+      note: 'W8-S26 read this line for the first time. Whether a strong wind blows is the table’s, and what follows is not: the cloud ends, and with it the Poisoned it forces every turn and the obscurement a sight question reads. A cause whose fact no consequence event holds, which is this id.',
+    },
+  ],
+  suggestion: [
+    {
+      clause: 'upon completing the suggested activity',
+      why: 'a-casting-ended-by-a-trigger',
+      note: 'W8-S26 split this from the suggestion, which is handed over. SRD: "The suggested activity can continue for the entire duration, but if the suggested activity can be completed in a shorter time, the spell ends for the target upon completing it." Whether it is complete is the table’s; the Charmed condition the ending lifts is state every roll against the target reads. A cause whose fact no consequence event holds, which is this id.',
+    },
+    {
+      clause: 'the target must be able to hear and understand you',
+      why: 'a-target-rule-the-format-cannot-state',
+      note: 'W8-S26 read this line for the first time. The Deafened condition is state the engine holds, and so are the languages a creature knows; a casting at a Deafened target, or at one sharing no language with the caster, is one the book refuses and the engine does not. A target rule the format cannot state, which is this id.',
     },
   ],
   sunbeam: [
@@ -1216,15 +1467,27 @@ export const ADJUDICATED: Readonly<Record<string, readonly Adjudication[]>> = {
       note: 'the clause this shape’s own test was built to hand back. It was filed `table` on the strength of one field — "the definition is tracked and carries no `SpellArea`, because a template no effect resolves over is a radius with no place attached" — and `spell-honesty.test.ts` pinned both halves so that the day Darkness grew an area the reading would fail rather than go quietly on calling a rule fiction. That day is P3-S: Darkness holds a Sphere, the Sphere holds magical darkness, and Sunburst’s own 60-foot Sphere overlaps it perfectly well. What is missing is the **trigger**, and `docs/design/light-and-sight.md` says exactly where its edge is: the mutual dispel runs "on pinning a patch", and Sunburst pins none — it is a flash, Instantaneous, leaving no light behind. So `lightDispelledBy` is built and reachable from every casting that lays light, and a casting that lays none has no way to call it.',
     },
   ],
+  thaumaturgy: [
+    {
+      clause: 'the cap counts every casting',
+      why: 'a-duration-the-slot-changes',
+      note: 'W8-S26 read this line for the first time. The cap of three is `maxRunning` and is built; what the definition cannot say is that two of its six branches are instantaneous inside a spell that lasts a minute, so every casting leaves a record the cap counts — and Booming Voice’s Advantage is a mode a fourth casting can end early when a door flung open counted against the three. The closest id: a duration something other than the spell’s own line decides, built for the slot, where here it is the branch.',
+    },
+  ],
   // **Executed by `maxRunning` and by the branches**, and the entry that
   // outlived both is the one clause of the six wonders that is not narration.
   // The other five were always fiction; this one is an ordinary roll modifier
   // with nowhere to stand.
   web: [
     {
-      clause: 'flammable',
-      why: 'table',
-      note: 'Whether anybody sets the webs alight is a decision the fiction makes and the engine has no path to: nothing in it starts a fire, and the 2d4 the burning cube deals is damage a DM applies through `resolveDamage` like any other consequence they narrate.',
+      clause: 'the webs collapsing when they are not anchored',
+      why: 'a-casting-ended-by-a-trigger',
+      note: 'W8-S26 re-read this as a debt. SRD: "If the webs aren’t anchored between two solid masses (such as walls or trees) or layered across a floor, wall, or ceiling, the web collapses on itself, and the spell ends at the start of your next turn." Anchoring is a fact about the room, and the ending it causes takes the Difficult Terrain, the obscurement and every Restrained off the lattice. A cause whose fact no consequence event holds, which is this id.',
+    },
+    {
+      clause: 'the webs being flammable',
+      why: 'a-casting-ended-by-a-trigger',
+      note: 'W8-S26 re-read this as a debt, and settled the question the brief asked: is a web a thing fire reads? It is not. The engine’s fire is the Burning hazard, which it holds on a creature, and a web is not one. SRD: "Any 5-foot Cube of webs exposed to fire burns away in 1 round, dealing 2d4 Fire damage to any creature that starts its turn in the fire." Exposure is the table’s fact and both consequences are read — dice the engine must throw, and a Cube that stops holding anybody. Ending part of a casting on a cause no event holds is the closest id.',
     },
   ],
   weird: [
@@ -1256,11 +1519,16 @@ export const ADJUDICATED: Readonly<Record<string, readonly Adjudication[]>> = {
       note: 'SRD: "Reverting takes 1 minute, during which the target has the Stunned condition." The Magic action that begins it is taken by the target rather than by the caster, so the minute of Stunned hangs off an activation belonging to somebody the casting reached rather than to whoever cast it.',
     },
   ],
-  'zone-of-truth': [
+  'wind-wall': [
     {
-      clause: 'the engine holds no speech',
-      why: 'table',
-      note: 'SRD: "On a failed save, a creature can’t speak a deliberate lie while in the radius." The save is rolled — both moments the sentence names are `AreaTrigger` members and the Charisma save is ordinary — and the *verdict* is kept, which is the other thing the spell prints: "You know whether a creature succeeds or fails on this save." What is not executed is the silence itself, and it is the table’s rather than a shape’s: the engine has no speech, so there is nothing for a condition to forbid and no sentence for it to inspect. A DM reads the verdict off `look` and decides whether what was said was a deliberate lie. This is the one clause here, because the spell stopped being tracked: the publication it was blocked on — an event that records the outcome on the casting and a field on the door that reports it — is built.',
+      clause: 'a hurled boulder let through',
+      why: 'a-barrier-that-blocks-passage',
+      note: 'W8-S26 read this line for the first time. The barring and the deflection are built as `areaStanding`; what it cannot tell is an arrow from a boulder, because a stat block’s printed line does not say what it looses, so a monster’s ranged shot is made and the wall reported beside it. A creature whose ranged attack should miss automatically is owed that miss. The closest id: what a wall stops crossing it.',
+    },
+    {
+      clause: 'fog, smoke and other gases are not kept at bay',
+      why: 'an-effect-that-suppresses-other-magic',
+      note: 'W8-S26 split this from the loose material, which is handed over. A Fog Cloud or a Stinking Cloud laid across the wall is a casting whose obscurement and Poisoned are read, and nothing lets one area suspend another in the spaces they share. An area that stops magic working inside it is this id.',
     },
   ],
 };
@@ -1936,7 +2204,8 @@ export const TRACKED_ADJUDICATED: Readonly<Record<string, readonly TrackedAdjudi
   // three benefits are executed off the two axes this batch built — a roll
   // mode narrowed by the attacker's creature type, and a condition Immunity
   // narrowed by the type of whatever is causing the condition — so the spell
-  // was executed-partial; W8-S24 paid the third, and possession stays `unmodelled`.
+  // was executed-partial; W8-S24 paid the third, and W8-S26 handed possession
+  // over.
   // **Dragon's Breath has left the tracked map**, and it took both of its
   // shapes with it: `SpellActivation.by` hands the Magic action to the creature
   // the casting is on, and `SpellActivation.area` draws the 15-foot Cone afresh

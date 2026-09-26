@@ -70,6 +70,10 @@ import {
   type Surface,
   type ToolOutcome,
 } from '@ie/tools';
+// The ledger's count, for the one assertion that holds the census to it. A
+// script rather than a package export, as `@ie/content`'s own tests read it:
+// the report is generated outside the build, and this is a test.
+import { clausesCounted } from '../../content/scripts/ledger.js';
 
 // — the party ————————————————————————————————————————————————————————————————
 
@@ -1660,6 +1664,42 @@ describe('a level 5 party plays a session', () => {
           one.outcome.status === 'ok',
       ),
     ).toBe(false);
+  });
+
+  /**
+   * **The census and the ledger count the same debts** — W8-S26.
+   *
+   * This file reads every unmarked `unverified` line as a debt; `LEDGER.md`
+   * reads a spell's `unmodelled` clauses as owed only where the blocker map
+   * sorted them — and until W8-S26 a clause nobody had read left its spell
+   * counted as executed. The two disagreed about SRD Web: two debts here, a
+   * finished spell there. So the census is held against the ledger's own
+   * count, in both directions: every debt the session met is a clause the
+   * ledger counts for a spell the session cast (its cast branch included), and
+   * every clause the ledger counts for those spells is a debt the session met.
+   * A debt from any door but a casting fails this too, because the ledger's
+   * spell population is the only one this agreement can read.
+   */
+  it('counts as debts exactly the clauses the ledger counts', () => {
+    const t = playTheSession();
+    const debts = new Set(
+      clausesIn(t.sent)
+        .filter((one) => one.kind === 'debt')
+        .map((one) => one.line),
+    );
+    const counted = new Set(
+      t.sent
+        .filter((one) => one.tool === 'cast_spell' && one.outcome.status === 'ok')
+        .flatMap((one) => {
+          const input = one.input as { spellId: string; option?: string };
+          const name = SRD_CONTENT.spell(input.spellId)!.name;
+          return clausesCounted(input.spellId, input.option).map((clause) => `${name}: ${clause}`);
+        }),
+    );
+    expect([...debts].sort()).toEqual([...counted].sort());
+    // And the agreement is about something: the session met debts, so the
+    // equality above is not two empty sets agreeing.
+    expect(debts.size).toBeGreaterThan(0);
   });
 
   it('replays byte-identically from the same seed', () => {

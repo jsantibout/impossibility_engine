@@ -3,8 +3,9 @@ import { SPELL_DEFINITIONS, SRD_CONTENT } from '@ie/content';
 import { asCharacterId, expect as unwrap, type CharacterId } from '@ie/shared';
 import type { CharacterSheet } from '@ie/engine';
 import type { CreatureSize } from '@ie/srd/schemas';
-import { advanceTime, createRng, createRollIssuer, declaredCasting, dmDecisionsIn, fold, optionEffects, pendingCastingsOf, remaining, repairsAnObject, resolveDeclaredCast, resolveSpell, spellSlotKey, type GameEvent, type Rng } from '@ie/engine';
+import { advanceTime, createRng, statedFormOf, createRollIssuer, declaredCasting, dmDecisionsIn, fold, optionEffects, pendingCastingsOf, remaining, repairsAnObject, resolveDeclaredCast, resolveSpell, spellSlotKey, type GameEvent, type Rng } from '@ie/engine';
 import {
+  ADJUDICATED,
   BLOCKED_ON,
   TRACKED_ADJUDICATED,
   mechanicalMarkersIn,
@@ -356,6 +357,38 @@ const aimedAt = (definition: (typeof SPELL_DEFINITIONS)[number]) => {
               : { x: 55, y: 50, z: 0 },
         }
       : {}),
+    // **And a casting that keeps a place of its own takes one** — W8-S26
+    // widened the population to SRD Spiritual Weapon's force and SRD Rope
+    // Trick's rope, and a casting that holds an `origin` is refused until the
+    // caster names the space. The same square east of the shrine, which is
+    // within the touch and the sixty feet the two print.
+    ...(definition.origin !== undefined && definition.area === undefined
+      ? { at: { x: 55, y: 50, z: 0 } }
+      : {}),
+    // **And a wall is drawn by whoever casts it**: SRD Wind Wall is refused a
+    // casting that names no path. Ten feet northward from the same square,
+    // continuous and on one ground — `spell-catalogue.test.ts` draws its sweep's
+    // wall the same way.
+    ...(definition.area?.kind === 'wall'
+      ? {
+          path: [
+            { x: 55, y: 50, z: 0 },
+            { x: 55, y: 55, z: 0 },
+            { x: 55, y: 60, z: 0 },
+          ],
+        }
+      : {}),
+    // **And a choice the book leaves the caster is stated** — SRD Find Steed's
+    // creature type and SRD Arcanist's Magic Aura's Mask — with the first value
+    // printed, because the point here is that the spell casts and hands its
+    // text over rather than which type it picked.
+    ...(definition.choiceStated === undefined
+      ? {}
+      : { choice: definition.choiceStated.options[0]! }),
+    // **And a form the book leaves the caster is named** — SRD Find
+    // Familiar's, which joined with W8-S26 — the first printed, through the
+    // runtime's own reader, as `spell-catalogue.test.ts` names it.
+    ...(statedFormOf(definition) === null ? {} : { form: statedFormOf(definition)!.among[0]! }),
     // A cantrip is cast off the known list and spends no slot, so naming one
     // is the refusal rather than the casting.
     ...(definition.level === 0 ? {} : { slotLevel: definition.level }),
@@ -424,6 +457,17 @@ const driven = (spellId: string, log: readonly GameEvent[] = SETUP) => {
 
 describe('the catalogue hands over exactly the text it means to', () => {
   it('is the three the ruling named, the eight the sweep found and P3-S6’s reading', () => {
+    // **And W8-S26's**, which read every `unmodelled` clause of every executed
+    // spell in level-5 reach against `docs/design/content.md`'s test and moved
+    // the ones nothing reads afterwards here, in the book's words: twenty-five
+    // spells joined, each carrying the reading beside its own `dmDecides` —
+    // Arcanist's Magic Aura, Barkskin, Blink, Find Familiar, Find Steed,
+    // Flaming Sphere, Goodberry, Heroism, Hideous Laughter, Levitate, Mind
+    // Spike, Mirror Image, Nondetection, Pass without Trace, Phantom Steed,
+    // Prestidigitation, Protection from Evil and Good, Rope Trick, Spider
+    // Climb, Spike Growth, Spiritual Weapon, Suggestion, Unseen Servant, Wind
+    // Wall and Zone of Truth. Detect Thoughts, Gaseous Form and Magic Circle
+    // were here already and handed over more.
     expect([...HANDING_OVER].sort()).toEqual([
       'alarm',
       // **The forty-seventh, and the second that is not a spell the engine
@@ -443,7 +487,10 @@ describe('the catalogue hands over exactly the text it means to', () => {
       // takes — which is a table's business over a creature the engine holds.
       'animate-dead',
       'arcane-lock',
+      'arcanists-magic-aura',
       'augury',
+      'barkskin',
+      'blink',
       // **The cloud, which is the whole of what is left of a spell whose bolts
       // the engine now throws.** SRD Call Lightning's template, its numbers and
       // its later Magic action are executed, and the storm cloud itself — where
@@ -489,7 +536,10 @@ describe('the catalogue hands over exactly the text it means to', () => {
       // compulsion is adjudicated and never performed: the Action is narrowed
       // to the Dash by the engine and the route is the table's.
       'fear',
+      'find-familiar',
+      'find-steed',
       'find-traps',
+      'flaming-sphere',
       'floating-disk',
       // **An executed spell's one sentence nobody can spend.** SRD Gaseous
       // Form's Resistance, Immunity, Advantage, Fly Speed and the three things
@@ -503,6 +553,9 @@ describe('the catalogue hands over exactly the text it means to', () => {
       // SRD Glyph of Warding's inscription and its invented trigger, beside
       // the rune the DM's door fires.
       'glyph-of-warding',
+      'goodberry',
+      'heroism',
+      'hideous-laughter',
       'identify',
       'illusory-script',
       // **Knock, read to the end.** Every one of its sentences is about an
@@ -512,6 +565,7 @@ describe('the catalogue hands over exactly the text it means to', () => {
       // named. Handed over whole, and the tracked map keeps the reading.
       'knock',
       'legend-lore',
+      'levitate',
       'locate-animals-or-plants',
       'locate-object',
       'mage-hand',
@@ -525,8 +579,12 @@ describe('the catalogue hands over exactly the text it means to', () => {
       'meld-into-stone',
       'mending',
       'message',
+      'mind-spike',
       'minor-illusion',
       'mirage-arcane',
+      'mirror-image',
+      'nondetection',
+      'pass-without-trace',
       // **The phantasm itself, which is every sentence about it that is not the
       // damage.** SRD Phantasmal Force's Intelligence save, its Cube, the
       // Investigation check the target may attempt and the 2d8 Psychic at the
@@ -535,8 +593,12 @@ describe('the catalogue hands over exactly the text it means to', () => {
       // and rationalising the fall through a bridge that was never there, and the
       // damage type it thinks it took. All of it in the book's own words.
       'phantasmal-force',
+      'phantom-steed',
       'planar-ally',
+      'prestidigitation',
+      'protection-from-evil-and-good',
       'purify-food-and-drink',
+      'rope-trick',
       // Rope Trick left this list on the second place: the climb, the eight,
       // the isolation and the drop are executed, and the rope and the portal
       // are the definition's own `unmodelled` rather than a whole handover.
@@ -563,6 +625,8 @@ describe('the catalogue hands over exactly the text it means to', () => {
       // SRD Speak with Plants' conversation, beside the two directions of
       // ground it executes.
       'speak-with-plants',
+      'spider-climb',
+      'spike-growth',
       // **An executed spell's look** — W7-B13 Part 4. SRD Spirit Guardians'
       // saves, damage, Emanation and halved Speed are executed, and the
       // damage type the caster's alignment decides is stated at the casting;
@@ -570,10 +634,15 @@ describe('the catalogue hands over exactly the text it means to', () => {
       // nothing reads, and was filed as a debt in `unmodelled` until the
       // session census counted it as one.
       'spirit-guardians',
+      'spiritual-weapon',
+      'suggestion',
       'tiny-hut',
       'tongues',
+      'unseen-servant',
       'water-breathing',
       'water-walk',
+      'wind-wall',
+      'zone-of-truth',
     ]);
     // And the Range half did not grow, because it was already complete: three
     // SRD spells print a Range that is not Self, Touch or a number of feet, and
@@ -653,8 +722,19 @@ describe('the catalogue hands over exactly the text it means to', () => {
    * alone — and it puts the argument in the map rather than in an exemption
    * list somebody has to maintain.
    */
+  //
+  // **And the executed map, since W8-S26.** An executed spell's reading lives
+  // in `ADJUDICATED`, and until every clause of every executed spell in reach
+  // was sorted none of them had needed the escape. Seven sentences do — SRD
+  // Barkskin's Armor Class beside the bark, Goodberry's Hit Point beside the
+  // day's food, Hideous Laughter's self-cure beside the laughing, Spike
+  // Growth's check beside who must make it, Find Steed's Incapacitated beside
+  // what the steed does with its turn, Magic Circle's two conditions beside
+  // the possession, Phantom Steed's Speed beside the thirteen miles an hour —
+  // and each is a sentence whose marked half the engine executes and whose
+  // rest nothing reads. The same rule, read from the map that holds the spell.
   const readAsTheTable = (spellId: string, printed: string): boolean =>
-    (TRACKED_ADJUDICATED[spellId] ?? []).some(
+    [...(TRACKED_ADJUDICATED[spellId] ?? []), ...(ADJUDICATED[spellId] ?? [])].some(
       (entry) => entry.why === 'table' && printed.includes(entry.clause),
     );
 
@@ -840,7 +920,12 @@ describe('Gaseous Form hands its talking over and keeps the rest', () => {
 
   it('hands the sentence over under the DM mark and reports no other line about talking', () => {
     const out = atomic('gaseous-form');
-    expect(dmDecisionsIn(out.unverified)).toEqual([TALKING]);
+    // Beside the cloud's look and its liquids, which W8-S26 handed over too;
+    // the talking is the one this ruling is about.
+    expect(dmDecisionsIn(out.unverified)).toContain(TALKING);
+    expect(dmDecisionsIn(out.unverified).filter((line) => /\btalk/i.test(line))).toEqual([
+      TALKING,
+    ]);
     const unmarked = out.unverified.filter((line) => dmDecisionsIn([line]).length === 0);
     expect(unmarked.filter((line) => /\btalk/i.test(line))).toEqual([]);
   });
@@ -938,12 +1023,16 @@ describe('each of the forty-seven is cast, and hands its own text to the table',
     // *is* affected — it leaves the roster and a Zombie stands in its space.
     // The text it hands over is the command structure over that creature.
     const raises = definition.effects.some((effect) => effect.kind === 'raise');
+    // SRD Phantom Steed is the third, and joined with W8-S26: its `summon`
+    // lands a steed for the caster, so the one outcome is about the caster and
+    // says it landed — the handover is the tack and the thirteen miles.
+    const summons = definition.effects.some((effect) => effect.kind === 'summon');
     expect(out.settled.outcomes).toEqual(
       definition.effects.length === 0
         ? []
         : raises
           ? [{ target: CORPSE, affected: true }]
-          : [{ target: asCharacterId('cleric'), affected: false }],
+          : [{ target: asCharacterId('cleric'), affected: summons }],
     );
   });
 
@@ -974,6 +1063,18 @@ describe('each of the forty-seven is cast, and hands its own text to the table',
     // the moment the keeping began — so the corpse it was aimed at is filed
     // into `aimed` and nothing comes back in the outcomes to be about it.
     if (ran.every((effect) => effect.kind === 'preserves')) {
+      expect(out.cast.outcomes).toEqual([]);
+      return;
+    }
+    // SRD Rope Trick is the same kind, and joined with W8-S26: its one effect
+    // opens a place with a door, and nobody is in it until a creature climbs —
+    // a command of its own — so the casting lands on nobody and says so. SRD
+    // Blink's `elsewhere` is aimed at its caster and lands, which the ordinary
+    // reading below holds.
+    if (
+      ran.every((effect) => effect.kind === 'elsewhere') &&
+      aimedAt(definition).targets.length === 0
+    ) {
       expect(out.cast.outcomes).toEqual([]);
       return;
     }

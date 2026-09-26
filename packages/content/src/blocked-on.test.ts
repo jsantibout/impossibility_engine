@@ -1251,8 +1251,10 @@ describe('reading four families found blockers the bare lists had missed', () =>
     // time by being built**: the corpse is a named target (`mustBeDead`, a
     // type, and the one two-size rule in the book), the bones are stated
     // points, and what survives in its notes is the half no reading could
-    // build — that a pile of bones lies where the caster points.
-    ['animate-dead', 'unmodelled', 'checks nothing about the bones'],
+    // build — that a pile of bones lies where the caster points. W8-S26 filed
+    // that half as the debt it is: a fact only the table holds, which the
+    // raising reads.
+    ['animate-dead', 'unmodelled', 'whether any bones lie there'],
     ['create-undead', 'unmodelled', 'selects corpses rather than creatures'],
     ['secret-chest', 'unmodelled', 'the Ethereal Plane they go to is a second place'],
     ['secret-chest', 'unmodelled', 'nor does it end on a recasting'],
@@ -2312,8 +2314,14 @@ describe('the fought fact is a second build that corrected the query', () => {
     // Scrying alone still holds it, and the machinery stays — a fact only the
     // table can declare is a real category, and the next spell that needs one
     // is filed here rather than argued about.
+    //
+    // **And three spells needed one, on the day every clause in reach was
+    // read** (W8-S26): that bones lie where Animate Dead is pointed, that
+    // plants grow where Plant Growth's overgrowth is laid, and that a corpse
+    // died of old age. Each is the table's fact and each is read — a raising,
+    // a patch of terrain, a revival refused — and none has a field yet.
     expect(fact.undefined).toEqual([]);
-    expect(fact.executed).toEqual([]);
+    expect(fact.executed).toEqual(['animate-dead', 'plant-growth', 'revivify']);
     expect(fact.tracked).toEqual(['scrying']);
   });
 });
@@ -2416,13 +2424,19 @@ describe('a consumer count is a query', () => {
     // the caster stated, so the damage type is `damageTypeStated` and no
     // longer a choice with nowhere to go. The spell glyph — a stored request
     // rather than a pending casting — is built too (`triggered.storesSpell`,
-    // W7-S21), so its sentence has left the definition's own `unmodelled`,
-    // and the executed map holds only the check to notice, which is the
-    // table's.
+    // W7-S21), so its sentence has left the definition's own `unmodelled`.
+    // The executed map held only the check to notice, read as the table's;
+    // W8-S26 read all three of the lines left and none is a choice at the
+    // casting — the type refinement, the notice check a glyph with no timer
+    // cannot offer, and the breaking when its surface is moved.
     for (const id of ['glyph-of-warding']) {
       expect(BLOCKED_ON[id]).toBeUndefined();
       expect(TRACKED_ADJUDICATED[id]).toBeUndefined();
-      expect(ADJUDICATED[id]?.map((e) => e.why)).toEqual(['table']);
+      expect(ADJUDICATED[id]?.map((e) => e.why)).toEqual([
+        'a-creature-type-predicate-an-area-reads',
+        'a-check-another-creature-may-attempt',
+        'a-casting-ended-by-a-trigger',
+      ]);
       expect(SRD_CONTENT.spell(id)?.triggered?.storesSpell).toBe(true);
       expect(
         (SRD_CONTENT.spell(id)?.unmodelled ?? []).some((line) => line.includes('casts another spell')),
@@ -2458,6 +2472,9 @@ describe('a consumer count is a query', () => {
     // parser reads and the casting resolves, so the steed swings and the spell
     // claims the shape from nowhere. Animate Dead left with it, on the
     // controlled bond, and the shape has no claimant inside level-5 reach.
+    // Fell Glare, Fey Step and Healing Touch are the block's lines, counted in
+    // `LEDGER.md`'s bestiary row, so W8-S26 took the line naming them out of
+    // the spell's own notes rather than count them twice.
     expect(statBlock.executed).not.toContain('find-steed');
     expect(statBlock.tracked).not.toContain('animate-dead');
     expect(SRD_CONTENT.spell('animate-dead')?.effects.map((e) => e.kind)).toEqual(['raise']);
@@ -2678,7 +2695,16 @@ describe('a consumer count is a query', () => {
     // `a-casting-ended-by-a-trigger` lost a consumer to a build rather than
     // to a re-filing and the coin flip leads alone. Still asserted by
     // measurement, for the reason above.
-    expect(leaders).toEqual(['a-random-outcome-that-is-not-a-d20']);
+    //
+    // **And the lead changed hands on a reading rather than on a build**
+    // (W8-S26), which is the case this paragraph has always warned about.
+    // Every clause of every executed spell in level-5 reach was read, and
+    // nine of them, on eight spells, are a table fact or a cause no
+    // consequence event holds ending a casting — a wind, a web's anchoring, a
+    // glyph moved, a suggestion completed, a curse lifted. The trigger shape
+    // now leads the coin flip by four, and nothing was built or retired to get
+    // there.
+    expect(leaders).toEqual(['a-casting-ended-by-a-trigger']);
     expect(Object.keys(SPLIT_BUNDLES)).toContain('an-action-a-spell-compels-or-forbids');
     // And the split is visible from here rather than only in the record: the
     // bundle stands below the leader, and the largest piece to come out of it
@@ -2744,8 +2770,12 @@ describe('a consumer count is a query', () => {
       // `a-choice-made-at-the-casting` stood here until the economy track gave
       // Plant Growth's Enrichment its own casting time (`SpellOption.castingTime`)
       // and the shape fell below the band.
-      'a-second-place-to-put-a-creature',
-      'a-stat-block-created-mid-fight',
+      //
+      // **And W8-S26's reading moved the band by moving the top**: the
+      // trigger shape rose to lead alone, so the coin flip it had led is the
+      // band below it, alone — the second place and the stat block are a
+      // consumer and two behind it.
+      'a-random-outcome-that-is-not-a-d20',
     ]);
     // **Moved from 20 to 15 by the third catalogue pass, and the total fell
     // further than the tracked column rose.** Twelve undefined spells named
@@ -2854,13 +2884,17 @@ describe('a spell with one blocker is the leverage the map is for', () => {
     // A third way out, and the plainest: Revivify was the only spell this list
     // held for `healing-that-raises-the-dead`. It became a tracked definition,
     // and then the shape was **built** — the `revive` effect and
-    // `creature-revived` — so it is executed now and owes the table only the
-    // old age and the body parts. The shape keeps its four undefined
-    // claimants, which is why it is still claimed: what changed is which
-    // population owes it and by how much, rather than whether it is owed.
+    // `creature-revived` — so it is executed now and owes only the old age and
+    // the body parts. The shape keeps its four undefined claimants, which is
+    // why it is still claimed: what changed is which population owes it and
+    // by how much, rather than whether it is owed. W8-S26 read the old age
+    // as the debt it is — a table fact the revival reads — rather than the
+    // table's.
     expect(BLOCKED_ON['revivify']).toBeUndefined();
     expect(TRACKED_ADJUDICATED['revivify']).toBeUndefined();
-    expect(ADJUDICATED['revivify']?.map((entry) => entry.why)).toEqual(['table']);
+    expect(ADJUDICATED['revivify']?.map((entry) => entry.why)).toEqual([
+      'a-fact-only-the-table-can-declare',
+    ]);
     expect(claimedShapes().has('healing-that-raises-the-dead')).toBe(true);
 
     // Built: the printed half of the amount shape exists, so Heal executes and
@@ -2925,11 +2959,22 @@ describe('a spell with one blocker is the leverage the map is for', () => {
     // save to *produce* a fall, which nothing does, so `falling` keeps a
     // claimant rather than being retired on the strength of the half that
     // landed.
+    //
+    // **And the spell was not clean of it after all** (W8-S26). The landing
+    // is executed; what its two remaining lines say is the rest of this
+    // shape's own description — the sixty feet a round, which "nothing
+    // measures", and the trigger's sight of the faller, which the window over
+    // `fall-declared` does not ask. Both were read for the first time and
+    // both are filed here, so Feather Fall claims the shape again from the
+    // executed column.
     expect(BLOCKED_ON['feather-fall']).toBeUndefined();
     expect(claimedShapes().has('falling')).toBe(true);
     expect(SRD_CONTENT.spell('feather-fall')?.effects).not.toEqual([]);
     expect(TRACKED_ADJUDICATED['feather-fall']).toBeUndefined();
-    expect((ADJUDICATED['feather-fall'] ?? []).map((entry) => entry.why)).toEqual(['table']);
+    expect((ADJUDICATED['feather-fall'] ?? []).map((entry) => entry.why)).toEqual([
+      'falling',
+      'falling',
+    ]);
   });
 });
 
@@ -3079,12 +3124,13 @@ describe('a shape that gets built is content work, not a merge', () => {
     // and the Ethereal Plane it sends them to are the `elsewhere` effect, so
     // the two claims this shape and `a-random-outcome-that-is-not-a-d20` held
     // on it are spent. What is left is the one sentence that was always the
-    // table's, in the executed map where an executed spell's debts live.
+    // table's, which W8-S26 moved to `dmDecides` in the book's words.
     expect(BLOCKED_ON['blink']).toBeUndefined();
     expect(TRACKED_ADJUDICATED['blink']).toBeUndefined();
     expect(ADJUDICATED['blink']).toBeUndefined();
+    expect(SRD_CONTENT.spell('blink')?.unmodelled ?? []).toEqual([]);
     expect(
-      (SRD_CONTENT.spell('blink')?.unmodelled ?? []).some((note) => note.includes('shades of gray')),
+      (SRD_CONTENT.spell('blink')?.dmDecides ?? []).some((line) => line.includes('shades of gray')),
     ).toBe(true);
     expect(SRD_CONTENT.spell('blink')?.effects.map((effect) => effect.kind)).toEqual(['elsewhere']);
   });
@@ -3315,22 +3361,31 @@ describe('a trigger that ends a casting is a partial build, and the map says whi
       'charm-person',
       'mage-armor',
       'mass-suggestion',
-      'suggestion',
     ]) {
       const shapes = (ADJUDICATED[id] ?? []).map((entry) => entry.why);
       expect(shapes, id).not.toContain('a-casting-ended-by-a-trigger');
     }
-    // **All six leave the map entirely now**, and the sixth took two builds to
-    // get there: IE-032 closed Mass Suggestion's ending trigger and left its
-    // "The duration is longer with a spell slot of level 7 (10 days), 8 (30
-    // days), or 9 (366 days)" standing, which IE-035's `durationAtSlot`
+    // **Suggestion's damage sentence is closed and a second one is not.** "Or
+    // until you or your allies deal damage to the target" is the cause IE-032
+    // built; "the spell ends for the target upon completing it" is a different
+    // sentence whose fact — the activity done — no consequence event holds,
+    // and W8-S26 filed it here. The claim is that one and only that one.
+    expect(
+      (ADJUDICATED['suggestion'] ?? [])
+        .filter((entry) => entry.why === 'a-casting-ended-by-a-trigger')
+        .map((entry) => entry.clause),
+    ).toEqual(['upon completing the suggested activity']);
+    // **Five of the six leave the map entirely now**, and one of them took two
+    // builds to get there: IE-032 closed Mass Suggestion's ending trigger and
+    // left its "The duration is longer with a spell slot of level 7 (10 days),
+    // 8 (30 days), or 9 (366 days)" standing, which IE-035's `durationAtSlot`
     // closed. A spell can owe two shapes and be finished by neither alone,
-    // which is exactly what `unblocks` counts and `blocks` does not.
+    // which is exactly what `unblocks` counts and `blocks` does not. The sixth,
+    // Suggestion, left too and came back when W8-S26 read its other sentences.
     expect(ADJUDICATED['animal-friendship']).toBeUndefined();
     expect(ADJUDICATED['charm-person']).toBeUndefined();
     expect(ADJUDICATED['charm-monster']).toBeUndefined();
     expect(ADJUDICATED['mage-armor']).toBeUndefined();
-    expect(ADJUDICATED['suggestion']).toBeUndefined();
     expect(ADJUDICATED['mass-suggestion']).toBeUndefined();
   });
 

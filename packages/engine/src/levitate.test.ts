@@ -131,7 +131,7 @@ describe('the definition', () => {
     const definition = SPELL_DEFINITIONS.find((one) => one.id === 'levitate')!;
     expect(definition.activation?.effects).toEqual([{ kind: 'change-altitude', upTo: 20 }]);
     // The clause about the target's own Speed is executed now and no longer handed over.
-    expect(definition.unmodelled?.some((line) => line.includes('own Speed'))).toBe(false);
+    expect((definition.unmodelled ?? []).some((line) => line.includes('own Speed'))).toBe(false);
   });
 });
 
