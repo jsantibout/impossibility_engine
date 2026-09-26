@@ -1185,6 +1185,46 @@ function checkSpellCheck(
     }
   }
 
+  // SRD Spike Growth's "Wisdom (Perception or Survival)": a list the attempter
+  // picks from, held to the same two rules the single skill is held to, and
+  // never printed beside one — a spell names one skill or offers a choice.
+  // One entry is a single skill wearing a list's clothes and is refused as
+  // malformed rather than read as the other field. (W7-S21)
+  const skills = (check as { readonly skills?: unknown }).skills;
+  if (skills !== undefined) {
+    if (check.skill !== undefined) {
+      found.push({
+        field: `${path}.skills`,
+        code: 'check_skill_and_skills',
+        reason: 'a check names one skill or offers a choice of several, never both',
+      });
+    }
+    if (!Array.isArray(skills) || skills.length < 2 || new Set(skills).size !== skills.length) {
+      found.push({
+        field: `${path}.skills`,
+        code: 'malformed_field',
+        reason: 'a choice of skills is a list of two or more distinct skills; one skill is `skill`',
+      });
+    } else {
+      (skills as readonly unknown[]).forEach((entry, i) => {
+        const skill = entry as Skill;
+        if (!SKILL_NAMES.has(skill)) {
+          found.push({
+            field: `${path}.skills[${i}]`,
+            code: 'bad_skill',
+            reason: `"${String(entry)}" is not a skill`,
+          });
+        } else if (ABILITY_NAMES_SET.has(check.ability) && SKILL_ABILITY[skill] !== check.ability) {
+          found.push({
+            field: `${path}.skills[${i}]`,
+            code: 'skill_ability_mismatch',
+            reason: `SRD writes a check as "Wisdom (Perception or Survival)"; ${String(entry)} is a ${SKILL_ABILITY[skill]} skill and this names ${ability}`,
+          });
+        }
+      });
+    }
+  }
+
   if (check.dc !== undefined && (!Number.isInteger(check.dc) || check.dc < 1)) {
     found.push({
       field: `${path}.dc`,
@@ -6949,6 +6989,16 @@ export function checkSpellDefinition(
           reason: 'the roll reads by a label, as an area trigger’s does',
         });
       }
+      // SRD Glyph of Warding's spell glyph: the other thing the same decision
+      // may set off, offered or not — there is no third value. (W7-S21)
+      const storesSpell = (definition.triggered as { readonly storesSpell?: unknown }).storesSpell;
+      if (storesSpell !== undefined && storesSpell !== true) {
+        found.push({
+          field: 'triggered.storesSpell',
+          code: 'malformed_field',
+          reason: 'a rune either offers to store a spell in its place or says nothing; the only value is true',
+        });
+      }
     }
   }
   // **And a branch's ground**, held to the same rules at its own path — SRD
@@ -6985,6 +7035,45 @@ export function checkSpellDefinition(
         field: 'area.stays',
         code: 'malformed_field',
         reason: 'an Emanation is carried or it is pinned; the only value is true',
+      });
+    }
+  }
+
+  // SRD Phantasmal Force's phantasm set down beside its target: `standsApart`,
+  // the one exception to "an area or a target list, never both", and legal
+  // only where the area is a place perceived by the one creature the casting
+  // singles out — `chosenFromTheArea` names it and `areaTrigger.onlyTarget`
+  // narrows every later catch to it. Without both, a named creature the
+  // template never has to hold beside an area that catches whoever stands in
+  // it is two spells wearing one id. (W7-S21)
+  if (
+    definition.area !== undefined &&
+    definition.area !== null &&
+    typeof definition.area === 'object' &&
+    (definition.area as { readonly standsApart?: unknown }).standsApart !== undefined
+  ) {
+    const standsApart = (definition.area as { readonly standsApart?: unknown }).standsApart;
+    if (standsApart !== true) {
+      found.push({
+        field: 'area.standsApart',
+        code: 'malformed_field',
+        reason: 'a named target stands in the area or the area stands apart from it; the only value is true',
+      });
+    } else if (definition.area.kind !== 'sphere') {
+      found.push({
+        field: 'area.standsApart',
+        code: 'stands_apart_without_place',
+        reason: 'a place is one space and one space is a Sphere of radius 0; no other template stands apart from its target',
+      });
+    } else if (
+      definition.targets.chosenFromTheArea !== true ||
+      definition.areaTrigger?.onlyTarget !== true
+    ) {
+      found.push({
+        field: 'area.standsApart',
+        code: 'stands_apart_without_only_target',
+        reason:
+          'a template its named target need not stand in is legal only where the casting names that one creature (`chosenFromTheArea`) and every later catch reaches it alone (`areaTrigger.onlyTarget`)',
       });
     }
   }

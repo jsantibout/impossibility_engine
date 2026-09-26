@@ -2249,17 +2249,26 @@ const MOVE_PRINTED_LINE = tool({
 const TRIGGER_GLYPH = tool({
   name: 'trigger_glyph',
   description:
-    'Say that a glyph’s trigger has occurred — the footfall, the opened book, the spoken word its caster set when inscribing it. Name the casting; the engine measures the 20-foot Sphere from where the glyph was drawn, rolls one Dexterity save per creature standing in it, deals the rune’s dice at the slot it was inscribed with and of the type its caster chose, and ends the spell, because a triggered glyph is spent. You state no number and no creature: who is in the Sphere is the scene’s to say. A casting that is not a glyph, or one that has already fired, is refused.',
+    'Say that a glyph’s trigger has occurred — the footfall, the opened book, the spoken word its caster set when inscribing it. Name the casting; for an explosive rune the engine measures the 20-foot Sphere from where the glyph was drawn, rolls one Dexterity save per creature standing in it, deals the rune’s dice at the slot it was inscribed with and of the type its caster chose, and ends the spell, because a triggered glyph is spent. You state no number, and for a rune no creature: who is in the Sphere is the scene’s to say. A glyph that stores a spell is the one case you name a creature — `by`, whoever set it off — and the stored spell takes effect on them (or centred on them, for an area) with nothing more spent. A casting that is not a glyph, or one that has already fired, is refused; so is `by` on a rune, and a spell glyph without it.',
   mutates: true,
   input: z.strictObject({
     castingId: z.string().min(1).describe('The inscribed casting, as `look` lists it under the ongoing spells.'),
+    by: creatureId
+      .optional()
+      .describe(
+        'The creature that set off a glyph storing a spell — SRD: "If the spell has a target, it targets the creature that triggered the glyph. If the spell affects an area, the area is centered on that creature." Required for a spell glyph and refused for an explosive rune.',
+      ),
   }),
   run: (context, args) =>
     settle(
       context,
       triggerGlyph(
         context.campaign.state(),
-        { castingId: args.castingId, ...identity(context) },
+        {
+          castingId: args.castingId,
+          ...(args.by === undefined ? {} : { by: who(args.by) }),
+          ...identity(context),
+        },
         context.campaign.supply(),
       ),
       (value) => value.events,

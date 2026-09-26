@@ -190,6 +190,9 @@ const AUDIT: readonly {
       otherPlane: because(
         'that the recipient of a message spell is on another plane — SRD Sending’s "if the target is on a different plane than you, there is a 5 percent chance that the message doesn’t arrive". One spell prints the clause, the engine refuses the fact on every other, and no benchmark character has Sending prepared; the answer is a stated fact and never a number, because the die it gates is the engine’s. `packages/tools` publishes it as `cast_spell.otherPlane`',
       ),
+      stores: because(
+        'a spell stored in the casting — SRD Glyph of Warding’s spell glyph: "You can store a prepared spell of level 3 or lower in the glyph by casting it as part of creating the glyph." One spell prints the option, it takes an hour to cast, and neither benchmark character prepares it: an hour’s rite opens a pending casting, and nothing on this surface settles one — the reason `hold` and `ritual` are withheld below. `packages/tools` publishes it as `cast_spell.stores`, and the stored spell is set off by the DM’s `trigger_glyph.by`',
+      ),
       payment: because(
         'a free daily casting *and* a slot both serving. Reachable in principle — all three Tier 2 characters carry a Magic Initiate free casting — and measured as unreachable in practice: Shield refuses on its Reaction trigger first and Mage Armor has no executable definition, so the engine never gets as far as asking',
       ),

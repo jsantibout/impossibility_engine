@@ -160,10 +160,13 @@ describe('Find Familiar through the door', () => {
     expect(owl?.side).toBe('party');
     // Nothing is owed: the familiar is kept, not held by a casting that ended.
     expect(t.look().owed.strandedSummons).toEqual([]);
-    // And what the engine could not check reaches the caller marked as such:
-    // the senses and the touch. The pocket dimension is not among them any
-    // more — `dismiss_familiar` and `recall_familiar` are its two doors.
-    expect(settled.unverified.some((line) => line.includes('familiar’s eyes'))).toBe(true);
+    // And what the engine could not check reaches the caller marked as such.
+    // The pocket dimension is not among them any more — `dismiss_familiar`
+    // and `recall_familiar` are its two doors — and nor is seeing through the
+    // familiar's eyes, which is `borrow_senses`; what is left of that sentence
+    // is the senses the familiar's own stat block prints, which no sheet holds.
+    expect(settled.unverified.some((line) => line.includes('familiar’s eyes'))).toBe(false);
+    expect(settled.unverified.some((line) => line.includes('familiar’s own stat block'))).toBe(true);
     expect(settled.unverified.some((line) => line.includes('pocket dimension'))).toBe(false);
   });
 
@@ -239,6 +242,33 @@ describe('Find Familiar through the door', () => {
     // One familiar, one wizard, nobody stranded.
     expect(t.look().creatures.map((one) => one.name).sort()).toEqual(['Kessa', 'Raven']);
     expect(t.look().owed.strandedSummons).toEqual([]);
+  });
+
+  /**
+   * The third door on the bond — SRD Find Familiar: "As a Bonus Action, you
+   * can see through the familiar's eyes … until the start of your next turn".
+   * A moment in the turn order, so it is asked for outside a fight and taken
+   * on the wizard's own turn inside one. (W7-S21)
+   */
+  it('borrows the owl’s eyes for a Bonus Action on the wizard’s turn, and asks for a fight outside one', () => {
+    const t = table();
+    openTheStudy(t);
+    callTheFamiliar(t, 'owl', 'Fey');
+    const owl = familiarOf(t, 'Owl')!;
+    expectOk(t.call('place_creature', { who: owl.id, fromLandmark: 'the brazier', feet: 5 }));
+
+    const outside = t.call('borrow_senses', { caster: 'kessa', who: owl.id });
+    expect(outside.status).toBe('needs-context');
+
+    expectOk(t.call('roll_initiative', { combatants: [{ who: 'kessa' }, { who: owl.id }] }));
+    for (let i = 0; i < 2 && t.look().turnOf !== 'kessa'; i += 1) expectOk(t.call('end_turn'));
+    expect(t.look().turnOf).toBe('kessa');
+
+    const borrowed = expectOk(t.call('borrow_senses', { caster: 'kessa', who: owl.id }));
+    expect(borrowed.resolution['borrowedFrom']).toBe(owl.id);
+    expect(borrowed.events.some((event) => event.type === 'senses-borrowed')).toBe(true);
+    // A second Bonus Action on the same turn is not there to spend.
+    expect(t.call('borrow_senses', { caster: 'kessa', who: owl.id }).status).not.toBe('ok');
   });
 
   it('replays byte-identically from the same seed', () => {

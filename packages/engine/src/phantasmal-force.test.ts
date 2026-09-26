@@ -1,13 +1,23 @@
 import { describe, expect, it } from 'vitest';
 import { SRD_CONTENT } from '@ie/content';
-import { asCharacterId, expect as unwrap, isErr, type CharacterId, type Result } from '@ie/shared';
+import {
+  asCharacterId,
+  contextRequestsOf,
+  expect as unwrap,
+  isErr,
+  isNeedsContext,
+  type CharacterId,
+  type Result,
+} from '@ie/shared';
 import type { CharacterSheet } from './character.js';
 import { createRng, type Rng } from './dice.js';
 import { createRollIssuer } from './rolls.js';
 import { fold, type GameEvent, type GameState } from './events.js';
 import { declaredCasting } from './spellcasting.js';
+import { checkSpellDefinitionValue } from './spell-schema.js';
 import {
   availableChecks,
+  eligibleTargets,
   resolveEffectCheck,
   resolveSpell,
   resolveTurn,
@@ -180,7 +190,7 @@ describe('Phantasmal Force', () => {
     const held = crafted(seedWhere(false));
     const record = held.state.ongoing[held.castingId]!;
     expect(record.singledOut).toBe(GOBLIN);
-    expect(record.area).toEqual({ kind: 'sphere', radius: 0, origin: 'point' });
+    expect(record.area).toEqual({ kind: 'sphere', radius: 0, origin: 'point', standsApart: true });
     expect(record.origin).toEqual(CUBE);
   });
 
@@ -250,13 +260,109 @@ describe('Phantasmal Force', () => {
     throw new Error('no seed makes the goblin see through it');
   });
 
-  it('refuses a creature the phantasm’s own space does not hold', () => {
-    const refused = resolveSpell(
-      fold('seed', HALL),
-      BARD,
-      { spellId: 'phantasmal-force', targets: [ALLY], slotLevel: 2, at: CUBE },
-      supply('elsewhere'),
-    );
-    expect(isErr(refused) && refused.code).toBe('not_in_the_area');
+  /**
+   * **Where a phantasm may stand — the coordinator's ruling of 2026-09-26.**
+   *
+   * The template is where the phantasm is and the target is who it is for, so
+   * a definition may both keep a point and name a creature when its area is a
+   * place perceived by that creature alone: `SpellArea.standsApart`. The
+   * ordinary use — a phantasmal wolf set down *beside* the goblin, which is the
+   * book's own bridge — had been refused `not_in_the_area`, because
+   * `chosenFromTheArea` held the named creature to the template's catch.
+   */
+  describe('a phantasm set down beside its target', () => {
+    /** The wolf's space: five feet from the goblin and five from the ally. */
+    const WOLF = { x: 135, y: 100, z: 0 };
+
+    const craftedAt = (at: { x: number; y: number; z: number }, seed: string, target = GOBLIN) =>
+      resolveSpell(
+        fold('seed', HALL),
+        BARD,
+        { spellId: 'phantasmal-force', targets: [target], slotLevel: 2, at },
+        supply(seed),
+      );
+
+    const failing = (at: { x: number; y: number; z: number }) => {
+      for (const seed of ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l', 'm', 'n']) {
+        const out = craftedAt(at, seed);
+        if (out.ok && out.value.outcomes[0]?.save?.success === false) return out.value;
+      }
+      throw new Error('no seed makes the goblin fail');
+    };
+
+    it('is a legal cast: the goblin need not stand in the wolf’s space', () => {
+      const out = failing(WOLF);
+      const state = fold('seed', [...HALL, ...out.events]) as GameState;
+      const record = state.ongoing[out.castingId!]!;
+      expect(record.singledOut).toBe(GOBLIN);
+      expect(record.origin).toEqual(WOLF);
+      expect(record.area).toMatchObject({ kind: 'sphere', radius: 0, standsApart: true });
+    });
+
+    it('bites the goblin for 2d8 at the bard’s turn start, and not the fighter standing as close', () => {
+      const out = failing(WOLF);
+      const round = roundTo([...HALL, ...out.events], 'turns');
+      const hurt = round.log.filter((event) => event.type === 'damage-taken');
+      expect(hurt.length).toBeGreaterThan(0);
+      expect(hurt.every((blow) => blow.type === 'damage-taken' && blow.id === GOBLIN)).toBe(true);
+      const dice = round.log.filter((event) => event.type === 'damage-dice-recorded');
+      for (const rolled of dice) {
+        if (rolled.type !== 'damage-dice-recorded') throw new Error('filtered');
+        expect(rolled.components[0]!.dice.length).toBe(2);
+        expect(rolled.components[0]!.type).toBe('psychic');
+      }
+    });
+
+    it('leaves a goblin ten feet from the wolf unhurt', () => {
+      const out = failing({ x: 140, y: 100, z: 0 });
+      const round = roundTo([...HALL, ...out.events], 'turns');
+      expect(round.log.filter((event) => event.type === 'damage-dice-recorded')).toEqual([]);
+    });
+
+    it('is a legal cast thirty-five feet from the goblin, inside the bard’s range', () => {
+      const out = craftedAt({ x: 100, y: 135, z: 0 }, 'far');
+      expect(out.ok).toBe(true);
+      if (!out.ok) return;
+      expect(out.value.outcomes.map((one) => one.target)).toEqual([GOBLIN]);
+    });
+
+    it('still holds the named creature to the spell’s range and sight', () => {
+      // The ally is thirty-five feet off and nobody has said the bard sees
+      // them: the point is fine, the target is the question.
+      const unseen = craftedAt(WOLF, 'blind', ALLY);
+      expect(isNeedsContext(unseen)).toBe(true);
+      expect(contextRequestsOf(unseen)[0]?.kind).toBe('visibility');
+      // And a phantasm placed out of range is refused as any area is.
+      const tooFar = craftedAt({ x: 170, y: 100, z: 0 }, 'range');
+      expect(isErr(tooFar) && tooFar.code).toBe('out_of_range');
+    });
+
+    it('offers the named-target shortlist rather than whoever stands in one space', () => {
+      const offered = eligibleTargets(fold('seed', HALL), SRD_CONTENT, BARD, 'phantasmal-force', 2, { at: WOLF });
+      expect(offered.eligible).toContain(GOBLIN);
+    });
+
+    it('is validated: a place stands apart only for the one mind the area is in', () => {
+      const base = SRD_CONTENT.spell('phantasmal-force')!;
+      const noTrigger: Record<string, unknown> = { ...base };
+      delete noTrigger['areaTrigger'];
+      const problems = checkSpellDefinitionValue({
+        ...noTrigger,
+        check: { ability: 'int', skill: 'investigation', onSuccess: 'end-casting' },
+      });
+      expect(problems.map((problem) => problem.code)).toContain('stands_apart_without_only_target');
+      const malformed = checkSpellDefinitionValue({
+        ...base,
+        area: { kind: 'sphere', radius: 0, origin: 'point', standsApart: false as unknown as true },
+      });
+      expect(malformed.map((problem) => problem.code)).toContain('malformed_field');
+      // A place is one space, which is a Sphere of nothing: the field on any
+      // other template is refused.
+      const cube = checkSpellDefinitionValue({
+        ...base,
+        area: { kind: 'cube', size: 10, origin: 'point', standsApart: true },
+      });
+      expect(cube.map((problem) => problem.code)).toContain('stands_apart_without_place');
+    });
   });
 });

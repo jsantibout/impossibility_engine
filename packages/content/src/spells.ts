@@ -2027,16 +2027,18 @@ export const PHANTASMAL_FORCE: SpellDefinition = {
   concentration: true,
   // "a creature you can see within range"
   range: { kind: 'ranged', feet: 60 },
-  // "a creature you can see within range", read through the place the phantasm
-  // takes: the caster puts the illusion in a space within range and names the one
-  // creature standing there whose mind it is in — SRD's "each creature of your
-  // choice in the area" narrowed to one, which is the only way a spell may both
-  // take a place and name a creature.
+  // "a creature you can see within range": the one creature whose mind the
+  // illusion is in, judged as any named target is — range and sight from the
+  // caster — and nothing to do with where the phantasm is put.
   targets: { count: 1, chosenFromTheArea: true },
   requiresSight: true,
-  // The space the phantasm stands in. The book never places it and never makes
-  // its Cube catch anybody; what reaches a creature is the five feet below.
-  area: { kind: 'sphere', radius: 0, origin: 'point' },
+  // The space the phantasm stands in, which the caster chooses within range.
+  // The book never makes its Cube catch anybody; what reaches the target is
+  // the five feet below, and the target need not stand in the phantasm's space
+  // — a wolf set down beside the goblin is the ordinary use and the book's own
+  // bridge, which is what `standsApart` says (the coordinator's ruling of
+  // 2026-09-26: the one exception to "an area or a target list, never both").
+  area: { kind: 'sphere', radius: 0, origin: 'point', standsApart: true },
   effects: [
     {
       kind: 'save',
@@ -2074,9 +2076,6 @@ export const PHANTASMAL_FORCE: SpellDefinition = {
     'For example, if the target steps through a phantasmal bridge and survives the fall, it believes the bridge exists and something else caused it to fall.',
     'An affected target can even take damage from the illusion if the phantasm represents a dangerous creature or hazard.',
     'The target perceives the damage as a type appropriate to the illusion.',
-  ],
-  unmodelled: [
-    'where the phantasm stands is not the caster’s to choose: the engine puts it in the space of the creature whose mind it is in, because a casting fills a place or names a creature and never both, so a wolf conjured beside its target rather than on it is a casting this engine refuses — which of two answers is right is a ruling nobody has taken',
   ],
 };
 
@@ -10280,9 +10279,10 @@ export const PASS_WITHOUT_TRACE: SpellDefinition = {
  * > save DC to recognize the terrain as hazardous before entering it."
  *
  * **The damage is per five feet travelled**, which is the sentence that makes
- * this more than another Difficult Terrain spell: the engine charges movement
- * by the foot and never asks how far inside an area those feet were spent, so
- * there is no number for the dice to be multiplied by.
+ * this more than another Difficult Terrain spell: the patch the casting lays
+ * owes the dice for every five feet of a stated route inside the Sphere. The
+ * Search-action check is offered off the casting with the attempter's choice of
+ * skill (`SpellCheck.skills`); who has to make it is the table's.
  */
 export const SPIKE_GROWTH: SpellDefinition = {
   id: 'spike-growth',
@@ -10303,9 +10303,22 @@ export const SPIKE_GROWTH: SpellDefinition = {
   // reported rather than rolled for.
   areaTerrain: { costPerFoot: 2, damagePerFeet: { feet: 5, dice: '2d4', damageType: 'piercing' } },
   effects: [],
+  // "Any creature that can't see the area when the spell is cast must take a
+  // Search action and succeed on a Wisdom (Perception or Survival) check
+  // against your spell save DC to recognize the terrain as hazardous before
+  // entering it." A check the casting offers to anybody — `mayAttempt`'s
+  // casting-with-no-victim rule is this sentence — with the attempter's choice
+  // of skill (`skills`) and the Search action as its price, which is the Action
+  // `resolveEffectCheck` charges. Knowing changes nothing the engine holds.
+  check: { ability: 'wis', skills: ['perception', 'survival'], onSuccess: 'none' },
   durationSeconds: 600,
+  // The check is the engine's; *who has to make it* — a creature that could not
+  // see the casting — is a fact about the scene at a moment gone by, and the
+  // table's. Not `dmDecides`: the printed sentence names the check the engine
+  // rolls, and a handover may name no mechanic, so the gate is filed here with
+  // a `'table'` adjudication — Glyph of Warding's check to notice, the same way.
   unmodelled: [
-    'the Wisdom (Perception or Survival) check that spots the hazard is not offered off the casting: `SpellCheck` names one skill and the command that attempts a check (`resolveEffectCheck`) states none, so "Perception or Survival" — the attempter’s choice — has no field to be said in; the table calls it as a Search action with either skill against the casting’s DC, and "any creature that can’t see the area when the spell is cast" is the table’s to know',
+    'who has to make the Wisdom (Perception or Survival) check is not decided by the engine: "any creature that can’t see the area when the spell is cast" is a fact about the scene at a moment gone by, which the table holds and the engine does not — the check itself is offered off the casting to anybody who takes the Search action',
   ],
 };
 
@@ -14187,9 +14200,12 @@ export const HEX: SpellDefinition = {
  * familiar can't attack" arrives on the creature as a stored rule the action
  * economy refuses on.
  *
- * What is left is written below and adjudicated in `missing-shapes.ts`: its
- * senses lent to the caster, the touch spell it delivers, and the pocket
- * dimension it can be sent to.
+ * Its three doors are the bond's: the pocket dimension it can be sent to
+ * (`dismissKeptSummons`, `recallKeptSummons`), the touch spell it delivers
+ * (`cast_spell.deliveredBy`), and its senses lent to the caster for a Bonus
+ * Action (`borrowSenses`, read by `canSee` and `sensesOf`). What is left is
+ * written below: the senses its **stat block** prints, which no sheet holds
+ * yet, and the rest, which is the table's.
  */
 export const FIND_FAMILIAR: SpellDefinition = {
   id: 'find-familiar',
@@ -14236,12 +14252,16 @@ export const FIND_FAMILIAR: SpellDefinition = {
       // Reaction to deliver the touch when you cast the spell." The permission
       // and the distance are the spell's own sentence, so they are pinned on the
       // bond and `cast_spell.deliveredBy` reads them.
-      kept: { pocket: { within: 30 }, delivers: { within: 100 } },
+      // "As a Bonus Action, you can see through the familiar's eyes and hear
+      // what it hears until the start of your next turn, gaining the benefits
+      // of any special senses it has." The permission is this sentence, and
+      // `borrowSenses` is the door that reads it.
+      kept: { pocket: { within: 30 }, delivers: { within: 100 }, lends: true },
       cannotAttack: true,
     },
   ],
   unmodelled: [
-    'seeing through the familiar’s eyes and hearing what it hears as a Bonus Action, with the benefits of any special senses it has, is not granted: sight here is a pairwise declaration, and one creature borrowing another’s senses has no state to sit in',
+    'the benefits of the special senses printed on the familiar’s own stat block (an Owl’s Darkvision, a Bat’s Blindsight) are not lent, because a block’s Senses line reaches no sheet: `borrowSenses` lends the eyes and every sense the engine holds for the familiar, and a printed one is not among them',
     'the telepathic connection within 100 feet is the table’s: the distance is measurable and what it gates is conversation',
     'what it leaves behind in its space when it disappears, and what it does with the turns it acts independently on while obeying your commands, are the DM’s',
   ],
@@ -14831,10 +14851,14 @@ export const GIANT_INSECT: SpellDefinition = {
  * above 3, and the casting ending because it fired. The record pins the list
  * with its type substituted, so the door opens no catalogue.
  *
- * Two halves stay filed. The **spell glyph** is a casting that casts another
- * spell, stored now and set off later, which is the stack `docs/design/casting.md`
- * declined; and the **creature-type refinement** is a predicate an area does not
- * read — the rune catches whoever stands in the Sphere when the DM says it went
+ * The **spell glyph** is the other option, and a stored request rather than a
+ * pending casting: the stored spell is cast at the inscription — its slot
+ * spent, no Concentration held — and pinned on the record
+ * (`triggered.storesSpell`, `OngoingSpell.stored`), so nothing sits open for a
+ * Counterspell between the inscription and the trigger; the DM names who set
+ * it off and it takes effect on them, or centred on them for an area. The
+ * **creature-type refinement** stays filed — a predicate an area does not read,
+ * so the rune catches whoever stands in the Sphere when the DM says it went
  * off. The check to notice the glyph is the table's to call for.
  */
 export const GLYPH_OF_WARDING: SpellDefinition = {
@@ -14857,6 +14881,12 @@ export const GLYPH_OF_WARDING: SpellDefinition = {
   effects: [],
   triggered: {
     label: 'Glyph of Warding (the explosive rune)',
+    // "_Spell Glyph._ You can store a prepared spell of level 3 or lower in the
+    // glyph by casting it as part of creating the glyph." The other option: a
+    // casting that names a spell to store (`CastSpellRequest.stores`) runs no
+    // rune and states no type for one, and the DM's trigger lets the stored
+    // spell go at whoever set it off.
+    storesSpell: true,
     effects: [
       {
         kind: 'save-damage',
@@ -14875,7 +14905,6 @@ export const GLYPH_OF_WARDING: SpellDefinition = {
     "You can also set conditions for creatures that don't trigger the glyph, such as those who say a certain password.",
   ],
   unmodelled: [
-    'the spell glyph is not inscribed: "You can store a prepared spell of level 3 or lower in the glyph by casting it as part of creating the glyph" is a casting that casts another spell, stored now and set off later at whoever triggered it, which is the stack the casting design declined',
     'refining the trigger so that only creatures of certain types set it off is not applied: the rune catches whoever stands in the Sphere when the DM says it went off, and a predicate over a creature type is a filter an area does not read',
     'the Wisdom (Perception) check against your spell save DC to notice the glyph is not offered by the casting: the DM calls for it when somebody searches, and the DC is the sheet’s',
     'the ten feet the surface or object may be moved before the glyph breaks is the DM’s to watch, who ends the casting when it does',

@@ -97,6 +97,7 @@ import {
 import type {
   AbilityLowering,
   Attachment,
+  BorrowedSenses,
   CommandStamp,
   GrantedFallWard,
   GrantedJump,
@@ -156,6 +157,7 @@ import type {
 export type {
   AppliedCommand,
   Attachment,
+  BorrowedSenses,
   CommandStamp,
   CreatureState,
   GameState,
@@ -544,6 +546,19 @@ export type GameEvent =
       readonly type: 'sense-granted';
       readonly id: CharacterId;
       readonly modifier: GrantedSense;
+    }
+  /**
+   * A creature looks through another's eyes until the start of its next turn —
+   * SRD Find Familiar's Bonus Action, written by `borrowSenses`. The deadline
+   * is pinned here and read by `canSee` and `sensesOf`; nothing ends it but
+   * the clock, the lender's going, or a second borrowing. See
+   * `BorrowedSenses`. (W7-S21)
+   */
+  | {
+      readonly type: 'senses-borrowed';
+      readonly id: CharacterId;
+      readonly borrowed: BorrowedSenses;
+      readonly command?: CommandStamp;
     }
   /**
    * An amount a running effect takes off a hit **before** the defences —

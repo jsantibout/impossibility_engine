@@ -1,4 +1,4 @@
-import { err, ok, type CharacterId, type Result } from '@ie/shared';
+import { err, ok, type Ability, type CharacterId, type Result, type Skill } from '@ie/shared';
 import type { TurnMoment } from './time.js';
 import {
   areaPointAt,
@@ -17,6 +17,7 @@ import type {
   CastingEndTrigger,
   SpellArea,
   StatedChoiceOf,
+  StoredSpellRequest,
 } from './spell-definitions.js';
 import type { AreaStanding } from './standing.js';
 
@@ -292,6 +293,14 @@ export interface OngoingSpell {
    * opens no catalogue. See `SpellDefinition.triggered`.
    */
   readonly triggered?: TriggeredEffects;
+  /**
+   * The spell this casting stores, set off by the same decision in the
+   * {@link triggered} list's place — SRD Glyph of Warding's spell glyph. See
+   * {@link StoredCasting}. Absent for every casting that stores nothing, and a
+   * record holding one pins no `triggered` list: the rune and the spell glyph
+   * are the book's two options, never both. (W7-S21)
+   */
+  readonly stored?: StoredCasting;
   /**
    * What stops this casting before its time is up — **as cast**.
    *
@@ -771,6 +780,19 @@ export interface OngoingSpell {
    */
   readonly singledOut?: string;
   /**
+   * The skills the casting's check offers a **choice** of — SRD Spike Growth's
+   * "Wisdom (Perception or Survival)" — pinned from `SpellCheck.skills` at the
+   * cast, so the attempt a minute later opens no book.
+   *
+   * **On the record and not on the timer's `EffectCheck`, for the reason
+   * {@link singledOut} is**: the check machinery reaches this record through
+   * the timer's `casting` target, and that is the seam the compulsions track
+   * used for the one creature a check is narrowed to. `availableChecks`
+   * publishes it and `resolveEffectCheck` holds the attempter's `skill` to it.
+   * Absent for every check that names one skill or none. (W7-S21)
+   */
+  readonly checkSkills?: readonly Skill[];
+  /**
    * The turn this casting's point last moved on, counted as the fight counts
    * turns, or absent for one that has never moved or moved outside a fight.
    *
@@ -1080,6 +1102,37 @@ export interface WrittenOngoing
  * creature it is happening *to*, and everything about the caster that is
  * genuinely current — a Bless on them now applies now.
  */
+/**
+ * A spell stored in another casting's record — SRD Glyph of Warding's spell
+ * glyph — and everything its later taking-effect needs without asking the
+ * caster's sheet or the book again.
+ *
+ * **A stored request and not a pending casting**, which is the coordinator's
+ * ruling: `pendingCastings` would leave an open casting a Counterspell could
+ * answer on a rune in a dungeon. The stored spell was *cast* at the
+ * inscription — its `spell-cast` written, its slot spent, its casting id
+ * begun, and no Concentration held — and what waits here is the request, the
+ * route it came through and the numbers it was cast with. `triggerGlyph` lets
+ * it go through `castOrRelease`'s held path at the creature the DM names, and
+ * schedules the stored spell's full duration from that moment.
+ *
+ * **The route is pinned as its class and ability rather than re-derived**,
+ * which is the one departure from how a settlement treats a route: a glyph
+ * stands until dispelled, and a Cleric who prepares other spells tomorrow has
+ * not uncast the one in the rune. The numbers are pinned for the rule every
+ * casting's are. (W7-S21)
+ */
+export interface StoredCasting extends StoredSpellRequest {
+  /** The stored spell's own casting id, begun at the inscription. */
+  readonly castingId: string;
+  /** The class whose preparation supplied it, as `class:<id>` routes name it. */
+  readonly classId: string;
+  /** That class's spellcasting ability. */
+  readonly ability: Ability;
+  /** The numbers it was cast with, at the inscription. */
+  readonly numbers: CastingNumbers;
+}
+
 export interface CastingNumbers {
   readonly saveDc: number;
   readonly attackModifier: number;

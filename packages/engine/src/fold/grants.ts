@@ -41,6 +41,7 @@ export const GRANTS_EVENTS = [
   'damage-defense-granted',
   'speed-modifier-granted',
   'sense-granted',
+  'senses-borrowed',
   'damage-reduction-granted',
   'damage-penalty-granted',
   'ability-score-lowered',
@@ -223,6 +224,14 @@ export function applyGrants({ state, next }: Applying, event: GrantsEvent): Game
         event.modifier,
       ].sort((a, b) => (a.source < b.source ? -1 : a.source > b.source ? 1 : 0));
       return withCreature(next, event.id, { senseModifiers }, creature);
+    }
+
+    // SRD Find Familiar's borrowed eyes: the record replaces any earlier one,
+    // and its own deadline is what ends it — read by `canSee` and `sensesOf`,
+    // never swept. See `BorrowedSenses`. (W7-S21)
+    case 'senses-borrowed': {
+      const creature = creatureOf(state, event, event.id);
+      return withCreature(next, event.id, { borrowedSenses: event.borrowed }, creature);
     }
 
     case 'damage-reduction-granted': {

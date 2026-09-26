@@ -26,7 +26,17 @@ directional ones take an aim. An area's origin is a point (placed at the
 cast), the caster (carried, moving with them), or an ongoing casting's own
 point (Spiritual Weapon, Moonbeam: moved by a later activation). A spell has
 an area *or* a target list, never both; `targetsWithin` is the third case,
-named targets chosen from inside an area.
+named targets chosen from inside an area. **The one exception, ruled on
+2026-09-26:** a definition may both keep a point and name a creature when its
+area is a *place* perceived by that creature alone — SRD Phantasmal Force's
+phantasm, set down beside the goblin whose mind it is in. `SpellArea.standsApart`
+says the named target need not stand in the template: the template is where
+the phantasm is and the target is who it is for, so the point is placed and
+range-checked as any area is, the name is judged as any named target is, and
+what reaches the creature later is the trigger's own `within` measured from
+the point, narrowed to the pinned `singledOut` by `onlyTarget`. The validator
+refuses the field without both of those clauses, which is what keeps it an
+exception rather than a fourth case.
 
 A **persistent area** catches creatures at the moments the spell prints
 (`AreaTrigger`: start or end of turn, on entry, first-per-turn, on the area

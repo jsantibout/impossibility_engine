@@ -19,6 +19,7 @@
     "FallMoment",
     "GrantedFallWard",
     "GrantedLift",
+    "BorrowedSenses",
     "GrantedJump",
     "PendingAttack",
     "PendingMove",

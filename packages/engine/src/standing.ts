@@ -21,7 +21,7 @@ import type { HazardName } from './hazards.js';
 // Type-only, so the cycle with `monster.ts` (which imports this file's types)
 // is erased: the shape a printed hold binds its holder with — W7-B10.
 import type { PrintedHeldObject, PrintedWhileHolding } from './monster.js';
-import type { TurnAnchor, TurnMoment } from './time.js';
+import { hasExpired, timeView, type TurnAnchor, type TurnMoment } from './time.js';
 import {
   grantedRollModes,
   unsettledSightGrants,
@@ -4848,6 +4848,37 @@ export function ritualsFromBookOn(state: GameState, who: CharacterId): boolean {
  * name, for the reason `conditionImmunitiesOf` is.
  */
 export function sensesOf(state: GameState, who: CharacterId): readonly CreatureSense[] {
+  return sensesHeld(state, who, true);
+}
+
+/**
+ * The creature lending this one its senses right now, or null — SRD Find
+ * Familiar: "you can see through the familiar's eyes and hear what it hears
+ * until the start of your next turn, gaining the benefits of any special
+ * senses it has."
+ *
+ * **The one reading of the record `borrowSenses` writes**, for the two
+ * readers below. Nothing is lent once the deadline has passed — which is also
+ * the fight ending, where `hasExpired` reads a turn-anchored moment as gone —
+ * nor by a lender that is dead, away in its pocket, or no longer the
+ * borrower's own: eyes that are not in the scene see nothing in it. (W7-S21)
+ */
+function lenderOf(state: GameState, who: CharacterId): CharacterId | null {
+  const borrowed = state.creatures[who]?.borrowedSenses;
+  if (borrowed === undefined) return null;
+  if (hasExpired(timeView(state), borrowed.until)) return null;
+  const lender = state.creatures[borrowed.from];
+  if (lender === undefined || lender.vitals.dead || lender.elsewhere !== null) return null;
+  if (lender.summonedBy?.by !== who) return null;
+  return borrowed.from;
+}
+
+/**
+ * {@link sensesOf}, with the lent half optional — so the lender's own senses
+ * are read without its own borrowing, and no pair of creatures can lend each
+ * other a sense round a loop.
+ */
+function sensesHeld(state: GameState, who: CharacterId, borrowing: boolean): readonly CreatureSense[] {
   const furthest = new Map<SenseName, number>();
   const reach = (sense: SenseName, feet: number): void => {
     const had = furthest.get(sense);
@@ -4861,6 +4892,13 @@ export function sensesOf(state: GameState, who: CharacterId): readonly CreatureS
   // which lengthens a sense the creature already has rather than replacing it.
   for (const held of state.creatures[who]?.senseModifiers ?? []) {
     reach(held.sense, held.feet);
+  }
+  // And the senses a familiar lends through its eyes — SRD Find Familiar's
+  // "gaining the benefits of any special senses it has" — at the lender's
+  // own ranges, for as long as the borrowing holds. See `lenderOf`. (W7-S21)
+  const lender = borrowing ? lenderOf(state, who) : null;
+  if (lender !== null) {
+    for (const lent of sensesHeld(state, lender, false)) reach(lent.sense, lent.feet);
   }
   return [...furthest.entries()]
     .sort(([a], [b]) => a.localeCompare(b))
@@ -5147,6 +5185,18 @@ function blindsightReaching(
  * and the ruling that put it there.
  */
 export function canSee(state: GameState, from: CharacterId, to: CharacterId): boolean | null {
+  // SRD Find Familiar: "you can see through the familiar's eyes". **Yes where
+  // the familiar sees, and the looker's own answer everywhere else**, so the
+  // model stays three-valued: a familiar that cannot see, or that nobody has
+  // said sees, leaves the question exactly where the looker's own eyes put
+  // it. See `lenderOf`. (W7-S21)
+  const lender = from === to ? null : lenderOf(state, from);
+  if (lender !== null && lender !== to && ownSight(state, lender, to) === true) return true;
+  return ownSight(state, from, to);
+}
+
+/** {@link canSee} through the looker's own eyes alone. */
+function ownSight(state: GameState, from: CharacterId, to: CharacterId): boolean | null {
   const scene = state.scene;
   if (scene === null) return null;
   // SRD Blinded, first and ahead of the declaration — {@link blindedTo} says

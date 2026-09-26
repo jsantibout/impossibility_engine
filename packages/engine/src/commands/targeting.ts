@@ -54,12 +54,14 @@ import {
   DIRECTIONAL_AREAS,
   isCreatureType,
   namesAnObject,
+  areaStandsApart,
   optionEffects,
   ranged,
   rangeFeetAt,
   type SpellArea,
   type SpellDefinition,
   type SpellEffect,
+  type StoredSpellRequest,
   statedChoiceReaches,
   statesFoughtFact,
   statesWillingFact,
@@ -705,6 +707,24 @@ export interface CastSpellRequest extends CommandIdentity {
    * the slot allows (`too_many_raised`).
    */
   readonly bonesAt?: readonly Placement[];
+  /**
+   * A spell this casting stores, to take effect when a DM says the casting's
+   * trigger occurred — SRD Glyph of Warding's spell glyph: "You can store a
+   * prepared spell of level 3 or lower in the glyph by casting it as part of
+   * creating the glyph."
+   *
+   * The fourteenth fact a casting states rather than derives, and the same
+   * discipline: refused on a spell whose definition prints no such option
+   * (`stores_nothing`), refused for a spell that is not prepared
+   * (`stored_not_prepared`), above this casting's slot
+   * (`stored_level_too_high`), aimed at neither one creature nor an area
+   * (`stored_targets_nothing`) or taking a minute or more to cast
+   * (`stored_spell_too_long`) — all before a slot is spent. The stored spell's
+   * own slot is spent when this casting takes effect, and a casting that
+   * stores one runs no rune and states no damage type for it. See
+   * `TriggeredEffects.storesSpell`. (W7-S21)
+   */
+  readonly stores?: StoredSpellRequest;
   /**
    * Which of this casting's targets consent to it.
    *
@@ -2156,6 +2176,22 @@ export function areaTargets(
   const shortlist = caught.value;
   if (source.chosenFromTheArea !== true) return ok(shortlist);
 
+  // **The one exception to "an area or a target list, never both."** SRD
+  // Phantasmal Force's phantasm is a place perceived only by the creature whose
+  // mind it is in, and the ordinary use sets it down *beside* that creature —
+  // so where the area stands apart (`SpellArea.standsApart`, the coordinator's
+  // ruling of 2026-09-26) the catch has placed and range-checked the template
+  // and has nothing to say about the name. The name is `namedTargets`' to
+  // judge, exactly as it is for a spell with no area, and `resolveSpell` sends
+  // it there next; what this returns is the list as stated, so the two agree
+  // about who was named. (W7-S21)
+  if (areaStandsApart(area)) {
+    if (new Set(request.targets).size !== request.targets.length) {
+      return err('duplicate_target', `${source.name} may not take the same target twice`);
+    }
+    return ok(request.targets.slice().sort());
+  }
+
   // SRD Sleep: "Each creature **of your choice** in a 5-foot-radius Sphere."
   //
   // The area has said who could be caught; this is the caster saying which of
@@ -2393,7 +2429,12 @@ export function namedTargets(
   // and a casting with an origin, where the point is what the targets are
   // measured *from*.
   const bound = definition.targetsWithin;
-  const takesPoint = bound !== undefined || definition.origin !== undefined;
+  // And the third shape that takes both: a place its named target need not
+  // stand in — SRD Phantasmal Force's phantasm beside the goblin. The point
+  // was placed and range-checked by `areaTargets` before this was reached;
+  // what is judged here is the name alone. (W7-S21)
+  const takesPoint =
+    bound !== undefined || definition.origin !== undefined || areaStandsApart(definition.area);
   if (!takesPoint && (request.at !== undefined || request.towards !== undefined)) {
     return err(
       'not_an_area',
@@ -2962,7 +3003,10 @@ export function eligibleTargets(
   }
   void slotLevel;
 
-  if (definition.area !== undefined) {
+  // An area that stands apart from its named target offers the named-target
+  // shortlist below — whom the caster can reach and see — rather than whoever
+  // happens to stand in the one space the phantasm takes. (W7-S21)
+  if (definition.area !== undefined && !areaStandsApart(definition.area)) {
     return areaShortlist(state, casterId, definition, definition.area, placement);
   }
 

@@ -1294,8 +1294,10 @@ describe('reading four families found blockers the bare lists had missed', () =>
     // rather than kept, and **the delivered touch has gone the same way**:
     // `KeptSummons.delivers` is the permission and the hundred feet, pinned onto
     // the bond, and `cast_spell.deliveredBy` is the hand the Touch is measured
-    // from. One reading is left, and it is the one about sight.
-    ['find-familiar', 'unmodelled', 'seeing through the familiar’s eyes'],
+    // from. One reading is left, and it is the one about sight — narrower
+    // since W7-S21 built the borrowing (`borrowSenses`): what is still owed is
+    // the senses the familiar's own stat block prints, which no sheet holds.
+    ['find-familiar', 'unmodelled', 'special senses printed on the familiar’s own stat block'],
     // Sending, defined on the owner's ruling of 2026-09-25. Three of its four
     // rows were spent by being built or by being a fact the caster states —
     // the die is the `chance` effect, the other plane is `otherPlane` on the
@@ -2415,17 +2417,19 @@ describe('a consumer count is a query', () => {
     // are whole. **Glyph of Warding left last**: its rune is `triggered`, an
     // effect list a DM's decision fires over the pinned Sphere with the type
     // the caster stated, so the damage type is `damageTypeStated` and no
-    // longer a choice with nowhere to go. The spell glyph — a stored casting
-    // — is a shape of its own and a sentence no marker sees, so it is the
-    // definition's own `unmodelled` and the executed map holds only the check
-    // to notice, which is the table's.
+    // longer a choice with nowhere to go. The spell glyph — a stored request
+    // rather than a pending casting — is built too (`triggered.storesSpell`,
+    // W7-S21), so its sentence has left the definition's own `unmodelled`,
+    // and the executed map holds only the check to notice, which is the
+    // table's.
     for (const id of ['glyph-of-warding']) {
       expect(BLOCKED_ON[id]).toBeUndefined();
       expect(TRACKED_ADJUDICATED[id]).toBeUndefined();
       expect(ADJUDICATED[id]?.map((e) => e.why)).toEqual(['table']);
+      expect(SRD_CONTENT.spell(id)?.triggered?.storesSpell).toBe(true);
       expect(
         (SRD_CONTENT.spell(id)?.unmodelled ?? []).some((line) => line.includes('casts another spell')),
-      ).toBe(true);
+      ).toBe(false);
     }
   });
 

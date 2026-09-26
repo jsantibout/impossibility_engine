@@ -45,6 +45,7 @@ import type { RestState } from './rest.js';
 import type { HitOption, StandingEffect } from './standing.js';
 import { type Deadline } from './time.js';
 import type { Elsewhere } from './elsewhere.js';
+import type { StoredSpellRequest } from './spell-definitions.js';
 import {
   type GrantedPayout,
   type PendingSave,
@@ -886,6 +887,15 @@ export interface CreatureState {
    */
   readonly senseModifiers: readonly GrantedSense[];
   /**
+   * The creature whose senses this one is borrowing, and until when — SRD
+   * Find Familiar's "see through the familiar's eyes and hear what it hears
+   * until the start of your next turn, gaining the benefits of any special
+   * senses it has". See {@link BorrowedSenses}. Absent for every creature that
+   * has never borrowed any, which is what keeps a log written before the field
+   * folding to exactly the state it always did. (W7-S21)
+   */
+  readonly borrowedSenses?: BorrowedSenses;
+  /**
    * Amounts a running effect takes off a hit **before** the defences — SRD
    * Resistance the cantrip, which is not the defence of the same name.
    *
@@ -1441,6 +1451,27 @@ export interface GrantedLift {
 }
 
 /**
+ * Another creature's senses, lent to this one for a while — SRD Find
+ * Familiar's Bonus Action, written by `borrowSenses`.
+ *
+ * **A record with its deadline on it, read and never swept.** Two readers ask
+ * it — `canSee` (yes where the lender sees) and `sensesOf` (the lender's senses
+ * for the borrower) — and both treat it as nothing once `until` has passed, the
+ * lender has gone, or the bond that allowed it has; so the moment the caster's
+ * next turn starts the eyes are their own again, with no event to write and no
+ * window in which a stale record answers. A second borrowing replaces the
+ * first. Not a sourced grant: nothing ends it but the clock, and a grant family
+ * would be a field every creature is born with for the one spell that lends.
+ * (W7-S21)
+ */
+export interface BorrowedSenses {
+  /** The creature lending them — the familiar. */
+  readonly from: CharacterId;
+  /** "until the start of your next turn", pinned at the Bonus Action. */
+  readonly until: Deadline;
+}
+
+/**
  * A jump a running effect bought, the distance it covers and what it costs.
  *
  * SRD *Jump*, whole: "Once on each of its turns until the spell ends, that
@@ -1965,6 +1996,14 @@ export interface PendingCasting {
    * always did.
    */
   readonly bonesAt?: readonly Placement[];
+  /**
+   * The spell this casting stores — SRD Glyph of Warding's spell glyph, whose
+   * rite takes an hour, so the request is stated at the declaration and the
+   * stored spell is cast, and its slot spent, only when the settlement is.
+   * Pinned for the reason every stated fact here is: settlement takes no
+   * fresh request. Absent for every casting that stores nothing. (W7-S21)
+   */
+  readonly stores?: StoredSpellRequest;
   /**
    * The numbers the casting was made with, for a casting an item made.
    *

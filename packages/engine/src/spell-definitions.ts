@@ -26,7 +26,7 @@ import type {
 import type { CastingTime } from './spells.js';
 import type { SpellReactionWindow } from './reactions.js';
 import type { HealingRule } from './vitals.js';
-import type { Recovery } from './resources.js';
+import type { Recovery, SlotKind } from './resources.js';
 import type { CreatureSize } from '@ie/srd';
 
 /**
@@ -444,6 +444,20 @@ export interface SpellCheck {
   readonly ability: Ability;
   /** The skill the SRD names: "Intelligence (Investigation)". */
   readonly skill?: Skill;
+  /**
+   * The skills the SRD offers a **choice** of: SRD Spike Growth's "a Wisdom
+   * (Perception or Survival) check".
+   *
+   * {@link skill}'s plural and never beside it (`check_skill_and_skills`): a
+   * spell prints one skill or a list, and the list is the attempter's to pick
+   * from — `EffectCheckCommand.skill` names the pick, refused off the list
+   * (`skill_not_offered`) and refused absent (`skill_required`), because the
+   * engine will not choose a skill for somebody any more than it chooses a
+   * damage type. Two or more, each a skill of {@link ability}. Pinned on the
+   * casting record (`OngoingSpell.checkSkills`) so the attempt a minute later
+   * opens no book. (W7-S21)
+   */
+  readonly skills?: readonly Skill[];
   /** A printed DC. Omitted, the caster's own spell save DC. */
   readonly dc?: number;
   /**
@@ -4531,6 +4545,21 @@ export interface KeptSummons {
    * offers no pocket to, which is SRD Find Steed's steed.
    */
   readonly pocket?: { readonly within: number };
+  /**
+   * SRD Find Familiar: "As a Bonus Action, you can see through the familiar's
+   * eyes and hear what it hears until the start of your next turn, gaining the
+   * benefits of any special senses it has."
+   *
+   * The third door on the bond — `borrowSenses` in `commands/elsewhere.ts`,
+   * beside `dismissKeptSummons` and `recallKeptSummons` — and, like
+   * {@link delivers}, **the permission is the spell's and not the command's**:
+   * SRD Find Steed keeps a creature on the same terms and prints no such
+   * sentence, so a paladin does not look through the steed's eyes. The door
+   * reads this off the definition the bond names, at the moment of borrowing,
+   * and pins what it granted into the event it writes. Absent for every kept
+   * creature the book gives no such sentence. (W7-S21)
+   */
+  readonly lends?: true;
 }
 
 /**
@@ -4573,7 +4602,37 @@ export interface PrintedSummonSpeed {
  * the spell's range like any other target.
  */
 export type SpellArea =
-  | { readonly kind: 'sphere'; readonly radius: number; readonly origin: 'point' }
+  | {
+      readonly kind: 'sphere';
+      readonly radius: number;
+      readonly origin: 'point';
+      /**
+       * The named target need not stand in the template — SRD Phantasmal
+       * Force's phantasm, "perceivable only to the target", set down **beside**
+       * the creature whose mind it is in.
+       *
+       * **The one exception to "an area *or* a target list, never both"**, and
+       * the coordinator's ruling of 2026-09-26 says where it stops: a
+       * definition may both keep a point and name a creature when its area is
+       * a *place* perceived by that creature alone. The template is where the
+       * phantasm is and the target is who it is for, so `chosenFromTheArea`
+       * still names the one creature and `areaTargets` no longer holds that
+       * name to the template's catch; the name goes through `namedTargets`
+       * instead, exactly as a spell with no area would — range, sight, count
+       * and consent all checked against the caster — and the template is
+       * placed and range-checked as any area is. What reaches the creature
+       * later is the trigger's own `within`, measured from the point, narrowed
+       * to the pinned `singledOut` by `onlyTarget`.
+       *
+       * Refused without `chosenFromTheArea` and `areaTrigger.onlyTarget`
+       * (`stands_apart_without_only_target`): an area that catches whoever
+       * stands in it and a named target it never has to hold is two spells.
+       * On the Sphere alone, because a place is one space and one space is a
+       * Sphere of radius 0. Pinned with the area on the record. Absent is
+       * every other area in the book. (W7-S21)
+       */
+      readonly standsApart?: true;
+    }
   | {
       readonly kind: 'cylinder';
       readonly radius: number;
@@ -7532,6 +7591,19 @@ export function singlesOutAtTheCast(definition: SpellDefinition): boolean {
 }
 
 /**
+ * Whether this area is a place its named target need not stand in — see the
+ * `standsApart` field on the Sphere member of {@link SpellArea}.
+ *
+ * One reader for the four askers — `areaTargets`, `namedTargets`,
+ * `eligibleTargets` and the casting's own dispatch — so the exception is one
+ * question with one answer, and a field on one member of a union is read
+ * without a cast at every site. (W7-S21)
+ */
+export function areaStandsApart(area: SpellArea | undefined): boolean {
+  return area !== undefined && area.kind === 'sphere' && area.standsApart === true;
+}
+
+/**
  * Whether anything a casting of this definition could roll reads the answer to
  * the one question about the world a spell may ask.
  *
@@ -8078,6 +8150,56 @@ export interface TriggeredEffects {
   readonly effects: readonly SpellEffect[];
   /** How the roll reads in the log: "Glyph of Warding (the explosive rune)". */
   readonly label: string;
+  /**
+   * **Or a spell the caster stores at the casting**, set off by the same
+   * decision in this list's place — SRD Glyph of Warding's spell glyph: "You
+   * can store a prepared spell of level 3 or lower in the glyph by casting it
+   * as part of creating the glyph. … When the glyph is triggered, the stored
+   * spell takes effect."
+   *
+   * The permission is the definition's and the request is the caster's
+   * (`CastSpellRequest.stores`). A casting that names one runs no list and
+   * states no damage type for it; the stored spell is prepared, of a level no
+   * higher than this casting's slot ("you can store any spell of up to the
+   * same level as the spell slot you use"), aimed at one creature or at an
+   * area, and its own slot is spent at the inscription beside this one's.
+   * What the record keeps is {@link StoredSpellRequest} with the numbers it
+   * was cast with — a request stored, **not** a pending casting, so nothing
+   * sits open for a Counterspell to answer between the inscription and the
+   * trigger. Absent is every other rune. (W7-S21)
+   */
+  readonly storesSpell?: true;
+}
+
+/**
+ * The spell a casting stores to be set off later — see
+ * {@link TriggeredEffects.storesSpell}.
+ *
+ * The half of a `CastSpellRequest` that is said **at the inscription**: which
+ * spell, the slot it is cast from, the route it comes through and the facts a
+ * casting of it states. Who it lands on is not here, because that is whoever
+ * sets the glyph off; and nothing here is a number the caller produced — the
+ * slot level is the caster's to name exactly as it is on any casting. (W7-S21)
+ */
+export interface StoredSpellRequest {
+  readonly spellId: string;
+  /** The slot the stored spell is cast from, spent at the inscription. */
+  readonly slotLevel: number;
+  /**
+   * Which pool that slot comes out of, for a caster who has both — see
+   * `CastSpellRequest.slotKind`. The glyph's own slot says nothing about the
+   * stored spell's, so a Warlock multiclassed into a Spellcasting class says
+   * which here or is asked. (W7-S21)
+   */
+  readonly slotKind?: SlotKind;
+  /** Which class route supplies it, where more than one would — see `CastSpellRequest.source`. */
+  readonly source?: string;
+  /** A damage type the stored spell prints a choice of — see `CastSpellRequest.damageType`. */
+  readonly damageType?: string;
+  /** A value the stored spell asks its caster to choose — see `CastSpellRequest.choice`. */
+  readonly choice?: string;
+  /** A branch the stored spell prints — see `CastSpellRequest.option`. */
+  readonly option?: string;
 }
 
 /**

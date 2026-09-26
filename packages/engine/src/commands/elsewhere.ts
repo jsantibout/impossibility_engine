@@ -58,7 +58,15 @@ import {
 import { castingIdOf, castingSource } from '../spells.js';
 import { actionRulesOn, canSee, effectiveConditions, rollModesFor, sheetAsItStands } from '../standing.js';
 import { effectiveSizeOf } from '../size.js';
-import { endOfNextTurn, isDue, resolveDuration, timeView, type TurnMoment } from '../time.js';
+import {
+  endOfNextTurn,
+  isDue,
+  resolveDuration,
+  startOfNextTurn,
+  timeView,
+  type Deadline,
+  type TurnMoment,
+} from '../time.js';
 import { rollRecorded } from '../rolls.js';
 import type { CharacterSheet, StatedAction, StatedBonusAction } from '../character.js';
 import { wrongFormFor } from '../forms.js';
@@ -711,6 +719,86 @@ export function recallKeptSummons(
         unverified: settled.value.unverified,
         duplicate: false,
       });
+    },
+  );
+}
+
+export interface BorrowSensesOutcome {
+  readonly events: readonly GameEvent[];
+  /** When the borrowed eyes are the caster's own again. */
+  readonly until: Deadline | null;
+  readonly duplicate: boolean;
+}
+
+/**
+ * SRD Find Familiar: "As a Bonus Action, you can see through the familiar's
+ * eyes and hear what it hears until the start of your next turn, gaining the
+ * benefits of any special senses it has."
+ *
+ * **The third door on the kept bond**, beside the two above, and the same
+ * shape: the caster's to take, the creature named, the bond read. The
+ * permission is the spell's (`KeptSummons.lends`), read off the definition the
+ * bond names at the moment of borrowing — Find Steed keeps its steed on the
+ * same terms and prints no such sentence, so a paladin is refused
+ * `lends_nothing`. What the Bonus Action leaves is a `senses-borrowed` record
+ * on the caster with the deadline pinned on it, and two readers: `canSee`
+ * (yes where the familiar sees) and `sensesOf` (the familiar's senses for the
+ * caster).
+ *
+ * **Outside a fight it asks for one.** "Until the start of your next turn" is
+ * a moment in the order, and the engine will not call it six seconds; the
+ * request is the one every turn-anchored duration raises. (W7-S21)
+ */
+export function borrowSenses(
+  state: GameState,
+  content: Content,
+  casterId: CharacterId,
+  command: KeptSummonsCommand,
+): Result<BorrowSensesOutcome> {
+  return once(
+    state,
+    `borrow-senses:${casterId}`,
+    command,
+    () => ({ events: [], until: null, duplicate: true }),
+    (stamp) => {
+      const owedHere = mayAct(state, casterId);
+      if (owedHere !== null) return owedHere;
+      const creature = creatureOf(state, command.who);
+      if (creature === null) return unknownCreature(command.who);
+      const bond = creature.summonedBy;
+      if (bond === null || bond.by !== casterId || bond.kept === undefined) {
+        return err('not_your_summons', `${command.who} is not a creature ${casterId} keeps from a spell`);
+      }
+      const spell = content.spell(bond.kept.spell);
+      const lends = (spell?.effects ?? []).some(
+        (effect) => effect.kind === 'summon' && effect.kept?.lends === true,
+      );
+      if (!lends) {
+        return err(
+          'lends_nothing',
+          `${spell?.name ?? bond.kept.spell} lends ${casterId} none of ${command.who}'s senses; its eyes stay its own`,
+        );
+      }
+
+      // The moment first, before the Bonus Action: a refusal about when
+      // costs nothing.
+      const lasts = startOfNextTurn(casterId);
+      const until = resolveDuration(timeView(state), lasts);
+      if (!until.ok) return turnContextFor(until, lasts, casterId);
+
+      const events: GameEvent[] = [];
+      if (state.combat !== null) {
+        const spent = spendFor(state, casterId, 'bonus-action');
+        if (!spent.ok) return spent;
+        events.push(spent.value);
+      }
+      events.push({
+        type: 'senses-borrowed',
+        id: casterId,
+        borrowed: { from: command.who, until: until.value },
+        ...(stamp === null ? {} : { command: stamp }),
+      });
+      return ok({ events, until: until.value, duplicate: false });
     },
   );
 }

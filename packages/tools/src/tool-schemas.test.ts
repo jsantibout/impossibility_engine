@@ -175,9 +175,11 @@ describe('toolSchemas', () => {
     // And one on each for the ground-move-and-bond track, `command_summons`
     // — SRD Unseen Servant's Bonus Action, a placement and never a number.
     // And two on each for the insides-and-holds track (W7-B10),
-    // `escape_from_inside` and `pull_out_of_creature`.
-    expect(toolSchemas(player())).toHaveLength(95);
-    expect(toolSchemas(dm())).toHaveLength(122);
+    // `escape_from_inside` and `pull_out_of_creature`; and one on each for
+    // W7-S21, `borrow_senses` — SRD Find Familiar's Bonus Action, the third
+    // door on the kept bond.
+    expect(toolSchemas(player())).toHaveLength(96);
+    expect(toolSchemas(dm())).toHaveLength(123);
     // Re-pinned 2026-09-24 for the printed-lines track, which opened one door
     // on the DM's surface alone: `teleport_printed_line` takes the teleport a
     // stat block prints, at the distance the block prints, to a space the DM
@@ -324,10 +326,16 @@ describe('toolSchemas', () => {
     // `move.carrying` on both (SRD Grappled's "drag or carry you", whom and
     // to which space beside the grappler); and `target` on the DM's
     // `pull_printed_line` for the Ettercap's one webbed creature.
-    expect(toolSchemas(player())).toHaveLength(95);
-    expect(toolSchemas(dm())).toHaveLength(122);
-    expect(JSON.stringify(toolSchemas(player())).length).toBe(152545);
-    expect(JSON.stringify(toolSchemas(dm())).length).toBe(199694);
+    // And for W7-S21 part 4: `attempt_effect_check.skill` (SRD Spike
+    // Growth's "Perception or Survival" — the attempter's pick) on both doors;
+    // part 2: `cast_spell.stores` (SRD Glyph of Warding's spell glyph, with the
+    // stored spell's own `slotKind`) on both doors, and `trigger_glyph.by` —
+    // who set it off — on the DM's; part 3: `borrow_senses` (SRD Find
+    // Familiar's Bonus Action, the third door on the kept bond) on both.
+    expect(toolSchemas(player())).toHaveLength(96);
+    expect(toolSchemas(dm())).toHaveLength(123);
+    expect(JSON.stringify(toolSchemas(player())).length).toBe(155679);
+    expect(JSON.stringify(toolSchemas(dm())).length).toBe(203430);
   });
 });
 
