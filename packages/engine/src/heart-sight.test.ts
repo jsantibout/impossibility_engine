@@ -145,6 +145,8 @@ describe('the line as the parser reads it', () => {
       dc: 10,
       targets:
         'one creature within 5 feet the sprite can see (Celestials, Fiends, and Undead automatically fail the save)',
+      // The ruler, read past the parenthesis the reader already took — I-E9.
+      reach: { feet: 5, count: 1, seen: true },
       autoFailTypes: ['Celestial', 'Fiend', 'Undead'],
       onSuccess: 'none',
       onFailure: [{ kind: 'reveals', facts: ['emotions', 'alignment'] }],

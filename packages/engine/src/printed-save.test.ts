@@ -221,6 +221,8 @@ describe('the block carries the save onto the sheet', () => {
       ability: 'con',
       dc: 12,
       targets: 'each creature in a 15-foot Cone',
+      // The template, pinned on the sheet with the rest of the save — I-E9.
+      catches: { kind: 'cone', length: 15 },
       damage: { dice: '4d8', flat: 0, type: 'cold', average: 18 },
       onSuccess: 'half',
     });
@@ -487,9 +489,10 @@ describe('what the door refuses, and what it asks for', () => {
     );
     expect(isErr(asked) && asked.kind).toBe('needs-context');
     expect(isErr(asked) && asked.code).toBe('undeclared_targets');
-    // And it says what would settle it, by the name of the command that does.
+    // And it says what would settle it, by the name of the command that does
+    // — and, since I-E9 read the Cone, the aim that would measure it.
     expect(contextRequestsOf(asked).map((request) => request.satisfyWith)).toEqual([
-      'forcePrintedSave again with its targets filled in',
+      'forcePrintedSave again with its aim or its targets filled in',
     ]);
     // And the Action is not spent by a question.
     expect(table.state.combat?.budgets[WINTER]?.action).toBe(true);

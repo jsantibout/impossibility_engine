@@ -43,6 +43,7 @@ import {
 } from '../monster.js';
 import { heldInside, roomInside } from '../elsewhere.js';
 import type { CharacterSheet, StatedAction, StatedBonusAction } from '../character.js';
+import type { MonsterPrintedMove } from '@ie/srd';
 import {
   canPassThrough,
   checkRoute,
@@ -126,6 +127,65 @@ function printedLineNamed(
  */
 function enteredBy(crossings: readonly { readonly occupant: CharacterId }[]): readonly CharacterId[] {
   return [...new Set(crossings.map((crossing) => crossing.occupant))].sort();
+}
+
+/** Where a printed leap lands, how far it went, and whom it lands among. */
+export interface LeapLanding {
+  readonly feet: number;
+  readonly to: Point;
+  /** Everybody in the box the leaper lands as, in id order. */
+  readonly entered: readonly CharacterId[];
+}
+
+/**
+ * A printed leap's landing, judged — the checks {@link takePrintedMove} makes
+ * before anything is spent, in one function so the door that leaps and the
+ * query that asks who a leap would catch (`printedLineCatch`, I-E9) cannot
+ * disagree about where a bulette may land.
+ *
+ * SRD Bulette's Deadly Leap: "jump to a space within 15 feet that contains one
+ * or more Large or smaller creatures". The placement is resolved through the
+ * same rules every position goes through with the one rule relaxed that the
+ * sentence relaxes — it may end in an occupied space, and must — and the
+ * distance is the lattice's. Spends nothing; the caller is judged pure.
+ */
+export function leapLanding(
+  state: GameState,
+  id: CharacterId,
+  lineName: string,
+  move: Extract<MonsterPrintedMove, { readonly kind: 'jump-to' }>,
+  to: Placement,
+): Result<LeapLanding> {
+  const scene = sceneFor(state, id, `${id} to move within`);
+  if (!scene.ok) return scene;
+  const sizeHere = (who: CharacterId) => effectiveSizeOf(state, who) ?? sizeOf(scene.value, who) ?? 'medium';
+  // Landing in an occupied space is what the sentence says, so the one rule a
+  // shove relaxes is relaxed here — and the fold relaxes the same one off
+  // `intoOccupied`, so the command and the fold agree.
+  const landed = moveCreature(scene.value, id, to, { forced: true });
+  if (!landed.ok) return anchorNeeded(landed, to.from, `${id} is leaping relative to it`);
+  const feet = landed.value.distance;
+  if (feet > move.within) {
+    return err('leap_too_far', `${lineName} reaches a space within ${move.within} feet, and that one is ${feet} away`);
+  }
+  const at = positionOf(landed.value.state, id);
+  if (at === null) return needsContext('unplaced', `${id} did not land anywhere`);
+  // Everybody in the box the mover lands as, not only at its own point.
+  const entered = enteredBy(crossingsAlong(scene.value, id, [at]));
+  if (entered.length === 0) {
+    return err(
+      'nobody_to_land_on',
+      `${lineName} jumps to a space that contains one or more ${move.intoOccupiedBy} or smaller creatures, and nobody is standing there`,
+    );
+  }
+  const big = entered.find((who) => !sizeAtMost(sizeHere(who), move.intoOccupiedBy));
+  if (big !== undefined) {
+    return err(
+      'too_large_to_land_on',
+      `${lineName} lands among ${move.intoOccupiedBy} or smaller creatures, and ${big} is ${sizeHere(big)}`,
+    );
+  }
+  return ok({ feet, to: at, entered });
 }
 
 /**
@@ -261,32 +321,11 @@ export function takePrintedMove(
             ],
           );
         }
-        // Landing in an occupied space is what the sentence says, so the one
-        // rule a shove relaxes is relaxed here — and the fold relaxes the same
-        // one off `intoOccupied`, so the command and the fold agree.
-        const landed = moveCreature(scene.value, id, command.to, { forced: true });
-        if (!landed.ok) return anchorNeeded(landed, command.to.from, `${id} is leaping relative to it`);
-        feet = landed.value.distance;
-        if (feet > move.within) {
-          return err('leap_too_far', `${line.name} reaches a space within ${move.within} feet, and that one is ${feet} away`);
-        }
-        const to = positionOf(landed.value.state, id);
-        if (to === null) return needsContext('unplaced', `${id} did not land anywhere`);
-        // Everybody in the box the mover lands as, not only at its own point.
-        entered = enteredBy(crossingsAlong(scene.value, id, [to]));
-        if (entered.length === 0) {
-          return err(
-            'nobody_to_land_on',
-            `${line.name} jumps to a space that contains one or more ${move.intoOccupiedBy} or smaller creatures, and nobody is standing there`,
-          );
-        }
-        const big = entered.find((who) => !sizeAtMost(sizeHere(who), move.intoOccupiedBy));
-        if (big !== undefined) {
-          return err(
-            'too_large_to_land_on',
-            `${line.name} lands among ${move.intoOccupiedBy} or smaller creatures, and ${big} is ${sizeHere(big)}`,
-          );
-        }
+        const leap = leapLanding(state, id, line.name, move, command.to);
+        if (!leap.ok) return leap;
+        feet = leap.value.feet;
+        const to = leap.value.to;
+        entered = leap.value.entered;
         // "spends 5 feet of movement": the printed price, out of the turn's own.
         const spent = spendMovement(state.combat, id, move.feetSpent, walk, { rules });
         if (!spent.ok) return spent;

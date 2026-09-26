@@ -169,6 +169,8 @@ describe('the line as the parser reads it', () => {
       ability: 'dex',
       dc: 11,
       targets: 'the creature with the object',
+      // The holder's ruler, which the prelude prints — I-E9.
+      reach: { feet: 5, count: 1 },
       targetsObject: true,
       onSuccess: 'none',
       onFailure: [{ kind: 'object-penalty', points: 1 }],

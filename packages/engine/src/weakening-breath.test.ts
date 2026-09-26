@@ -195,6 +195,7 @@ describe('the line as the parser reads it', () => {
       ability: 'str',
       dc: 13,
       targets: "each creature that isn't currently affected by this breath in a 15-foot Cone",
+      catches: { kind: 'cone', length: 15 },
       onlyIfNotAffected: true,
       onSuccess: 'none',
       onFailure: [

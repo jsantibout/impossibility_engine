@@ -596,7 +596,7 @@ export const senses = (input: {
  * the call — a fact it needs has not been supplied — so it asks, and names
  * the command that would supply it.
  */
-function towardsOf(
+export function towardsOf(
   state: GameState,
   input: {
     readonly towardsCreature?: string | undefined;

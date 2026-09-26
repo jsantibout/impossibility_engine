@@ -120,9 +120,11 @@
 
 import { DECLARED_DAMAGE_TYPE } from '../schemas.js';
 import type {
+  CreatureSize,
   MonsterDamage,
   MonsterPrintedMove,
   MonsterSave,
+  MonsterSaveCatch,
   PrintedAuraCondition,
   PrintedHandover,
   PrintedHandoverKind,
@@ -316,7 +318,7 @@ const BABBLES_WHILE_NOT_INCAPACITATED =
  * `MonsterSave.targetsObject` carries to the door.
  */
 const TARGETS_AN_OBJECT =
-  /^The [a-z' -]+ targets one nonmagical metal object—armor or a weapon—worn or carried by a creature within \d+ feet of itself\.$/;
+  /^The [a-z' -]+ targets one nonmagical metal object—armor or a weapon—worn or carried by a creature within (\d+) feet of itself\.$/;
 
 /**
  * SRD Rust Monster's Antennae: "The object takes a −1 penalty to the AC it
@@ -1075,6 +1077,165 @@ const ONE_WITHIN = /^one (creature|[A-Z][a-z]+)( the [a-z' -]+ can see)? within 
  * creature spends narrows itself to. W7-B13, for SRD Harpy's Luring Song.
  */
 const EACH_OF_TYPES = /^each ([A-Z][a-z]+(?: and [A-Z][a-z]+)*) in an? /;
+
+/**
+ * An area the spells already lay — I-E9. SRD Winter Wolf: "each creature in a
+ * 15-foot Cone"; SRD Blue Dragon Wyrmling: "… in a 30-foot-long, 5-foot-wide
+ * Line"; SRD Dretch: "… in a 10-foot Emanation originating from the dretch";
+ * SRD Gibbering Mouther: "… in a 10-foot-radius Sphere centered on a point
+ * within 30 feet". The book's own article, "an 60-foot-long", included.
+ *
+ * Then, in the order the book prints them, the three things a clause may add:
+ * SRD Ghost's "that can see the ghost **and isn't an Undead**" — the target's
+ * sight of the source and the types it spares — and SRD Harpy's "when the song
+ * starts", which is the moment of use and nothing else.
+ */
+const AN_AREA = new RegExp(
+  '^each (creature|[A-Z][a-z]+(?: and [A-Z][a-z]+)*) in an? ' +
+    '(?:(\\d+)-foot Cone' +
+    '|(\\d+)-foot-long, (\\d+)-foot-wide Line' +
+    "|(\\d+)-foot Emanation originating from the [a-z'-]+" +
+    '|(\\d+)-foot-radius Sphere centered on a point within (\\d+) feet)' +
+    `(?: that can see the [a-z'-]+(?: and isn${APOSTROPHE}t an? ([A-Z][a-z]+))?)?` +
+    '( when the song starts)?$',
+);
+/** Whether {@link AN_AREA}'s clause said the target must see the source. */
+const SEES_THE_SOURCE = / that can see the [a-z'-]+/;
+
+/**
+ * The creature's own space — I-E9. SRD Water Elemental's Whelm: "each
+ * creature in the elemental's space"; SRD Air Elemental's Whirlwind: "one
+ * Medium or smaller creature in the elemental's space".
+ */
+const IN_ITS_SPACE = new RegExp(
+  `^(?:each creature|one (?:(Tiny|Small|Medium|Large|Huge|Gargantuan) or smaller )?creature) in the [a-z'-]+${APOSTROPHE}s space$`,
+);
+
+/** SRD Otyugh: "each creature Grappled by the otyugh"; SRD Chuul: "one creature Grappled by the chuul". */
+const HELD_BY_IT = /^(each|one) creature Grappled by the [a-z'-]+$/;
+
+/**
+ * {@link ONE_WITHIN} widened — I-E9. A condition printed as an adjective (SRD
+ * Sea Hag's "one **Frightened** creature"), a size cap (SRD Ettercap's "one
+ * **Large or smaller** creature"), and the sight on either side of the
+ * distance (SRD Gladiator's "within 5 feet **that the gladiator can see**",
+ * SRD Sprite's "within 5 feet **the sprite can see**").
+ */
+const ONE_WITHIN_WIDE = new RegExp(
+  '^one (?:([A-Z][a-z]+) (?=creature ))?(?:(Tiny|Small|Medium|Large|Huge|Gargantuan) or smaller )?' +
+    "(creature|[A-Z][a-z]+)( the [a-z' -]+ can see)? within (\\d+) feet( (?:that )?the [a-z' -]+ can see)?$",
+);
+
+/**
+ * {@link NOT_ALREADY_AFFECTED}'s phrase and nothing past it, for striking out:
+ * that reader's noun runs on to a word boundary, which for the Gold Dragon
+ * Wyrmling is "breath in a". The book's noun is one word.
+ */
+const AFFECTED_PHRASE = new RegExp(`that isn${APOSTROPHE}t currently affected by this [a-z]+`);
+
+/** SRD Rust Monster's template, whose holder the prelude has already put within reach. */
+const THE_HOLDER = /^the creature with the object$/;
+
+/** What {@link readCatch} read out of a targeting clause. */
+interface CaughtBy {
+  readonly catches?: MonsterSaveCatch;
+  readonly reach?: { readonly feet: number; readonly count: number; readonly seen?: true };
+  readonly seesSource?: true;
+  readonly unlessTargetType?: readonly string[];
+  readonly onlyIfTargetSize?: CreatureSize;
+  /** A condition the clause prints as an adjective, for `onlyIfTargetHas`. */
+  readonly condition?: ConditionEffect['condition'];
+}
+
+const sizeWord = (word: string): CreatureSize => word.toLowerCase() as CreatureSize;
+
+/**
+ * Who a spent line catches, read **whole or not at all** — I-E9.
+ *
+ * `already` is every phrase of the clause some other reader has taken — the
+ * Gold Dragon Wyrmling's "that isn't currently affected by this breath", the
+ * Gorgon's "that has the Prone condition", the Sprite's parenthesis — and they
+ * are struck out first, because they are accounted for. What is left must be
+ * one of the shapes above, word for word; a clause with one word over (SRD
+ * Will-o'-Wisp's "living", SRD Succubus's "Charmed by the succubus", every
+ * "enemy") reads nothing here, and the caller names the head count as before.
+ *
+ * `types` is what the clause's noun was already read into — the Harpy's
+ * "Humanoid and Giant" — so a noun this read disagrees with is refused.
+ */
+function readCatch(
+  targets: string,
+  prelude: Prelude,
+  already: readonly (string | null)[],
+  types: readonly string[],
+): CaughtBy | null {
+  let rest = targets;
+  for (const phrase of already) {
+    if (phrase === null) continue;
+    rest = rest.replace(phrase, '');
+  }
+  rest = rest.replace(/\s+/g, ' ').trim();
+
+  if (prelude.kind === 'names-an-object') {
+    return THE_HOLDER.test(rest) ? { reach: { feet: prelude.within, count: 1 } } : null;
+  }
+
+  const area = AN_AREA.exec(rest);
+  if (area !== null) {
+    const noun = area[1]!;
+    if (noun !== 'creature' && noun !== types.join(' and ')) return null;
+    const catches: MonsterSaveCatch =
+      area[2] !== undefined
+        ? { kind: 'cone', length: Number(area[2]) }
+        : area[3] !== undefined
+          ? { kind: 'line', length: Number(area[3]), width: Number(area[4]) }
+          : area[5] !== undefined
+            ? { kind: 'emanation', distance: Number(area[5]) }
+            : { kind: 'sphere', radius: Number(area[6]), within: Number(area[7]) };
+    // The moment of use belongs to a line whose area begins at the creature
+    // as it acts, which is the Harpy's Emanation and nothing else printed.
+    if (area[9] !== undefined && catches.kind !== 'emanation') return null;
+    return {
+      catches,
+      ...(SEES_THE_SOURCE.test(rest) ? { seesSource: true as const } : {}),
+      ...(area[8] === undefined ? {} : { unlessTargetType: [area[8]] }),
+    };
+  }
+
+  const own = IN_ITS_SPACE.exec(rest);
+  if (own !== null) {
+    const one = rest.startsWith('one ');
+    return {
+      catches: { kind: 'own-space', ...(one ? { count: 1 as const } : {}) },
+      ...(own[1] === undefined ? {} : { onlyIfTargetSize: sizeWord(own[1]) }),
+    };
+  }
+
+  const held = HELD_BY_IT.exec(rest);
+  if (held !== null) {
+    return { catches: { kind: 'held', ...(held[1] === 'one' ? { count: 1 as const } : {}) } };
+  }
+
+  const one = ONE_WITHIN_WIDE.exec(rest);
+  if (one !== null) {
+    const [, adjective, size, noun, seenBefore, feet, seenAfter] = one;
+    if (seenBefore !== undefined && seenAfter !== undefined) return null;
+    // A size or a condition narrows "creature"; a type noun beside either is
+    // a clause this does not read, and a type noun alone is `types`' already.
+    if ((adjective !== undefined || size !== undefined) && noun !== 'creature') return null;
+    if (noun !== 'creature' && (types.length !== 1 || types[0] !== noun)) return null;
+    const condition = adjective === undefined ? undefined : CONDITIONS[adjective];
+    if (adjective !== undefined && condition === undefined) return null;
+    const seen = seenBefore !== undefined || seenAfter !== undefined;
+    return {
+      reach: { feet: Number(feet), count: 1, ...(seen ? { seen: true as const } : {}) },
+      ...(size === undefined ? {} : { onlyIfTargetSize: sizeWord(size) }),
+      ...(condition === undefined ? {} : { condition }),
+    };
+  }
+
+  return null;
+}
 /**
  * SRD Vampire Spawn's Bite: "one creature within 5 feet **that is willing or
  * that has the Grappled, Incapacitated, or Restrained condition**."
@@ -2544,8 +2705,12 @@ type Prelude =
   | { readonly kind: 'dies' }
   /** SRD Gibbering Mouther's definition of what it is to be babbling. */
   | { readonly kind: 'babbling' }
-  /** SRD Rust Monster's "targets one nonmagical metal object … worn or carried by a creature". */
-  | { readonly kind: 'names-an-object' }
+  /**
+   * SRD Rust Monster's "targets one nonmagical metal object … worn or carried
+   * by a creature **within 5 feet of itself**" — the holder's ruler is the
+   * prelude's, since the template names only "the creature with the object".
+   */
+  | { readonly kind: 'names-an-object'; readonly within: number }
   /**
    * SRD Bulette's jump and SRD Centaur Trooper's charge: a move the creature
    * makes first, and the save is per creature whose space it entered — see
@@ -2605,7 +2770,8 @@ function readPrelude(before: string): Prelude | null {
   if (text === '') return { kind: 'none' };
   if (EXPLODES_ON_DEATH.test(text)) return { kind: 'dies' };
   if (BABBLES_WHILE_NOT_INCAPACITATED.test(text)) return { kind: 'babbling' };
-  if (TARGETS_AN_OBJECT.test(text)) return { kind: 'names-an-object' };
+  const object = TARGETS_AN_OBJECT.exec(text);
+  if (object !== null) return { kind: 'names-an-object', within: Number(object[1]) };
   if (SINGS_UNTIL_CONCENTRATION.test(text)) return { kind: 'carried', sentence: text };
   const jump = JUMPS_TO.exec(text);
   if (jump !== null) {
@@ -3107,10 +3273,6 @@ export function parsePrintedSave(text: string): MonsterSave | null {
   // a 300-foot Emanation". An aura's types were already read off its own
   // clause; these are the same fact on a line a creature spends.
   const one = ONE_WITHIN.exec(head.targets);
-  const reach =
-    one === null
-      ? null
-      : { feet: Number(one[3]), count: 1, ...(one[2] === undefined ? {} : { seen: true as const }) };
   const each = one === null ? EACH_OF_TYPES.exec(head.targets) : null;
   const spentTypes: readonly string[] =
     one !== null && one[1] !== 'creature'
@@ -3193,6 +3355,31 @@ export function parsePrintedSave(text: string): MonsterSave | null {
     }
   }
 
+  // **Who the line catches, read whole or not at all** — I-E9. Only on a line
+  // a creature spends standing still: a trigger's clause is the fold's, and a
+  // move's catch is whoever's space it entered. The phrases the readers above
+  // already took are struck out first, because they are accounted for.
+  const affected = NOT_ALREADY_AFFECTED.test(head.targets) ? AFFECTED_PHRASE.exec(head.targets) : null;
+  const clauseRead =
+    trigger !== null || prelude.kind === 'moves-then'
+      ? null
+      : readCatch(
+          head.targets,
+          prelude,
+          [
+            affected === null ? null : affected[0],
+            restrictedTo.length === 0 ? null : restriction![0],
+            autoFail === null ? null : failing![0],
+          ],
+          spentTypes,
+        );
+  // A condition printed as an adjective is the restriction's other spelling,
+  // and a clause printing both is one this does not read.
+  const caughtBy = clauseRead?.condition !== undefined && restrictedTo.length > 0 ? null : clauseRead;
+  const heldConditions: readonly ConditionEffect['condition'][] =
+    caughtBy?.condition === undefined ? restrictedTo : [caughtBy.condition];
+  const reach = caughtBy?.reach ?? null;
+
   return {
     ability,
     ...(opening[3] === DC_IS_SUMMONERS
@@ -3202,6 +3389,12 @@ export function parsePrintedSave(text: string): MonsterSave | null {
     ...(trigger === null ? {} : { trigger }),
     ...(types.length === 0 ? {} : { onlyIfTargetType: [...types] }),
     ...(reach === null ? {} : { reach }),
+    ...(caughtBy?.catches === undefined ? {} : { catches: caughtBy.catches }),
+    ...(caughtBy?.seesSource === undefined ? {} : { seesSource: true as const }),
+    ...(caughtBy?.unlessTargetType === undefined
+      ? {}
+      : { unlessTargetType: [...caughtBy.unlessTargetType] }),
+    ...(caughtBy?.onlyIfTargetSize === undefined ? {} : { onlyIfTargetSize: caughtBy.onlyIfTargetSize }),
     ...(NOT_ALREADY_AFFECTED.test(head.targets) ? { onlyIfNotAffected: true as const } : {}),
     ...(prelude.kind === 'names-an-object' ? { targetsObject: true as const } : {}),
     // The move the line makes first — W7-B9. Carried whole so the door that
@@ -3212,12 +3405,12 @@ export function parsePrintedSave(text: string): MonsterSave | null {
     ...(read.plus === null ? {} : { plus: read.plus }),
     onSuccess,
     ...(onSuccessEffects.length === 0 ? {} : { onSuccessEffects: [...onSuccessEffects] }),
-    ...(restrictedTo.length === 0
+    ...(heldConditions.length === 0
       ? {}
       : {
           onlyIfTargetHas: {
-            conditions: restrictedTo,
-            ...(restriction![1] === undefined ? {} : { orWilling: true as const }),
+            conditions: [...heldConditions],
+            ...(restrictedTo.length === 0 || restriction![1] === undefined ? {} : { orWilling: true as const }),
           },
         }),
     ...(onFailure.length === 0 ? {} : { onFailure: [...onFailure] }),
