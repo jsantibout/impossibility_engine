@@ -326,6 +326,98 @@ describe('a latecomer joins the fight already running', () => {
   });
 });
 
+/**
+ * The transport re-sending a `roll_initiative` it already made.
+ *
+ * The tool is two doors, and which one a call takes used to be read off the
+ * world alone: no fight, so begin one; a fight, so join it. A retry looks at
+ * the world its first run made — so the call that began the fight came back,
+ * found a fight, took the joining door under an id nobody had used, threw
+ * fresh dice and was refused `duplicate_combatant`. A retry is the same call,
+ * and the door it takes is the one its id already went through.
+ */
+describe('a retried roll_initiative is the same call, not a second one', () => {
+  /** What a retry must leave alone: the log, and the dice. */
+  const untouched = (t: ReturnType<typeof table>) => ({
+    log: t.campaign.log().length,
+    rolls: t.campaign.state().rollsIssued,
+    recorded: t.campaign.log().filter((event) => event.type === 'roll-recorded').length,
+  });
+
+  /** The latecomer, created, sided and placed, but not yet in the order. */
+  const orinArrives = (t: ReturnType<typeof table>) => {
+    expectOk(t.call('create_character', { id: 'orin', choices: wizard('Orin') }));
+    expectOk(t.call('declare_side', { who: 'orin', side: 'rivals' }));
+    expectOk(t.call('place_creature', { who: 'orin', fromLandmark: 'the bar', feet: 20, bearing: 90 }));
+  };
+
+  it('answers the call that began the fight as a duplicate, and throws no die', () => {
+    const t = table();
+    openTheRoom(t);
+    // The eleventh call: ten to open the room, then this.
+    expectOk(t.call('roll_initiative', { combatants: [{ who: 'kessa' }, { who: 'vex' }] }));
+    const order = t.surface.observe().initiativeOrder;
+    const before = untouched(t);
+
+    const again = expectOk(t.resend(10));
+    expect(again.resolution['duplicate']).toBe(true);
+    expect(again.resolution['began']).toBe(true);
+    expect(again.events).toHaveLength(0);
+    expect(untouched(t)).toEqual(before);
+    expect(t.surface.observe().initiativeOrder).toEqual(order);
+  });
+
+  it('still lets a later call join the fight after that retry', () => {
+    const t = table();
+    openTheRoom(t);
+    expectOk(t.call('roll_initiative', { combatants: [{ who: 'kessa' }, { who: 'vex' }] }));
+    expectOk(t.resend(10));
+    orinArrives(t);
+
+    const joined = expectOk(t.call('roll_initiative', { combatants: [{ who: 'orin' }] }));
+    expect(joined.resolution['began']).toBe(false);
+    expect(joined.resolution['duplicate']).toBe(false);
+    expect(joined.events.some((event) => event.type === 'combatant-joined')).toBe(true);
+    expect(t.surface.observe().initiativeOrder).toHaveLength(3);
+  });
+
+  it('answers a retried join as a duplicate too', () => {
+    const t = table();
+    openTheRoom(t);
+    expectOk(t.call('roll_initiative', { combatants: [{ who: 'kessa' }, { who: 'vex' }] }));
+    orinArrives(t);
+    // The fifteenth call: the room, the fight, and Orin's three.
+    expectOk(t.call('roll_initiative', { combatants: [{ who: 'orin' }] }));
+    const before = untouched(t);
+
+    const again = expectOk(t.resend(14));
+    expect(again.resolution['duplicate']).toBe(true);
+    expect(again.resolution['began']).toBe(false);
+    expect(again.events).toHaveLength(0);
+    expect(untouched(t)).toEqual(before);
+    expect(t.surface.observe().initiativeOrder).toHaveLength(3);
+  });
+
+  it('answers a retried join as a duplicate after the fight it joined has ended', () => {
+    const t = table();
+    openTheRoom(t);
+    expectOk(t.call('roll_initiative', { combatants: [{ who: 'kessa' }, { who: 'vex' }] }));
+    orinArrives(t);
+    expectOk(t.call('roll_initiative', { combatants: [{ who: 'orin' }] }));
+    expectOk(t.call('end_combat', { ending: { kind: 'surrender', side: 'rivals' } }));
+    expect(t.surface.observe().initiativeOrder).toBeNull();
+    const before = untouched(t);
+
+    // With no fight running, a retry read off the world alone would take the
+    // beginning door under an id it never used, and start a fight for Orin.
+    const again = expectOk(t.resend(14));
+    expect(again.resolution['duplicate']).toBe(true);
+    expect(again.events).toHaveLength(0);
+    expect(untouched(t)).toEqual(before);
+    expect(t.surface.observe().initiativeOrder).toBeNull();
+  });
+});
+
 // — and the fight that is not symmetric —————————————————————————————————————
 
 /**
