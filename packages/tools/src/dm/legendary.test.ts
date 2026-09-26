@@ -70,6 +70,14 @@ describe('take_legendary_action', () => {
     }
     expect(t.surface.observe().turnOf).not.toBe('horn');
 
+    // The Horn asks whom it strikes rather than guessing, and asking spends
+    // nothing — the moment is still open below.
+    const unaimed = t.call('take_legendary_action', { who: 'horn', line: 'Charging Horn' });
+    expect(unaimed.status).toBe('needs-context');
+    if (unaimed.status === 'needs-context') {
+      expect(unaimed.establish.flatMap((request) => request.tools)).toEqual(['take_legendary_action']);
+    }
+
     const out = expectOk(
       t.call('take_legendary_action', { who: 'horn', line: 'Shimmering Shield', target: 'grish' }),
     );
@@ -78,22 +86,21 @@ describe('take_legendary_action', () => {
     expect(out.events.some((event) => event.type === 'bonus-applied')).toBe(true);
     expect(out.events.some((event) => event.type === 'action-spent')).toBe(false);
 
-    // Twice in one round is refused by the line's own sentence.
-    const again = t.call('take_legendary_action', { who: 'horn', line: 'Shimmering Shield' });
+    // Only one at a time: a second at the same boundary is refused.
+    const again = t.call('take_legendary_action', { who: 'horn', line: 'Charging Horn', target: 'grish' });
     expect(again.status).toBe('refused');
-    if (again.status === 'refused') expect(again.code).toBe('line_expended');
+    if (again.status === 'refused') expect(again.code).toBe('legendary_moment_closed');
 
-    // The Horn asks whom it strikes rather than guessing.
-    const unaimed = t.call('take_legendary_action', { who: 'horn', line: 'Charging Horn' });
-    expect(unaimed.status).toBe('needs-context');
-    if (unaimed.status === 'needs-context') {
-      expect(unaimed.establish.flatMap((request) => request.tools)).toEqual(['take_legendary_action']);
+    // The next boundary opens the moment again — and if it was the unicorn's
+    // own turn that came round, the uses were refilled on the way.
+    expectOk(t.call('end_turn', {}));
+    for (let guard = 0; guard < 3 && t.surface.observe().turnOf === 'horn'; guard += 1) {
+      expectOk(t.call('end_turn', {}));
     }
-
     const charge = expectOk(
       t.call('take_legendary_action', { who: 'horn', line: 'Charging Horn', target: 'grish' }),
     );
-    expect(charge.resolution['usesLeft']).toBe(1);
+    expect([1, 2]).toContain(charge.resolution['usesLeft']);
     expect(charge.unverified.join(' ')).toContain('half its Speed');
     expect(charge.events.some((event) => event.type === 'roll-recorded')).toBe(true);
   });

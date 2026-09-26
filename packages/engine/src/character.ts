@@ -226,15 +226,6 @@ export interface StatedBonusAction {
 }
 
 /**
- * One line a stat block prints under **Actions** that the parser read nothing
- * out of, as printed.
- *
- * The heading, the sentence and whatever recharge the heading carries — the
- * same three fields {@link StatedBonusAction} holds, because the two sections
- * differ in what a line *costs* and in nothing else the engine can see. A
- * caller names the line by its heading, exactly as a printed attack is named.
- */
-/**
  * One legendary action the block prints, compiled for the door that spends
  * one — `takeLegendaryAction`.
  *
@@ -251,6 +242,15 @@ export interface StatedLegendaryAction {
   readonly recharge?: MonsterRecharge;
 }
 
+/**
+ * One line a stat block prints under **Actions** that the parser read nothing
+ * out of, as printed.
+ *
+ * The heading, the sentence and whatever recharge the heading carries — the
+ * same three fields {@link StatedBonusAction} holds, because the two sections
+ * differ in what a line *costs* and in nothing else the engine can see. A
+ * caller names the line by its heading, exactly as a printed attack is named.
+ */
 export interface StatedAction {
   readonly name: string;
   /** The book's sentence, verbatim, because a spend reports it. */

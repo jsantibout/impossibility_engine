@@ -983,6 +983,19 @@ export const describeRecharge = (recharge: MonsterRecharge): string =>
  */
 export const LEGENDARY_POOL = 'legendary-actions';
 
+/**
+ * The key a legendary use is written down against in the holder's own turn
+ * ledger, so the moment it was spent at is consumed.
+ *
+ * SRD *Monsters*: "Only one of these actions can be taken at a time and only
+ * after another creature's turn ends." A use is spent at a boundary the holder
+ * does not own, so the holder's budget is the record that outlives it — every
+ * combatant holds one from the fight's start — and `feature-used` keyed here
+ * against `turnsTaken` says "this boundary has had its one", which the next
+ * boundary's count makes false again.
+ */
+export const LEGENDARY_MOMENT = 'legendary-action';
+
 /** One legendary line by its heading, off the sheet the block was pinned to. */
 export function legendaryLineOf(sheet: CharacterSheet, name: string): StatedLegendaryAction | null {
   const wanted = name.trim().toLowerCase();

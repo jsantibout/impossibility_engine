@@ -48,6 +48,8 @@ const id = (s: string) => asCharacterId(s);
 const UNICORN = id('unicorn');
 const BREN = id('bren');
 const BANDIT = id('bandit');
+/** Three more, so a round has enough boundaries to spend three uses and ask for a fourth. */
+const MORE = [id('bandit-two'), id('bandit-three'), id('bandit-four')];
 
 const supply = (seed: string) => ({
   issuer: createRollIssuer('r'),
@@ -111,24 +113,37 @@ function inTheGrove(): GameState {
   arrive(UNICORN, 'unicorn');
   step(createCharacter(SRD_CONTENT, bren(), BREN), 'Bren');
   arrive(BANDIT, 'bandit');
+  for (const more of MORE) arrive(more, 'bandit');
   step(setScene(state, { width: 200, depth: 120, height: 20 }), 'scene');
   step(addSceneLandmark(state, 'the pool', { x: 60, y: 60, z: 0 }), 'landmark');
   step(placeCreatureInScene(state, UNICORN, { from: { landmark: 'the pool' }, feet: 0 }), 'unicorn');
   step(placeCreatureInScene(state, BREN, { from: { creature: UNICORN }, feet: 30, bearing: 0 }), 'Bren');
   step(placeCreatureInScene(state, BANDIT, { from: { creature: UNICORN }, feet: 5, bearing: 180 }), 'bandit');
+  MORE.forEach((more, index) => {
+    step(
+      placeCreatureInScene(state, more, { from: { creature: UNICORN }, feet: 20 + index * 5, bearing: 90 }),
+      `place ${more}`,
+    );
+  });
   step(declareCreatureSide(state, UNICORN, 'fey'), 'side');
   step(declareCreatureSide(state, BREN, 'party'), 'side');
   step(declareCreatureSide(state, BANDIT, 'bandits'), 'side');
+  for (const more of MORE) step(declareCreatureSide(state, more, 'bandits'), 'side');
   step(
     beginCombat(state, [
       { id: UNICORN, initiative: 20, speed: 50 },
       { id: BREN, initiative: 10, speed: 30 },
       { id: BANDIT, initiative: 5, speed: 30 },
+      ...MORE.map((more, index) => ({ id: more, initiative: 4 - index, speed: 30 })),
     ]),
     'combat',
   );
   return state;
 }
+
+/** One more turn ends: the next creature's begins with nothing spent. */
+const nextBoundary = (state: GameState, tag: string): GameState =>
+  after(state, unwrap(resolveTurn(state, supply(`boundary-${tag}`)), tag).events);
 
 /** The world just after Bren's turn ended: the bandit's has begun and holds everything. */
 function afterBrensTurn(): GameState {
@@ -196,9 +211,10 @@ describe('a unicorn spending a use after the fighter’s turn', () => {
     expect(timer?.deadline).toMatchObject({ kind: 'turn-end', of: UNICORN });
     // The owner's lifetime ruling: no stated span, so no deadline on the points.
     expect(Object.values(next.timers).some((t) => t.target.kind === 'temporary-hit-points')).toBe(false);
-    // The Shield is spent until the start of the unicorn's next turn.
+    // The Shield is spent until the start of the unicorn's next turn — at the
+    // next boundary, where the moment is open again, the line itself refuses.
     expect(next.creatures[UNICORN]!.expendedLines).toContain('Shimmering Shield');
-    expect(shield(next, BREN, 'b')).toMatchObject({ ok: false, code: 'line_expended' });
+    expect(shield(nextBoundary(next, 'b'), BREN, 'b')).toMatchObject({ ok: false, code: 'line_expended' });
   });
 
   it('charges the bandit: a Radiant Horn attack free of the Attack action, the move the table’s', () => {
@@ -213,19 +229,50 @@ describe('a unicorn spending a use after the fighter’s turn', () => {
     expect(out.unverified.some((line) => line.includes('half its Speed'))).toBe(true);
   });
 
+  it('takes one action at a time: a second at the same boundary is refused', () => {
+    // SRD: "Only one of these actions can be taken at a time and only after
+    // another creature's turn ends."
+    const state = afterBrensTurn();
+    const once = after(state, unwrap(horn(state, BANDIT, 'one'), 'one').events);
+    expect(uses(once)).toBe(2);
+    expect(horn(once, BANDIT, 'again')).toMatchObject({ ok: false, code: 'legendary_moment_closed' });
+    expect(shield(once, UNICORN, 'again')).toMatchObject({ ok: false, code: 'legendary_moment_closed' });
+    // The next boundary opens the moment again.
+    const later = nextBoundary(once, 'later');
+    expect(unwrap(shield(later, UNICORN, 'two'), 'two').usesLeft).toBe(1);
+  });
+
   it('is refused a fourth use in the round, and has three again at the top of its turn', () => {
+    // One use per boundary, so three boundaries spend the three: after Bren,
+    // after the first bandit, after the second.
     let state = afterBrensTurn();
     state = after(state, unwrap(horn(state, BANDIT, 'one'), 'one').events);
+    state = nextBoundary(state, 'b1');
     state = after(state, unwrap(horn(state, BANDIT, 'two'), 'two').events);
+    state = nextBoundary(state, 'b2');
     state = after(state, unwrap(shield(state, UNICORN, 'three'), 'three').events);
     expect(uses(state)).toBe(0);
+    // A fourth boundary, and nothing left to spend at it.
+    state = nextBoundary(state, 'b3');
     expect(horn(state, BANDIT, 'four')).toMatchObject({ ok: false, code: 'no_legendary_uses' });
 
-    // The bandit's turn ends and the unicorn's begins: every use is back and
-    // the Shield is off the spent list.
-    const top = after(state, unwrap(resolveTurn(state, supply('round-two')), 'round two').events);
+    // The last bandit's turn ends and the unicorn's begins: every use is back
+    // and the Shield is off the spent list.
+    const top = nextBoundary(state, 'round-two');
+    expect(top.combat!.order[top.combat!.turnIndex]!.id).toBe(UNICORN);
     expect(uses(top)).toBe(3);
     expect(top.creatures[UNICORN]!.expendedLines).not.toContain('Shimmering Shield');
+  });
+
+  it('is refused while Incapacitated', () => {
+    // SRD: "The monster can't take a Legendary Action if it has the
+    // Incapacitated condition." Stunned carries it.
+    const state = afterBrensTurn();
+    const stunned = after(state, [
+      { type: 'condition-applied', id: UNICORN, condition: 'stunned', source: 'the test' },
+    ]);
+    expect(shield(stunned, UNICORN, 'stunned')).toMatchObject({ ok: false, code: 'incapacitated' });
+    expect(uses(stunned)).toBe(3);
   });
 });
 

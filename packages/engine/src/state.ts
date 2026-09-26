@@ -81,14 +81,6 @@ import {
 import type { GameEvent } from './events.js';
 
 /**
- * Something a creature has equipped, with the one record the fold reads.
- *
- * The id is what inventory tracks; the armour record is what `item-equipped`
- * pinned when it went on, so that what a creature wears is a fact of the log
- * and not of whichever item catalogue is loaded today. Null for anything that
- * is not armour — a held weapon is equipped and contributes nothing here.
- */
-/**
  * Points taken off one ability score by one use of one effect.
  *
  * SRD Shadow's Draining Swipe. Sourced per use, so a second swipe lowers the
@@ -105,6 +97,14 @@ export interface AbilityLowering {
   readonly label: string;
 }
 
+/**
+ * Something a creature has equipped, with the one record the fold reads.
+ *
+ * The id is what inventory tracks; the armour record is what `item-equipped`
+ * pinned when it went on, so that what a creature wears is a fact of the log
+ * and not of whichever item catalogue is loaded today. Null for anything that
+ * is not armour — a held weapon is equipped and contributes nothing here.
+ */
 export interface EquippedItem {
   readonly id: string;
   readonly armor: Armor | null;

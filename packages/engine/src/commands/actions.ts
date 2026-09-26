@@ -32,6 +32,7 @@ import {
   ACTION_TITLES,
   allowedActions,
   allowsPrice,
+  canUseFeatureThisTurn,
   currentCombatant,
   dash,
   isStatablePrice,
@@ -70,7 +71,7 @@ import {
   type PrintedSaveOnACreature,
   withDeclaredDamage,
 } from './printed-save-clauses.js';
-import { hasCondition } from '../conditions.js';
+import { hasCondition, isIncapacitated } from '../conditions.js';
 import {
   applyEvent,
   type GameEvent,
@@ -93,6 +94,7 @@ import {
   affectedByPrintedLine,
   describePerDay,
   describeRecharge,
+  LEGENDARY_MOMENT,
   LEGENDARY_POOL,
   legendaryLineOf,
   perDayTallyKey,
@@ -1387,6 +1389,14 @@ export function takeLegendaryAction(
       const creature = creatureOf(state, id);
       if (creature === null) return unknownCreature(id, 'has no record here yet; add it first');
       if (creature.vitals.dead) return err('dead', `${id} is dead and takes no legendary action`);
+      // SRD *Monsters*: "The monster can't take a Legendary Action if it has
+      // the Incapacitated condition or is otherwise unable to take actions."
+      // Asked here rather than left to the swing, because the Shield swings
+      // nothing and the Horn is taken `free`, which is the road that skips the
+      // Attack action's own capability check.
+      if (isIncapacitated(effectiveConditions(state, id))) {
+        return err('incapacitated', `${id} is Incapacitated and can take no legendary action`);
+      }
 
       const line = legendaryLineOf(creature.sheet, command.line);
       if (line === null) {
@@ -1414,6 +1424,18 @@ export function takeLegendaryAction(
           combat.turnsTaken === 0
             ? `no creature has finished a turn yet, so there is no turn for ${id} to act immediately after`
             : `${current.id} has already acted on this turn, so the moment immediately after the last turn ended has passed`,
+        );
+      }
+
+      // SRD *Monsters*: "Only one of these actions can be taken at a time and
+      // only after another creature's turn ends." The boundary is consumed by
+      // the use: it is written down against the turn count in the holder's own
+      // ledger, and a second use at the same count is refused. The next
+      // boundary has a new count, so the record needs no release.
+      if (!canUseFeatureThisTurn(combat, id, LEGENDARY_MOMENT)) {
+        return err(
+          'legendary_moment_closed',
+          `${id} has already taken a legendary action at this turn's end; only one may be taken at a time, and the next comes after another creature's turn`,
         );
       }
 
@@ -1461,6 +1483,9 @@ export function takeLegendaryAction(
           amount: 1,
           ...(stamp === null ? {} : { command: stamp }),
         },
+        // The boundary consumed, in the holder's own ledger — see
+        // `LEGENDARY_MOMENT`.
+        { type: 'feature-used', id, feature: LEGENDARY_MOMENT, turn: combat.turnsTaken },
         ...(line.recharge === undefined
           ? []
           : [{ type: 'printed-line-expended' as const, id, line: line.name }]),
