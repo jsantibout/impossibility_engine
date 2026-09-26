@@ -182,7 +182,13 @@ describe('the ledger measures the three populations of the roadmap', () => {
    */
   it('keeps partial and tracked apart, and holds no undefined spell in reach', () => {
     const states = new Set(ledger.spells.map((one) => one.status));
-    expect([...states].sort()).toEqual(['executed-partial', 'tracked']);
+    // **`executed-partial` has left too** (W8-S24): Protection from Evil and
+    // Good was the last spell in reach with a clause the engine owns still
+    // unbuilt. An absent state is a claim, so the guard also asks the
+    // derivation above the ledger's reach, where a partial spell still stands
+    // — which proves the reading still finds one when the level lets it.
+    expect([...states].sort()).toEqual(['tracked']);
+    expect(new Set(auditLedger(9).spells.map((one) => one.status))).toContain('executed-partial');
   });
 
   /**

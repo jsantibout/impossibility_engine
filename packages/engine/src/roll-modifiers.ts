@@ -888,18 +888,25 @@ export interface RollQuery {
    */
   readonly findingMarked?: boolean;
   /**
-   * The creature whose effect **forced this saving throw**, where the site that
-   * rolls it knows one.
+   * The creature whose effect the roller is **already under** and is saving
+   * against, where the site that rolls it knows one.
    *
    * SRD Protection from Evil and Good's "already … Frightened **by such a
-   * creature**": a save knows its DC and not who set it, which `CLAUDE.md` has
-   * recorded as a gap since Countercharm. This is that gap closed from the one
-   * end where the answer really is in the log: a repeat save is raised by a
-   * timer, the timer names the source that hung the condition, and a casting's
-   * record names its caster.
+   * creature** … Advantage on any new saving throw against the relevant
+   * effect": a save knows its DC and not who set it, which `CLAUDE.md` has
+   * recorded as a gap since Countercharm. This is that gap closed from the ends
+   * where the answer really is in the log. A repeat save is "already" by
+   * construction: its timer names the source that hung the condition, and that
+   * source names a casting whose record names its caster, or a stat block's
+   * line that names its creature (`printedLineHolder`). A new save a printed
+   * line forces names its creature only where the target already holds a
+   * condition that same line hung — W8-S24.
    *
-   * Absent is "nobody said", which a type-keyed selector reads as a miss — a DM's
-   * bare ruling, a trap, a hazard. See {@link RollSelector.againstSourceType}.
+   * **Not simply whoever set the DC.** A first save against an effect the
+   * roller is not yet under names nobody, because the sentence's "already" is
+   * the whole of its condition. Absent is "nobody said", which a type-keyed
+   * selector reads as a miss — a DM's bare ruling, a trap, a hazard, a first
+   * save. See {@link RollSelector.againstSourceType}.
    */
   readonly forcedBy?: CharacterId;
   /**

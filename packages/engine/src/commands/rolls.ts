@@ -740,14 +740,18 @@ export function savingSupport(
    */
   concentration?: boolean,
   /**
-   * The creature whose effect **forced** this save, where the caller knows one.
+   * The creature whose effect the roller is **already under** and is saving
+   * against, where the caller knows one.
    *
    * SRD Protection from Evil and Good's "already … Frightened by such a
-   * creature": a save knows its DC and not who set it, and this is the one end
-   * where the answer is in the log — a repeat save is raised by a timer, the
-   * timer names the source that hung the condition, and a casting's record names
-   * its caster. Silence is "nobody said", which a type-keyed selector reads as a
-   * miss, for the reason the three answers above take silence that way.
+   * creature": a save knows its DC and not who set it, and the answer is in the
+   * log at two ends. A repeat save is raised by a timer, the timer names the
+   * source that hung the condition, and the source names a casting (whose
+   * record names its caster) or a stat block's line (which names its creature).
+   * And a new save a printed line forces names that line's creature where the
+   * target already holds a condition the line hung — W8-S24. A first save
+   * names nobody. Silence is "nobody said", which a type-keyed selector reads as
+   * a miss, for the reason the three answers above take silence that way.
    */
   forcedBy?: CharacterId,
 ): {

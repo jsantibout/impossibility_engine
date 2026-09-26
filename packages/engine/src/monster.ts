@@ -936,6 +936,9 @@ export function statedActionOf(sheet: CharacterSheet, name: string): StatedActio
   return sheet.stated?.unreadActions?.find((line) => line.name.toLowerCase() === wanted) ?? null;
 }
 
+/** What every {@link printedLineSource} begins with. */
+const PRINTED_LINE = 'printed:';
+
 /**
  * The source a printed line's clauses are hung on: the creature and the
  * heading.
@@ -948,7 +951,36 @@ export function statedActionOf(sheet: CharacterSheet, name: string): StatedActio
  * vocabulary, and it names nothing — the heading comes out of the block.
  */
 export const printedLineSource = (who: CharacterId, line: string): string =>
-  `printed:${who}:${line}`;
+  `${PRINTED_LINE}${who}:${line}`;
+
+/**
+ * Whose printed line a source was hung under — {@link printedLineSource}'s
+ * inverse, and null for any other cause.
+ *
+ * SRD Protection from Evil and Good: "If the target is already … Frightened
+ * **by such a creature**". A repeat save names the source its condition was
+ * hung under and nothing else, and for a stat block's line that source names
+ * the creature — so who forced the repeat is read back out of it, as
+ * `castingIdOf` reads a casting out of a spell's.
+ *
+ * **Matched against the creatures in the game rather than split on a colon**,
+ * because an id is not colon-free: an engine-minted one is `<castingId>:<block>:<n>`
+ * (a raised Zombie hangs `printed:cast:3:zombie:0:Slam`), and a sub-key rides
+ * after the line (`…:lasting`). The longest id that prefixes the rest wins, so
+ * a creature whose id happens to begin another's never takes its lines. A
+ * creature no longer in the game is nobody: the fact the reader wants is what
+ * that creature *is*, and a record that is gone cannot say.
+ */
+export function printedLineHolder(state: GameState, source: string): CharacterId | null {
+  if (!source.startsWith(PRINTED_LINE)) return null;
+  const rest = source.slice(PRINTED_LINE.length);
+  let holder: string | null = null;
+  for (const who of Object.keys(state.creatures)) {
+    if (!rest.startsWith(`${who}:`)) continue;
+    if (holder === null || who.length > holder.length) holder = who;
+  }
+  return holder as CharacterId | null;
+}
 
 /**
  * The mark a wound's own arrangements are filed under, beneath the line's
