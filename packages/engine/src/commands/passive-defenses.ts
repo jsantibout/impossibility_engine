@@ -39,6 +39,8 @@ import {
   retaliationReaches,
 } from '../passive-defenses.js';
 import { castingIdOf, spellOfSource } from '../spells.js';
+import type { Content } from '../content.js';
+import { printedCorrosion } from '../monster.js';
 import { distanceBetween } from '../positioning.js';
 import { effectiveConditions, sensesPerceiving, sheetAsItStands } from '../standing.js';
 import { dealSpellDamage } from './damage.js';
@@ -396,5 +398,111 @@ export function answerTheBlow(
     unverified.push(...burned.value.unverified);
   }
 
+  // **SRD Black Pudding's Corrosive Form, which is Fire Shield's shape worn by a
+  // stat block** — W7-B12: "A creature that hits the pudding with a melee
+  // attack roll takes 4 (1d8) Acid damage." A melee hit, known and not yet
+  // rolled, answered with dice through the casting's own funnel for the reason
+  // the flames above are: a window opened here would hold a damage roll in
+  // front of the attack's own. No distance fence, because the sentence prints
+  // none — a hit is contact enough.
+  const holderSheet = current.creatures[target]?.sheet;
+  const corrosion = holderSheet === undefined ? null : printedCorrosion(holderSheet);
+  if (holderSheet !== undefined && corrosion?.meleeHitterTakes != null && blow.melee) {
+    const { dice, damageType } = corrosion.meleeHitterTakes;
+    const label = `${damageType} damage from ${target}`;
+    const eaten = rollSpellDice(supply, holderSheet, label, damageType, dice);
+    if (!eaten.ok) return eaten;
+    const burned = dealSpellDamage(current, attacker, eaten.value, label, supply, { by: target });
+    if (!burned.ok) return burned;
+    events.push(...burned.value.events);
+    current = burned.value.events.reduce(applyEvent, current);
+    unverified.push(...burned.value.unverified);
+  }
+
   return ok({ events, deflected: false, unverified });
+}
+
+/**
+ * What a weapon that struck the holder by contact, and dealt it damage, is
+ * owed — W7-B12.
+ *
+ * SRD Black Pudding and SRD Gray Ooze, Corrosive Form: "Any nonmagical weapon
+ * takes a cumulative −1 penalty to attack rolls immediately after dealing
+ * damage to the pudding and coming into contact with it. The weapon is
+ * destroyed if the penalty reaches −5."
+ *
+ * **After the blow, on the record the Rust Monster's Antennae wears down** —
+ * `EquippedItem.penalty`, read at every later swing as a named subtraction —
+ * and destroyed at the ceiling through the door every lost item leaves by.
+ * Four clauses and each is asked:
+ *
+ * - **dealt damage** — a blow the holder's defences turned wholly aside (a
+ *   Slashing blow on a pudding, which is immune to it) wears nothing;
+ * - **contact** — a weapon swung or thrown, never the bow that loosed an arrow
+ *   (the arrow is the ammunition sentence, which is owed);
+ * - **the copy in hand** — the equipped record for the weapon's id;
+ * - **nonmagical** — no grant the catalogue gives the item and no requirement
+ *   to attune, and no casting or feature imbuing this weapon. The judgement is
+ *   the engine's reading of the record and is said out loud where it wore
+ *   something, because a weapon a table has made magical some other way is a
+ *   fact only the table holds.
+ *
+ * Called by both halves of the weapon path and by the settlement a held blow
+ * lands through, with the weapon the swing was made with; a caller with no
+ * weapon asks nothing.
+ */
+export function wearTheWeapon(
+  state: GameState,
+  attacker: CharacterId,
+  target: CharacterId,
+  weapon: string | null | undefined,
+  dealt: number,
+  content: Content,
+): { readonly events: readonly GameEvent[]; readonly unverified: readonly string[] } {
+  const nothing = { events: [], unverified: [] };
+  if (weapon == null || dealt <= 0) return nothing;
+  const holder = state.creatures[target];
+  const striker = state.creatures[attacker];
+  if (holder === undefined || striker === undefined) return nothing;
+  const corrosion = printedCorrosion(holder.sheet);
+  if (corrosion === null) return nothing;
+
+  const record = striker.equipped.find((held) => held.id === weapon);
+  const item = content.item(weapon);
+  if (record === undefined || item === null || item.weapon === null) return nothing;
+  const magical =
+    item.grants !== undefined ||
+    item.attunement !== undefined ||
+    (record.grants?.length ?? 0) > 0 ||
+    striker.weaponRiders.some((rider) => rider.weapon === weapon);
+  if (magical) return nothing;
+
+  const eaten = (record.penalty ?? 0) + corrosion.weaponPenalty;
+  const read = `${attacker}'s ${item.name} is nonmagical by its record; one a table has made magical some other way is the table's to spare`;
+  if (eaten < corrosion.weaponDestroyedAt) {
+    return {
+      events: [
+        { type: 'weapon-penalised', id: attacker, item: weapon, points: corrosion.weaponPenalty },
+      ],
+      unverified: [read],
+    };
+  }
+  return {
+    events: [
+      { type: 'item-unequipped', id: attacker, item: weapon },
+      {
+        type: 'items-lost',
+        id: attacker,
+        items: [
+          {
+            id: weapon,
+            quantity: 1,
+            ...(record.instance === undefined ? {} : { instance: record.instance }),
+          },
+        ],
+        source: `corroded by ${target}`,
+      },
+    ],
+    unverified: [read],
+  };
 }

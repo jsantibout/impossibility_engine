@@ -179,8 +179,10 @@ describe('toolSchemas', () => {
     // W7-S21, `borrow_senses` — SRD Find Familiar's Bonus Action, the third
     // door on the kept bond.
     // And one more on the DM's alone for I-E9, `printed_line_catch`.
+    // And three more on the DM's alone for W7-B12: `take_rest_form`,
+    // `settle_block_deadlines` and `split_printed_line`.
     expect(toolSchemas(player())).toHaveLength(96);
-    expect(toolSchemas(dm())).toHaveLength(124);
+    expect(toolSchemas(dm())).toHaveLength(127);
     // Re-pinned 2026-09-24 for the printed-lines track, which opened one door
     // on the DM's surface alone: `teleport_printed_line` takes the teleport a
     // stat block prints, at the distance the block prints, to a space the DM
@@ -368,10 +370,16 @@ describe('toolSchemas', () => {
     // purpose, and a description that no longer says omitting the weapon is
     // an Unarmed Strike, which was false for a creature wearing a block. One
     // tool both doors publish: 600 bytes on each, and no tool added.
+    // And for W7-B12, the DM's door alone: `take_rest_form` (the form a block
+    // offers at a Long Rest's end), `settle_block_deadlines` (the die a
+    // block's own day owes) and `split_printed_line` (the ooze's Split) added,
+    // and `cast_printed_line`'s description names the trait a coven casts
+    // through. 124 → 127 tools; +3,750 bytes. The player's surface is
+    // unchanged.
     expect(toolSchemas(player())).toHaveLength(96);
-    expect(toolSchemas(dm())).toHaveLength(124);
+    expect(toolSchemas(dm())).toHaveLength(127);
     expect(JSON.stringify(toolSchemas(player())).length).toBe(158726);
-    expect(JSON.stringify(toolSchemas(dm())).length).toBe(211194);
+    expect(JSON.stringify(toolSchemas(dm())).length).toBe(214944);
   });
 });
 

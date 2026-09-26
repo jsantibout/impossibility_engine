@@ -69,10 +69,13 @@ describe('a trait that says how a creature moves', () => {
     expect(traitOf('vampire-spawn', 'Spider Climb')).toEqual({ kind: 'climbs-without-a-check' });
   });
 
-  it('refuses the swarm, whose sentence gates the rule on a Speed', () => {
+  it('reads the swarm’s sentence with the gate it prints on a Speed', () => {
     // "If the swarm has a Climb Speed, the swarm can climb…" — a gate the kind
-    // carries no field for, and a gate read away is a rule nobody printed.
-    expect(traitOf('swarm-of-insects', 'Spider Climb')).toBeNull();
+    // carries now (W7-B12), because a gate read away is a rule nobody printed.
+    expect(traitOf('swarm-of-insects', 'Spider Climb')).toEqual({
+      kind: 'climbs-without-a-check',
+      ifHasClimbSpeed: true,
+    });
   });
 
   it('reads SRD Flyby as the Opportunity Attack a flier does not provoke', () => {
@@ -188,14 +191,20 @@ describe('a trait that says what the light does to a creature', () => {
    * starts its turn in sunlight. While in sunlight, it has Disadvantage on
    * attack rolls and ability checks."
    *
-   * Refused whole, for the swarm's reason: the second sentence is Sunlight
-   * Sensitivity and the first is damage dealt at a turn boundary, which
-   * nothing here can carry. Reading the sentence down to the half that fits
-   * would take the burning off a vampire silently.
+   * Read whole since W7-B12: the second sentence is Sunlight Sensitivity and
+   * the first is damage dealt at a turn boundary, which the kind carries as
+   * `hurtAtTurnStart`. Reading the sentence down to the half that fits would
+   * have taken the burning off a vampire silently, which is why it was refused
+   * until the boundary could read the first half too.
    */
-  it('refuses the vampires’ Sunlight, whose first clause is damage', () => {
-    expect(traitOf('vampire-spawn', 'Sunlight')).toBeNull();
-    expect(traitOf('vampire', 'Sunlight')).toBeNull();
+  it('reads the vampires’ Sunlight, the burn and the Disadvantage both', () => {
+    const both = {
+      kind: 'disadvantage-in-sunlight',
+      rolls: ['ability-check', 'attack-roll'],
+      hurtAtTurnStart: { amount: 20, damageType: 'radiant' },
+    };
+    expect(traitOf('vampire-spawn', 'Sunlight')).toEqual(both);
+    expect(traitOf('vampire', 'Sunlight')).toEqual(both);
   });
 });
 
@@ -314,11 +323,15 @@ describe('a trait that says what being Bloodied buys', () => {
 
   /**
    * The Giant Boar prints the same heading over a different rule — "melee
-   * attack rolls", and the clause the other way round. A narrowing the kind
-   * carries no field for is a rule nobody printed, so the line stays prose.
+   * attack rolls", and the clause the other way round. A narrowing read away
+   * is a rule nobody printed, so the kind carries it (W7-B12).
    */
-  it('refuses the Giant Boar, whose sentence narrows the rolls', () => {
-    expect(traitOf('giant-boar', 'Bloodied Fury')).toBeNull();
+  it('reads the Giant Boar with the narrowing its sentence prints', () => {
+    expect(traitOf('giant-boar', 'Bloodied Fury')).toEqual({
+      kind: 'advantage-while-bloodied',
+      rolls: ['attack-roll'],
+      reach: 'melee',
+    });
   });
 });
 
@@ -539,12 +552,23 @@ describe('a trait a turn boundary owes', () => {
   });
 
   /**
-   * And the Fire Elemental's, which is the anchoring rule doing its work: its
-   * sentence ends "Creatures and flammable objects in the Emanation start
-   * burning", and there is no burning here.
+   * And the Fire Elemental's, whose sentence ends "Creatures and flammable
+   * objects in the Emanation start burning". The burning is the glossary's and
+   * the engine lights it on a creature (W7-B12); the objects half is owed, so
+   * the sentence rides beside the kind as residue.
    */
-  it('refuses the aura whose sentence sets the room alight', () => {
-    expect(traitOf('fire-elemental', 'Fire Aura')).toBeNull();
+  it('reads the aura whose sentence sets the room alight, and owes the room', () => {
+    expect(traitOf('fire-elemental', 'Fire Aura')).toEqual({
+      kind: 'damages-creatures-in-an-emanation',
+      moment: 'end',
+      feet: 10,
+      dice: '1d10',
+      damageType: 'fire',
+      chosen: false,
+      unlessIncapacitated: false,
+      ignites: true,
+      handedOver: ['Creatures and flammable objects in the Emanation start burning.'],
+    });
   });
 
   /** SRD Barbed Hide: the same moment, caught by the hold rather than by feet. */
@@ -751,32 +775,25 @@ describe('the sentences that describe a world the lattice does not hold', () => 
   });
 
   /**
-   * And the sentences that stay unread, named here so that a later reader
-   * cannot quietly promote one: each states a mechanic this engine holds a
-   * primitive for and the seam it is missing is written beside it in
-   * `HANDOVER_TRAIT_KINDS`' own note. Calling one of these fiction would
-   * retire a debt by renaming it.
+   * And the sentences that stayed unread, named here so that a later reader
+   * could not quietly promote one: each stated a mechanic and the seam it was
+   * missing was written beside it in `HANDOVER_TRAIT_KINDS`' own note.
+   *
+   * **The list is empty since W7-B12**, and is kept as a test of what each one
+   * became rather than deleted, because a list that empties is a claim
+   * somebody may want to check. The Gelatinous Cube's Ooze Cube left in W7-B10,
+   * the Night Hag's Soul Bag in W7-B11, the Flesh Golem's Berserk in W7-B13 and
+   * the bugbears' Abduct in W7-B9; the troll limb's Troll Spawn, the two rest
+   * forms and the swarm's gated Spider Climb in W7-B12 — each read into a kind
+   * a reader spends, none of them filed as fiction.
    */
   it.each([
-    // The Gelatinous Cube's Ooze Cube left this list in W7-B10: the second
-    // place holds a creature inside another, and `holds-creatures-inside` is
-    // the room the cube has and the neighbour's pull out of it.
-    // **The Night Hag's Soul Bag left this list in W7-B11**: the thing the
-    // sentence describes is an object with an Armour Class, Hit Points and a
-    // Resistance, and `raisePrintedObject` raises it beside the hag at her
-    // arrival — so the mechanic it states is one the engine runs, and the gate
-    // on Nightmare Haunting is the `while-carrying` requirement.
-    ['troll-limb', 'Troll Spawn'],
-    ['succubus', 'Incubus Form'],
-    ['incubus', 'Succubus Form'],
-    // **The Flesh Golem's Berserk left this list in W7-B13**: the d6 at a
-    // Bloodied turn's start is thrown by the boundary, and what a berserk golem
-    // does is a compulsion the owner ruled the table's, filed on the trait.
-    // The bugbears' Abduct left this list in W7-B9: the drag surcharge it
-    // waives is charged now, and `drags-for-free` is the exemption.
-    ['swarm-of-insects', 'Spider Climb'],
-  ])('leaves %s’s %s unread, because it states a mechanic', (block, line) => {
-    expect(traitOf(block, line)).toBeNull();
+    ['troll-limb', 'Troll Spawn', 'becomes-another-block-on-a-die'],
+    ['succubus', 'Incubus Form', 'becomes-another-block-at-a-long-rest'],
+    ['incubus', 'Succubus Form', 'becomes-another-block-at-a-long-rest'],
+    ['swarm-of-insects', 'Spider Climb', 'climbs-without-a-check'],
+  ])('reads %s’s %s as the mechanic it states', (block, line, kind) => {
+    expect(traitOf(block, line)?.kind).toBe(kind);
   });
 });
 

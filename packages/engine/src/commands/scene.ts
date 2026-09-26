@@ -114,6 +114,7 @@ import {
   settleStartOfTurnGrants,
   settleStartOfTurnRecharges,
 } from './turns.js';
+import { settleStartOfTurnBody } from './turn-start-body.js';
 
 /**
  * Set the scene, and with it what the room can contain.
@@ -382,7 +383,18 @@ export function beginCombat(
       beginning,
     );
 
-    return ok([opened, ...paid.value.events, ...recharged.value, ...granted]);
+    // And what the first combatant's own block does to it as that turn
+    // begins — SRD Regeneration's heal and SRD Vampire Spawn's Sunlight, "at
+    // the start of each of its turns", of which this is one by the second
+    // door. The report is dropped for the payouts' reason above. (W7-B12)
+    const body = settleStartOfTurnBody(
+      [...paid.value.events, ...recharged.value, ...granted].reduce(applyEvent, after),
+      supply,
+      beginning,
+    );
+    if (!body.ok) return body;
+
+    return ok([opened, ...paid.value.events, ...recharged.value, ...granted, ...body.value.events]);
   });
 }
 

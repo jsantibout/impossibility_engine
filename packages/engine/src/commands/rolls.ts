@@ -949,6 +949,14 @@ export function defendingModes(
    * granted route, a stat block's declaration and an item's.
    */
   spell?: { readonly through?: string },
+  /**
+   * Whether the roll is a melee one, where the site that throws it knows —
+   * SRD Giant Boar's "Advantage on **melee** attack rolls". A swing reads its
+   * weapon's range or its printed line's kind, a spell attack its definition's
+   * `attack`; absent is a roll nobody classified, which a melee-narrowed
+   * selector reads as a miss. See `RollQuery.melee`. (W7-B12)
+   */
+  melee?: boolean,
 ): { readonly modes: readonly ModeSource[]; readonly unverified: readonly string[] } {
   const gathered = rollModesFor(
     state,
@@ -957,6 +965,7 @@ export function defendingModes(
       roller: attacker,
       against: target,
       ...(ability === undefined || ability === null ? {} : { ability }),
+      ...(melee === undefined ? {} : { melee }),
       ...(spell === undefined ? {} : { spellAttack: true as const }),
       ...(spell?.through === undefined ? {} : { castThrough: spell.through }),
       // SRD Blur: "An attacker is immune to this effect if it perceives you

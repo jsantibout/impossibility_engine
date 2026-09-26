@@ -43,6 +43,8 @@ import {
   declareSpellcasting,
   dismissStrandedSummons,
   dismountRider,
+  settleBlockDeadlines,
+  takeRestForm,
   endCombat,
   joinCombat,
   loseItems,
@@ -2206,6 +2208,28 @@ const TINKERED_IN_COMBAT: readonly GameEvent[] = [
   ...SETUP.filter((event) => event.type === 'combat-started'),
 ];
 
+/**
+ * An incubus whose Long Rest has just ended, which is the moment SRD Succubus
+ * Form offers its change — W7-B12. Its own table, out of any fight: a rest is
+ * not taken in one.
+ */
+const RESTED_INCUBUS: readonly GameEvent[] = (() => {
+  const fiend = id('a-fiend');
+  let log: readonly GameEvent[] = unwrap(
+    addCreature(fold('s', []), SRD_CONTENT, fiend, 'incubus'),
+    'the incubus',
+  ).events;
+  log = [...log, ...unwrap(beginRest(fold('s', log), fiend, 'long'), 'the rest')];
+  log = [...log, { type: 'time-advanced', seconds: 8 * 3600, reason: 'the night' }];
+  return [...log, ...unwrap(endRest(fold('s', log), fiend), 'the morning').events];
+})();
+
+/** A troll limb whose day has run out, owing its d12 — W7-B12, SRD Troll Spawn. */
+const LIMB_DUE: readonly GameEvent[] = [
+  ...unwrap(addCreature(fold('s', []), SRD_CONTENT, id('a-limb'), 'troll-limb'), 'the limb').events,
+  { type: 'time-advanced', seconds: 24 * 3600, reason: 'a day' },
+];
+
 const GUARDED: readonly Guarded[] = [
   {
     // The making itself, which is the retry question `addCreature` asks with a
@@ -2252,6 +2276,20 @@ const GUARDED: readonly Guarded[] = [
     // one id is the difference between one departure and a refusal.
     log: STRANDED,
     run: (s, commandId) => dismissStrandedSummons(s, { commandId }),
+  },
+  {
+    // W7-B12: a retry that got past the guard would be told the rest's moment
+    // had passed — or, worse, change the block a second time.
+    name: 'takeRestForm',
+    log: RESTED_INCUBUS,
+    run: (s, commandId) => takeRestForm(s, SRD_CONTENT, id('a-fiend'), { commandId }),
+  },
+  {
+    // W7-B12: a second throw of the limb's d12 is the one thing a retry must
+    // never be.
+    name: 'settleBlockDeadlines',
+    log: LIMB_DUE,
+    run: (s, commandId) => settleBlockDeadlines(s, supply(), { commandId }),
   },
   {
     name: 'summonCreature',
@@ -4335,6 +4373,8 @@ const UNGUARDED_ON_PURPOSE: Readonly<Record<string, string>> = {
     'the settlement itself, and a guard that refused its own settlement would be a deadlock wearing a rule’s clothes — this is the command that discharges the debt every other one is waiting on. It moved here from `ENDS_A_CASTING_UNGUARDED` the day a `chance` effect began counting its casting: the count is a `resource-spent`, so an effect list this settles can reach one and the closure above finds it. The two lists are disjoint by construction and a name on both would be an exemption gone stale',
   triggerGlyph:
     'a DM’s decision that a glyph’s invented trigger occurred — SRD Glyph of Warding’s "You decide what triggers the glyph" — which is not an action in anybody’s turn: nobody spends anything to be caught by a rune, and a guard would refuse the eruption because somebody in the room owed a saving throw. What the closure sees is the effect list the rune resolves, which is `settleAreaEffects`’ exemption one door along: a `chance` effect in it would count its casting with a `resource-spent`, and the count is the spell’s bookkeeping rather than a thing the DM chose to spend',
+  settleBlockDeadlines:
+    'the settlement of a debt the clock raised rather than an action anybody takes — SRD Troll Spawn’s "if the limb isn’t destroyed within 24 hours, roll 1d12" (W7-B12). The limb spends nothing to rise or to wither, and a guard would refuse the one throw that clears the debt `resolveTurn` refuses to advance past, which is `settleAreaEffects`’ deadlock in the same words. What the closure sees is the withering: the limb leaving through `removeCreatureEverywhere`, whose settlement of the holds it was part of is `dismissStrandedSummons`’ batch',
   resolveTurn:
     'the turn boundary, which is not anybody’s action: nothing the creature chooses is spent on a turn beginning or ending, and a guard would refuse to end the very turn an outstanding debt is owed on. What the closure sees is the effect list a boundary may resolve — a payout, an area trigger — and a `chance` effect in one of those counts its casting with a `resource-spent`; the count is the spell’s bookkeeping rather than a thing the creature whose turn it is chose to spend. And since W7-S22 the boundary settles a deferred debt — SRD Command’s "follow the command on its next turn" — whose `spends` writes `budget-compelled` for the beginning creature’s Action and Bonus Action: a spend the word made of that creature, filed a turn earlier and landed now, which is the debt itself being paid rather than an action anybody is taking while one is owed',
 };

@@ -53,6 +53,7 @@ import type {
   StatedAttack,
   StatedBonusAction,
   StatedTrait,
+  StatedTraitCast,
   StatedValues,
 } from './character.js';
 import { vitals, type Vitals } from './vitals.js';
@@ -1339,6 +1340,22 @@ export const hasPrintedTrait = (sheet: CharacterSheet, kind: MonsterTrait['kind'
   sheet.stated?.traits?.some((trait) => trait.kind === kind) === true;
 
 /**
+ * SRD Spider Climb, with the gate the Swarm of Insects prints on it — W7-B12.
+ *
+ * "The pudding can climb difficult surfaces … without needing to make an
+ * ability check" holds for its holder outright; "**If the swarm has a Climb
+ * Speed**, the swarm can climb …" holds only while that is true. Whether it is
+ * is the caller's answer, asked of the creature as it stands rather than of
+ * the sheet — a Climb Speed a spell granted is a Climb Speed — which is the
+ * reading the climb's own surcharge takes of the same words.
+ */
+export const climbsWithoutACheck = (sheet: CharacterSheet, hasClimbSpeed: boolean): boolean =>
+  (sheet.stated?.traits ?? []).some(
+    (trait) =>
+      trait.kind === 'climbs-without-a-check' && (trait.ifHasClimbSpeed !== true || hasClimbSpeed),
+  );
+
+/**
  * What a creature holds inside itself, and how a neighbour gets somebody out
  * — SRD Ooze Cube, read off the `holds-creatures-inside` trait — W7-B10.
  *
@@ -1528,6 +1545,82 @@ export const printedTypeSlow = (
   return null;
 };
 
+/**
+ * The name SRD Regeneration's held death is recorded under — W7-B12.
+ *
+ * {@link UNDEAD_FORTITUDE}'s reason: the rule's own name and not a catalogue
+ * id, so the `damage-taken.floor` a replay reads and the death a turn's start
+ * writes name the same rule, and a test asks for it by the name the log gives.
+ */
+export const REGENERATION = 'Regeneration';
+
+/**
+ * SRD Regeneration: what a block's own turn start gives back, and the damage
+ * types that stop it for a turn — or null for every block that prints none.
+ *
+ * "The troll regains 15 Hit Points at the start of each of its turns. If the
+ * troll takes Acid or Fire damage, this trait doesn't function on the troll's
+ * next turn. The troll dies only if it starts its turn with 0 Hit Points and
+ * doesn't regenerate." The first number and the list are the kind's; the
+ * third sentence is what this module's two readers do with them — the drop to
+ * 0 held at 0 in `damageCreature`, and the death at the turn's start in
+ * `settleStartOfTurnBody`. (W7-B12)
+ */
+export const printedRegeneration = (
+  sheet: CharacterSheet,
+): { readonly hitPoints: number; readonly suppressedBy: readonly string[] } | null => {
+  for (const trait of sheet.stated?.traits ?? []) {
+    if (trait.kind === 'regenerates') {
+      return { hitPoints: trait.hitPoints, suppressedBy: trait.suppressedBy };
+    }
+  }
+  return null;
+};
+
+/**
+ * The source the "doesn't function on its next turn" marker is hung under —
+ * W7-B12.
+ *
+ * **A deadline with nothing granted beneath it**, which is the whole of the
+ * rule: SRD Aversion to Fire hangs a mode under a `grants` timer "until the end
+ * of its next turn", and this is the same timer with the mode taken out,
+ * because what the fire costs the troll is not a number but a turn's heal. The
+ * boundary asks whether the timer still stands; the expiry pass takes it away
+ * at the end of that turn exactly as it takes the golem's Disadvantage.
+ */
+export const regenerationStoppedSource = (who: CharacterId): string =>
+  printedLineSource(who, `${REGENERATION} stopped`);
+
+/**
+ * SRD Corrosive Form: what a hit on the holder costs the striker and the
+ * weapon — or null for every block that prints none. (W7-B12)
+ *
+ * "A creature that hits the pudding with a melee attack roll takes 4 (1d8)
+ * Acid damage. … Any nonmagical weapon takes a cumulative −1 penalty to attack
+ * rolls immediately after dealing damage to the pudding and coming into
+ * contact with it. The weapon is destroyed if the penalty reaches −5." The
+ * first sentence is the Black Pudding's alone, so `meleeHitterTakes` is null on
+ * the Gray Ooze.
+ */
+export const printedCorrosion = (
+  sheet: CharacterSheet,
+): {
+  readonly meleeHitterTakes: { readonly dice: string; readonly damageType: string } | null;
+  readonly weaponPenalty: number;
+  readonly weaponDestroyedAt: number;
+} | null => {
+  for (const trait of sheet.stated?.traits ?? []) {
+    if (trait.kind === 'corrodes-what-hits-it') {
+      return {
+        meleeHitterTakes: trait.meleeHitterTakes ?? null,
+        weaponPenalty: trait.weaponPenalty,
+        weaponDestroyedAt: trait.weaponDestroyedAt,
+      };
+    }
+  }
+  return null;
+};
+
 /** One printed sentence that hurts somebody when a turn begins or ends. */
 export interface PrintedBoundaryDamage {
   readonly moment: TurnMoment;
@@ -1545,6 +1638,13 @@ export interface PrintedBoundaryDamage {
     | { readonly kind: 'held' };
   /** SRD Fire Aura's "unless the azer has the Incapacitated condition". */
   readonly unlessIncapacitated: boolean;
+  /**
+   * SRD Fire Elemental's "Creatures … in the Emanation **start burning**" —
+   * W7-B12. The glossary's Burning, lit on every creature the line catches;
+   * the flammable objects the same sentence names are the table's, and the
+   * boundary says so where it lights the creatures.
+   */
+  readonly ignites: boolean;
 }
 
 /**
@@ -1571,6 +1671,7 @@ export const printedBoundaryDamage = (
         damageType: trait.damageType,
         catches: { kind: 'emanation', feet: trait.feet, chosen: trait.chosen },
         unlessIncapacitated: trait.unlessIncapacitated,
+        ignites: trait.ignites === true,
       });
     }
     if (trait.kind === 'damages-creatures-it-is-holding') {
@@ -1580,6 +1681,7 @@ export const printedBoundaryDamage = (
         damageType: trait.damageType,
         catches: { kind: 'held' },
         unlessIncapacitated: false,
+        ignites: false,
       });
     }
   }
@@ -1783,6 +1885,9 @@ function printedBloodiedAdvantage(
   key: string,
 ): readonly StandingEffect[] {
   if (line.trait?.kind !== 'advantage-while-bloodied') return [];
+  // SRD Giant Boar's "Advantage on **melee** attack rolls" — the narrowing the
+  // selector's `reach` carries, and only on the attack roll it names. (W7-B12)
+  const reach = line.trait.reach;
   return line.trait.rolls.map(
     (roll): StandingEffect => ({
       feature: key,
@@ -1792,7 +1897,11 @@ function printedBloodiedAdvantage(
         kind: 'roll-mode',
         modifier: {
           mode: 'advantage',
-          selector: { roll: SUNLIT_ROLL[roll], relation: 'roller' },
+          selector: {
+            roll: SUNLIT_ROLL[roll],
+            relation: 'roller',
+            ...(reach === undefined || roll !== 'attack-roll' ? {} : { reach }),
+          },
         },
       },
       requires: [{ kind: 'while-bloodied' }],
@@ -2434,11 +2543,12 @@ function printedSucceedInsteadReaction(
  * twenty-four lines under that heading: one adds to a D20 Test (the Sphinx of
  * Wonder), seven add to an **Armour Class** against the attack that triggered
  * them (Parry), and one answers a hit by using another line of its own block
- * (Reflexive Antennae). Of the rest, three are sentences the parser reads as
- * *kinds* and nothing spends — the two Splits and the Goblin Boss's Redirect
- * Attack — and the others are each a different sentence, from an octopus's ink
- * to the Stone Giant's deflection. Those stay prose and stay on the ledger,
- * named there rather than argued about here.
+ * (Reflexive Antennae). The two Splits are a fifth, since W7-B12: a Reaction at
+ * `damaged-by-creature` whose response is two creatures of the holder's own
+ * block. Of the rest, the Goblin Boss's Redirect Attack is read as a *kind*
+ * nothing spends, and the others are each a different sentence, from an
+ * octopus's ink to the Stone Giant's deflection. Those stay prose and stay on
+ * the ledger, named there rather than argued about here.
  *
  * **And a fourth shape that is not printed under that heading at all** — SRD
  * Legendary Resistance, printed under **Traits**, which answers the
@@ -2449,6 +2559,39 @@ function printedSucceedInsteadReaction(
  * the walk is over the Traits section as well, and `costsReaction: false` is
  * what keeps it from granting anything the sentence withheld. (W7-B11)
  */
+/**
+ * SRD Black Pudding and SRD Ochre Jelly, Split, onto the sheet as the Reaction
+ * it is — W7-B12.
+ *
+ * "_Trigger:_ While the pudding is Large or Medium and has 10+ Hit Points, it
+ * becomes Bloodied or is subjected to Lightning or Slashing damage." A blow
+ * that has landed, which is `damaged-by-creature` — the window SRD Retaliation
+ * answers — with the gate and both triggers carried as the block printed them.
+ * The block's own id rides the effect, so the two halves are read out of
+ * content by the id this creature arrived as.
+ */
+function printedSplitReaction(monster: Monster, line: MonsterLine): ReactionFeature | null {
+  const trait = line.trait;
+  if (trait?.kind !== 'splits-into-two-creatures') return null;
+  return {
+    feature: printedTraitKey(monster.id, line.name),
+    name: line.name,
+    window: 'damaged-by-creature',
+    // Printed under Reactions, with no word saying it is free.
+    costsReaction: true,
+    pool: null,
+    reach: { kind: 'self' },
+    does: {
+      kind: 'split',
+      block: monster.id,
+      sizes: trait.sizes,
+      minimumHitPoints: trait.minimumHitPoints,
+      whenBloodied: trait.whenBloodied,
+      damageTypes: trait.damageTypes,
+    },
+  };
+}
+
 function printedReactions(monster: Monster): {
   readonly reactions: readonly ReactionFeature[];
   readonly pools: readonly PoolDeclaration[];
@@ -2466,7 +2609,8 @@ function printedReactions(monster: Monster): {
       printedSucceedInsteadReaction(monster, line) ??
       printedRollAddendReaction(monster, line) ??
       printedAcAddendReaction(monster, line) ??
-      printedLineUseReaction(monster, line);
+      printedLineUseReaction(monster, line) ??
+      printedSplitReaction(monster, line);
     if (reaction === null) continue;
     reactions.push(reaction);
     if (reaction.pool !== null) {
@@ -2623,9 +2767,11 @@ function printedCastLines(
   declared: SpellcastingState | null,
 ): {
   readonly granted: readonly GrantedSpell[];
+  readonly pools: readonly PoolDeclaration[];
   readonly caveats: readonly string[];
 } {
   const granted: GrantedSpell[] = [];
+  const pools: PoolDeclaration[] = [];
   const caveats: string[] = [];
   /** Every spell the block already offers, so no two routes reach one spell. */
   const taken = new Set<string>(
@@ -2634,9 +2780,16 @@ function printedCastLines(
   /** The Spellcasting line's own ability and numbers, which a reference names. */
   const reference = declared?.classes[0] ?? null;
 
-  const sections: readonly (readonly [readonly MonsterLine[], CastingTime])[] = [
+  // **And the Traits section, for the one cast line the book prints there** —
+  // W7-B12, SRD Coven Magic. A trait prints no heading to price the use, and
+  // the sentence says so in as many words — "using the spell's normal casting
+  // time" — so its routes state no casting time and the spell's own stands.
+  // Only a line whose sentence says that is read off Traits: a trait that cast
+  // without saying how long it took would be a price nobody printed.
+  const sections: readonly (readonly [readonly MonsterLine[], CastingTime | null])[] = [
     [monster.actions, 'action'],
     [monster.bonusActions, 'bonus-action'],
+    [monster.traits.filter((line) => line.casts?.ownCastingTime === true), null],
   ];
 
   for (const [lines, castingTime] of sections) {
@@ -2680,13 +2833,28 @@ function printedCastLines(
 
       for (const spellId of printed.spells) {
         taken.add(spellId);
+        // SRD Coven Magic's "must finish a Long Rest before using this trait to
+        // cast **that spell** again": one use of each spell between rests, in a
+        // pool of its own the casting pipeline spends — the route is the price
+        // here, because no heading is. (W7-B12)
+        const restPool =
+          printed.eachSpellOncePer === undefined ? null : printedSpellRestPoolKey(spellId);
+        if (restPool !== null) {
+          pools.push({
+            key: restPool,
+            // The block's own words, so a report names the rule the book printed.
+            label: `${line.name}: ${spellId} (once per Long Rest)`,
+            max: 1,
+            recovers: printed.eachSpellOncePer!,
+          });
+        }
         granted.push({
           spellId,
           source: printedTraitKey(monster.id, line.name),
           ability,
           // The heading's price, and the only thing about this route that is
-          // not the spell's own.
-          castingTime,
+          // not the spell's own. A trait's line states none (W7-B12).
+          ...(castingTime === null ? {} : { castingTime }),
           // **And the heading this route is taken through, which is the only
           // road to it.** The price is the heading's, so a casting that
           // reached this route any other way would pay nothing at all:
@@ -2695,19 +2863,28 @@ function printedCastLines(
           // printed line's own licence. See `GrantedSpell.throughLine`.
           throughLine: line.name,
           // Paid at the door, out of the heading's recharge or its day's
-          // count — see the note above.
-          freeCastPool: null,
+          // count — see the note above — or out of the spell's own pool where
+          // the line rations each spell instead.
+          freeCastPool: restPool,
           // SRD offers no slot for any of these, and the creature holds none.
           slotCasting: false,
-          atWill: true,
+          ...(restPool === null ? { atWill: true as const } : {}),
           ...numbers,
         });
       }
     }
   }
 
-  return { granted, caveats };
+  return { granted, pools, caveats };
 }
+
+/**
+ * The pool one spell a trait rations per rest comes out of — W7-B12, SRD Coven
+ * Magic. {@link printedSpellPoolKey}'s sibling, and a different prefix because a
+ * different clock: that one comes back at dawn, this one at a Long Rest.
+ */
+export const printedSpellRestPoolKey = (spellId: string): string =>
+  `printed-spell-per-long-rest:${spellId}`;
 
 export function adaptMonster(printed: Monster, id: CharacterId): AdaptedMonster {
   // A line whose numbers are a summoner's, and were not supplied by a
@@ -2760,6 +2937,9 @@ export function adaptMonster(printed: Monster, id: CharacterId): AdaptedMonster 
         ];
   const traits = printedTraits(monster);
   const traitSaves = printedTraitSaves(monster);
+  const traitCasts: readonly StatedTraitCast[] = monster.traits.flatMap((line) =>
+    line.casts?.ownCastingTime === true ? [{ name: line.name, text: line.text, casts: line.casts }] : [],
+  );
   const multiattack = printedMultiattack(monster, attacks);
   // **What the parser did not read, carried rather than interpreted.** A line
   // with no attack, no trait and no sequence on it is one the parser got
@@ -2917,6 +3097,9 @@ export function adaptMonster(printed: Monster, id: CharacterId): AdaptedMonster 
     ...(legendaryActions.length === 0 ? {} : { legendaryActions }),
     ...(traits.length === 0 ? {} : { traits }),
     ...(traitSaves.length === 0 ? {} : { traitSaves }),
+    // And the trait lines that cast — SRD Coven Magic — where the door reads
+    // the gate and the menu. (W7-B12)
+    ...(traitCasts.length === 0 ? {} : { traitCasts }),
     ...(bonusActions.length === 0 ? {} : { bonusActions }),
     ...(multiattack === undefined ? {} : { multiattack }),
     ...(unreadActions.length === 0 ? {} : { unreadActions }),
@@ -2986,7 +3169,7 @@ export function adaptMonster(printed: Monster, id: CharacterId): AdaptedMonster 
     spellcasting,
     // Both kinds of per-day use in one list, sorted by key so two readers of
     // one block agree about the order and a log compares byte for byte.
-    pools: [...spellPools, ...reactionPools, ...legendaryPools].sort((a, b) =>
+    pools: [...spellPools, ...castLines.pools, ...reactionPools, ...legendaryPools].sort((a, b) =>
       a.key < b.key ? -1 : a.key > b.key ? 1 : 0,
     ),
     // The objects the block arrives holding — SRD Night Hag's Soul Bag, and

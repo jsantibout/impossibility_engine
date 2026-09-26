@@ -21,7 +21,7 @@
 
 import { type CharacterId, DAMAGE_TYPES, err, ok, type Result } from '@ie/shared';
 import { hasCondition } from '../conditions.js';
-import type { Monster } from '@ie/srd';
+import type { CreatureSize, Monster } from '@ie/srd';
 import type { Content } from '../content.js';
 import { applyEvent, type GameEvent, type GameState } from '../events.js';
 import { carriedObjectId, type CommandStamp } from '../state.js';
@@ -33,6 +33,8 @@ import {
   type CarriedPrintedObject,
   hasPrintedTrait,
   type PrintedSpeedMode,
+  printedRegeneration,
+  REGENERATION,
   resolveSummonerMarks,
   type SummonerNumbers,
   withPrintedSpeeds,
@@ -271,6 +273,28 @@ function arrivalOf(
           // `carriedObjectId`, derived from the noun and this creature, which
           // is what `while-carrying` works out again at the gate. (W7-B11)
           ...carriedObjectsOf(state, id, adapted.carries),
+          // **And the day a block's own line counts down to another block** —
+          // SRD Troll Limb's "If the limb isn't destroyed within 24 hours, roll
+          // 1d12." Hung at the arrival because the day is measured from it, and
+          // pinned whole so the throw opens no catalogue for the die; the block
+          // it becomes is read when the die says so. (W7-B12)
+          ...monster.traits.flatMap((line) =>
+            line.trait?.kind === 'becomes-another-block-on-a-die'
+              ? [
+                  {
+                    type: 'block-deadline-set' as const,
+                    id,
+                    deadline: {
+                      at: state.elapsed + line.trait.afterHours * 3600,
+                      line: line.name,
+                      dice: line.trait.dice,
+                      on: line.trait.on,
+                      block: line.trait.block,
+                    },
+                  },
+                ]
+              : [],
+          ),
         ] satisfies GameEvent[],
         // **Withheld and reported, never applied.** "Charmed (except from its
         // vampire master)" as a flat immunity makes the vampire unable to
@@ -299,9 +323,14 @@ function arrivalOf(
           // that makes this different from a rider's residue: a trait is not
           // spent, so there is no later moment to say it at.
           ...monster.traits.flatMap((line) =>
-            (line.trait?.handedOver ?? []).map(
-              (clause) =>
-                `${id}: ${line.name} reads "${clause}" — the engine does not apply that; a DM does`,
+            (line.trait?.handedOver ?? []).map((clause) =>
+              // SRD Fire Elemental's closing sentence is carried whole, because
+              // it joins the creatures the engine lights with the objects it
+              // cannot — so the note says which half is whose rather than
+              // telling a DM to light the creatures a second time. (W7-B12)
+              line.trait?.kind === 'damages-creatures-in-an-emanation' && line.trait.ignites === true
+                ? `${id}: ${line.name} reads "${clause}" — the engine lights the creatures the emanation catches; the flammable objects are a DM's`
+                : `${id}: ${line.name} reads "${clause}" — the engine does not apply that; a DM does`,
             ),
           ),
         ],
@@ -424,6 +453,14 @@ export interface Summons {
   readonly armorClass?: number;
   /** The same, for SRD Find Steed's "**HP** 5 + 10 per spell level". */
   readonly hitPointMaximum?: number;
+  /**
+   * The size this creature arrives at, where what raised it prints one over the
+   * stat block's own — W7-B12, SRD Black Pudding's Split: "Each new pudding is
+   * one size smaller than the original pudding." Pinned into `creature-added`
+   * in place of the block's, as the Armour Class is, and worked out by the
+   * caller that read the original's size; nothing is derived here.
+   */
+  readonly size?: CreatureSize;
   /**
    * The creature type the summons arrives with, where the spell prints one
    * over the block's own — SRD Find Familiar's "a Celestial, Fey, or Fiend
@@ -665,13 +702,14 @@ export function summonCreature(
       }
 
       if (summons.placement !== undefined) {
-        // The size is the stat block's, and it is **read back** off the
-        // arrival rather than adapted a second time — the same reading
-        // `speedOf` takes below, asked of the world the arrival leaves. A
-        // caller restating it is the one place the two could disagree about
-        // how many cubes a Conjured Hound holds, which is why `Summons`
-        // has nowhere to put one.
-        const pinned = arrival.value.events.reduce(applyEvent, state).creatures[id]?.size;
+        // The size is the one the arrival pinned, and it is **read back** off
+        // it rather than adapted a second time — the same reading `speedOf`
+        // takes below, asked of the world the arrival leaves. The block's own,
+        // or the one `Summons.size` wrote over it (SRD Split's "one size
+        // smaller", W7-B12) — so it is read off the events this command is
+        // about to emit, where that is pinned, and never restated by a caller
+        // beside the placement.
+        const pinned = events.reduce(applyEvent, state).creatures[id]?.size;
         events.push({
           type: 'creature-placed',
           id,
@@ -761,12 +799,13 @@ function arrivalResolved(
  */
 function printedOver(event: GameEvent, summons: Summons): GameEvent {
   if (event.type !== 'creature-added') return event;
-  const { armorClass, hitPointMaximum, creatureType, speeds } = summons;
+  const { armorClass, hitPointMaximum, creatureType, speeds, size } = summons;
   if (
     armorClass === undefined &&
     hitPointMaximum === undefined &&
     creatureType === undefined &&
-    speeds === undefined
+    speeds === undefined &&
+    size === undefined
   ) {
     return event;
   }
@@ -780,6 +819,9 @@ function printedOver(event: GameEvent, summons: Summons): GameEvent {
     // SRD Find Familiar: "a Celestial, Fey, or Fiend (your choice) instead of
     // a Beast" — the block's type, replaced at the arrival and nowhere else.
     ...(creatureType === undefined ? {} : { creatureType }),
+    // SRD Split's "one size smaller" — the size the caller read and stepped,
+    // pinned where the block's own would have been. (W7-B12)
+    ...(size === undefined ? {} : { size }),
     sheet: armorClass === undefined ? sheet : { ...sheet, stated: { ...sheet.stated, armorClass } },
   };
 }
@@ -1070,6 +1112,18 @@ export function damageCreature(
     // the settled floor would win, because its die has already been thrown and
     // cannot be un-thrown.
     const settledFloor = unheld.droppedToZero ? settled : null;
+    // **And the death SRD Regeneration moves**, for a monster whose block says
+    // "dies only if it starts its turn with 0 Hit Points and doesn't
+    // regenerate": a floor of 0, pinned on every blow that reaches or finds it
+    // at 0, so the drop leaves it alive and Unconscious and a blow while it
+    // lies there costs it nothing. The turn's start is where it dies, and that
+    // is `settleStartOfTurnBody`'s. Behind the two floors above, which hold a
+    // Hit Point and would be the better answer where both applied; no SRD block
+    // prints either beside this one. (W7-B12)
+    const waits =
+      creature.vitals.diesAtZero &&
+      printedRegeneration(creature.sheet) !== null &&
+      (unheld.droppedToZero || isDown(creature.vitals));
     const floor: {
       readonly at: number;
       readonly feature: string;
@@ -1077,13 +1131,15 @@ export function damageCreature(
     } | null =
       settledFloor !== null
         ? { at: settledFloor.at, feature: settledFloor.feature }
-        : standing === null
-          ? null
-          : {
+        : standing !== null
+          ? {
               at: standing.at,
               feature: standing.feature,
               spent: { key: standing.key, recovers: standing.recovers },
-            };
+            }
+          : waits
+            ? { at: 0, feature: REGENERATION }
+            : null;
 
     const events: GameEvent[] = [
       {
@@ -1092,6 +1148,12 @@ export function damageCreature(
         amount,
         ...critical,
         ...(command.source === undefined ? {} : { source: command.source }),
+        // What the blow was made of, for the Reaction that reads a landed blow
+        // off `lastDamage` — SRD Split's "subjected to Lightning or Slashing
+        // damage". See `damage-taken.types`. (W7-B12)
+        ...(command.types === undefined || command.types.length === 0
+          ? {}
+          : { types: [...new Set(command.types)].sort() }),
         ...(command.by === undefined ? {} : { by: command.by }),
         // Pinned, because the fold recomputes the blow from this event and a
         // decision the command kept to itself would be undone on replay. The

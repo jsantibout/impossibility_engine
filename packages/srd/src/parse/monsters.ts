@@ -1,4 +1,5 @@
 import {
+  type CreatureSize,
   CreatureSizeSchema,
   DECLARED_DAMAGE_TYPE,
   MONSTER_SENSES,
@@ -675,12 +676,23 @@ const APOSTROPHE = "['’]";
  * SRD Spider Climb: "The pudding can climb difficult surfaces, including along
  * ceilings, without needing to make an ability check."
  *
- * Anchored, which is what refuses the Swarm of Insects: its sentence gates the
- * same rule on "If the swarm has a Climb Speed", and the kind carries no field
- * for a gate. A gate read away is a rule nobody printed.
+ * Anchored, which is what keeps the Swarm of Insects' sentence apart: it gates
+ * the same rule on "If the swarm has a Climb Speed", and that gate is read by
+ * {@link GATED_SPIDER_CLIMB} into a field rather than read away. A gate read
+ * away is a rule nobody printed.
  */
 const SPIDER_CLIMB = new RegExp(
   `^${SUBJECT} can climb difficult surfaces, including along ceilings, without needing to make an ability check\\.$`,
+);
+
+/**
+ * SRD Swarm of Insects, Spider Climb: "If the swarm has a Climb Speed, the
+ * swarm can climb difficult surfaces, including along ceilings, without needing
+ * to make an ability check." — W7-B12. {@link SPIDER_CLIMB} behind a gate the
+ * kind now carries.
+ */
+const GATED_SPIDER_CLIMB = new RegExp(
+  `^If ${SUBJECT} has a Climb Speed, ${SUBJECT} can climb difficult surfaces, including along ceilings, without needing to make an ability check\\.$`,
 );
 
 /**
@@ -725,14 +737,28 @@ const HOLD_BREATH = new RegExp(
  * SRD Sunlight Sensitivity: "While in sunlight, the kobold has Disadvantage on
  * ability checks and attack rolls." Five blocks print it word for word.
  *
- * Anchored end to end, which is what refuses the vampires: their Sunlight
- * prints this sentence *after* "The vampire takes 20 Radiant damage if it
- * starts its turn in sunlight", and the burning is a rule nothing here can
- * carry. A clause read away is a rule nobody printed, so the line stays prose
- * and the ledger goes on naming it.
+ * Anchored end to end, which is what keeps the vampires apart: their Sunlight
+ * prints the same rule *after* "The vampire takes 20 Radiant damage if it
+ * starts its turn in sunlight", and that pair is {@link SUNLIGHT_HURTS}.
  */
 const SUNLIGHT_SENSITIVITY = new RegExp(
   `^While in sunlight, ${SUBJECT} has Disadvantage on ability checks and attack rolls\\.$`,
+);
+
+/**
+ * SRD Vampire Spawn, Sunlight: "The vampire takes 20 Radiant damage if it
+ * starts its turn in sunlight. While in sunlight, it has Disadvantage on attack
+ * rolls and ability checks." — W7-B12.
+ *
+ * The second sentence is {@link SUNLIGHT_SENSITIVITY} with the nouns the other
+ * way round, and the first is a flat amount at the turn's start. Both are read
+ * into one kind, because the light is one light. The roll list is closed for
+ * {@link BLOODIED_ADVANTAGE}'s reason.
+ */
+const SUNLIGHT_HURTS = new RegExp(
+  `^${SUBJECT} takes (\\d+) (\\w+) damage if it starts its turn in sunlight\\. ` +
+    `While in sunlight, it has Disadvantage on ` +
+    `(attack rolls and ability checks|ability checks and attack rolls)\\.$`,
 );
 
 /**
@@ -806,11 +832,20 @@ const TAKES_A_NAMED_ACTION = new RegExp(
  * Two printed breadths of one rule, exactly as the two sunlight sentences
  * are, and the alternation is closed so that a third breadth nobody printed
  * cannot be read out of a longer sentence. The Giant Boar's "melee attack
- * rolls while it is Bloodied" is refused whole: a narrowing the kind carries
- * no field for, written the other way round.
+ * rolls while it is Bloodied" is a narrowing written the other way round, and
+ * {@link BLOODIED_MELEE_ADVANTAGE} reads it into a field.
  */
 const BLOODIED_ADVANTAGE = new RegExp(
   `^While Bloodied, ${SUBJECT} has Advantage on (attack rolls and saving throws|attack rolls)\\.$`,
+);
+
+/**
+ * SRD Giant Boar, Bloodied Fury: "The boar has Advantage on melee attack rolls
+ * while it is Bloodied." — W7-B12. The same rule with the melee narrowing the
+ * kind's `reach` carries.
+ */
+const BLOODIED_MELEE_ADVANTAGE = new RegExp(
+  `^${SUBJECT} has Advantage on melee attack rolls while it is Bloodied\\.$`,
 );
 
 /**
@@ -1001,14 +1036,18 @@ const damageTypeOf = (printed: string): string | null => {
  * on others and either read away is a rule nobody printed: a Balor that chose
  * its victims, or an Azer that burned while Stunned.
  *
- * Anchored end to end like everything else, which is what refuses the Fire
- * Elemental: its sentence ends "Creatures and flammable objects in the
- * Emanation start burning", and there is no burning here.
+ * Anchored end to end like everything else. The Fire Elemental's sentence ends
+ * "Creatures and flammable objects in the Emanation start burning" — the
+ * glossary's Burning, which the engine lights on a creature — and that closing
+ * is the one optional clause read after the damage (W7-B12). The objects half
+ * of it names nothing a declared object can hold, so the sentence is carried
+ * whole as owed beside the kind that executes the creatures' half.
  */
 const EMANATION_DAMAGE = new RegExp(
   `^At the (start|end) of each of ${SUBJECT} turns, each creature (of ${SUBJECT} choice )?` +
     `in a (\\d+)-foot Emanation originating from ${SUBJECT} takes \\d+ \\((\\d+d\\d+)\\) (\\w+) damage` +
-    `( unless ${SUBJECT} has the Incapacitated condition)?\\.$`,
+    `( unless ${SUBJECT} has the Incapacitated condition)?\\.` +
+    `(?: (Creatures and flammable objects in the Emanation start burning\\.))?$`,
 );
 
 /**
@@ -1182,6 +1221,109 @@ const OOZE_CUBE = new RegExp(
   `^The ([a-z' -]+) fills its entire space and is transparent\\. Other creatures can enter that space, but a creature that does so is subjected to the \\1['’]s ([A-Z][A-Za-z' -]+?) and has Disadvantage on the saving throw\\. Creatures inside the \\1 have Total Cover, and the \\1 can hold (one|two|three|four) Large creatures? or up to (one|two|three|four|five|six) Medium or Small creatures inside itself at a time\\. (As an action, .+\\.)$`,
 );
 const COUNT_WORD: Readonly<Record<string, number>> = { one: 1, two: 2, three: 3, four: 4, five: 5, six: 6 };
+
+/**
+ * SRD Regeneration, on the Troll and the Troll Limb — W7-B12: "The troll
+ * regains 15 Hit Points at the start of each of its turns. If the troll takes
+ * Acid or Fire damage, this trait doesn't function on the troll's next turn.
+ * The troll dies only if it starts its turn with 0 Hit Points and doesn't
+ * regenerate."
+ *
+ * All three sentences, back-referenced so they are about one creature and
+ * anchored end to end, which is what refuses the Vampire's and the Oni's: each
+ * gates the heal on a condition this sentence does not print ("if it has at
+ * least 1 Hit Point"), and a heal read without its gate is a rule nobody
+ * printed. The types are a list the book joins with "or".
+ */
+const REGENERATION = new RegExp(
+  `^The ([a-z][a-z' -]*) regains (\\d+) Hit Points at the start of each of its turns\\. ` +
+    `If the \\1 takes ([A-Z][a-z]+(?:(?:, | or |, or )[A-Z][a-z]+)*) damage, this trait doesn['’]t ` +
+    `function on the \\1['’]s next turn\\. ` +
+    `The \\1 dies only if it starts its turn with 0 Hit Points and doesn['’]t regenerate\\.$`,
+);
+
+/**
+ * SRD Corrosive Form, on the Black Pudding and the Gray Ooze — W7-B12. Five
+ * sentences, of which the first is the pudding's alone:
+ *
+ * 1. "A creature that hits the pudding with a melee attack roll takes 4 (1d8)
+ *    Acid damage." — read: the damage back.
+ * 2. "Nonmagical ammunition is destroyed immediately after hitting the pudding
+ *    and dealing any damage." — **owed**: the engine spends no ammunition on
+ *    any attack, so there is nothing for this to destroy yet.
+ * 3. "Any nonmagical weapon takes a cumulative −1 penalty to attack rolls
+ *    immediately after dealing damage to the pudding and coming into contact
+ *    with it." — read: the penalty, on the weapon record the Rust Monster's
+ *    Antennae already wears down.
+ * 4. "The weapon is destroyed if the penalty reaches −5." — read: the ceiling.
+ * 5. "The penalty can be removed by casting the _Mending_ spell on the
+ *    weapon." — **owed**: the same Mending sentence the Pseudopod rider carries.
+ *
+ * and a second paragraph about eating through wood or metal, which is filed
+ * for the table (`a-hole-eaten-through-the-world`). Asked of `oneLine`, because
+ * the book prints the two paragraphs with a break between them.
+ */
+const CORROSIVE_FORM = new RegExp(
+  `^(?:A creature that hits the ${SUBJECT} with a melee attack roll takes \\d+ \\((\\d+d\\d+)\\) (\\w+) damage\\. )?` +
+    `(Nonmagical ammunition is destroyed immediately after hitting the ${SUBJECT} and dealing any damage\\.) ` +
+    `Any nonmagical weapon takes a cumulative [−-](\\d+) penalty to attack rolls immediately after dealing ` +
+    `damage to the ${SUBJECT} and coming into contact with it\\. ` +
+    `The weapon is destroyed if the penalty reaches [−-](\\d+)\\. ` +
+    `(The penalty can be removed by casting the _Mending_ spell on the weapon\\.) ` +
+    `((?:In \\d+ \\w+, the ${SUBJECT}|The ${SUBJECT}) can eat through [^.]+\\.)$`,
+);
+
+/**
+ * SRD Succubus Form and SRD Incubus Form — W7-B12: "When the incubus finishes
+ * a Long Rest, it can shape-shift into a **Succubus**, using that stat block
+ * instead of this one. Any equipment it is wearing or carrying isn't
+ * transformed." The bold name is the block, turned into the id the bestiary
+ * files it under.
+ */
+const REST_FORM = new RegExp(
+  `^When the ${SUBJECT} finishes a Long Rest, it can shape-shift into an? \\*\\*([A-Z][A-Za-z' -]+)\\*\\*, ` +
+    `using that stat block instead of this one\\.` +
+    `( Any equipment it is wearing or carrying isn['’]t transformed\\.)?$`,
+);
+
+/**
+ * SRD Troll Limb, Troll Spawn — W7-B12: "The limb uncannily has the same
+ * senses as a whole troll. If the limb isn't destroyed within 24 hours, roll
+ * 1d12. On a 12, the limb turns into a **Troll**. Otherwise, the limb withers
+ * away."
+ *
+ * The first sentence is consumed: the limb's own Senses line prints the
+ * troll's Darkvision, which `adaptMonster` already compiles onto the sheet. The
+ * noun is back-referenced so the four sentences are about one creature.
+ */
+const DIE_FORM = new RegExp(
+  `^The ([a-z][a-z' -]*) uncannily has the same senses as a whole ${SUBJECT}\\. ` +
+    `If the \\1 isn['’]t destroyed within (\\d+) hours, roll (1d\\d+)\\. ` +
+    `On a (\\d+), the \\1 turns into an? \\*\\*([A-Z][A-Za-z' -]+)\\*\\*\\. ` +
+    `Otherwise, the \\1 withers away\\.$`,
+);
+
+/**
+ * SRD Black Pudding and SRD Ochre Jelly, Split — W7-B12. The whole Reaction,
+ * trigger and response, anchored end to end: the sizes and the Hit Points the
+ * trigger is gated on and the two things that set it off are captured; the
+ * response prints no number the engine does not derive, so it is matched and
+ * not captured.
+ */
+const SPLIT = new RegExp(
+  `^_Trigger:_ While ${SUBJECT} is (Tiny|Small|Medium|Large|Huge|Gargantuan) or ` +
+    `(Tiny|Small|Medium|Large|Huge|Gargantuan) and has (\\d+)\\+ Hit Points, it becomes ` +
+    `Bloodied or is subjected to (\\w+) or (\\w+) damage\\. _Response:_ ${SUBJECT} ` +
+    `splits into two new \\*\\*${SUBJECT}\\*\\*\\. Each new ${SUBJECT} is one size smaller ` +
+    `than the original ${SUBJECT} and acts on its Initiative\\. The original ${SUBJECT}['’]s ` +
+    `Hit Points are divided evenly between the new ${SUBJECT} \\(round down\\)\\.$`,
+);
+
+/** The types a sentence lists with "or" and commas, lower-cased, or null if any is not a type. */
+const damageTypesOf = (printed: string): string[] | null => {
+  const types = printed.split(/, or |, | or /).map((word) => damageTypeOf(word));
+  return types.every((type): type is string => type !== null) ? types : null;
+};
 
 /**
  * The sentences the parser reads so that the **table** gets them, and that no
@@ -1372,19 +1514,9 @@ const HANDOVERS: readonly (readonly [RegExp, MonsterTrait['kind']])[] = [
     'swaps-places-with-an-ally-to-take-an-attack',
   ],
 
-  // SRD Black Pudding and SRD Ochre Jelly, Split. Two creatures that did not
-  // exist a moment ago, in the Initiative order, sharing the original's Hit
-  // Points.
-  [
-    new RegExp(
-      `^_Trigger:_ While ${SUBJECT} is Large or Medium and has \\d+\\+ Hit Points, it becomes ` +
-        `Bloodied or is subjected to Lightning or Slashing damage\\. _Response:_ ${SUBJECT} ` +
-        `splits into two new \\*\\*${SUBJECT}\\*\\*\\. Each new ${SUBJECT} is one size smaller ` +
-        `than the original ${SUBJECT} and acts on its Initiative\\. The original ${SUBJECT}['’]s ` +
-        `Hit Points are divided evenly between the new ${SUBJECT} \\(round down\\)\\.$`,
-    ),
-    'splits-into-two-creatures',
-  ],
+  // SRD Black Pudding and SRD Ochre Jelly, Split, left this table in W7-B12:
+  // the gate and both triggers are read by {@link SPLIT} and the Reaction
+  // spends them.
 
   // SRD Shrieker Fungus, Shriek. A noise, which nothing in this engine hears.
   [
@@ -1562,6 +1694,7 @@ export function parseTraitShape(text: string): MonsterTrait | null {
     return { kind: 'advantage-when-ally-is-within-5-feet-of-the-target' };
   }
   if (SPIDER_CLIMB.test(text)) return { kind: 'climbs-without-a-check' };
+  if (GATED_SPIDER_CLIMB.test(text)) return { kind: 'climbs-without-a-check', ifHasClimbSpeed: true };
   if (FLYBY.test(text)) return { kind: 'does-not-provoke-when-flying-out-of-reach' };
   if (AGILE.test(text)) return { kind: 'does-not-provoke-when-leaving-reach' };
 
@@ -1618,6 +1751,19 @@ export function parseTraitShape(text: string): MonsterTrait | null {
       rolls: ['ability-check', 'attack-roll', 'saving-throw'],
     };
   }
+  // And the vampires' pair, which burns at the turn's start as well — W7-B12.
+  const burnt = SUNLIGHT_HURTS.exec(text);
+  if (burnt !== null) {
+    const damageType = damageTypeOf(burnt[2]!);
+    if (damageType !== null) {
+      return {
+        kind: 'disadvantage-in-sunlight',
+        // Both printed orders are the same two rolls, in the glossary's order.
+        rolls: ['ability-check', 'attack-roll'],
+        hurtAtTurnStart: { amount: Number(burnt[1]), damageType },
+      };
+    }
+  }
 
   const lit = ILLUMINATION.exec(text);
   if (lit !== null) {
@@ -1646,6 +1792,9 @@ export function parseTraitShape(text: string): MonsterTrait | null {
   const bloodied = BLOODIED_ADVANTAGE.exec(text);
   if (bloodied !== null) {
     return { kind: 'advantage-while-bloodied', rolls: bloodiedRolls(bloodied[1]!) };
+  }
+  if (BLOODIED_MELEE_ADVANTAGE.test(text)) {
+    return { kind: 'advantage-while-bloodied', rolls: ['attack-roll'], reach: 'melee' };
   }
 
   if (UNDEAD_FORTITUDE.test(text)) return { kind: 'undead-fortitude' };
@@ -1710,6 +1859,9 @@ export function parseTraitShape(text: string): MonsterTrait | null {
         damageType,
         chosen: burns[2] !== undefined,
         unlessIncapacitated: burns[6] !== undefined,
+        // SRD Fire Elemental's closing sentence — W7-B12. The creatures it
+        // catches are lit by the boundary; the flammable objects are owed.
+        ...(burns[7] === undefined ? {} : { ignites: true as const, handedOver: [burns[7]] }),
       };
     }
   }
@@ -1810,6 +1962,72 @@ export function parseTraitShape(text: string): MonsterTrait | null {
       pullOutBy,
       entrantsSubjectedTo: { line: oozeCube[2]!, disadvantage: true },
     };
+  }
+
+  // — W7-B12: regeneration, a form a block takes, a form a die brings, a
+  // weapon worn down by what it hits, and one ooze that becomes two ——————
+  const regenerates = REGENERATION.exec(text);
+  if (regenerates !== null) {
+    const suppressedBy = damageTypesOf(regenerates[3]!);
+    if (suppressedBy !== null) {
+      return { kind: 'regenerates', hitPoints: Number(regenerates[2]), suppressedBy };
+    }
+  }
+
+  const corrodes = CORROSIVE_FORM.exec(oneLine(text));
+  if (corrodes !== null) {
+    const damageType = corrodes[1] === undefined ? null : damageTypeOf(corrodes[2]!);
+    // A first sentence printed with a type this engine does not know is a
+    // different sentence, refused whole rather than read without its damage.
+    if (corrodes[1] === undefined || damageType !== null) {
+      return {
+        kind: 'corrodes-what-hits-it',
+        ...(damageType === null ? {} : { meleeHitterTakes: { dice: corrodes[1]!, damageType } }),
+        weaponPenalty: Number(corrodes[4]),
+        weaponDestroyedAt: Number(corrodes[5]),
+        handedOver: [corrodes[3]!, corrodes[6]!],
+        forTheTable: [{ kind: 'a-hole-eaten-through-the-world', sentence: corrodes[7]! }],
+      };
+    }
+  }
+
+  const restForm = REST_FORM.exec(text);
+  if (restForm !== null) {
+    return {
+      kind: 'becomes-another-block-at-a-long-rest',
+      block: slugify(restForm[1]!),
+      ...(restForm[2] === undefined ? {} : { keepsEquipment: true as const }),
+    };
+  }
+
+  const dieForm = DIE_FORM.exec(text);
+  if (dieForm !== null) {
+    const on = Number(dieForm[4]);
+    const sides = Number(dieForm[3]!.slice(2));
+    // A face the die cannot show is a sentence that never arrives.
+    if (on >= 1 && on <= sides) {
+      return {
+        kind: 'becomes-another-block-on-a-die',
+        afterHours: Number(dieForm[2]),
+        dice: dieForm[3]!,
+        on,
+        block: slugify(dieForm[5]!),
+      };
+    }
+  }
+
+  const split = SPLIT.exec(text);
+  if (split !== null) {
+    const damageTypes = damageTypesOf(`${split[4]!} or ${split[5]!}`);
+    if (damageTypes !== null) {
+      return {
+        kind: 'splits-into-two-creatures',
+        sizes: [split[1]!.toLowerCase(), split[2]!.toLowerCase()] as CreatureSize[],
+        minimumHitPoints: Number(split[3]),
+        whenBloodied: true,
+        damageTypes,
+      };
+    }
   }
 
   // Last, because every sentence above states a mechanic and these state
@@ -2133,7 +2351,7 @@ function readCastMenu(menu: string): string[] | null {
 export function parseCastLine(text: string): MonsterCastLine | null {
   const words = text.replace(/\s+/g, ' ').trim();
   const matched = CAST_LINE.exec(words);
-  if (matched === null) return null;
+  if (matched === null) return parseCovenLine(words);
 
   const spells = readCastMenu(matched[1]!);
   if (spells === null) return null;
@@ -2163,6 +2381,51 @@ export function parseCastLine(text: string): MonsterCastLine | null {
   // Validated rather than trusted, for the reason `parseSaveLine` validates
   // its own: a shape that does not satisfy its schema leaves the line prose.
   const checked = MonsterCastLineSchema.safeParse(line);
+  return checked.success ? checked.data : null;
+}
+
+/**
+ * SRD Coven Magic, on the Green Hag, the Night Hag and the Sea Hag — W7-B12:
+ * "While within 30 feet of at least two hag allies, the hag can cast one of the
+ * following spells, requiring no Material components, using the spell's normal
+ * casting time, and using Intelligence as the spellcasting ability (spell save
+ * DC 11): _Augury_, _Find Familiar_, _Identify_, _Locate Object_, _Scrying_, or
+ * _Unseen Servant_. The hag must finish a Long Rest before using this trait to
+ * cast that spell again."
+ *
+ * **The book's cast template turned inside out**: the gate comes first, the
+ * menu last, and the price is a Long Rest per spell rather than a heading's
+ * count. Every clause is read — the allies' count, reach and noun; the ability
+ * and the DC; the menu; the rest per spell; the spell's own casting time — but
+ * the components, which the engine does not model, for the reason
+ * {@link CAST_LINE} drops them. Anchored end to end, so a coven sentence that
+ * said one more thing stays prose.
+ */
+const COVEN_LINE = new RegExp(
+  `^While within (\\d+) feet of at least (one|two|three|four) ([a-z][a-z -]*?) allies, ` +
+    `the ${SUBJECT} can cast one of the following spells, ` +
+    `(?:requiring no [A-Za-z ]+ components, )?` +
+    `using the spell['’]s normal casting time, and ` +
+    `using (Strength|Dexterity|Constitution|Intelligence|Wisdom|Charisma) as the spellcasting ability ` +
+    `\\(spell save DC (\\d+)\\): (.+)\\. ` +
+    `The ${SUBJECT} must finish a Long Rest before using this trait to cast that spell again\\.$`,
+);
+
+/** A coven line, read — see {@link COVEN_LINE} — or null for every other sentence. */
+function parseCovenLine(words: string): MonsterCastLine | null {
+  const coven = COVEN_LINE.exec(words);
+  if (coven === null) return null;
+  const spells = readCastMenu(coven[6]!);
+  const ability = ABILITY_KEYS[coven[4]!];
+  if (spells === null || ability === undefined) return null;
+  const checked = MonsterCastLineSchema.safeParse({
+    spells,
+    ability,
+    saveDc: Number(coven[5]),
+    alliesWithin: { count: COUNT_WORD[coven[2]!]!, feet: Number(coven[1]), kind: coven[3]! },
+    eachSpellOncePer: 'long-rest',
+    ownCastingTime: true,
+  });
   return checked.success ? checked.data : null;
 }
 

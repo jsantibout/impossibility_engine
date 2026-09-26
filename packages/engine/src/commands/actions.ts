@@ -51,7 +51,7 @@ import {
   type TurnBudget,
 } from '../combat.js';
 import { type Bonus, type ModeSource } from '../bonuses.js';
-import { type StatedAction, type StatedBonusAction } from '../character.js';
+import { type StatedAction, type StatedBonusAction, type StatedTraitCast } from '../character.js';
 import { formNamed, wrongFormFor } from '../forms.js';
 import { grapplesOn } from './unarmed.js';
 import { pullToward } from './spell-effect-movement.js';
@@ -80,6 +80,8 @@ import {
 import { hasCondition, isIncapacitated } from '../conditions.js';
 import {
   applyEvent,
+  type CommandStamp,
+  type CreatureState,
   type GameEvent,
   type GameState,
   type ReadiedAction,
@@ -3321,6 +3323,18 @@ export function castPrintedLine(
 
       const creature = creatureOf(state, id);
       if (creature === null) return unknownCreature(id, 'has no record here yet; add it first');
+
+      // **A cast line printed under Traits** — W7-B12, SRD Coven Magic. No
+      // heading prices it, so it is not taken out of a turn's economy and is
+      // asked before the refusal below: the spell's own casting time is what
+      // it costs, in a fight or out of one. See {@link castThroughTrait}.
+      const traitLine = (creature.sheet.stated?.traitCasts ?? []).find(
+        (line) => line.name === command.line,
+      );
+      if (traitLine !== undefined) {
+        return castThroughTrait(state, id, creature, traitLine, command, supply, stamp);
+      }
+
       if (state.combat === null) {
         // Which slot the line costs is the heading's answer and the heading
         // has not been read yet, so the refusal names neither. Refused for the
@@ -3535,6 +3549,183 @@ export function castPrintedLine(
       });
     },
   );
+}
+
+/**
+ * A cast line printed under **Traits**, taken — W7-B12, SRD Coven Magic.
+ *
+ * "While within 30 feet of at least two hag allies, the hag can cast one of
+ * the following spells, … using the spell's normal casting time … The hag
+ * must finish a Long Rest before using this trait to cast that spell again."
+ *
+ * {@link castPrintedLine}'s menu and route, with the two things a heading
+ * would have priced said by the sentence instead:
+ *
+ * - **the gate**, asked before anything is spent: `count` creatures other
+ *   than the caster, alive, on the caster's declared side, within `feet` of
+ *   it, each of whose name carries the line's own noun as a word — a stat
+ *   block's name is the block's ("Green Hag", "Sea Hag"), so the noun the book
+ *   printed ("hag") is read off it and nothing here names a catalogue entry.
+ *   Too few of that kind anywhere is refused; too few *placed* is a fact
+ *   missing, so a room nobody has set and an ally nobody has placed are
+ *   asked for, the reading `reachedBy` takes of every reach — and a caster
+ *   whose side nobody has declared has no allies to count, and is asked for
+ *   one;
+ * - **the price**, which is the route's own pool — one use of each spell
+ *   between Long Rests, spent by the casting pipeline like any free casting —
+ *   and the spell's own casting time, which `castingOf` reads off a route that
+ *   states none. So no Action is spent here, and none is refused outside a
+ *   fight: most of the menu takes a minute or more.
+ *
+ * The stamp rides the casting's own record — the `spell-cast`, or the
+ * `spell-declared` of a casting that takes longer than an action — because no
+ * heading was taken for it to ride instead.
+ */
+function castThroughTrait(
+  state: GameState,
+  id: CharacterId,
+  creature: CreatureState,
+  line: StatedTraitCast,
+  command: PrintedCastingCommand,
+  supply: Supply,
+  stamp: CommandStamp | null,
+): Result<PrintedCastingOutcome> {
+  const printed = line.casts;
+  const wanted = command.spell;
+  if (wanted === undefined) {
+    return needsContext(
+      'undeclared_spell',
+      `${line.name} casts one of ${printed.spells.join(', ')}, and nobody has said which`,
+      [
+        {
+          kind: 'route',
+          subject: id,
+          need: `which of ${printed.spells.join(', ')} ${line.name} is casting`,
+          because: 'the line offers a menu and the engine chooses none of it',
+          satisfyWith: 'castPrintedLine again with its spell named',
+        },
+      ],
+    );
+  }
+  if (!printed.spells.includes(wanted)) {
+    return err(
+      'spell_not_on_the_line',
+      `${line.name} casts ${printed.spells.join(', ')}, and ${wanted} is not one of them`,
+    );
+  }
+  const route = creature.spellcasting.granted.find(
+    (grant) => grant.throughLine === line.name && grant.spellId === wanted,
+  );
+  if (route === undefined) {
+    return err(
+      'line_has_no_route',
+      `${line.name} casts ${wanted} and this creature holds no route for it; the block declined to say something the casting needs, and add_creature said so when it arrived`,
+    );
+  }
+
+  // **The gate**, before anything is spent.
+  const gate = printed.alliesWithin;
+  if (gate !== undefined) {
+    const side = creature.side;
+    if (side == null) {
+      return needsContext(
+        'undeclared_side',
+        `${line.name} is cast among ${gate.count} ${gate.kind} allies, and nobody has said whose side ${id} is on`,
+        [
+          {
+            kind: 'side',
+            subject: id,
+            need: `which side ${id} is on`,
+            because: `${line.name} counts ${gate.kind} allies within ${gate.feet} feet`,
+            satisfyWith: `a declareCreatureSide command for ${id}`,
+          },
+        ],
+      );
+    }
+    const word = new RegExp(`\\b${gate.kind.replace(/[^a-z -]/g, '')}\\b`, 'i');
+    // Every creature the gate could count — alive, on the caster's side, of
+    // the printed kind — before any distance is asked.
+    const kin = (Object.keys(state.creatures) as CharacterId[]).sort().filter((other) => {
+      const ally = state.creatures[other];
+      if (other === id || ally === undefined || ally.vitals.dead) return false;
+      return ally.side === side && word.test(ally.name);
+    });
+    const tooFew = (counted: readonly CharacterId[]) =>
+      err(
+        'coven_too_small',
+        `${line.name} is cast within ${gate.feet} feet of at least ${gate.count} ${gate.kind} allies, and ${id} has ${counted.length === 0 ? 'none' : counted.join(', ')} there`,
+      );
+    // Too few of them anywhere is a verdict; too few *placed* is a fact
+    // missing, and rule 6 asks for it rather than refusing on it.
+    if (kin.length < gate.count) return tooFew([]);
+    const scene = sceneFor(state, id, `${line.name} counts ${gate.kind} allies within ${gate.feet} feet`);
+    if (!scene.ok) return scene;
+    const within: CharacterId[] = [];
+    const unplaced: CharacterId[] = positionOf(scene.value, id) === null ? [id] : [];
+    for (const other of kin) {
+      if (positionOf(scene.value, other) === null) {
+        unplaced.push(other);
+        continue;
+      }
+      const apart = distanceBetween(scene.value, id, other);
+      if (apart.ok && apart.value <= gate.feet) within.push(other);
+    }
+    if (within.length < gate.count) {
+      const couldCount = unplaced.includes(id) || within.length + unplaced.length >= gate.count;
+      if (unplaced.length > 0 && couldCount) {
+        return needsContext(
+          'unplaced',
+          `nobody has said where ${unplaced.join(' or ')} ${unplaced.length === 1 ? 'is' : 'are'} standing, and ${line.name} counts ${gate.kind} allies within ${gate.feet} feet`,
+          unplaced.map((absent) => ({
+            kind: 'position' as const,
+            subject: absent,
+            need: `where ${absent} is standing`,
+            because: `${line.name} counts ${gate.kind} allies within ${gate.feet} feet`,
+            satisfyWith: `a placeCreatureInScene command for ${absent}`,
+          })),
+        );
+      }
+      return tooFew(within);
+    }
+  }
+
+  const stated = command.casting ?? {};
+  const cast = castOrRelease(
+    state,
+    id,
+    {
+      ...stated,
+      spellId: wanted,
+      targets: printed.selfOnly === true ? [id] : (stated.targets ?? []),
+      source: route.source,
+    },
+    supply,
+    null,
+    { throughLine: line.name },
+  );
+  if (!cast.ok) return cast;
+
+  const at = cast.value.events.findIndex(
+    (event) => event.type === 'spell-cast' || event.type === 'spell-declared',
+  );
+  const events = cast.value.events.map((event, index) =>
+    index === at && stamp !== null ? ({ ...event, command: stamp } as GameEvent) : event,
+  );
+
+  return ok({
+    events,
+    castingId: cast.value.castingId,
+    outcomes: cast.value.outcomes,
+    unverified: [
+      ...cast.value.unverified,
+      ...(/requiring no [A-Za-z ]+ components/.test(line.text)
+        ? [
+            `${line.name}: "requiring no Material components" — the engine models no components at all, so the clause changes nothing it could check`,
+          ]
+        : []),
+    ],
+    duplicate: false,
+  });
 }
 
 /**

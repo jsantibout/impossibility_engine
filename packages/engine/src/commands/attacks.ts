@@ -184,7 +184,7 @@ import {
   enemyWithinFiveFeet,
 } from './rolls.js';
 import { consumedRollModifiers } from '../roll-modifiers.js';
-import { answerTheBlow, wardAgainst } from './passive-defenses.js';
+import { answerTheBlow, wardAgainst, wearTheWeapon } from './passive-defenses.js';
 
 /**
  * The weapons this creature currently has in hand, as records.
@@ -2623,7 +2623,14 @@ export function resolveAttack(
     // whether it sits on the attacker or on the creature being attacked. One
     // gatherer, shared with the spell attack, which is what stops the two
     // paths drifting apart again.
-    const defending = defendingModes(state, id, command.target, ability);
+    //
+    // **And whether the swing is melee**, which SRD Giant Boar's "Advantage on
+    // melee attack rolls" reads (W7-B12) — the same answer the standing damage
+    // gatherer below reads off the same two facts: the printed line's own kind,
+    // or the weapon's range.
+    const swingIsMelee =
+      stated === undefined ? rangeOf(weapon, command.thrown === true) === null : !stated.ranged;
+    const defending = defendingModes(state, id, command.target, ability, undefined, swingIsMelee);
     unverified.push(...defending.unverified);
 
     // SRD Pack Tactics, off the attacker's own stat block: "Advantage on an
@@ -2899,6 +2906,7 @@ export function resolveAttack(
       roller: id,
       against: command.target,
       ability,
+      melee: swingIsMelee,
       rollerPerceives: sensesPerceiving(state, id, command.target),
       rollerSees: canSee(state, id, command.target),
     })) {
@@ -3260,6 +3268,13 @@ export function resolveAttack(
     }
 
     const after = events.reduce(applyEvent, state);
+    // The weapon that touched the target — swung, or thrown — which SRD
+    // Corrosive Form wears down once the blow has dealt damage. A printed line
+    // and a fist name none; a bow's arrow is the ammunition. (W7-B12)
+    const contactWeapon =
+      command.weapon !== null && command.weapon !== undefined && (swingIsMelee || command.thrown === true)
+        ? command.weapon
+        : undefined;
     const hurt = landDamage(
       after,
       command.target,
@@ -3269,6 +3284,7 @@ export function resolveAttack(
       {
         by: id,
         fromAttack: true,
+        ...(contactWeapon === undefined ? {} : { contactWeapon }),
         ...(attack.value.critical ? { critical: true } : {}),
         // **The defender answers first.** Where this opens a window, the rider
         // rides on the hold and resolves with the damage; where it opens none,
@@ -3281,7 +3297,23 @@ export function resolveAttack(
     );
     if (!hurt.ok) return hurt;
 
-    const landed = [...events, ...hurt.value.events];
+    // SRD Corrosive Form: what dealing damage cost the weapon that touched the
+    // target, asked the moment the blow has landed. A blow a window is holding
+    // carries the weapon to `settleDamage`, which asks there. (W7-B12)
+    const worn =
+      hurt.value.offers.length === 0
+        ? wearTheWeapon(
+            [...events, ...hurt.value.events].reduce(applyEvent, state),
+            id,
+            command.target,
+            contactWeapon,
+            hurt.value.amount ?? 0,
+            supply.content,
+          )
+        : { events: [], unverified: [] };
+    unverified.push(...worn.unverified);
+
+    const landed = [...events, ...hurt.value.events, ...worn.events];
     const mastered = masteryRider(landed.reduce(applyEvent, state), supply, {
       attacker: id,
       target: command.target,
@@ -3776,6 +3808,12 @@ export function resolveAttackDamage(
     }
 
     const after = events.reduce(applyEvent, state);
+    // The weapon that touched the target, on the far side of the hold — see
+    // the unheld swing's copy of this line. (W7-B12)
+    const contactWeapon =
+      pending.weapon !== null && (rangeOf(weapon, pending.thrown) === null || pending.thrown)
+        ? pending.weapon
+        : undefined;
     const hurt = landDamage(
       after,
       pending.target,
@@ -3787,6 +3825,7 @@ export function resolveAttackDamage(
       {
         by: pending.attacker,
         fromAttack: true,
+        ...(contactWeapon === undefined ? {} : { contactWeapon }),
         ...(pending.critical ? { critical: true } : {}),
         // What the hit bought, carried from the hold onto the damage roll
         // where one opens a window — so a held swing whose damage somebody may
@@ -3799,10 +3838,24 @@ export function resolveAttackDamage(
     );
     if (!hurt.ok) return hurt;
 
+    // SRD Corrosive Form's wear, on the half of a held swing that lands the
+    // blow — see the unheld path's copy of this call. (W7-B12)
+    const worn =
+      hurt.value.offers.length === 0
+        ? wearTheWeapon(
+            [...events, ...hurt.value.events].reduce(applyEvent, state),
+            pending.attacker,
+            pending.target,
+            contactWeapon,
+            hurt.value.amount ?? 0,
+            supply.content,
+          )
+        : { events: [], unverified: [] };
+
     // The same riders the swung attack runs, off the property the hold pinned:
     // a mastery wired into one half of the path would be a rule a Divine Smite
     // silently switched off.
-    const landed = [...events, ...hurt.value.events];
+    const landed = [...events, ...hurt.value.events, ...worn.events];
     const rider = masteryRider(landed.reduce(applyEvent, state), supply, {
       attacker: pending.attacker,
       target: pending.target,
@@ -3831,6 +3884,7 @@ export function resolveAttackDamage(
       ...smiteUnverified,
       ...printedDamage.unverified,
       ...priced.unverified,
+      ...worn.unverified,
     ];
     if (charged !== null && hurt.value.offers.length === 0) {
       const paid = applyHitRider(

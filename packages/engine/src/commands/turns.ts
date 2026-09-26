@@ -65,6 +65,8 @@ import {
 import { rollRecorded } from '../rolls.js';
 import { filedFor, reportFiled } from './filed-handovers.js';
 import { settleStartOfTurnTraitDice } from './turn-start-dice.js';
+import { settleStartOfTurnBody } from './turn-start-body.js';
+import { blockDeadlinesDue } from './become-block.js';
 import { needsCasterSheet, statedChoice, statedDamageType } from '../spell-definitions.js';
 import {
   type AreaMoment,
@@ -329,6 +331,27 @@ function settlePrintedBoundaryDamage(
       events.push(...hurt.value.events);
       current = hurt.value.events.reduce(applyEvent, current);
       unverified.push(...hurt.value.unverified);
+
+      // SRD Fire Elemental: "Creatures … in the Emanation start burning." The
+      // glossary's Burning, lit on every creature the line caught that the
+      // damage left alive — the hazard the hit riders light and the start of
+      // its turn collects. (W7-B12)
+      if (line.ignites && current.creatures[victim]?.vitals.dead === false) {
+        const lit: GameEvent = {
+          type: 'hazard-caught',
+          id: victim,
+          hazard: { hazard: 'burning', lit: `an emanation from ${who}` },
+        };
+        events.push(lit);
+        current = applyEvent(current, lit);
+      }
+    }
+    // And the other half of that sentence, which the engine cannot light: a
+    // declared object has nothing on it that takes a flame.
+    if (line.ignites) {
+      unverified.push(
+        `${who}'s emanation sets "flammable objects in the Emanation" burning; the engine lights the creatures and the objects are the table's`,
+      );
     }
   }
 
@@ -2253,6 +2276,18 @@ export function resolveTurn(
       );
     }
 
+    // **A block's own day, run out** — SRD Troll Limb's "If the limb isn't
+    // destroyed within 24 hours, roll 1d12". A debt of `summons_stranded`'s
+    // kind: derived from the world as it stands, and settled by
+    // `settleBlockDeadlines`, which throws the die. (W7-B12)
+    const changing = blockDeadlinesDue(state);
+    if (changing.length > 0) {
+      return err(
+        'block_change_owed',
+        `${changing.join(', ')} ${changing.length === 1 ? 'owes' : 'owe'} the die a printed line throws when its day runs out; settleBlockDeadlines throws it before the turn moves on`,
+      );
+    }
+
     // **A creature elsewhere whose casting has ended.** SRD Rope Trick's
     // "drops out when the spell ends", SRD Blink's "when the spell ends if
     // you are on the Ethereal Plane, you return": the casting ends in the
@@ -2430,6 +2465,17 @@ export function resolveTurn(
     advanced.push(...thrown.value.events);
     unverified.push(...thrown.value.unverified);
     after = thrown.value.events.reduce(applyEvent, after);
+
+    // SRD Regeneration and SRD Vampire Spawn's Sunlight: what the beginning
+    // creature's own block does to its Hit Points as its turn starts — the
+    // heal, the death Regeneration held off, and the burn. Before the death
+    // save, for the payouts' reason: only that order leaves room for a
+    // start-of-turn heal to matter. (W7-B12)
+    const body = settleStartOfTurnBody(after, supply, beginning);
+    if (!body.ok) return body;
+    advanced.push(...body.value.events);
+    unverified.push(...body.value.unverified);
+    after = body.value.events.reduce(applyEvent, after);
 
     // SRD Haste: "it gains an additional action on each of its turns." The
     // third thing this half of the boundary hands the creature whose turn is

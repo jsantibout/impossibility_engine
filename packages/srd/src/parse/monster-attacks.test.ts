@@ -186,16 +186,17 @@ describe('parseTraitShape', () => {
 
   it('is null for a trait whose sentence nothing reads', () => {
     // A trait with a mechanic somebody has matched is `monster-traits.test.ts`'s
-    // subject; this is the other half. The Troll Limb's Troll Spawn is one of
-    // the many the reader still says nothing about — a limb that may become a
-    // whole troll on a die a day later — and it stays prose because it states
-    // a mechanic rather than a fact about the world. The Giant Spider's Web
-    // Walker used to stand here and is now read and handed over; the
-    // Gelatinous Cube's Ooze Cube stood here after it and is read since
-    // W7-B10 (`holds-creatures-inside`), and the Night Hag's Soul Bag since
-    // W7-B11. See `HANDOVER_TRAIT_KINDS` for why the read-and-handed-over
+    // subject; this is the other half. The Oni's Regeneration is one of the
+    // many the reader still says nothing about — the Troll's heal with a gate
+    // on it, "if it has at least 1 Hit Point", which the troll's kind carries
+    // no field for — and it stays prose because a gate read away is a rule
+    // nobody printed. The Giant Spider's Web Walker used to stand here and is
+    // now read and handed over; the Gelatinous Cube's Ooze Cube stood here
+    // after it and is read since W7-B10 (`holds-creatures-inside`), the Night
+    // Hag's Soul Bag since W7-B11, and the Troll Limb's Troll Spawn since
+    // W7-B12. See `HANDOVER_TRAIT_KINDS` for why the read-and-handed-over
     // differ from the read.
-    expect(parseTraitShape(trait('troll-limb', 'Troll Spawn').text)).toBeNull();
+    expect(parseTraitShape(trait('oni', 'Regeneration').text)).toBeNull();
   });
 });
 
@@ -1276,7 +1277,12 @@ describe('what a stat block’s sections print, and what is read', () => {
       // And two more with Berserk — W7-B13, the Flesh Golem's and the Clay
       // Golem's: the d6 a Bloodied turn's start throws, and the berserk golem
       // filed for the table.
-      traits: { printed: 337, read: 281 },
+      // And twelve more with W7-B12: both Regenerations, both vampires'
+      // Sunlight, the Fire Elemental's Fire Aura, both Corrosive Forms, the
+      // Giant Boar's Bloodied Fury, the Swarm of Insects' gated Spider Climb,
+      // the two rest forms and the Troll Limb's Troll Spawn. The hags' Coven
+      // Magic is read too, as a cast line, which this census does not count.
+      traits: { printed: 337, read: 293 },
       // Fifty-three more than before the save template was read, and the
       // Clay Golem's Multiattack before them. Forty-seven more again with the
       // Spellcasting line, which is the book's third opening and is read

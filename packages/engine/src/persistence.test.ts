@@ -205,6 +205,8 @@ const KNOWN_EVENT_TYPES: readonly string[] = [
   'attuned',
   'attunement-ended',
   'benefit-denied',
+  // A block's own countdown to becoming another — W7-B12, SRD Troll Spawn.
+  'block-deadline-set',
   'bonus-action-spent',
   'bonus-applied',
   'bonus-removed',
@@ -347,6 +349,9 @@ const KNOWN_EVENT_TYPES: readonly string[] = [
   'spell-origin-moved',
   'spellcasting-declared',
   'stabilised',
+  // A creature becoming another stat block — W7-B12, SRD Succubus Form and
+  // Troll Spawn.
+  'stat-block-replaced',
   'stated-action-taken',
   'stated-bonus-action-taken',
   'summons-control-renewed',

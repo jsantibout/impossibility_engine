@@ -424,6 +424,8 @@ export type MonsterMultiattack = z.infer<typeof MonsterMultiattackSchema>;
  * - `a-corpse-that-rises-later` — a stat block made from a corpse hours after
  *   the fight.
  * - `a-body-absorbed` — what a corpse looks like afterwards.
+ * - `a-hole-eaten-through-the-world` — an ooze eating a way through wood or
+ *   metal, which is a change to the map the table is drawing (W7-B12).
  */
 export const PrintedHandoverKindSchema = z.enum([
   'a-compulsion-the-table-plays',
@@ -432,6 +434,7 @@ export const PrintedHandoverKindSchema = z.enum([
   'a-weapon-that-returns-to-the-hand',
   'a-corpse-that-rises-later',
   'a-body-absorbed',
+  'a-hole-eaten-through-the-world',
   'enters-a-creature-space-and-a-one-inch-gap',
   'moves-through-a-one-inch-gap',
 ]);
@@ -2037,6 +2040,36 @@ export const MonsterCastLineSchema = z.object({
    * opposite things; the pattern that reads them can match only one. (W7-B11)
    */
   notSelf: z.literal(true).optional(),
+  /**
+   * The allies the line may be cast among and nowhere else — W7-B12.
+   *
+   * SRD Coven Magic, on the three hags: "**While within 30 feet of at least
+   * two hag allies**, the hag can cast one of the following spells". A gate
+   * the door asks at the moment of the casting: `count` creatures on the
+   * caster's side, within `feet`, each of whose block name carries the word
+   * `kind` — the book's own noun, so nothing here names a catalogue entry and
+   * a homebrew "witch coven" reads "witch".
+   */
+  alliesWithin: z
+    .object({
+      count: z.number().int().min(1),
+      feet: z.number().int().min(0),
+      kind: z.string().regex(/^[a-z][a-z -]*$/),
+    })
+    .optional(),
+  /**
+   * "The hag must finish a **Long Rest** before using this trait to cast
+   * **that spell** again." — W7-B12. A price per spell rather than per line:
+   * one use of each spell on the menu between Long Rests, which is a pool per
+   * spell the adapter declares and the casting pipeline spends.
+   */
+  eachSpellOncePer: z.literal('long-rest').optional(),
+  /**
+   * "using **the spell's normal casting time**" — W7-B12. A trait prints no
+   * heading that prices the use, and the sentence says so outright, so the
+   * route states no casting time of its own and the spell's stands.
+   */
+  ownCastingTime: z.literal(true).optional(),
 });
 export type MonsterCastLine = z.infer<typeof MonsterCastLineSchema>;
 
@@ -2405,9 +2438,9 @@ export type MonsterTreeStride = z.infer<typeof MonsterTreeStrideSchema>;
  * Class** against one attack (SRD Parry, SRD Riposte, the Mummy's Whirlwind of
  * Sand), and the other ten are ten different sentences — an ooze that splits,
  * an octopus's ink, a goblin redirecting a swing onto an ally, a rust monster
- * that eats the weapon that hit it. Every one of them wants a window or a rule
- * the engine does not have, so all nineteen stay prose and stay on the
- * ledger.
+ * that eats the weapon that hit it. Each wanted a window or a rule the engine
+ * did not have; the ooze's is read since W7-B12, as a trait kind the adapter
+ * compiles into a Reaction, and the rest stay prose and stay on the ledger.
  *
  * **The trigger's reach is part of the shape**, for {@link MonsterTraitSchema}'s
  * stated reason: a feet-less kind would give every holder whatever range the
@@ -2504,6 +2537,15 @@ const MonsterTraitMechanicSchema = z.discriminatedUnion('kind', [
      * ceilings, without needing to make an ability check."
      */
     kind: z.literal('climbs-without-a-check'),
+    /**
+     * SRD Swarm of Insects: "**If the swarm has a Climb Speed**, the swarm can
+     * climb difficult surfaces…" — a gate on the same rule, and a field on the
+     * kind rather than a kind of its own, because the rule is one sentence
+     * whichever block prints it. The gate is asked of the holder's Speeds as
+     * they stand, so a swarm the book gave no Climb Speed still checks.
+     * (W7-B12)
+     */
+    ifHasClimbSpeed: z.literal(true).optional(),
   }),
   z.object({
     /**
@@ -2575,6 +2617,18 @@ const MonsterTraitMechanicSchema = z.discriminatedUnion('kind', [
     rolls: z
       .array(z.enum(['ability-check', 'attack-roll', 'saving-throw']))
       .min(1),
+    /**
+     * SRD Vampire Spawn's Sunlight: "The vampire takes **20 Radiant damage** if
+     * it starts its turn in sunlight." The sentence before the Disadvantage,
+     * printed under the same heading — a field on the kind rather than a kind
+     * of its own, because the light read is the same light and the second
+     * sentence is this kind word for word. The turn boundary reads it against
+     * the holder's own space; the amount is flat, as the book prints it.
+     * (W7-B12)
+     */
+    hurtAtTurnStart: z
+      .object({ amount: z.number().int().min(1), damageType: z.string().min(1) })
+      .optional(),
   }),
   z.object({
     /**
@@ -2678,6 +2732,14 @@ const MonsterTraitMechanicSchema = z.discriminatedUnion('kind', [
     rolls: z
       .array(z.enum(['ability-check', 'attack-roll', 'saving-throw']))
       .min(1),
+    /**
+     * SRD Giant Boar's Bloodied Fury: "Advantage on **melee** attack rolls
+     * while it is Bloodied." A narrowing on the same rule, and a field on it
+     * for `ifHasClimbSpeed`'s reason: the boar's own sentence names every
+     * attack roll, the giant boar's names the melee ones, and the engine's
+     * `RollSelector.reach` is the axis that tells them apart. (W7-B12)
+     */
+    reach: z.literal('melee').optional(),
   }),
   z.object({
     /**
@@ -2904,9 +2966,9 @@ const MonsterTraitMechanicSchema = z.discriminatedUnion('kind', [
      *   reader that assumed it would keep a Stunned Balor from burning, and one
      *   that dropped it would have a Stunned Azer burning.
      *
-     * The Fire Elemental's is refused whole, which is the anchoring rule doing
-     * its work: its sentence ends "Creatures and flammable objects in the
-     * Emanation start burning", and there is no burning here.
+     * The Fire Elemental's is read too (W7-B12): its sentence ends "Creatures
+     * and flammable objects in the Emanation start burning", which is
+     * {@link ignites}.
      */
     kind: z.literal('damages-creatures-in-an-emanation'),
     /** "At the **end** of each of the azer's turns". */
@@ -2927,6 +2989,16 @@ const MonsterTraitMechanicSchema = z.discriminatedUnion('kind', [
     chosen: z.boolean(),
     /** "unless the azer has the Incapacitated condition". */
     unlessIncapacitated: z.boolean(),
+    /**
+     * SRD Fire Elemental: "Creatures and flammable objects in the Emanation
+     * **start burning**." The glossary's Burning, lit on every creature the
+     * emanation catches — the hazard the hit riders already light and the
+     * boundary already collects. The *objects* half is the Barbed Devil's Hurl
+     * Flame seam (a declared object has nothing on it that takes light), so
+     * the whole sentence is carried in the trait's `handedOver` as well and
+     * the heading stays owed for it. (W7-B12)
+     */
+    ignites: z.literal(true).optional(),
   }),
   z.object({
     /**
@@ -2967,6 +3039,119 @@ const MonsterTraitMechanicSchema = z.discriminatedUnion('kind', [
      */
     kind: z.literal('carries-as-a-larger-creature'),
     sizesLarger: z.number().int().min(1),
+  }),
+  z.object({
+    /**
+     * SRD Troll's Regeneration: "The troll regains 15 Hit Points at the start
+     * of each of its turns. If the troll takes Acid or Fire damage, this trait
+     * doesn't function on the troll's next turn. The troll dies only if it
+     * starts its turn with 0 Hit Points and doesn't regenerate." — W7-B12.
+     *
+     * **Three sentences and one rule**, all three read: the heal at the turn's
+     * start, the types that switch it off for one turn, and the death that
+     * waits for that turn rather than coming at 0. The last sentence carries no
+     * number — it is the rule's own consequence — so it is consumed by the
+     * pattern rather than carried; a block printing the first two without it
+     * is a different creature and is refused whole.
+     */
+    kind: z.literal('regenerates'),
+    /** "regains **15** Hit Points". */
+    hitPoints: z.number().int().min(1),
+    /** "If the troll takes **Acid or Fire** damage", lower-cased, in the order printed. */
+    suppressedBy: z.array(z.string().min(1)).min(1),
+  }),
+  z.object({
+    /**
+     * SRD Black Pudding's Corrosive Form: "A creature that hits the pudding
+     * with a melee attack roll takes 4 (1d8) Acid damage. … Any nonmagical
+     * weapon takes a cumulative −1 penalty to attack rolls immediately after
+     * dealing damage to the pudding and coming into contact with it. The
+     * weapon is destroyed if the penalty reaches −5." — W7-B12.
+     *
+     * **A defence nobody elects**, answered where SRD Fire Shield is: the
+     * attack path consults it the instant a hit is known. The ammunition and
+     * the Mending sentences are owed (the engine spends no ammunition and no
+     * casting reaches an item's record) and the eating-through is filed for
+     * the table, so neither is a field here.
+     */
+    kind: z.literal('corrodes-what-hits-it'),
+    /** "takes 4 (**1d8**) **Acid** damage" — absent on the Gray Ooze, which prints no such sentence. */
+    meleeHitterTakes: z
+      .object({ dice: z.string().regex(/^\d+d\d+$/), damageType: z.string().min(1) })
+      .optional(),
+    /** "a cumulative −**1** penalty to attack rolls". */
+    weaponPenalty: z.number().int().min(1),
+    /** "destroyed if the penalty reaches −**5**". */
+    weaponDestroyedAt: z.number().int().min(1),
+  }),
+  z.object({
+    /**
+     * SRD Incubus's Succubus Form: "When the incubus finishes a Long Rest, it
+     * can shape-shift into a **Succubus**, using that stat block instead of
+     * this one. Any equipment it is wearing or carrying isn't transformed." —
+     * W7-B12. SRD Succubus's Incubus Form is the other way round and prints no
+     * equipment sentence.
+     *
+     * **The block is named by id**, the bold name the book prints turned into
+     * the key the bestiary files it under, so the command that performs the
+     * change reads it out of content and pins what it read — the fold opens
+     * nothing.
+     */
+    kind: z.literal('becomes-another-block-at-a-long-rest'),
+    block: z.string().regex(/^[a-z0-9-]+$/),
+    /**
+     * "Any equipment it is wearing or carrying isn't transformed." Consumed
+     * rather than executed: a creature's gear is its own record and the change
+     * of block touches no item, so the sentence is true by construction and the
+     * flag records that it was read.
+     */
+    keepsEquipment: z.literal(true).optional(),
+  }),
+  z.object({
+    /**
+     * SRD Troll Limb's Troll Spawn: "The limb uncannily has the same senses as
+     * a whole troll. If the limb isn't destroyed within 24 hours, roll 1d12. On
+     * a 12, the limb turns into a **Troll**. Otherwise, the limb withers away."
+     * — W7-B12.
+     *
+     * The die, the face and the block are the engine's; the first sentence is
+     * consumed, because the limb's own Senses line already prints the troll's
+     * Darkvision and `adaptMonster` compiles it (W8-S25). "Withers away" is the
+     * creature leaving the game, which is the only other face the book prints.
+     */
+    kind: z.literal('becomes-another-block-on-a-die'),
+    /** "within **24** hours". */
+    afterHours: z.number().int().min(1),
+    /** "roll **1d12**". */
+    dice: z.string().regex(/^1d\d+$/),
+    /** "On a **12**" — the face at or above which the block changes. */
+    on: z.number().int().min(1),
+    block: z.string().regex(/^[a-z0-9-]+$/),
+  }),
+  z.object({
+    /**
+     * SRD Black Pudding and SRD Ochre Jelly, Split: "_Trigger:_ While the
+     * pudding is Large or Medium and has 10+ Hit Points, it becomes Bloodied
+     * or is subjected to Lightning or Slashing damage. _Response:_ The pudding
+     * splits into two new **Black Puddings**. Each new pudding is one size
+     * smaller than the original pudding and acts on its Initiative. The
+     * original pudding's Hit Points are divided evenly between the new
+     * puddings (round down)." — W7-B12.
+     *
+     * A stat block created mid-fight — two creatures of the holder's own block
+     * that did not exist a moment ago, seated on its Initiative with its Hit
+     * Points divided between them. The gate and both triggers are carried; the
+     * response prints no number the engine does not derive.
+     */
+    kind: z.literal('splits-into-two-creatures'),
+    /** "While the pudding is **Large or Medium**". */
+    sizes: z.array(CreatureSizeSchema).min(1),
+    /** "and has **10+** Hit Points". */
+    minimumHitPoints: z.number().int().min(1),
+    /** "it **becomes Bloodied**". */
+    whenBloodied: z.literal(true),
+    /** "or is subjected to **Lightning or Slashing** damage". */
+    damageTypes: z.array(z.string().min(1)).min(1),
   }),
 
   // ---------------------------------------------------------------------
@@ -3091,20 +3276,6 @@ const MonsterTraitMechanicSchema = z.discriminatedUnion('kind', [
      * is the one third of it that is built.
      */
     kind: z.literal('swaps-places-with-an-ally-to-take-an-attack'),
-  }),
-  z.object({
-    /**
-     * SRD Black Pudding and SRD Ochre Jelly, Split: "The pudding splits into
-     * two new **Black Puddings**. Each new pudding is one size smaller than
-     * the original pudding and acts on its Initiative."
-     *
-     * A stat block created mid-fight, which is the shape the catalogue already
-     * names for the summoning spells: two creatures that did not exist a
-     * moment ago, in the Initiative order, with the original's Hit Points
-     * divided between them. Read into a kind so the sentence is on the record;
-     * nothing spends it.
-     */
-    kind: z.literal('splits-into-two-creatures'),
   }),
   z.object({
     /**

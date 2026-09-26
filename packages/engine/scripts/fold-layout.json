@@ -13,6 +13,7 @@
     "heldByObject",
     "walkerOf",
     "carriedObjectId",
+    "BlockDeadline",
     "CreatureState",
     "AppliedCommand",
     "CommandStamp",

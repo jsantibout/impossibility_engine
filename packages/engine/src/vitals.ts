@@ -272,6 +272,17 @@ export interface DamageOptions {
    * `hitPointFloorFor` only where the blow did not kill, so that floor is
    * never offered to a creature this arm could save. One rule, one place, and
    * the reach of each sentence written where its own facts are.
+   *
+   * **A floor of 0 is the death that waits** — W7-B12, SRD Regeneration: "The
+   * troll dies only if it starts its turn with 0 Hit Points and doesn't
+   * regenerate." Nothing lifts the troll off 0, so the floor holds no Hit
+   * Point; what it holds is `diesAtZero`'s death, which the sentence moves to
+   * the start of the troll's turn. So a creature that dies at 0 and is handed
+   * this floor drops to 0 alive and Unconscious, and a blow that finds it
+   * already there costs it nothing — no Death Saving Throw failure and no
+   * death by a blow the size of its maximum, because "dies **only** if" names
+   * one moment and no other. A creature that does not die at 0 reads a floor of
+   * 0 as no floor at all, which is what it always was.
    */
   readonly floor?: number;
 }
@@ -333,6 +344,12 @@ export function applyDamageToVitals(
   // Armor of Agathys who soaks thirty still rolls against DC 15. Answering the
   // two rules differently is what this used to do.
   if (isDown(v)) {
+    // SRD Regeneration's held death — a monster lying at 0 whose block says it
+    // dies only at its own turn's start. The blow meets its Temporary Hit
+    // Points and nothing else. See {@link DamageOptions.floor}. (W7-B12)
+    if (v.diesAtZero && options.floor === 0) {
+      return { ...unchanged, vitals: { ...v, temporaryHp }, temporaryAbsorbed };
+    }
     // SRD: "If the damage equals or exceeds your Hit Point maximum, you die."
     // The damage, not the remainder — what the pool absorbed was still dealt.
     if (amount >= v.hpMax) {
@@ -393,6 +410,25 @@ export function applyDamageToVitals(
         vitals: { ...v, hp: held, temporaryHp },
         temporaryAbsorbed,
         hpLost: v.hp - held,
+      };
+    }
+    // SRD Regeneration: the drop stands and the death waits for the turn's
+    // start. Unconscious follows, as it follows any drop that does not kill.
+    // See {@link DamageOptions.floor}. (W7-B12)
+    if (options.floor === 0) {
+      return {
+        ...unchanged,
+        vitals: {
+          ...v,
+          hp: 0,
+          temporaryHp,
+          deathSaveSuccesses: 0,
+          deathSaveFailures: 0,
+          stable: false,
+        },
+        temporaryAbsorbed,
+        hpLost,
+        droppedToZero: true,
       };
     }
     return {

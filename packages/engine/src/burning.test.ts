@@ -210,7 +210,12 @@ describe('what burning costs, and how it goes out', () => {
     const brens = unwrap(resolveTurn(table.state, supply('t1')), 'the elemental’s turn ends');
     table.log.push(...brens.events);
 
-    const burnt = dealtTo(brens.events, BREN);
+    // The elemental's Fire Aura is read since W7-B12, so its 1d10 lands at the
+    // end of the elemental's turn from the elemental; the fire's 1d4 is the one
+    // nobody dealt, because the creature that lit it may be long gone.
+    const burnt = dealtTo(brens.events, BREN).filter(
+      (event) => event.type === 'damage-taken' && event.by === undefined,
+    );
     expect(burnt).toHaveLength(1);
     const dice = brens.events.filter(
       (e) => e.type === 'damage-dice-recorded' && e.components.some((c) => c.type === 'fire'),

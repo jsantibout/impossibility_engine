@@ -1,4 +1,5 @@
 import { type Ability, type CharacterId } from '@ie/shared';
+import type { CreatureSize } from '@ie/srd';
 import type { D20TestKind } from './checks.js';
 import { abilityModifier } from './character.js';
 import { isIncapacitated } from './conditions.js';
@@ -395,7 +396,37 @@ export type ReactionEffect =
    * member's — see {@link ReactionFeature.costsReaction}. The book limits it
    * with a pool and says nothing about the action economy. (W7-B11)
    */
-  | { readonly kind: 'succeed-instead' };
+  | { readonly kind: 'succeed-instead' }
+  /**
+   * Become two creatures of the holder's own block — W7-B12.
+   *
+   * SRD Black Pudding and SRD Ochre Jelly, Split: "_Trigger:_ While the pudding
+   * is Large or Medium and has 10+ Hit Points, it becomes Bloodied or is
+   * subjected to Lightning or Slashing damage. _Response:_ The pudding splits
+   * into two new **Black Puddings**. Each new pudding is one size smaller than
+   * the original pudding and acts on its Initiative. The original pudding's Hit
+   * Points are divided evenly between the new puddings (round down)."
+   *
+   * **At `damaged-by-creature`**, the window SRD Retaliation answers: the blow
+   * has landed, so "becomes Bloodied" and the Hit Points the halves share are
+   * both what the blow left, and nothing the response does can change it. The
+   * gate and the two triggers are carried as the block printed them and asked
+   * of `lastDamage` — the types the blow was made of, and whether the creature
+   * was Bloodied before it. `block` is the holder's own stat block, pinned at
+   * adaptation so the two halves are read out of content by the id the
+   * original arrived as, and never by its name.
+   *
+   * Only a stat block compiles this: no class feature splits its holder, and
+   * the feature vocabulary has no word for it.
+   */
+  | {
+      readonly kind: 'split';
+      readonly block: string;
+      readonly sizes: readonly CreatureSize[];
+      readonly minimumHitPoints: number;
+      readonly whenBloodied: true;
+      readonly damageTypes: readonly string[];
+    };
 
 /**
  * Who gave a Reaction away, and under what source it will end.

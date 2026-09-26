@@ -259,15 +259,15 @@ describe('the ledger measures the three populations of the roadmap', () => {
     // which is what it would do if the predicate stopped matching and the debt
     // it names quietly left the ledger.
     expect(ledger.monsters.riders).toBeGreaterThan(0);
-    // **And the inert traits are three, which is the day that note foresaw.**
+    // **And the inert trait is one, which is the day that note foresaw.**
     // The column stood at zero while every kind `MonsterTraitSchema` admits
     // was either spent by something in the engine or filed as a handover; the
-    // parser has now learned three sentences nothing reads — the two oozes'
-    // Split and the Goblin Boss's Redirect Attack, at CR 4, 2 and 1 — so it is
-    // back above zero and the guard is the same one. `coverage.test.ts` names
-    // the two kinds and holds both lists against the schema and against the
-    // engine's own sources.
-    expect(ledger.monsters.inertTraits).toBe(3);
+    // parser learned three sentences nothing read — the two oozes' Split and
+    // the Goblin Boss's Redirect Attack — and W7-B12 spent the two Splits, so
+    // the Goblin Boss's is what is left and the guard is the same one.
+    // `coverage.test.ts` names the kind and holds both lists against the
+    // schema and against the engine's own sources.
+    expect(ledger.monsters.inertTraits).toBe(1);
     expect(ledger.monsters.clean + ledger.monsters.unfinished).toBe(ledger.monsters.blocks);
   });
 
@@ -287,6 +287,32 @@ describe('the ledger measures the three populations of the roadmap', () => {
     for (const line of ledger.monsters.residue) {
       expect(line.monster.length).toBeGreaterThan(0);
       expect(line.line.length).toBeGreaterThan(0);
+    }
+  });
+
+  /**
+   * **A line that files one sentence and owes another is not read to the
+   * end** — W7-B12. SRD Corrosive Form files the hole an ooze eats and still
+   * owes the ammunition and the Mending, which is the first trait to do both;
+   * the list's own prose says such a line "is not here", and the predicate
+   * that decides it did not ask a trait's residue until a line came that had
+   * one beside a filing.
+   */
+  it('lists no line among those read to the end that still owes a sentence', () => {
+    const owes = new Set(
+      SRD_CONTENT.monsters.flatMap((monster) =>
+        statBlockLines(monster)
+          .filter(
+            (line) =>
+              ((line.trait as { readonly handedOver?: readonly string[] } | undefined)?.handedOver
+                ?.length ?? 0) > 0,
+          )
+          .map((line) => `${monster.name}/${line.name}`),
+      ),
+    );
+    expect(owes.has('Black Pudding/Corrosive Form')).toBe(true);
+    for (const one of ledger.monsters.filed) {
+      expect(owes.has(`${one.monster}/${one.line}`), `${one.monster}/${one.line}`).toBe(false);
     }
   });
 
