@@ -67,7 +67,7 @@ homebrew.
 - **A printed hit is read clause by clause**, what nothing read handed back. A repeat save may deepen its condition and stop asking; Resistance's d4 comes off before defences.
 - **Nothing brings a jumper down** from a High Jump.
 - No ammunition spent. **An object cannot make an ability check**, and may be put in the turn order.
-- A conferral refuses by name what it cannot do: attack bonuses, set ability scores, curses, item Speed.
+- A conferral refuses by name what it cannot do: attack bonuses, set ability scores, curses.
 - **Two corpus migrations are owed**: a mastery is a ceiling, not a quota; an unchosen size defaults rather than refusing.
 - Homebrew adds beside printed content, never overriding an id.
 

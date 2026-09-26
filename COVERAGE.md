@@ -683,7 +683,7 @@ is where a figure like that belongs.
 
 | Parsed | Transcribed | Instances | of which complete | of which partial |
 |---|---|---|---|---|
-| 258 | 100 | 261 | 211 | 50 |
+| 258 | 108 | 276 | 224 | 52 |
 
 | Records handing printed text to the DM |
 |---|
@@ -704,21 +704,22 @@ inventing a column that nothing checks.
 
 | Category | Parsed | Transcribed | Instances | Complete | Partial |
 |---|---|---|---|---|---|
-| Armor | 19 | 10 | 55 | 50 | 5 |
+| Armor | 19 | 12 | 64 | 59 | 5 |
 | Potions | 24 | 11 | 14 | 9 | 5 |
-| Rings | 22 | 6 | 6 | 4 | 2 |
+| Rings | 22 | 7 | 7 | 5 | 2 |
 | Rods | 7 | 2 | 2 | 1 | 1 |
 | Scrolls | 1 | 0 | 0 | 0 | 0 |
 | Staffs | 12 | 8 | 8 | 3 | 5 |
 | Wands | 13 | 10 | 10 | 8 | 2 |
-| Weapons | 33 | 15 | 128 | 115 | 13 |
-| Wondrous Items | 127 | 38 | 38 | 21 | 17 |
+| Weapons | 33 | 17 | 130 | 116 | 14 |
+| Wondrous Items | 127 | 41 | 41 | 23 | 18 |
 
 ### Entries transcribed
 
 Each is one entry of "Magic Items A–Z", with the records it expands to and
 how many of those still carry a clause the engine does not say.
 
+- **Adamantine Armor** (Armor) — 8 recorded, complete
 - **Amulet of Health** (Wondrous Items) — 1 recorded, 1 partial
 - **Armor of Invulnerability** (Armor) — 1 recorded, complete
 - **Armor, +1, +2, or +3** (Armor) — 36 recorded, complete
@@ -735,6 +736,7 @@ how many of those still carry a clause the engine does not say.
 - **Cloak of Elvenkind** (Wondrous Items) — 1 recorded, 1 partial
 - **Cloak of Invisibility** (Wondrous Items) — 1 recorded, 1 partial
 - **Cloak of Protection** (Wondrous Items) — 1 recorded, complete
+- **Cloak of the Manta Ray** (Wondrous Items) — 1 recorded, complete
 - **Crystal Ball** (Wondrous Items) — 1 recorded, complete
 - **Crystal Ball of Mind Reading** (Wondrous Items) — 1 recorded, 1 partial
 - **Crystal Ball of Telepathy** (Wondrous Items) — 1 recorded, 1 partial
@@ -742,7 +744,7 @@ how many of those still carry a clause the engine does not say.
 - **Cube of Force** (Wondrous Items) — 1 recorded, complete
 - **Cubic Gate** (Wondrous Items) — 1 recorded, complete
 - **Defender** (Weapons) — 1 recorded, 1 partial
-- **Dragon Slayer** (Weapons) — 1 recorded, 1 partial
+- **Dragon Slayer** (Weapons) — 1 recorded, complete
 - **Dust of Disappearance** (Wondrous Items) — 1 recorded, 1 partial
 - **Dwarven Plate** (Armor) — 1 recorded, 1 partial
 - **Elixir of Health** (Potions) — 1 recorded, complete
@@ -752,12 +754,16 @@ how many of those still carry a clause the engine does not say.
 - **Gauntlets of Ogre Power** (Wondrous Items) — 1 recorded, complete
 - **Giant Slayer** (Weapons) — 1 recorded, 1 partial
 - **Glamoured Studded Leather** (Armor) — 1 recorded, complete
+- **Gloves of Swimming and Climbing** (Wondrous Items) — 1 recorded, 1 partial
+- **Gloves of Thievery** (Wondrous Items) — 1 recorded, complete
 - **Goggles of Night** (Wondrous Items) — 1 recorded, 1 partial
 - **Hammer of Thunderbolts** (Weapons) — 1 recorded, 1 partial
 - **Headband of Intellect** (Wondrous Items) — 1 recorded, complete
 - **Helm of Comprehending Languages** (Wondrous Items) — 1 recorded, complete
 - **Helm of Teleportation** (Wondrous Items) — 1 recorded, complete
 - **Holy Avenger** (Weapons) — 1 recorded, 1 partial
+- **Luck Blade** (Weapons) — 1 recorded, 1 partial
+- **Mace of Disruption** (Weapons) — 1 recorded, 1 partial
 - **Mace of Smiting** (Weapons) — 1 recorded, 1 partial
 - **Medallion of Thoughts** (Wondrous Items) — 1 recorded, complete
 - **Mithral Armor** (Armor) — 8 recorded, complete
@@ -781,6 +787,7 @@ how many of those still carry a clause the engine does not say.
 - **Ring of Jumping** (Rings) — 1 recorded, complete
 - **Ring of Protection** (Rings) — 1 recorded, complete
 - **Ring of Shooting Stars** (Rings) — 1 recorded, 1 partial
+- **Ring of Swimming** (Rings) — 1 recorded, complete
 - **Ring of Telekinesis** (Rings) — 1 recorded, complete
 - **Ring of Water Walking** (Rings) — 1 recorded, complete
 - **Robe of Stars** (Wondrous Items) — 1 recorded, 1 partial
@@ -792,6 +799,7 @@ how many of those still carry a clause the engine does not say.
 - **Shield of the Cavalier** (Armor) — 1 recorded, 1 partial
 - **Shield, +1, +2, or +3** (Armor) — 3 recorded, complete
 - **Sovereign Glue** (Wondrous Items) — 1 recorded, complete
+- **Spellguard Shield** (Armor) — 1 recorded, complete
 - **Staff of Charming** (Staffs) — 1 recorded, 1 partial
 - **Staff of Fire** (Staffs) — 1 recorded, complete
 - **Staff of Frost** (Staffs) — 1 recorded, complete
@@ -842,7 +850,7 @@ entry of "Magic Items A–Z" is in exactly one of them.
 
 | Parsed | Transcribed | Blocked | Ready | Fiction | Unread |
 |---|---|---|---|---|---|
-| 258 | 100 | 151 | 0 | 4 | 3 |
+| 258 | 108 | 143 | 0 | 4 | 3 |
 
 **Unread is the honest default**, not a backlog nobody got to. An entry
 whose blocker cannot be named from something this repository has already
@@ -888,35 +896,34 @@ the next tranche makes false.
 | `an-ability-score-a-spell-changes` | 11 | 0 | 6 |
 | `a-container-with-a-space-of-its-own` | 6 | 0 | 5 |
 | `a-stat-block-created-mid-fight` | 17 | 0 | 4 |
-| `a-spell-an-item-casts-that-nothing-executes` | 13 | 2 | 2 |
+| `a-spell-an-item-casts-that-nothing-executes` | 12 | 2 | 2 |
 | `a-version-of-an-item-the-book-leaves-to-the-gm` | 28 | 0 | 3 |
 | `an-object-with-statistics-of-its-own` | 17 | 0 | 3 |
 | `a-fact-only-the-table-can-declare` | 12 | 0 | 3 |
 | `a-benefit-an-item-switches-on-and-off` | 12 | 0 | 2 |
 | `an-item-instance-with-a-state-of-its-own` | 12 | 0 | 2 |
-| `a-speed-an-item-grants` | 10 | 0 | 2 |
 | `a-reaction-an-item-grants` | 7 | 0 | 2 |
-| `a-mode-on-the-save-a-spell-forces` | 5 | 1 | 1 |
+| `a-speed-an-item-grants` | 7 | 0 | 2 |
 | `a-casting-an-item-stores-or-gives-back` | 3 | 0 | 2 |
 | `a-target-rule-the-format-cannot-state` | 2 | 1 | 1 |
 | `an-area-an-item-creates` | 17 | 0 | 1 |
-| `a-rider-on-a-later-weapon-attack` | 12 | 0 | 1 |
+| `a-rider-on-a-later-weapon-attack` | 11 | 0 | 1 |
 | `senses-beyond-declared-sight` | 7 | 0 | 1 |
-| `a-bonus-narrowed-to-a-skill` | 6 | 1 | 0 |
 | `a-charge-spent-on-something-other-than-a-casting` | 6 | 0 | 1 |
 | `damage-with-neither-an-attack-roll-nor-a-save` | 6 | 0 | 1 |
 | `a-language-or-a-proficiency-an-item-grants` | 5 | 0 | 1 |
 | `a-rider-on-the-face-the-die-showed` | 5 | 0 | 1 |
 | `healing-modified-by-an-effect` | 5 | 0 | 1 |
+| `a-mode-on-the-save-a-spell-forces` | 4 | 1 | 0 |
 | `what-ends-attunement-besides-a-command` | 4 | 0 | 1 |
 | `a-benefit-an-item-suspends-on-a-trigger` | 2 | 0 | 1 |
 | `a-casting-ended-by-a-trigger` | 1 | 0 | 1 |
-| `a-critical-hit-an-effect-downgrades` | 1 | 0 | 1 |
 | `a-reduction-an-effect-applies-to-damage` | 1 | 0 | 1 |
-| `a-save-an-item-forces` | 11 | 0 | 0 |
-| `a-condition-an-item-imposes` | 10 | 0 | 0 |
-| `movement-modes` | 9 | 0 | 0 |
+| `a-save-an-item-forces` | 10 | 0 | 0 |
+| `a-condition-an-item-imposes` | 9 | 0 | 0 |
 | `a-range-an-item-names` | 8 | 0 | 0 |
+| `movement-modes` | 6 | 0 | 0 |
+| `a-bonus-narrowed-to-a-skill` | 4 | 0 | 0 |
 | `an-exhaustion-level-a-spell-changes` | 4 | 0 | 0 |
 | `a-bonus-to-spell-attack-rolls` | 3 | 0 | 0 |
 | `a-random-outcome-that-is-not-a-d20` | 3 | 0 | 0 |
@@ -924,11 +931,11 @@ the next tranche makes false.
 | `a-condition-immunity-narrowed-to-its-source` | 2 | 0 | 0 |
 | `a-damage-roll-an-item-makes` | 2 | 0 | 0 |
 | `a-filter-on-the-attackers-creature-type` | 2 | 0 | 0 |
-| `a-roll-result-an-effect-replaces` | 2 | 0 | 0 |
 | `a-selector-for-every-d20-test` | 2 | 0 | 0 |
 | `an-action-a-spell-compels-or-forbids` | 2 | 0 | 0 |
 | `difficult-terrain-an-area-creates` | 2 | 0 | 0 |
 | `a-hit-point-maximum-a-spell-moves` | 1 | 0 | 0 |
+| `a-roll-result-an-effect-replaces` | 1 | 0 | 0 |
 | `an-automatic-success-by-creature-type` | 1 | 0 | 0 |
 | `an-effect-that-suppresses-other-magic` | 1 | 0 | 0 |
 | `an-outcome-that-breaks-concentration` | 1 | 0 | 0 |

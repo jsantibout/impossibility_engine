@@ -3208,3 +3208,21 @@ Appended 2026-09-26, wave seven on Opus:
   still name no causer; the spell road's twin (a first save while already
   under that caster's condition) is unbuilt. Opus review, two comment defects,
   fixed.
+- **Treasure T-B1: the standing readers.** Five readers, each shipped with the
+  items it finishes: a Speed a worn item gives (`derivedSpeedGrants` in
+  `speedOf`, pinned item grants so the fold stays catalogue-free; `at-least`
+  floors); a die or bonus for what the target is (`targetTypes`, read through
+  `typeMagicSees` so the Mask fools it, an untyped target reported); a
+  critical that becomes a hit (`critical-hits-become-hits`, weapons, stat
+  blocks and spell attacks alike); a bonus to one skill; spell attacks against
+  the holder. Complete: Dragon Slayer, Ring of Swimming, Cloak of the Manta
+  Ray, Gloves of Thievery, Spellguard Shield, Adamantine Armor (8 rows).
+  Partial: Giant Slayer, Mace of Smiting, Holy Avenger, Mace of Disruption,
+  Luck Blade, Gloves of Swimming and Climbing. Magic items transcribed
+  100 → 108, complete records 211 → 224. **Two held out under rule 3 by two
+  reviews:** Horseshoes of Speed (anyone could wear them — the engine holds no
+  "hoof") and Slippers of Spider Climbing (the slippery-surface limit is read
+  by the climb's cost, so it cannot be the table's alone). The owner is asked
+  whether a limit the engine already hands to the table on every use may ride
+  as a flagged debt, which would bring the Slippers back. Two Opus reviews,
+  three defects and two withdrawals, all fixed.
