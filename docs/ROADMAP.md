@@ -3101,3 +3101,20 @@ Appended 2026-09-26, wave seven on Opus:
   Concentration); Berserk's die at a fight's first turn (`scene.ts`); a
   Spellcasting route's level override carries the handover mark. Two Opus
   reviews, six defects, fixed.
+- **A retried `roll_initiative` is the same call** (W8-T1, found by the app's
+  scene-setup track). The tool chose between beginning a fight and joining one
+  by looking at the world, so a retry of the call that began it saw the fight
+  its first run made, rolled under an unused id and was refused
+  `duplicate_combatant`. The path is now chosen by the command id first
+  (`wasCommandApplied`), `state.combat` only for an id the log has never seen;
+  a join retried after its fight ended is a duplicate too. The engine sweep
+  held each command idempotent and could not see a tool routing between two;
+  **no tools-level idempotency sweep exists**, and one would need a fixture
+  per mutating tool — a design, not an extension. Opus review: PASS.
+- **Great Weapon Fighting needs `twoHanded: true` even on a Greatsword**
+  (found by the app's feed track). `weaponNarrowingHolds` (`attack.ts`)
+  withholds a two-hands benefit when the caller does not say how the weapon is
+  held — right for a Versatile weapon, wrong for one with the Two-Handed
+  property, which "requires two hands when you attack with it": the fact is
+  the weapon's, not the caller's. A one-condition fix and a test; a model that
+  omits the flag silently loses the reroll today.
