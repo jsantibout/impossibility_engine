@@ -791,8 +791,8 @@ describe('every member of the change vocabulary has a user or a written reason',
     return found;
   };
 
-  it('declares the five the SRD writes and no more', () => {
-    expect(declared()).toEqual(['add', 'double', 'only', 'halve', 'zero', 'match-walk']);
+  it('declares the members the SRD writes and no more', () => {
+    expect(declared()).toEqual(['add', 'double', 'only', 'halve', 'zero', 'match-walk', 'at-least']);
   });
 
   it('writes every member from some definition, or says why not', () => {
@@ -845,10 +845,12 @@ describe('every member of the change vocabulary has a user or a written reason',
         JSON.stringify(definition).includes(`"change":"${member}"`),
       ).map((definition) => definition.id);
 
-    // SRD Fly, "a Fly Speed of 60 feet", joined the two the walking Speed
-    // already had: a mode-named addition is the same operation, in one of the
-    // other four Speeds.
-    expect(usedBy('add')).toEqual(['fly', 'longstrider', 'ray-of-frost']);
+    // "Increases by" and "reduced by", the only sentences that add. SRD Fly
+    // left this list when its "a Fly Speed of 60 feet" was read as what it
+    // says — a Speed stated, beside any other the creature has — rather than
+    // as sixty feet added to one.
+    expect(usedBy('add')).toEqual(['longstrider', 'ray-of-frost']);
+    expect(usedBy('at-least')).toEqual(['fly']);
     expect(usedBy('zero')).toEqual(['hypnotic-pattern']);
     // SRD Spider Climb, "a Climb Speed equal to its Speed" — the member that
     // exists because the number is the target's own and no definition could

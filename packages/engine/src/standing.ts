@@ -270,7 +270,7 @@ export type AreaSpeedStanding = WhollyInside & {
    * not a patch of ground — so admitting it here would be a member the area
    * loop ignores and an author could write.
    */
-  readonly change: Exclude<SpeedChange, 'match-walk' | 'double' | 'only'>;
+  readonly change: Exclude<SpeedChange, 'match-walk' | 'double' | 'only' | 'at-least'>;
   /** Signed feet, required by `add` and refused by the other two. */
   readonly feet?: number;
 };
@@ -2071,7 +2071,7 @@ export type HungGrant =
        * Narrowed for {@link AreaStanding}'s reason: a hung grant carries no
        * mode, so it has nowhere to give a Speed in.
        */
-      readonly change: Exclude<SpeedChange, 'match-walk' | 'only'>;
+      readonly change: Exclude<SpeedChange, 'match-walk' | 'only' | 'at-least'>;
       /** Signed feet, for an `add`; absent for the other two — see {@link GrantedSpeed}. */
       readonly feet?: number;
       readonly lasts: HungSpan;
@@ -5847,7 +5847,15 @@ export function armorClassOf(state: GameState, who: CharacterId): number {
  * `direction` already settled for adding and subtracting a die.
  */
 export type SpeedChange =
-  /** A signed number of feet: Longstrider's +10, Ray of Frost's −10. */
+  /**
+   * A signed number of feet: Longstrider's +10, Ray of Frost's −10.
+   *
+   * **It means "changes by" and nothing else.** A mode on it would be the
+   * sentence "your Fly Speed increases by N", which no SRD sentence prints.
+   * "A Fly Speed of N" states a Speed rather than a change and is the floor
+   * member below. A mode-named addition stays readable because logs written
+   * before the floor carry one, and they read as they were written.
+   */
   | 'add'
   /**
    * SRD Haste, "the target's Speed is doubled" — the one sentence in the book
@@ -5905,9 +5913,34 @@ export type SpeedChange =
    * recursion, because a match names a mode and the walking mode is refused.
    *
    * Carries no feet. The number is the creature's, and a sentence that
-   * printed one would be an addition.
+   * printed one would be a floor, the member below.
    */
-  | 'match-walk';
+  | 'match-walk'
+  /**
+   * A Speed of so many feet in one **mode**, or what the creature already has
+   * there if that is higher.
+   *
+   * > SRD Fly: "the target **gains a Fly Speed of 60 feet** and can hover."
+   * > SRD Winged Boots: "**gaining a Fly Speed of 30 feet** for 1 hour."
+   * > Glossary, Speed: "If you have more than one speed, choose which one to
+   * > use when you move."
+   *
+   * "A Fly Speed of 60 feet" states what the Fly Speed is rather than how it
+   * changes, so two such sentences are two Fly Speeds and the creature moves
+   * at the higher. Written as an addition, Fly beside Winged Boots flew at 90
+   * and an Owl under Fly at 120. So it is a member of its own, the reading
+   * `match-walk` already took for "equal to your Speed": both supply the base
+   * {@link speedOf} starts from, and it takes the highest of the printed
+   * Speed in the mode, the matched walk and every floor, before anything else
+   * reaches it. A Slowed flier under Fly halves the 60 once.
+   *
+   * Carries the feet, a distance rather than a difference, and names the mode
+   * it gives, which may not be the walking one. May carry
+   * {@link GrantedSpeed.hover} beside a flight, because SRD Fly's sentence
+   * does. A stored grant only: a rider, an area and a hung grant hold no mode
+   * to give it in.
+   */
+  | 'at-least';
 
 /**
  * A Speed an ongoing effect has changed.
@@ -5944,7 +5977,10 @@ export interface GrantedSpeed {
   /** The casting (`Longstrider#cast:3`) or the feature that granted it. */
   readonly source: string;
   readonly change: SpeedChange;
-  /** Signed feet, for an `add`; absent for the other three. */
+  /**
+   * Signed feet, for an `add`; a distance, for an `only` or an `at-least`,
+   * which state a Speed rather than change one; absent for the rest.
+   */
   readonly feet?: number;
   /**
    * Which of the five Speeds this moves. Absent is the walking one.
@@ -5954,13 +5990,14 @@ export interface GrantedSpeed {
    * existed is a walking one, and a reader that defaults the field reads them
    * exactly as it always did.
    *
-   * It is meaningful on the two operations that *give* a Speed and refused on
-   * the two that take one away, which is the rule `speedOf` already fixed and
-   * `checkSpeedChange` now enforces at the door: SRD writes "your Speed" for
-   * an increase and means walking, and writes Grappled's 0, Slow's halving
-   * and Exhaustion's five feet a level about the creature rather than about a
-   * mode. A `halve` that named one mode would be a sentence the book does not
-   * print.
+   * It is meaningful on the operations that *give* a Speed — required on
+   * `match-walk`, `only` and `at-least`, which name the Speed they give — and
+   * refused on the two that take one away, which is the rule `speedOf`
+   * already fixed and `checkSpeedChange` now enforces at the door: SRD writes
+   * "your Speed" for an increase and means walking, and writes Grappled's 0,
+   * Slow's halving and Exhaustion's five feet a level about the creature
+   * rather than about a mode. A `halve` that named one mode would be a
+   * sentence the book does not print.
    */
   readonly mode?: MovementMode;
   /**
@@ -7030,13 +7067,24 @@ export function speedOf(
   // base it supplies is the **walking** one before anything has happened to
   // it: see {@link SpeedChange}, where the alternative halves a Slowed
   // spider's climb twice.
+  //
+  // **An `at-least` grant supplies the base too**, for the glossary's reason:
+  // "If you have more than one speed, choose which one to use when you move."
+  // SRD Fly's "a Fly Speed of 60 feet" beside Winged Boots' "a Fly Speed of 30
+  // feet" and an Owl's printed 60 are three Fly Speeds, and the creature flies
+  // at the highest of them rather than at their sum. Everything below reaches
+  // the one chosen, so a Slowed flier under Fly halves the 60 once.
   const matched = matchesWalkingSpeed(state, who, creature, mode);
   const base =
     only !== null
       ? (only.feet ?? 0)
       : mode === 'walk'
         ? walking
-        : Math.max(speedInMode(creature.sheet, mode), matched ? walking : 0);
+        : Math.max(
+            speedInMode(creature.sheet, mode),
+            matched ? walking : 0,
+            floorInMode(creature, mode),
+          );
 
   // **Feet reach the mode they were granted in; an unqualified increase
   // reaches walking alone and an unqualified reduction reaches every mode.**
@@ -7119,8 +7167,10 @@ export function speedOf(
   // being carved.
   //
   // What a *mode-named* grant does is not that ruling and needs none: SRD Fly
-  // prints "a Fly Speed of 60 feet", so the feet go where the sentence says
-  // and nowhere else.
+  // prints "a Fly Speed of 60 feet", which is an `at-least` in the base above
+  // rather than feet in this accumulator. A mode-named `add` is still summed
+  // here because a log written before the floor carries one, and it reads as
+  // it was written.
   return combineSpeed(base, flat, halvings, zeroed, creature.conditions, doublings);
 }
 
@@ -7141,6 +7191,24 @@ export function speedOf(
  */
 function onlyMovement(creature: CreatureState): GrantedSpeed | null {
   return creature.speedModifiers.find((granted) => granted.change === 'only') ?? null;
+}
+
+/**
+ * The highest Speed any `at-least` grant on this creature states in a mode,
+ * or 0 where none does.
+ *
+ * A stored grant only, for the reason {@link onlyMovement} gives: no feature
+ * at level 5 or below prints "a Fly Speed of N feet", and `speedGrantProblems`
+ * refuses the member on one, so a derived reader would read nothing.
+ */
+function floorInMode(creature: CreatureState, mode: MovementMode): number {
+  let highest = 0;
+  for (const granted of creature.speedModifiers) {
+    if (granted.change === 'at-least' && granted.mode === mode) {
+      highest = Math.max(highest, granted.feet ?? 0);
+    }
+  }
+  return highest;
 }
 
 /**
@@ -7200,7 +7268,9 @@ export function hasSpeedInModeOn(state: GameState, who: CharacterId, mode: Movem
   if (
     creature.speedModifiers.some(
       (g) =>
-        (g.change === 'add' || g.change === 'only') && g.mode === mode && (g.feet ?? 0) > 0,
+        (g.change === 'add' || g.change === 'only' || g.change === 'at-least') &&
+        g.mode === mode &&
+        (g.feet ?? 0) > 0,
     )
   ) {
     return true;

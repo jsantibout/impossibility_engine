@@ -32,7 +32,7 @@ import { flightLost } from './commands/movement.js';
  *
  * | | SRD | What it writes |
  * |---|---|---|
- * | a spell, a fixed Speed | Fly, "a Fly Speed of 60 feet and can hover" | `{ change: 'add', feet: 60, mode: 'fly', hover: true }` |
+ * | a spell, a fixed Speed | Fly, "a Fly Speed of 60 feet and can hover" | `{ change: 'at-least', feet: 60, mode: 'fly', hover: true }` |
  * | a spell, the walking Speed again | Spider Climb, "a Climb Speed equal to its Speed" | `{ change: 'match-walk', mode: 'climb' }` |
  * | a feature | Second-Story Work, "a Climb Speed equal to your Speed" | the same pair on a `StandingGrant` |
  *
@@ -373,7 +373,9 @@ describe('the validator holds the pairing', () => {
     }).map((problem) => problem.code);
 
   it('accepts a fixed Speed in a mode', () => {
-    expect(codes({ kind: 'speed', change: 'add', feet: 60, mode: 'fly', hover: true })).toEqual([]);
+    expect(codes({ kind: 'speed', change: 'at-least', feet: 60, mode: 'fly', hover: true })).toEqual(
+      [],
+    );
   });
 
   it('refuses a mode nothing moves in', () => {
