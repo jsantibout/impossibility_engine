@@ -713,7 +713,7 @@ export interface Holdings {
   readonly hpMax: number;
   readonly temporaryHp: number;
   readonly dead: boolean;
-  /** `look`'s tally, the same object: see {@link ObservedDeathSaves}. */
+  /** `look`'s tally, read by the same function: see {@link ObservedDeathSaves}. */
   readonly deathSaves: ObservedDeathSaves | null;
   readonly armorClass: number;
   readonly speed: number;

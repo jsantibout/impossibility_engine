@@ -446,8 +446,10 @@ describe('the attack a Warlock forgoes', () => {
     const out = order(log, { attack: 'Fireball' }, 'sprite');
     expect(out.ok).toBe(false);
     expect(out.ok ? '' : out.code).toBe('unknown_action');
-    // Nothing written, so the same log still has the Action and the Reaction
-    // both prices are paid from: the order given properly is taken.
+    // A refusal is a value with no events in it, so nothing reaches the log
+    // and neither price is paid; the order given properly, on the same log,
+    // is taken. (The door-level proof that the log does not move is
+    // `damage-response-swing.test.ts`'s, on the same `reactionSwing` road.)
     const again = unwrap(order(log, { commandId: 'again' }, 'sprite'), 'the sword after');
     expect(again.events.some((event) => event.type === 'reaction-spent')).toBe(true);
   });
