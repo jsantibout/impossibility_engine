@@ -206,6 +206,26 @@ describe('what reaches a floor still reaches it', () => {
     expect(fly(cast(slowed, 'fly', 3))).toBe(30);
   });
 
+  /**
+   * SRD Gaseous Form: "the target's **only** method of movement is a Fly Speed
+   * of 10 feet". A replacement, and it replaces a floor exactly as it already
+   * replaces a printed Fly Speed: the 60 Fly states is not a method the cloud
+   * has. Before the floor the two summed to 70.
+   */
+  it('leaves a gaseous flier the 10 feet that are its only movement', () => {
+    const gaseous: readonly GameEvent[] = [
+      ...setup(),
+      {
+        type: 'speed-modifier-granted',
+        id: TARGET,
+        modifier: { source: 'Gaseous Form#cast:99', change: 'only', feet: 10, mode: 'fly', hover: true },
+      },
+    ];
+    const state = fold(SEED, cast(gaseous, 'fly', 3));
+    expect(speedOf(state, TARGET, 'fly')).toBe(10);
+    expect(speedOf(state, TARGET)).toBe(0);
+  });
+
   it('lets Longstrider reach the walk and not the flight, per today’s ruling', () => {
     const state = fold(SEED, cast(cast(setup(), 'fly', 3), 'longstrider', 1));
     expect(speedOf(state, TARGET)).toBe(40);
