@@ -2154,6 +2154,36 @@ const MonsterTraitMechanicSchema = z.discriminatedUnion('kind', [
   }),
   z.object({
     /**
+     * SRD Night Hag, Soul Bag: "The hag has a soul bag. … The bag has AC 15,
+     * HP 20, and Resistance to all damage."
+     *
+     * **An object a block is born holding.** Every other thing in a game exists
+     * because somebody described it or because a use spun it; this one arrives
+     * with the stat block, and the hag's Nightmare Haunting is gated on still
+     * having it. The numbers are the line's own, pinned rather than read off a
+     * table, for `raisePrintedObject`'s reason: the book has already given this
+     * thing statistics and reading a table for it would be the engine overruling
+     * the page.
+     *
+     * **The noun is the line's own word**, so nothing here names a catalogue and
+     * a homebrew block printing "reliquary" gets a reliquary. The souls inside
+     * it and the seven days before a new one are the table's, carried in
+     * `handedOver`. (W7-B11)
+     */
+    kind: z.literal('carries-printed-object'),
+    /** The line's own noun for the thing: "soul bag". */
+    noun: z.string().min(1),
+    armorClass: z.number().int().min(1),
+    hitPoints: z.number().int().min(1),
+    /**
+     * "Resistance to all damage", which the book writes as a phrase rather than
+     * a list. A flag, because there is one phrase and a list would be thirteen
+     * copies of it free to fall out of step with the glossary.
+     */
+    resistsAllDamage: z.boolean(),
+  }),
+  z.object({
+    /**
      * SRD Shadow Stealth, printed under **Bonus Actions**: "While in Dim Light
      * or Darkness, the shadow takes the Hide action."
      *
@@ -3122,6 +3152,16 @@ export const FeatureSchema = z.object({
    * downstream may branch on.
    */
   onlyInForms: z.array(z.string().regex(/^[a-z][a-z-]*$/)).min(1).optional(),
+  /**
+   * The thing this line may not be taken without, where its **heading** says so.
+   *
+   * SRD Night Hag: "Nightmare Haunting (1/Day; **Requires Soul Bag**)". The one
+   * heading in the book that carries the clause, and what it names is the noun
+   * of a `carries-printed-object` trait on the same block — the one place the
+   * thing's statistics are. Read off the name for {@link onlyInForms}' reason.
+   * (W7-B11)
+   */
+  requiresObject: z.string().min(1).optional(),
   /**
    * The flat addend this Reaction line puts on somebody's D20 Test — see
    * {@link MonsterRollAddendSchema}.

@@ -670,9 +670,9 @@ describe('the sentences that are fiction, read so the table gets them', () => {
  * **They are not the same claim as the residue beside them.** A sentence that
  * states a mechanic the engine would run the day it had one seam stays unread
  * and stays a debt: the Gelatinous Cube's Ooze Cube holds creatures inside
- * itself, the Night Hag's Soul Bag is an object with an Armour Class that
- * gates an action, and the Troll Limb's Troll Spawn rolls a d12 and puts a
- * second stat block in the fight. None of those is here.
+ * itself and the Troll Limb's Troll Spawn rolls a d12 and puts a second stat
+ * block in the fight. Neither of those is here. (The Night Hag's Soul Bag was,
+ * and it is read now: W7-B11.)
  */
 describe('the sentences that describe a world the lattice does not hold', () => {
   const worldFacts: readonly (readonly [string, string, string])[] = [
@@ -759,7 +759,11 @@ describe('the sentences that describe a world the lattice does not hold', () => 
    */
   it.each([
     ['gelatinous-cube', 'Ooze Cube'],
-    ['night-hag', 'Soul Bag'],
+    // **The Night Hag's Soul Bag left this list in W7-B11**: the thing the
+    // sentence describes is an object with an Armour Class, Hit Points and a
+    // Resistance, and `raisePrintedObject` raises it beside the hag at her
+    // arrival — so the mechanic it states is one the engine runs, and the gate
+    // on Nightmare Haunting is the `while-carrying` requirement.
     ['troll-limb', 'Troll Spawn'],
     ['succubus', 'Incubus Form'],
     ['incubus', 'Succubus Form'],

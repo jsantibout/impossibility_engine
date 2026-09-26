@@ -172,11 +172,41 @@ export interface AdaptedMonster {
    */
   readonly pools: readonly PoolDeclaration[];
   /**
+   * The objects this block **arrives holding** — SRD Night Hag's Soul Bag.
+   *
+   * Not on the sheet, and that is the reading rather than an oversight: the bag
+   * is a *thing in the game* with an Armour Class and Hit Points of its own, so
+   * it is a creature-shaped record raised beside the hag rather than a field on
+   * the hag. What the sheet carries is the **gate** — the heading's "Requires
+   * Soul Bag", compiled into a `while-carrying` requirement — and the two meet
+   * at `carriedObjectId`, which derives one id from the block's own noun.
+   *
+   * Empty for every other block in the book. (W7-B11)
+   */
+  readonly carries: readonly CarriedPrintedObject[];
+  /**
    * Entries that carried a caveat the engine cannot enforce, kept verbatim so
    * narration and the DM still have them — "Charmed (except from its vampire
    * master)" is a real restriction that no boolean captures.
    */
   readonly caveats: readonly string[];
+}
+
+/**
+ * One object a stat block arrives holding, as the line printed it.
+ *
+ * SRD Night Hag, Soul Bag: "The bag has AC 15, HP 20, and Resistance to all
+ * damage." The three numbers and the noun, and nothing derived from any of them:
+ * `raisePrintedObject` takes exactly this and pins it, which is rule 5 asked of
+ * a thing the book has already given statistics to. (W7-B11)
+ */
+export interface CarriedPrintedObject {
+  /** The line's own word for it: "soul bag". */
+  readonly noun: string;
+  readonly armorClass: number;
+  readonly hitPoints: number;
+  /** "Resistance to all damage" — the phrase the book prints, as a flag. */
+  readonly resistsAllDamage: boolean;
 }
 
 const DAMAGE_SET = new Set<string>(DAMAGE_TYPES);
@@ -2583,6 +2613,12 @@ export function adaptMonster(printed: Monster, id: CharacterId): AdaptedMonster 
       ...(line.treeStride === undefined ? {} : { treeStride: line.treeStride }),
       // And the forms the heading gates the line to, where it names any.
       ...(line.onlyInForms === undefined ? {} : { onlyInForms: [...line.onlyInForms] }),
+      // And the thing the heading says the line may not be taken without — SRD
+      // Night Hag's "Requires Soul Bag", compiled into the requirement
+      // vocabulary a standing effect is already gated by. (W7-B11)
+      ...(line.requiresObject === undefined
+        ? {}
+        : { requires: [{ kind: 'while-carrying' as const, object: line.requiresObject }] }),
     }));
 
   // **The Bonus Actions section, carried whole and executed not at all.** A
@@ -2635,6 +2671,12 @@ export function adaptMonster(printed: Monster, id: CharacterId): AdaptedMonster 
     // And the forms the heading gates it to: SRD Weretiger's Prowl is the one
     // Bonus Action in the book that prints the clause.
     ...(line.onlyInForms === undefined ? {} : { onlyInForms: [...line.onlyInForms] }),
+    // And the thing the heading requires, on this section for the reason
+    // everything else here is: a heading says what a use costs. No SRD Bonus
+    // Action prints the clause. (W7-B11)
+    ...(line.requiresObject === undefined
+      ? {}
+      : { requires: [{ kind: 'while-carrying' as const, object: line.requiresObject }] }),
   }));
 
   const stated: StatedValues = {
@@ -2722,6 +2764,22 @@ export function adaptMonster(printed: Monster, id: CharacterId): AdaptedMonster 
     // one block agree about the order and a log compares byte for byte.
     pools: [...spellPools, ...reactionPools, ...legendaryPools].sort((a, b) =>
       a.key < b.key ? -1 : a.key > b.key ? 1 : 0,
+    ),
+    // The objects the block arrives holding — SRD Night Hag's Soul Bag, and
+    // nothing else in the book. Read straight off the trait the parser read,
+    // because the numbers are the line's own and the arrival pins them.
+    // (W7-B11)
+    carries: monster.traits.flatMap((line) =>
+      line.trait?.kind === 'carries-printed-object'
+        ? [
+            {
+              noun: line.trait.noun,
+              armorClass: line.trait.armorClass,
+              hitPoints: line.trait.hitPoints,
+              resistsAllDamage: line.trait.resistsAllDamage,
+            },
+          ]
+        : [],
     ),
     // And the cast lines the adapter refused whole, for the reason it refused
     // them: an ability the block never stated, or a spell it already casts by

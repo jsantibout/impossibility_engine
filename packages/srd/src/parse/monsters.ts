@@ -946,6 +946,42 @@ const SPEED_CUT_BY_A_TYPE = new RegExp(
 );
 
 /**
+ * SRD Night Hag, Soul Bag: six sentences under one heading, of which the engine
+ * holds three.
+ *
+ * "The hag has a soul bag. While holding or carrying the bag, the hag can use
+ * its Nightmare Haunting action. The bag has AC 15, HP 20, and Resistance to all
+ * damage. The bag turns to dust if reduced to 0 Hit Points. If the bag is
+ * destroyed, any souls the bag is holding are released. The hag can create a new
+ * bag after 7 days."
+ *
+ * **What is read**: the thing exists and is the block's own from the moment it
+ * arrives; its three statistics; and that it turns to dust at 0 Hit Points,
+ * which is what `raisePrintedObject` gives every printed object anyway and is
+ * therefore consumed rather than carried. The gate on Nightmare Haunting is read
+ * a second time from the *heading* — "Requires Soul Bag" — which is where the
+ * engine acts on it, so this sentence is consumed too: two readings of one rule
+ * that agree by construction, rather than a field the door would have to look
+ * up by prose.
+ *
+ * **What goes back to the table**: the souls, and the seven days. A soul is not
+ * a thing the engine holds and "after 7 days" is a permission rather than a
+ * timer anything reads. Both are carried on the trait's own `handedOver`, the
+ * way {@link SWARM_TRAIT} carries its two space clauses, rather than taking the
+ * heading down with them.
+ *
+ * Anchored sentence by sentence and end to end, so a block printing some other
+ * run of clauses is refused whole. (W7-B11)
+ */
+const CARRIED_OBJECT_TRAIT = new RegExp(
+  `^The ${SUBJECT} has a ([a-z][a-z ]*)\\. ` +
+    `While holding or carrying the [a-z][a-z ]*, the ${SUBJECT} can use its ([A-Z][A-Za-z' -]*) action\\. ` +
+    `The [a-z][a-z ]* has AC (\\d+), HP (\\d+), and Resistance to all damage\\. ` +
+    `The [a-z][a-z ]* turns to dust if reduced to 0 Hit Points\\. ` +
+    `(If the [a-z][a-z ]* is destroyed[^.]*\\.) (The ${SUBJECT} can create a new [a-z][a-z ]* after \\d+ days\\.)$`,
+);
+
+/**
  * SRD Swarm, printed on all seven swarms: "The swarm can occupy another
  * creature's space and vice versa, and the swarm can move through any opening
  * large enough for a Tiny rat. The swarm can't regain Hit Points or gain
@@ -1562,6 +1598,24 @@ export function parseTraitShape(text: string): MonsterTrait | null {
     return {
       kind: 'regains-no-hit-points',
       handedOver: [`${swarm[1]!}.`, `${swarm[2]!}.`],
+    };
+  }
+
+  // SRD Night Hag's Soul Bag: an object the block arrives holding — see
+  // {@link CARRIED_OBJECT_TRAIT} for which of its six sentences are read and
+  // which two go back to the table. **Asked of `oneLine`**, because the book
+  // prints this trait as two paragraphs and the transcription carries the break
+  // between them; every pattern above it is one paragraph and asks of the text
+  // as it stands. (W7-B11)
+  const carried = CARRIED_OBJECT_TRAIT.exec(oneLine(text));
+  if (carried !== null) {
+    return {
+      kind: 'carries-printed-object',
+      noun: carried[1]!,
+      armorClass: Number(carried[3]),
+      hitPoints: Number(carried[4]),
+      resistsAllDamage: true,
+      handedOver: [carried[5]!, carried[6]!],
     };
   }
 
@@ -2376,6 +2430,22 @@ export function parseFormQualification(name: string): readonly string[] | null {
 }
 
 /**
+ * SRD Night Hag: "Nightmare Haunting (1/Day; **Requires Soul Bag**)". The thing
+ * a heading says its line may not be taken without, or null.
+ *
+ * {@link parseFormQualification}'s sibling and read the same way and in the same
+ * place: the book prints the clause inside the heading, which is exactly what
+ * nothing downstream may branch on, so it is read here once into a word the
+ * engine can act on. What it names is the **trait's** noun, which is the one
+ * place the object's own statistics are. One heading in the book carries it.
+ * (W7-B11)
+ */
+export function parseObjectRequirement(name: string): string | null {
+  const matched = /\(?(?:.*; )?Requires ([A-Z][A-Za-z' -]*)\)\s*$/.exec(name);
+  return matched === null ? null : matched[1]!.trim();
+}
+
+/**
  * SRD Sphinx of Wonder: "_Trigger:_ The sphinx or another creature within 30
  * feet makes an ability check or a saving throw. _Response:_ The sphinx adds 2
  * to the roll."
@@ -3093,6 +3163,10 @@ function parseFeatures(
       // the reason the recharge and the day's count are.
       const forms = parseFormLine(text);
       const onlyInForms = parseFormQualification(current.name);
+      // And the object a heading says its line may not be taken without — SRD
+      // Night Hag's "Requires Soul Bag", read off the name for the reason the
+      // form clause above it is. (W7-B11)
+      const requiresObject = parseObjectRequirement(current.name);
       // And the sixth: a line that drags toward itself what it is already
       // holding, which is `pullToward` at a heading's price.
       const pulls = parsePullLine(text);
@@ -3134,6 +3208,7 @@ function parseFeatures(
         ...(teleports === null ? {} : { teleports }),
         ...(forms === null ? {} : { forms }),
         ...(onlyInForms === null ? {} : { onlyInForms: [...onlyInForms] }),
+        ...(requiresObject === null ? {} : { requiresObject }),
         ...(pulls === null ? {} : { pulls }),
         ...(swallows === null ? {} : { swallows }),
         ...(shiftsPlane === null ? {} : { shiftsPlane }),

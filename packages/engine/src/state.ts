@@ -439,6 +439,33 @@ export const heldByObjectSource = (object: CharacterId): string => `held-by:${ob
 export const heldByObject = (source: string): CharacterId | null =>
   source.startsWith('held-by:') ? (source.slice('held-by:'.length) as CharacterId) : null;
 
+/**
+ * What the engine calls an object a **stat block arrived holding**.
+ *
+ * SRD Night Hag, Soul Bag: "The hag has a soul bag." Every other thing in a game
+ * is named by whoever described it or derived from the use that made it
+ * (`printedObjectId`); this one is named by the block and the creature, because
+ * there is one of it per creature and no use to count — the hag is born with the
+ * bag and the seven days before a second one are the table's.
+ *
+ * **Derived rather than minted**, the rule every id the engine issues keeps: a
+ * replay raises the same bag under the same name, and the requirement that gates
+ * Nightmare Haunting works the name out again instead of remembering it.
+ *
+ * **Case-folded, because the book prints the noun twice in two cases**: the
+ * trait says "a soul bag" and the heading says "Requires Soul Bag", and they are
+ * the same thing typeset two ways. What is *not* folded is the wording — a
+ * heading naming some other noun than the trait's derives a different id and the
+ * gate withholds, which is the conservative direction and the right one: two
+ * names is a block that has not said the two clauses are about one thing.
+ *
+ * Here, beside the other derivations, for their reason: the **fold** raises the
+ * object at the arrival and `standing.ts` asks after it at the gate, and nothing
+ * under `fold/` may reach a command. (W7-B11)
+ */
+export const carriedObjectId = (holder: CharacterId, noun: string): CharacterId =>
+  `${noun.trim().toLowerCase().replace(/\s+/g, '-')}:${holder}` as CharacterId;
+
 export interface CreatureState {
   readonly id: CharacterId;
   readonly name: string;

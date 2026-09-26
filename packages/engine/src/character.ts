@@ -12,6 +12,7 @@ import type {
   RecoveryFeature,
   SelfHealFeature,
   StandingEffect,
+  StandingRequirement,
   StrikeStyle,
   TradeFeature,
 } from './standing.js';
@@ -389,6 +390,22 @@ export interface StatedAction {
    * same words the block's own Shape-Shift prints its forms under.
    */
   readonly onlyInForms?: readonly string[];
+  /**
+   * What must hold of this creature for the line to be taken at all, where its
+   * **heading** says something.
+   *
+   * SRD Night Hag: "Nightmare Haunting (1/Day; **Requires Soul Bag**)", the one
+   * heading in the book that carries such a clause. The parser reads the word
+   * and the adapter compiles it into a `while-carrying` requirement — the same
+   * vocabulary a standing effect and a granted spell route are gated by, asked
+   * through the one reader `requirementsHold`, so there is no second evaluation
+   * of "does this creature still have the thing".
+   *
+   * **Not `onlyInForms` beside it**, which is the other clause a heading prints
+   * and is a different question: a form is a fact somebody *stated* about this
+   * creature, and this is a fact about something else in the room. (W7-B11)
+   */
+  readonly requires?: readonly StandingRequirement[];
   /**
    * What this line drags toward its creature, where its sentence is the
    * book's pull template — see `MonsterPullSchema`.

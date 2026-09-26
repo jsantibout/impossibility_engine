@@ -597,6 +597,11 @@ describe('the bestiary row counts blocks, and the prose it cannot read', () => {
       // trigger clause a `dashes` line has none of.
       'rampages',
       'recharge',
+      // What a heading says its line may not be taken without — SRD Night Hag's
+      // "Requires Soul Bag", read off the **name** for `recharge`'s reason and
+      // changing nothing about what "read" counts, exactly as that one does.
+      // (W7-B11)
+      'requiresObject',
       'save',
       // The two roads into the second place, read out of the sentence: SRD
       // Phase Spider's Ethereal Jaunt and SRD Giant Frog's Swallow.

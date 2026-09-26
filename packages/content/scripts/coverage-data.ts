@@ -1597,6 +1597,11 @@ export const TRAIT_KINDS_WITH_A_READER: readonly string[] = [
   'advantage-while-bloodied',
   'allies-in-emanation-have-advantage',
   'carries-as-a-larger-creature',
+  // SRD Night Hag's Soul Bag, whose reader is the arrival: `raisePrintedObject`
+  // raises the thing beside the hag with the line's own three statistics, and
+  // the heading's "Requires Soul Bag" is a `while-carrying` requirement both
+  // doors on that heading ask. (W7-B11)
+  'carries-printed-object',
   // SRD Legendary Resistance, whose reader is the `test-rolled` window: the
   // adapter compiles the trait into a Reaction that costs no Reaction, and
   // `takeTestReaction` turns the failure into a success out of the day's pool.
@@ -1684,7 +1689,6 @@ export const TRAIT_KINDS_WITH_A_READER: readonly string[] = [
  * | Berserk ×2 | a creature somebody else is playing: a d6 at the start of a turn and a compulsion that picks the golem's target for it. `a-creature-somebody-else-is-playing` |
  * | Vampire Spawn's Sunlight | a start-of-turn read against a light level. The light model states sunlight; what is missing is the boundary reader, and its second sentence is already `disadvantage-in-sunlight` |
  * | Succubus Form, Incubus Form, Troll Spawn | one stat block replaced by another, at a Long Rest or on a 24-hour timer. `assumeStatBlock` is the mechanism and Wild Shape is its one caller; what is missing is the door a *creature's own printed line* comes through, and the Troll Limb's d12 besides |
- * | Soul Bag | an object a block is born holding. `declareObject` holds a thing with an Armour Class, Hit Points and a Resistance that can be broken; nothing gives one to a creature when its stat block arrives, and the hag's Nightmare Haunting is gated on carrying it |
  * | Spider Climb (the Swarm's) | a **gate** on a kind that already has a reader: "If the swarm has a Climb Speed, the swarm can climb…". `climbs-without-a-check` is spent by `climbCheck`, so this is a field on that kind rather than a third answer — and a gate read away would be a rule nobody printed |
  * | Split ×2 | a stat block created mid-fight — two creatures in the Initiative order that did not exist a moment ago, sharing the original's Hit Points. The catalogue names the same shape for the summoning spells |
  * | Redirect Attack | a Reaction window on **being attacked**, before the roll is decided, whose response retargets the attack at somebody else. Every window the engine holds opens on a hit, and nothing can re-aim an attack that has been declared |

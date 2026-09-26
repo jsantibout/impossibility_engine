@@ -19,17 +19,18 @@
  * that against the code rather than against this sentence.
  */
 
-import { type CharacterId, err, ok, type Result } from '@ie/shared';
+import { type CharacterId, DAMAGE_TYPES, err, ok, type Result } from '@ie/shared';
 import { hasCondition } from '../conditions.js';
 import type { Monster } from '@ie/srd';
 import type { Content } from '../content.js';
 import { applyEvent, type GameEvent, type GameState } from '../events.js';
-import type { CommandStamp } from '../state.js';
+import { carriedObjectId, type CommandStamp } from '../state.js';
 import type { ControlledBond, KeptBond } from '../state.js';
 import { type CommandIdentity, once } from '../idempotency.js';
 import { addCombatant } from '../combat.js';
 import {
   adaptMonster,
+  type CarriedPrintedObject,
   hasPrintedTrait,
   type PrintedSpeedMode,
   resolveSummonerMarks,
@@ -42,6 +43,7 @@ import { applyDamageToVitals, damagePastThreshold, healingRuleOf, isDown } from 
 import type { Recovery } from '../resources.js';
 import { creatureOf, unknownCreature, ZERO_HIT_POINTS } from './command.js';
 import { settleHoldsInvolving } from './holds.js';
+import { raisePrintedObject } from './objects.js';
 
 export interface AddCreatureOutcome {
   readonly events: readonly GameEvent[];
@@ -143,7 +145,7 @@ export function addCreature(
         return err('unknown_monster', `${monsterId} is not a stat block this world holds`);
       }
 
-      return ok(arrivalOf(id, monster, stamp, false));
+      return ok(arrivalOf(state, id, monster, stamp, false));
     },
   );
 }
@@ -163,7 +165,46 @@ export function addCreature(
  * absence is pinned as an absence rather than as a placeholder a type-gated
  * spell would then believe.
  */
+/**
+ * The objects a stat block arrives holding, raised in the arrival's own batch.
+ *
+ * SRD Night Hag's Soul Bag is the whole population. `raisePrintedObject` is the
+ * door — a thing the book has already given an Armour Class, Hit Points and a
+ * Resistance to, so nothing is read off a table — and the one thing this adds to
+ * it is the **id**: `carriedObjectId`, derived from the block's own noun and the
+ * creature, which is what a `while-carrying` requirement derives again at the
+ * moment it is asked.
+ *
+ * **Resistance to all damage is the thirteen types the glossary names**, filled
+ * in here rather than carried as a list on the line: the phrase the book prints
+ * is "Resistance to all damage", and thirteen strings on the record would be a
+ * copy of the glossary free to fall out of step with it.
+ *
+ * **A thing already in the game under that id raises nothing**, which is the
+ * only refusal `raisePrintedObject` has and the one honest answer to it here: a
+ * second hag under the same id is refused by `addCreature` before this runs, and
+ * a bag somebody declared by hand under exactly this derived name is a thing the
+ * table put there. So the branch is skipped rather than made an error nobody
+ * could act on. (W7-B11)
+ */
+function carriedObjectsOf(
+  state: GameState,
+  id: CharacterId,
+  carries: readonly CarriedPrintedObject[],
+): readonly GameEvent[] {
+  return carries.flatMap((thing) => {
+    const raised = raisePrintedObject(state, carriedObjectId(id, thing.noun), {
+      name: `${thing.noun} (${id})`,
+      armorClass: thing.armorClass,
+      hitPoints: thing.hitPoints,
+      ...(thing.resistsAllDamage ? { resistances: [...DAMAGE_TYPES] } : {}),
+    });
+    return raised.ok ? raised.value : [];
+  });
+}
+
 function arrivalOf(
+  state: GameState,
   id: CharacterId,
   monster: Monster,
   stamp: CommandStamp | null,
@@ -220,6 +261,16 @@ function arrivalOf(
             id,
             pool,
           })),
+          // **And the object the block arrived holding** — SRD Night Hag's
+          // Soul Bag, the one line in the book that gives a creature a thing
+          // with statistics of its own before anybody has described anything.
+          // It arrives in the same batch as the creature, because the hag has
+          // the bag from the moment the hag exists: `raisePrintedObject` is the
+          // same door a Giant Spider's web comes through and the numbers are
+          // the line's own, pinned rather than read off a table. Its id is
+          // `carriedObjectId`, derived from the noun and this creature, which
+          // is what `while-carrying` works out again at the gate. (W7-B11)
+          ...carriedObjectsOf(state, id, adapted.carries),
         ] satisfies GameEvent[],
         // **Withheld and reported, never applied.** "Charmed (except from its
         // vampire master)" as a flat immunity makes the vampire unable to
@@ -546,7 +597,7 @@ export function summonCreature(
             ? addCreature(state, content, id, monsterId)
             : creatureOf(state, id) !== null
               ? err('already_present', `${id} is already in this game`)
-              : ok(arrivalOf(id, block.monster, null, block.untyped === true));
+              : ok(arrivalOf(state, id, block.monster, null, block.untyped === true));
       if (!arrival.ok) return arrival;
 
       // The one event this command always emits, so the stamp rides it rather
@@ -674,7 +725,7 @@ function arrivalResolved(
     return err('unknown_monster', `${monsterId} is not a stat block this world holds`);
   }
   const resolved = resolveSummonerMarks(printed, numbers);
-  const arrival = arrivalOf(id, resolved.monster, null, block?.untyped === true);
+  const arrival = arrivalOf(state, id, resolved.monster, null, block?.untyped === true);
   return ok({ ...arrival, unverified: [...arrival.unverified, ...resolved.caveats] });
 }
 

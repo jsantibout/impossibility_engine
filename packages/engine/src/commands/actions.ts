@@ -61,10 +61,12 @@ import {
   canSee,
   conditionImmunitiesOf,
   effectiveConditions,
+  requirementsHold,
   rollModesFor,
   sheetAsItStands,
   speedOf,
   standingFor,
+  type StandingRequirement,
 } from '../standing.js';
 import { checkBonuses, recordD20Test, spentRollModifiers } from './rolls.js';
 import {
@@ -591,6 +593,38 @@ function grantsOfPrintedLine(
  * is named changes nothing mechanical and it is reported, so a stable order is
  * what keeps two replays from reading differently.
  */
+/**
+ * Why this creature may not take the line its heading put a condition on, or
+ * null.
+ *
+ * SRD Night Hag: "Nightmare Haunting (1/Day; **Requires Soul Bag**)", which is
+ * the one heading in the book that prints one. `requirementsHold` is the reader
+ * — the same one a standing effect, a strike style and a granted spell route are
+ * asked through — so "does this creature still have the thing" has exactly one
+ * answer however it is asked.
+ *
+ * The **source** handed to it is the line's own name, which is what
+ * `while-worn` and `while-attuned` would look an item up by. Neither of those is
+ * a requirement a heading can carry, so nothing reads it here; a homebrew
+ * heading that asked for one would withhold rather than grant, which is the
+ * conservative direction `requirementsHold` already documents.
+ *
+ * The reason names the requirement in the book's own words where it can, because
+ * a caller told only "unmet" cannot go and do anything about it. (W7-B11)
+ */
+function missingRequirementFor(
+  state: GameState,
+  id: CharacterId,
+  line: { readonly name: string; readonly requires?: readonly StandingRequirement[] },
+): string | null {
+  if (line.requires === undefined || line.requires.length === 0) return null;
+  if (requirementsHold(state, id, line.requires, line.name)) return null;
+  const carrying = line.requires.find((one) => one.kind === 'while-carrying');
+  return carrying === undefined
+    ? `${line.name} states a condition ${id} does not meet`
+    : `${line.name} requires ${carrying.object}, and ${id} has none`;
+}
+
 function bloodiedByThisTurn(state: GameState, id: CharacterId): CharacterId | null {
   for (const key of Object.keys(state.creatures).sort()) {
     const hurt = state.creatures[key]?.lastDamage ?? null;
@@ -895,6 +929,13 @@ export function takeStatedAction(
       // refusal with a footprint.
       const wrongForm = wrongFormFor(creature, line);
       if (wrongForm !== null) return err('wrong_form', wrongForm);
+
+      // **And a line the heading says needs something.** SRD Night Hag:
+      // "Nightmare Haunting (1/Day; Requires Soul Bag)", asked through the one
+      // reader every standing requirement is asked through, and in the same
+      // position and for the same reason as the form above it. (W7-B11)
+      const missing = missingRequirementFor(state, id, line);
+      if (missing !== null) return err('requirement_unmet', missing);
 
       // **A line already used and not yet back.** Before the economy, because
       // a refusal after the Action is gone is a refusal with a footprint — the
@@ -2519,6 +2560,12 @@ export function takePrintedPull(
 
       const wrongForm = wrongFormFor(creature, line);
       if (wrongForm !== null) return err('wrong_form', wrongForm);
+
+      // And what the heading requires, asked here for the reason the form is:
+      // the two doors on one heading must not disagree about whether it may be
+      // taken. (W7-B11)
+      const missing = missingRequirementFor(state, id, line);
+      if (missing !== null) return err('requirement_unmet', missing);
 
       const recharge = line.recharge ?? null;
       if (creature.expendedLines.includes(line.name)) {
