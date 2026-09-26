@@ -39,6 +39,7 @@ import { declaredCasting } from './spellcasting.js';
 import { canSee, seesThroughOf, sensesOf, sensesPerceiving } from './standing.js';
 import type { StandingEffect } from './standing.js';
 import {
+  activateFeature,
   addCreature,
   advanceTime,
   assumeShape,
@@ -389,6 +390,26 @@ describe('a Druid in a Wolf’s shape', () => {
 
     const back = [...wolf, ...must(revertShape(inForm, DRUID, {}), 'revert')];
     expect(darkvisionOf(fold('senses', back) as GameState, DRUID)).toBe(120);
+  });
+
+  it('does not keep a species sense that was switched on, either', () => {
+    // SRD Stonecunning: "As a Bonus Action, you gain Tremorsense with a range
+    // of 60 feet for 10 minutes." A species trait, active when the form is
+    // taken — and the form keeps no species trait, running or not.
+    const tremorsenseOf = (state: GameState) =>
+      sensesOf(state, DRUID).find((sense) => sense.sense === 'tremorsense')?.feet;
+    const before = glade(dwarf());
+    const sensing = [
+      ...before,
+      ...must(
+        activateFeature(fold('senses', before) as GameState, DRUID, { feature: 'dwarf:stonecunning' }, SRD_CONTENT),
+        'Stonecunning',
+      ),
+    ];
+    expect(tremorsenseOf(fold('senses', sensing) as GameState)).toBe(60);
+
+    const wolf = shifted(sensing);
+    expect(tremorsenseOf(fold('senses', wolf) as GameState)).toBeUndefined();
   });
 
   it('keeps a sense that is not a species trait, and a sheet pinned before the mark keeps all of its own', () => {

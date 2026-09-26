@@ -3757,6 +3757,10 @@ export function planCharacter(
         reach: { kind: 'self' },
         grant: effect,
         requires: [{ kind: 'feature-active', feature: feature.id }],
+        // SRD Stonecunning's Tremorsense is a species trait switched on, and
+        // Wild Shape's retained list does not keep it any more than it keeps
+        // the Darkvision beside it. See `StandingEffect.speciesTrait`.
+        ...(speciesTraits.has(feature.id) ? { speciesTrait: true as const } : {}),
       });
     }
   }

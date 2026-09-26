@@ -3032,7 +3032,9 @@ function withoutFields<K extends keyof CharacterSheet>(
  * and Charisma scores; class features; languages; and feats": the type and
  * the hit points are not on a sheet and stay where they are; the scores the
  * grant names are the holder's; every compiled feature list is the holder's,
- * and the block's own printed rules stand beside them. "You also retain your
+ * less the senses a species trait grants, which the list does not keep and
+ * the block's Senses line replaces, and the block's own printed rules stand
+ * beside them. "You also retain your
  * skill and saving throw proficiencies and use your Proficiency Bonus for
  * them, in addition to gaining the proficiencies of the creature. If a skill
  * or saving throw modifier in the Beast's stat block is higher than yours, use
