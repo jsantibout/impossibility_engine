@@ -13,6 +13,7 @@ import { declaredCasting } from './spellcasting.js';
 import { walkerOf } from './state.js';
 import {
   advanceTime,
+  eligibleTargets,
   pendingCastingsOf,
   removeCreatureEverywhere,
   resolveDeclaredCast,
@@ -275,6 +276,54 @@ describe('a character’s corpse rises and keeps its record', () => {
     expect(g.state.creatures[zombie]?.summonedBy).toBeNull();
     expect(walkerOf(g.state, SER)).toBe(zombie);
     expect(code(g.cast(CLERIC, 'revivify'))).toBe('body_walks');
+    expect(code(g.cast(PRIEST, 'animate-dead'))).toBe('body_walks');
+    expect(code(g.cast(PRIEST, 'gentle-repose'))).toBe('body_walks');
+  });
+
+  /**
+   * The two spells whose target rule asks for a corpse ask it here, before a
+   * slot is spent or a rite begins: the body is dead and is still not a corpse
+   * anybody can reach, and a request for where it lies would send the caller
+   * to place a body that is walking about.
+   */
+  it('refuses a second Animate Dead on her before the rite begins', () => {
+    const g = new Game();
+    unwrap(g.animate(), 'the rite');
+    const refused = g.cast(PRIEST, 'animate-dead');
+    expect(code(refused)).toBe('body_walks');
+    expect(g.spent(PRIEST, 3)).toBe(0);
+    expect(pendingCastingsOf(g.state)).toEqual([]);
+  });
+
+  it('refuses Gentle Repose on her before the slot is spent', () => {
+    const g = new Game();
+    unwrap(g.animate(), 'the rite');
+    expect(code(g.cast(PRIEST, 'gentle-repose'))).toBe('body_walks');
+    expect(g.spent(PRIEST, 2)).toBe(0);
+  });
+
+  it('leaves her off the shortlist of a spell cast on a corpse, saying why', () => {
+    const g = new Game();
+    unwrap(g.animate(), 'the rite');
+    const offered = eligibleTargets(g.state, homebrew, PRIEST, 'gentle-repose', 2);
+    expect(offered.eligible).not.toContain(SER);
+    expect(offered.excluded.find((one) => one.target === SER)?.reason).toMatch(/walking about/);
+  });
+});
+
+describe('a body Gentle Repose keeps', () => {
+  /**
+   * SRD Gentle Repose: "For the duration, the target is protected from decay
+   * and can't become Undead." Asked before the rite begins, so the slot is
+   * not spent on a body the book says cannot rise.
+   */
+  it('refuses Animate Dead before the rite begins', () => {
+    const g = new Game();
+    unwrap(g.cast(PRIEST, 'gentle-repose'), 'the repose');
+    const refused = g.cast(CLERIC, 'animate-dead');
+    expect(code(refused)).toBe('cannot_become_undead');
+    expect(g.spent(CLERIC, 3)).toBe(0);
+    expect(pendingCastingsOf(g.state)).toEqual([]);
   });
 });
 

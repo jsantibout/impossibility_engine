@@ -283,9 +283,9 @@ const keepsItsRecord = (body: CreatureState): boolean => body.character !== null
  * cannot be raised twice for a different reason: while that creature stands
  * the body walks (`body_walks`), and when it falls the fold lays the body
  * where it fell (`layBodiesWhereWalkersFell`). A body a running Gentle Repose
- * keeps is refused `cannot_become_undead`. Both are asked here, where the
- * rule lives, which is what refuses a rite declared before the fact that
- * refuses it.
+ * keeps is refused `cannot_become_undead`. Both are asked by the pre-flight,
+ * before the slot or the rite, and again here, where the rule lives — which is
+ * what refuses a rite declared before the fact that refuses it.
  *
  * **A creature the caster already controls through this spell is renewed,
  * not raised.** "This use of the spell reasserts your control": the bond
@@ -334,9 +334,10 @@ export function resolveRaiseEffect(
       throw new Error(`${name}: ${target} is alive and not ${casterId}'s; the target rule should have refused it`);
     }
 
-    // Where the rule lives, and the one reading that reaches a rite declared
-    // before the fact that refuses it — a body another rite raised first, a
-    // Gentle Repose laid during the minute.
+    // The pre-flight asked both before anything was spent; asked again here,
+    // where the rule lives, for a rite declared before the fact that refuses
+    // it — a body another rite raised first, a Gentle Repose laid during the
+    // minute.
     const walking = walkingBodyProblem(current, target, name);
     if (!walking.ok) return walking;
     const kept = undeadForbiddenProblem(current, target, name);

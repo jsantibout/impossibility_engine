@@ -74,7 +74,7 @@ import { type SlotlessReason } from '../spells.js';
 import { type ConcentrationConsequence } from './casting.js';
 import { type CastingResolution } from './casting-options.js';
 import { creatureOf, unknownCreature } from './command.js';
-import { dyingProblem } from './spell-effect-creatures.js';
+import { dyingProblem, walkingBodyProblem } from './spell-effect-creatures.js';
 
 /** What happened to one target of one casting. */
 export interface SpellTargetOutcome {
@@ -2718,6 +2718,13 @@ export function namedTargets(
         }`,
       );
     }
+    // And a body a creature walks about in is dead and still not a corpse —
+    // `walkingBodyProblem`. Here rather than after the ruler, so a body that is
+    // off the map because it is walking is refused rather than asked after.
+    if (!reasserting && definition.targets.mustBeDead === true) {
+      const walking = walkingBodyProblem(state, target, definition.name);
+      if (!walking.ok) return walking;
+    }
 
     // A creature is always within reach of itself and can always see itself,
     // so a touch laid on the caster's own hand — SRD Light on the torch they
@@ -3071,6 +3078,14 @@ export function eligibleTargets(
     }
     if (!reasserting && definition.targets.mustBeDead === true && !target.vitals.dead) {
       excluded.push({ target: target.id, reason: `${target.name} is alive` });
+      continue;
+    }
+    // The same reading the cast takes of a body something walks about in.
+    const walking = definition.targets.mustBeDead === true && !reasserting
+      ? walkingBodyProblem(state, target.id, definition.name)
+      : null;
+    if (walking !== null && !walking.ok) {
+      excluded.push({ target: target.id, reason: walking.reason });
       continue;
     }
     // SRD Spare the Dying: "0 Hit Points and isn't dead". The same reading the

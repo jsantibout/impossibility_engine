@@ -68,9 +68,11 @@ export function preservedSpan(state: GameState, target: CharacterId, diedAt: num
  * body that is not lying anywhere to be touched. Read off {@link walkerOf},
  * so the answer moves the moment the walker falls or leaves.
  *
- * Asked by {@link reviveProblem}, so Revivify's pre-flight refuses before the
- * slot is spent, and by the raising and preserving resolvers, which is what
- * reaches a rite declared before the body rose.
+ * Asked where each of those spells asks whether its target is a corpse — the
+ * target rule's `mustBeDead` at the cast and in the shortlist, and
+ * {@link reviveProblem} — so the refusal costs nothing; and again in the
+ * raising and preserving resolvers, which is what reaches a rite declared
+ * before the body rose.
  */
 export function walkingBodyProblem(state: GameState, target: CharacterId, name: string): Result<true> {
   const walker = walkerOf(state, target);
