@@ -7408,20 +7408,24 @@ export const DETECT_THOUGHTS: SpellDefinition = {
  * stated fact, `OngoingSpell.option` pins it, and this definition has two
  * branches to hang the clauses on.
  *
- * **What is left is every clause inside them, and each waits on its own
- * shape.** The Advantage or Disadvantage on Strength checks and Strength
- * saving throws is *not* the easy `roll-mode` that paragraph claimed: SRD
- * names an ability check **and** a saving throw in one breath and a
- * `RollSelector` says one family. The size change is a fact the engine holds
- * authoritatively and nothing writes over one for a duration — the twin of
- * the creature type a spell overrides, which is built. And the ±1d4 on a hit
- * is damage with no type of its own on one side and a penalty on a damage roll
- * on the other. Each branch says so in its own `unmodelled` list.
+ * **And every clause inside them is built now, each on the shape it waited
+ * for.** The Advantage or Disadvantage on Strength checks and Strength saving
+ * throws is two `mode` riders — SRD names an ability check **and** a saving
+ * throw in one breath, and a `RollSelector` says one family, so the sentence
+ * is written twice and the pair is the book's. The size change is a `size`
+ * rider: a *step* hung as a sourced grant, the twin of the creature-type Mask,
+ * read by `effectiveSizeOf` over whatever size the creature otherwise has and
+ * given back through every door that ends a grant. The extra 1d4 is a
+ * `later-blow` rider with no type of its own — the weapon's, as SRD Magic
+ * Weapon's plus is — reaching weapons and Unarmed Strikes and never a spell;
+ * and the −1d4 is the `damage-penalty` rider Ray of Enfeeblement writes, with
+ * the floor of 1 the parenthesis prints.
  *
- * **The Constitution save is not rolled either**, and the reason is the three
- * above: a saving throw whose failure imposes no condition and hangs no rider
- * is a die thrown for nothing, which the definition validator refuses rather
- * than accepts.
+ * **The Constitution save is rolled, and only for a creature that objects.**
+ * "If the target is an unwilling creature, it can make a Constitution saving
+ * throw" is `unlessWilling`, read for the first time inside a branch: one
+ * consent clause over two branches that each carry the save it gates, because
+ * a save in the common list would be one roll no branch could read.
  *
  * The Potion of Growth is the other end of that: the bottle **makes** the
  * choice, so the conferral writes the enlarge branch and nothing is guessed.
@@ -7436,34 +7440,88 @@ export const ENLARGE_REDUCE: SpellDefinition = {
   range: { kind: 'ranged', feet: 30 },
   targets: { count: 1, self: true },
   requiresSight: true,
+  // **Empty, and the save is in each branch.** "If the target is an unwilling
+  // creature, it can make a Constitution saving throw. On a successful save,
+  // the spell has no effect" is one roll per casting whichever half was
+  // chosen, and a save in the common list would be a roll whose outcome the
+  // branch could not read — the rule `SpellDefinition.options` states.
   effects: [],
-  // "see the chosen effect below": two branches, and the shell of them is what
-  // this definition is. Every clause inside either branch is filed rather than
-  // built — see each branch's own lines — and what changes is that there is
-  // now somewhere to hang them when those shapes land, and that the casting
-  // records which half was chosen.
   options: {
     enlarge: {
       label: 'Enlarge',
-      unmodelled: [
-        'the size increase is not applied: "The target’s size increases by one category—from Medium to Large, for example" writes over a fact the engine holds authoritatively and reads for sharing a space, passing through and what a template catches. It is the twin of the creature type a spell overrides, which is built: that one is a mask a grant hangs and gives back, and a size has no such reader',
-        'the Advantage on Strength checks and Strength saving throws is not granted: one modifier cannot say both families, and the two rolls the sentence names are an ability check and a saving throw',
-        'the extra 1d4 on a hit is not hung: "attacks with its enlarged weapons or Unarmed Strikes deal an extra 1d4 damage" is damage with no type of its own, so it is the weapon’s, and the rider that hangs a notation on a later attack names a type beside it',
+      effects: [
+        {
+          kind: 'save',
+          ability: 'con',
+          // "If the target is an unwilling creature": the save is offered to
+          // the creature that objects and to nobody else.
+          unlessWilling: true,
+          modifiers: [
+            // "The target's size increases by one category".
+            { kind: 'size', steps: 1 },
+            // "Advantage on Strength checks and Strength saving throws": two
+            // rolls named in one clause, so two selectors.
+            {
+              kind: 'mode',
+              modifier: {
+                mode: 'advantage',
+                selector: { roll: 'ability-check', relation: 'roller', ability: 'str' },
+              },
+            },
+            {
+              kind: 'mode',
+              modifier: {
+                mode: 'advantage',
+                selector: { roll: 'saving-throw', relation: 'roller', ability: 'str' },
+              },
+            },
+            // "attacks with its enlarged weapons or Unarmed Strikes deal an
+            // extra 1d4 damage on a hit": no type, so the weapon's own, and
+            // never a spell's.
+            { kind: 'later-blow', dice: '1d4', weaponOrUnarmedOnly: true, by: 'target' },
+          ],
+        },
       ],
     },
     reduce: {
       label: 'Reduce',
-      unmodelled: [
-        'the size decrease is not applied, for the reason the increase is not: "decreases by one category—from Medium to Small, for example" is a fact the engine holds and nothing lets an effect write over one for a duration',
-        'the Disadvantage on Strength checks and Strength saving throws is not granted, for the reason the Advantage is not',
-        'the subtraction on a hit is not hung: "deal 1d4 less damage on a hit (this can’t reduce the damage below 1)" is a penalty on a damage roll, and nothing a spell grants reaches a damage roll at all',
+      effects: [
+        {
+          kind: 'save',
+          ability: 'con',
+          unlessWilling: true,
+          modifiers: [
+            // "The target's size decreases by one category".
+            { kind: 'size', steps: -1 },
+            {
+              kind: 'mode',
+              modifier: {
+                mode: 'disadvantage',
+                selector: { roll: 'ability-check', relation: 'roller', ability: 'str' },
+              },
+            },
+            {
+              kind: 'mode',
+              modifier: {
+                mode: 'disadvantage',
+                selector: { roll: 'saving-throw', relation: 'roller', ability: 'str' },
+              },
+            },
+            // "deal 1d4 less damage on a hit (this can't reduce the damage
+            // below 1)".
+            { kind: 'damage-penalty', dice: '1d4', floor: 1 },
+          ],
+        },
       ],
     },
   },
   durationSeconds: 60,
-  unmodelled: [
-    'the Constitution saving throw an unwilling target makes is not rolled: what a failure would impose is the three clauses each branch files above, and a saving throw that decides nothing is a die thrown for nothing — which the definition validator refuses rather than accepts',
-    'the gear changing size with the target, and a thrown weapon returning to normal after it hits or misses, are the DM’s',
+  // The gear and the thrown weapon are fiction the engine holds nothing of,
+  // handed over in the book's words.
+  dmDecides: [
+    'Everything that a targeted creature is wearing and carrying changes size with it.',
+    'Any item it drops returns to normal size at once.',
+    'A thrown weapon or piece of ammunition returns to normal size immediately after it hits or misses a target.',
   ],
 };
 

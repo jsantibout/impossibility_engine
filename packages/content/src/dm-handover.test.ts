@@ -413,6 +413,11 @@ describe('the catalogue hands over exactly the text it means to', () => {
       'dream',
       'druidcraft',
       'elementalism',
+      // SRD Enlarge/Reduce's gear: 'Everything that a targeted creature is
+      // wearing and carrying changes size with it', the dropped item and the
+      // thrown weapon — fiction the engine holds nothing of, beside four
+      // clauses it executes whole.
+      'enlarge-reduce',
       // SRD Fear's compelled Dash — 'moves away from you by the safest route
       // ... unless there is nowhere to move' — under the ruling that a
       // compulsion is adjudicated and never performed: the Action is narrowed

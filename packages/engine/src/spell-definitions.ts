@@ -898,8 +898,25 @@ export type ModifierRider =
       readonly kind: 'later-blow';
       /** The extra dice the sentence prints, e.g. `1d8`. */
       readonly dice: string;
-      /** The type it prints: Bestow Curse's Necrotic. */
-      readonly damageType: string;
+      /**
+       * The type it prints: Bestow Curse's Necrotic.
+       *
+       * **Absent is the blow's own type.** SRD Enlarge/Reduce: "deal an extra
+       * 1d4 damage on a hit" — damage with no type of its own, so it is the
+       * weapon's, exactly as SRD Magic Weapon's plus is; `standingAttackDamage`
+       * files an untyped rider beside the bonuses of the blow's own type and a
+       * typed one beside the extra components, which is the same fork a
+       * feature's `attack-damage` grant already takes.
+       */
+      readonly damageType?: string;
+      /**
+       * SRD Enlarge/Reduce: "The target's attacks with its enlarged **weapons
+       * or Unarmed Strikes**". Every attack roll but a spell's — where SRD
+       * Divine Favor's `weaponOnly` reaches weapons alone and SRD Hunter's Mark
+       * reaches a Fire Bolt too. Read by `grantedAttackRiders` off the one
+       * fact that tells the roads apart: the spell attack says it is one.
+       */
+      readonly weaponOrUnarmedOnly?: true;
       /**
        * SRD's "with an attack roll **or a spell**".
        *
@@ -909,6 +926,18 @@ export type ModifierRider =
        * is read and where the two roads a blow can take are told apart.
        */
       readonly alsoSpells?: true;
+      /**
+       * Whose later blows carry the die.
+       *
+       * Absent is the **caster's**, which is what SRD Hunter's Mark, SRD Hex
+       * and SRD Bestow Curse all print — "whenever **you** hit it" — and the
+       * reason `resolveAttackRiderEffect` has always hung the die on the
+       * caster and marked the target. SRD Enlarge/Reduce prints the other
+       * sentence: "**The target's** attacks … deal an extra 1d4", so the
+       * grant lands on the target and marks nobody. One field, because the
+       * book prints exactly these two subjects.
+       */
+      readonly by?: 'target';
     }
   | {
       readonly kind: 'bonus';
@@ -1013,6 +1042,28 @@ export type ModifierRider =
       readonly lasts?: RiderDuration;
       /** Whose roll it is about, where the sentence narrows it to one creature. */
       readonly counterpart?: CounterpartRole;
+    }
+  /**
+   * A size the same roll moves by a category.
+   *
+   * SRD Enlarge/Reduce: "The target's size increases by one category — from
+   * Medium to Large, for example" and "decreases by one category". One
+   * Constitution save gates four clauses on each branch, so this is a rider
+   * like the modes and the die beside it, and writing the size as an effect of
+   * its own would roll a second save for one sentence.
+   *
+   * **A step, not a size**, and a sourced grant rather than a write:
+   * `GrantedSize` in `size.ts` is the Mask's twin over the other fact a
+   * creature is, `effectiveSizeOf` reads it over whatever size otherwise
+   * stood, and every door that ends a grant gives the size back. It carries no
+   * `lasts`, for `bonus`'s reason: the one sentence in reach runs for the
+   * casting's duration, and `checkGrantLifetimes` refuses it on an
+   * Instantaneous host rather than offering a deadline nothing asks for.
+   */
+  | {
+      readonly kind: 'size';
+      /** `1` for Enlarge, `-1` for Reduce; the book prints one category either way. */
+      readonly steps: 1 | -1;
     }
   /**
    * A Speed the same roll changes.
@@ -7098,8 +7149,14 @@ export function statesFoughtFact(definition: SpellDefinition): boolean {
  * rather than leaving that to be discovered.
  */
 export function offersAnUnwillingSave(definition: SpellDefinition): boolean {
-  return definition.effects.some(
-    (effect) => effect.kind === 'save' && effect.unlessWilling === true,
+  // **The casting's own list and its branches**, for {@link dropsAnObject}'s
+  // reason: a branch resolves at the casting with the request in hand, and
+  // SRD Enlarge/Reduce prints one consent clause over two branches that each
+  // carry the save it gates. An area trigger's or an activation's list is
+  // still excluded, because those fire later off a record that holds no
+  // such fact.
+  return [definition.effects, ...optionEffectLists(definition)].some((effects) =>
+    effects.some((effect) => effect.kind === 'save' && effect.unlessWilling === true),
   );
 }
 

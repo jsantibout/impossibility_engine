@@ -409,7 +409,11 @@ export function applyRiders(
     // `resolveAttackRiderEffect` has always had and for the same SRD reason:
     // SRD Hunter's Mark marks a quarry ninety feet away and the extra die is
     // the ranger's.
-    held.add(modifier.kind === 'later-blow' ? casterId : target);
+    // **Unless the sentence names the target's blows** — SRD Enlarge/Reduce's
+    // "The target's attacks" — in which case the die is the target's and marks
+    // nobody. See `ModifierRider.later-blow.by`.
+    const ownBlows = modifier.kind === 'later-blow' && modifier.by === 'target';
+    held.add(modifier.kind === 'later-blow' && !ownBlows ? casterId : target);
     const granted: GameEvent =
       // SRD Bestow Curse's fourth face: "If you deal damage to the target with
       // an attack roll or a spell, the target takes an extra 1d8 Necrotic
@@ -426,18 +430,31 @@ export function applyRiders(
       modifier.kind === 'later-blow'
         ? {
             type: 'attack-rider-granted',
-            id: casterId,
+            id: ownBlows ? target : casterId,
             rider: {
               source,
               dice: modifier.dice,
-              damageType: modifier.damageType,
+              // Absent is the blow's own type — see `GrantedAttackRider.damageType`.
+              ...(modifier.damageType === undefined ? {} : { damageType: modifier.damageType }),
               // "**to the target**": the creature this outcome settled on, so
               // the rider needs no `marksTarget` of its own — a rider hung on
               // an outcome is always about the creature that outcome was
-              // about.
-              target,
+              // about. A die on the target's *own* blows marks nobody: it
+              // rides whatever the enlarged fighter hits.
+              ...(ownBlows ? {} : { target }),
               ...(modifier.alsoSpells === undefined ? {} : { alsoSpells: modifier.alsoSpells }),
+              ...(modifier.weaponOrUnarmedOnly === undefined
+                ? {}
+                : { weaponOrUnarmedOnly: modifier.weaponOrUnarmedOnly }),
             },
+          }
+      // SRD Enlarge/Reduce's "increases by one category": the Mask's twin,
+      // a step hung under the casting's source and read by `effectiveSizeOf`.
+      : modifier.kind === 'size'
+        ? {
+            type: 'size-overridden',
+            id: target,
+            size: { source, steps: modifier.steps },
           }
       // SRD Ray of Enfeeblement: "it also subtracts 1d8 from all its damage
       // rolls." The payload is assembled by `damagePenaltyGranted`, beside the

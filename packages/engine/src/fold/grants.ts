@@ -51,6 +51,7 @@ export const GRANTS_EVENTS = [
   'weapon-rider-granted',
   'condition-immunity-granted',
   'creature-type-masked',
+  'size-overridden',
   'printed-line-immunity-granted',
   'turn-payout-granted',
   'creature-attached',
@@ -377,6 +378,18 @@ export function applyGrants({ state, next }: Applying, event: GrantsEvent): Game
         event.mask,
       ].sort((a, b) => (a.source < b.source ? -1 : a.source > b.source ? 1 : 0));
       return withCreature(next, event.id, { creatureTypeMasks }, creature);
+    }
+
+    case 'size-overridden': {
+      const creature = creatureOf(state, event, event.id);
+      // Re-granting from the same source replaces rather than stacking, the
+      // rule every grant in this family follows; two castings are two sources
+      // and two steps, which is what `overriddenSizeOf` sums.
+      const sizeOverrides = [
+        ...creature.sizeOverrides.filter((held) => held.source !== event.size.source),
+        event.size,
+      ].sort((a, b) => (a.source < b.source ? -1 : a.source > b.source ? 1 : 0));
+      return withCreature(next, event.id, { sizeOverrides }, creature);
     }
 
     case 'printed-line-immunity-granted': {

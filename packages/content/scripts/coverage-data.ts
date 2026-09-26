@@ -231,6 +231,13 @@ export const VERIFIED_SPELLS: readonly string[] = [
   'divine-smite',
   'eldritch-blast',
   'enhance-ability',
+  // `enlarge-reduce.test.ts` (engine): the fighter Large to every reader and
+  // to the map and Medium again when the Concentration is let go, Advantage
+  // on a Strength save and check and not on a Dexterity save, a longsword hit
+  // a die heavier off one seed; Reduced, the reverse and a hit a die lighter
+  // and never below one; a goblin that makes the Constitution save left as it
+  // was and one that fails it shrunk; a willing target offered no die.
+  'enlarge-reduce',
   // `filtered-catch.test.ts`: the 20-foot square, the caster left standing in
   // their own plants, the Strength save, the Athletics escape freeing one
   // creature and not the rest, the Concentration ending releasing everybody,

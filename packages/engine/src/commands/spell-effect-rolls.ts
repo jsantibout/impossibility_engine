@@ -545,7 +545,15 @@ function resolveOneAttackRoll(
   // `standingAttackDamage`, because the *feature* half beside it is weapon
   // rules — Sneak Attack and Rage Damage — and a spell attack must not take
   // them.
-  const carried = grantedAttackRiders(current.creatures[casterId], { weapon: null, target });
+  // **And says it is a spell attack**, which is the one fact that keeps SRD
+  // Enlarge/Reduce's "weapons or Unarmed Strikes" die off a Fire Bolt. A
+  // rider that names no type is of the blow's own, and on this road the blow's
+  // own is the spell's.
+  const carried = grantedAttackRiders(current.creatures[casterId], {
+    weapon: null,
+    target,
+    spellAttack: true,
+  }).map((rider) => ({ ...rider, type: rider.type ?? effect.damageType }));
   const declared = dieEffectsOf(ctx);
   // A critical doubles the dice, which is `rollAttackDamage`'s job, so
   // this one call keeps the weapon-shaped signature rather than going

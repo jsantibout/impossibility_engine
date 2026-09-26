@@ -462,6 +462,19 @@ const SIZE_ORDER: readonly CreatureSize[] = [
 
 const sizeRank = (size: CreatureSize): number => SIZE_ORDER.indexOf(size);
 
+/**
+ * A size moved by a number of categories, held to the book's ends.
+ *
+ * SRD Enlarge/Reduce: "increases by one category — from Medium to Large, for
+ * example". Off {@link SIZE_ORDER} rather than off a second list, for the
+ * reason `sizeRank` is: the six are ranked in one place. A step past Gargantuan
+ * or below Tiny stops there, because the book prints nothing beyond either.
+ */
+export function shiftSize(size: CreatureSize, steps: number): CreatureSize {
+  const at = Math.min(SIZE_ORDER.length - 1, Math.max(0, sizeRank(size) + steps));
+  return SIZE_ORDER[at] ?? size;
+}
+
 export function sizeOf(state: PositionState, who: CharacterId): CreatureSize | null {
   return state.sizes[who] ?? null;
 }

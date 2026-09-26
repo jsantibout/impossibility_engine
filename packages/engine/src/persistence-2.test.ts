@@ -855,6 +855,14 @@ const UNCOVERED_EVENT_TYPES: readonly string[] = [
   // the Bonus Action, each putting the original sheet back.
   'sense-granted',
   'shape-assumed',
+  // A size moved by a category — SRD Enlarge/Reduce's step, a sourced grant in
+  // the family `grantsOf` enumerates. Neither log was written when a casting
+  // could move a size at all, and every creature in both carries an empty
+  // `sizeOverrides`, which is what `creature-added` starts one with.
+  // `enlarge-reduce.test.ts` folds it and drives it end to end: the fighter
+  // Large to every reader and to the map, Medium again when the Concentration
+  // is let go, and a goblin that made its save left exactly as it was.
+  'size-overridden',
   'speed-modifier-granted',
   // The direction an ongoing spell blows its Line in, changed on a later turn.
   // Neither log was written when an activation could re-aim anything — SRD

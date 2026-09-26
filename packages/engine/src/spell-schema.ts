@@ -2125,7 +2125,48 @@ function checkModifierRider(
         reason: `"${String(rider.dice)}" is not dice notation`,
       });
     }
-    checkDamageType(rider.damageType, `${path}.damageType`, found);
+    // Absent is the blow's own type — SRD Enlarge/Reduce prints none — and a
+    // type that is printed is held to the glossary's list as every type is.
+    if (rider.damageType !== undefined) {
+      checkDamageType(rider.damageType, `${path}.damageType`, found);
+    }
+    if (rider.weaponOrUnarmedOnly !== undefined && rider.weaponOrUnarmedOnly !== true) {
+      found.push({
+        field: `${path}.weaponOrUnarmedOnly`,
+        code: 'malformed_field',
+        reason: 'a rider reaches weapons and Unarmed Strikes alone or it does not; the only value is true',
+      });
+    }
+    if (rider.by !== undefined && rider.by !== 'target') {
+      found.push({
+        field: `${path}.by`,
+        code: 'bad_blow_owner',
+        reason: `"${String(rider.by)}" is not a subject the book prints; a later blow is the caster's (absent) or the target's ("target")`,
+      });
+    }
+    // **And a die on the target's own blows that also reaches spells is a
+    // sentence the book does not print**: SRD Bestow Curse's "or a spell" is
+    // about the caster's spells, and a target's Fireball taking an Enlarge die
+    // would be the engine widening a clause on its own.
+    if (rider.by === 'target' && rider.alsoSpells === true) {
+      found.push({
+        field: `${path}.alsoSpells`,
+        code: 'target_blow_reaches_spells',
+        reason: 'a die on the target\'s own blows rides its weapon and Unarmed Strike attacks; no sentence in the book puts one on the target\'s spells',
+      });
+    }
+    return;
+  }
+  // SRD Enlarge/Reduce's one category, either way: the step is the whole of
+  // the rider, and the book prints one.
+  if (rider?.kind === 'size') {
+    if (rider.steps !== 1 && rider.steps !== -1) {
+      found.push({
+        field: `${path}.steps`,
+        code: 'bad_size_step',
+        reason: `a size moves by one category up (1) or down (-1); the book prints no other step, and "${String(rider.steps)}" is not one`,
+      });
+    }
     return;
   }
   if (rider?.kind === 'mode') {
@@ -2227,7 +2268,7 @@ function checkModifierRider(
   found.push({
     field: `${path}.kind`,
     code: 'unknown_modifier_rider',
-    reason: `"${String((rider as { kind?: unknown } | undefined)?.kind)}" is not a grant a rider carries; a rider adds a bonus, takes an amount off the damage its target deals, grants a mode, changes a Speed, changes what a turn permits, changes what healing does, or denies a condition's benefit`,
+    reason: `"${String((rider as { kind?: unknown } | undefined)?.kind)}" is not a grant a rider carries; a rider adds a bonus, takes an amount off the damage its target deals, hangs extra damage on the caster's later blows, grants a mode, changes a Speed, moves a size by a category, changes what a turn permits, changes what healing does, or denies a condition's benefit`,
   });
 }
 
@@ -4894,6 +4935,12 @@ function grantCarried(effect: SpellEffect): string | null {
             return 'an amount taken off the damage the target deals';
           case 'later-blow':
             return 'extra damage on the caster’s later blows';
+          // The Mask's twin, and it carries no deadline of its own for the
+          // reason `bonus` carries none: SRD Enlarge/Reduce runs for the
+          // casting's duration, and an Instantaneous casting would leave a
+          // fighter Large with nothing able to shrink them back.
+          case 'size':
+            return 'a size moved by a category';
           case 'mode':
             // The third rider with an escape of its own, and it arrived with
             // SRD Vicious Mockery: a Disadvantage on "the next attack roll it
@@ -4995,6 +5042,8 @@ function grantOnASuccess(effect: SpellEffect): string | null {
           return 'an amount taken off the damage the target deals';
         case 'later-blow':
           return 'extra damage on the caster’s later blows';
+        case 'size':
+          return 'a size moved by a category';
         case 'mode':
           if (rider.lasts === undefined) return 'a granted Advantage or Disadvantage';
           break;
@@ -7049,12 +7098,18 @@ function checkUnwillingSave(
   const stated = (effect as { unlessWilling?: unknown }).unlessWilling;
   if (stated === undefined) return;
 
-  if (where !== 'effects') {
+  // **The casting's own list, or one of its branches.** A branch resolves at
+  // the casting with the request in hand — SRD Enlarge/Reduce prints one
+  // consent clause over two branches that each carry the save it gates — and
+  // `offersAnUnwillingSave` reads the branches for the same reason. An area
+  // trigger's list and an activation's fire later, off a record that holds no
+  // such fact, and are still refused.
+  if (where !== 'effects' && !(where.startsWith('options.') && where.endsWith('.effects'))) {
     found.push({
       field: `${path}.unlessWilling`,
       code: 'consent_outside_the_casting',
       reason:
-        'the caster states who consents at the casting, so only the casting’s own saving throw can read it',
+        'the caster states who consents at the casting, so only the casting’s own saving throw — in its list or in one of its branches — can read it',
     });
     return;
   }
@@ -8254,6 +8309,7 @@ export const RIDER_KINDS: ReadonlySet<string> = new Set([
   'damage-penalty',
   'later-blow',
   'mode',
+  'size',
   'speed-change',
   'action',
   'healing',

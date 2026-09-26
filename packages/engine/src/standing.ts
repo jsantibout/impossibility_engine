@@ -5442,10 +5442,25 @@ export interface GrantedAttackRider {
   /** The extra dice, e.g. `1d4`. A notation rather than a `DiceScaling`: no
    * SRD sentence of this shape grows its dice with the slot or the level. */
   readonly dice: string;
-  /** The damage type the sentence names. Never the weapon's own. */
-  readonly damageType: string;
+  /**
+   * The damage type the sentence names, or absent for the blow's own.
+   *
+   * SRD Enlarge/Reduce's "an extra 1d4 damage" prints none, so the die is of
+   * whatever the weapon deals — the reading `attack-damage` already takes of a
+   * feature's untyped die, and `standingAttackDamage` files the two the same
+   * way: an untyped die beside the bonuses of the blow's own type, a typed one
+   * as a component of its own.
+   */
+  readonly damageType?: string;
   /** SRD Divine Favor's "attacks **with weapons**". Absent reaches any attack. */
   readonly weaponOnly?: true;
+  /**
+   * SRD Enlarge/Reduce's "attacks with its enlarged **weapons or Unarmed
+   * Strikes**": every attack roll but a spell's. The spell road names itself
+   * to {@link grantedAttackRiders}, which is the one fact that tells a Fire
+   * Bolt from a punch — both swing no weapon.
+   */
+  readonly weaponOrUnarmedOnly?: true;
   /** SRD Hunter's Mark's "**to the target**". Absent reaches any target. */
   readonly target?: CharacterId;
   /**
@@ -5497,12 +5512,20 @@ export interface GrantedAttackRider {
  */
 export function grantedAttackRiders(
   creature: CreatureState | undefined,
-  context: { readonly weapon: Weapon | null; readonly target: CharacterId },
-): readonly { readonly source: string; readonly type: string; readonly dice: string }[] {
+  context: {
+    readonly weapon: Weapon | null;
+    readonly target: CharacterId;
+    /** The spell road says so; a weapon or an Unarmed Strike says nothing. */
+    readonly spellAttack?: true;
+  },
+): readonly { readonly source: string; readonly type?: string; readonly dice: string }[] {
   if (creature === undefined) return [];
   return creature.attackRiders
     .filter((rider) => {
       if (rider.weaponOnly === true && context.weapon === null) return false;
+      // SRD Enlarge/Reduce's "weapons or Unarmed Strikes": a punch and a Fire
+      // Bolt both swing no weapon, and only the road knows which it is on.
+      if (rider.weaponOrUnarmedOnly === true && context.spellAttack === true) return false;
       if (rider.target !== undefined && rider.target !== context.target) return false;
       return true;
     })
@@ -5511,7 +5534,7 @@ export function grantedAttackRiders(
       // Favor" rather than `Divine Favor#cast:3`. The casting id stays in the
       // grant, which is what ends it.
       source: spellOfSource(rider.source),
-      type: rider.damageType,
+      ...(rider.damageType === undefined ? {} : { type: rider.damageType }),
       dice: rider.dice,
     }));
 }
@@ -5542,7 +5565,13 @@ export function spellDamageRiders(
 ): readonly { readonly source: string; readonly type: string; readonly dice: string }[] {
   if (creature === undefined) return [];
   return creature.attackRiders
-    .filter((rider) => rider.alsoSpells === true && rider.target === target)
+    // A rider with no type of its own is of the blow's, and a spell's blow is
+    // the spell's; no rider in the book prints both `alsoSpells` and no type,
+    // so the narrowing is the type system's rather than a rule.
+    .filter(
+      (rider): rider is GrantedAttackRider & { readonly damageType: string } =>
+        rider.alsoSpells === true && rider.target === target && rider.damageType !== undefined,
+    )
     .map((rider) => ({
       source: spellOfSource(rider.source),
       type: rider.damageType,
@@ -6917,12 +6946,17 @@ export function standingAttackDamage(
   // closed on the defensive side. The spell-attack path calls
   // {@link grantedAttackRiders} on its own, because it must not take the
   // feature half above.
-  extra.push(
-    ...grantedAttackRiders(state.creatures[who], {
-      weapon: context.weapon,
-      target: context.target,
-    }),
-  );
+  // **A rider with no type of its own is of the blow's**, which is where SRD
+  // Enlarge/Reduce's "an extra 1d4 damage" goes: beside the bonuses, exactly
+  // as an untyped `attack-damage` grant went above, so a Mace under it deals
+  // one Bludgeoning total rather than a Bludgeoning and a something else.
+  for (const rider of grantedAttackRiders(state.creatures[who], {
+    weapon: context.weapon,
+    target: context.target,
+  })) {
+    if (rider.type === undefined) bonuses.push({ source: rider.source, dice: rider.dice });
+    else extra.push({ source: rider.source, type: rider.type, dice: rider.dice });
+  }
 
   // **And the damage half of the imbued weapon's plus.** SRD Magic Weapon's +1
   // is of the weapon's **own** type — a Mace under it deals 7 Bludgeoning, not

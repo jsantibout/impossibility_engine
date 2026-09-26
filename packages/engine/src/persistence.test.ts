@@ -320,6 +320,7 @@ const KNOWN_EVENT_TYPES: readonly string[] = [
   'sense-granted',
   'shape-assumed',
   'sight-declared',
+  'size-overridden',
   'speed-modifier-granted',
   'spell-activated',
   'spell-aim-changed',

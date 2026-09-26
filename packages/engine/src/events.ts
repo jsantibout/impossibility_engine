@@ -39,6 +39,7 @@ import type {
 } from './attack.js';
 import type { DeniedBenefit, GrantedConditionImmunity } from './conditions.js';
 import type { GrantedCreatureType } from './creature-type.js';
+import type { GrantedSize } from './size.js';
 import type { CreatureHazard, HazardName } from './hazards.js';
 import type { D20TestResult } from './checks.js';
 import type { GrantedDamageReduction } from './damage-reduction.js';
@@ -720,6 +721,22 @@ export type GameEvent =
       readonly type: 'creature-type-masked';
       readonly id: CharacterId;
       readonly mask: GrantedCreatureType;
+      readonly command?: CommandStamp;
+    }
+  /**
+   * A running effect has moved a creature's size by a category.
+   *
+   * SRD Enlarge/Reduce: "The target's size increases by one category — from
+   * Medium to Large, for example." The Mask's twin, one event over: a sourced
+   * grant in the family `grantsOf` enumerates, hung on the creature and given
+   * back through every door the other grants use, rather than a write to the
+   * size the creature was stated with. The step is pinned rather than the size,
+   * because the book prints a step and the fold opens no catalogue.
+   */
+  | {
+      readonly type: 'size-overridden';
+      readonly id: CharacterId;
+      readonly size: GrantedSize;
       readonly command?: CommandStamp;
     }
 

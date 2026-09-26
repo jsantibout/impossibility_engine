@@ -35,6 +35,7 @@ import type {
 } from './attack.js';
 import type { D20TestResult } from './checks.js';
 import type { GrantedCreatureType } from './creature-type.js';
+import type { GrantedSize } from './size.js';
 import type { GrantedDamageReduction } from './damage-reduction.js';
 import type { GrantedReaction, ReactionOffer } from './reactions.js';
 import type { ActiveBonus } from './bonuses.js';
@@ -912,6 +913,18 @@ export interface CreatureState {
    * and a mundane one is drawn.
    */
   readonly creatureTypeMasks: readonly GrantedCreatureType[];
+  /**
+   * How far running effects have moved this creature's size, in categories.
+   *
+   * The Mask's twin over the other fact a creature *is*: SRD Enlarge/Reduce's
+   * "increases by one category" is a sourced grant here rather than a write to
+   * `size`, which is stated once and given back to nobody. `effectiveSizeOf`
+   * reads the sum over whatever size otherwise stood, the fold's `settleSizes`
+   * moves the map by the same step for a creature whose size is stated, and
+   * every door that ends a grant gives the size back. Empty is what every log
+   * written before this field says, so both frozen fixtures fold unchanged.
+   */
+  readonly sizeOverrides: readonly GrantedSize[];
   /**
    * What a running casting hands this creature at each of its turn boundaries.
    *
