@@ -66,6 +66,31 @@ requests of kind `route`; the **code** is what says how to supply what is
 missing, and `commands/command.ts` holds the pair with the rule that
 separates them.
 
+## The second place
+
+The engine holds one scene, and a creature may be **elsewhere**: off the
+lattice in a named kind of nowhere — `ethereal` (Blink, a Ghost's
+Etherealness), `extradimensional` (Rope Trick, a familiar's pocket) or
+`inside` another creature (a Giant Frog's Swallow) — with the space it left,
+the clock, the source that sent it and the rule the way back is checked
+against pinned on `CreatureState.elsewhere` when it goes
+(`creature-sent-elsewhere`). While away it has no position: every ruler
+refuses `not_here` — an `err`, because the fact is settled rather than
+missing and no placement can answer it — it is caught by no area and no
+aura, and it holds what the record hung under the record's source. A
+swallowed creature is at no distance from its host and at none from anybody
+else, which is what "Total Cover against effects outside the frog" means.
+**The way back is stated, never invented**: `returnFromElsewhere` (and the
+boundary, a summoner's recall, a printed line's second use) takes a space the
+caller names and checks it against the pinned rule — within N feet of the
+space left or the creature the rule names, unoccupied, seen where the book
+says so — taking the single space that qualifies where nobody named one and
+asking `return_space_required` otherwise. A creature stranded by a casting
+that has ended is a debt the turn refuses to advance past, on
+`strandedSummons`' pattern; a host's death lifts the Restrained in the fold
+and leaves the exit to a command, because where the creature climbs out is a
+choice.
+
 ## Movement and teleportation
 
 `resolveMove` spends movement, checks the passage of every space a route

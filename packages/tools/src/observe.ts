@@ -162,6 +162,18 @@ export interface ObservedPrintedLine {
    * because it pulls by a web rather than by a grapple.
    */
   readonly engineMakesThePull: boolean;
+  /**
+   * Whether the engine will take a grappled creature inside this one on this
+   * line, or the sentence is the caller's to adjudicate. SRD Giant Frog's
+   * Swallow reads `true`.
+   */
+  readonly engineSwallows: boolean;
+  /**
+   * Whether the engine will step this creature onto the Ethereal Plane and
+   * back on this line. SRD Phase Spider's Ethereal Jaunt reads `true`; SRD
+   * Dryad's Tree Stride reads `false`, because its two ends are trees.
+   */
+  readonly engineShiftsPlane: boolean;
 }
 
 /**
@@ -543,6 +555,8 @@ function printedBlock(
     readonly teleports?: StatedAction['teleports'];
     readonly forms?: StatedAction['forms'];
     readonly pulls?: StatedAction['pulls'];
+    readonly swallows?: StatedAction['swallows'];
+    readonly shiftsPlane?: StatedAction['shiftsPlane'];
   }): ObservedPrintedLine => ({
     name: one.name,
     text: one.text,
@@ -562,6 +576,10 @@ function printedBlock(
     formsOffered: (one.forms?.forms ?? []).map((form) => form.name),
     // And the same, one door along, for `pull_printed_line`.
     engineMakesThePull: one.pulls !== undefined,
+    // And the two roads into the second place, off the same pinned records
+    // `swallow_printed_line` and `shift_plane_printed_line` read.
+    engineSwallows: one.swallows !== undefined,
+    engineShiftsPlane: one.shiftsPlane !== undefined,
   });
 
   return {

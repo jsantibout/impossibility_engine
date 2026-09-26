@@ -836,6 +836,11 @@ describe('a tracked spell may not hide a rule the engine owns', () => {
     // those words. The barrier, the ward and the ending are executed all the
     // same, off the Emanation the record pins where it rose.
     'tiny-hut',
+    // And the eighth, Rope Trick, executed on the second place: its paragraph prints a
+    // rope, a portal, a count of climbers and a space that is elsewhere, and
+    // the marker list knows none of those words. The climb, the eight and
+    // the drop are executed all the same.
+    'rope-trick',
   ];
 
   it('finds every clean paragraph outside the executed bucket', () => {
@@ -1805,6 +1810,13 @@ describe('every spell this batch added is cast for real', () => {
     // leaves, and it leaves them as an executed-partial spell rather than a
     // tracked one.
     'bestow-curse',
+    // **Blink leaves on the second place.** Its d6 is thrown by the boundary
+    // at the end of the caster's turn, the vanishing is a record of where the
+    // caster is instead and what they left, and the return at the start of
+    // the next turn is a space the caller names, checked against ten feet and
+    // the sight the book prints. The shades of gray are the one sentence left,
+    // and they are narration.
+    'blink',
     // **Command leaves by the second arm of a choice made at the casting.**
     // Three of its five words were each writable alone — a drop, a Prone, a
     // rule forbidding three slots — and what none of them had was a way to

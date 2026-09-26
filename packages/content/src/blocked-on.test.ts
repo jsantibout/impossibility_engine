@@ -1277,7 +1277,9 @@ describe('reading four families found blockers the bare lists had missed', () =>
     // Find Familiar, written on the kept summons on 2026-09-22. Its three
     // readings survive in the definition's own notes and in the executed map,
     // which is where an executed-partial spell's debts are adjudicated.
-    ['find-familiar', 'unmodelled', 'you can temporarily dismiss the familiar to a pocket dimension'],
+    // The pocket dimension is built — `dismissKeptSummons` and
+    // `recallKeptSummons` on the bond's pinned `pocket` — so its row is gone
+    // rather than kept.
     ['find-familiar', 'unmodelled', 'your familiar can deliver the touch'],
     ['find-familiar', 'unmodelled', 'seeing through the familiar’s eyes'],
   ];
@@ -2613,12 +2615,15 @@ describe('a consumer count is a query', () => {
     // `a-casting-ended-by-a-trigger` drew level: a ranking is a measurement of
     // the populations rather than a statement about what is hard.
     //
-    // **And the tie broke the other way.** Tiny Hut's "ends early if you
-    // leave the Emanation" is executed — `caster-leaves-the-area`, derived
-    // off `creature-moved` — so `a-casting-ended-by-a-trigger` lost a
-    // consumer to a shape that was built for it, and the coin flip leads
-    // alone.
-    expect(leaders).toEqual(['a-random-outcome-that-is-not-a-d20']);
+    // **And the tie broke the other way, then closed again.** Tiny Hut's
+    // "ends early if you leave the Emanation" is executed —
+    // `caster-leaves-the-area`, derived off `creature-moved` — so
+    // `a-casting-ended-by-a-trigger` lost a consumer to a shape built for
+    // it; and Blink was executed on the second place with its d6 thrown
+    // at the boundary, so `a-random-outcome-that-is-not-a-d20` lost one
+    // to a build in the same wave. Each leader lost exactly one, and the
+    // band at the top is the two of them, asserted as a set.
+    expect(leaders).toEqual(['a-casting-ended-by-a-trigger', 'a-random-outcome-that-is-not-a-d20']);
     expect(Object.keys(SPLIT_BUNDLES)).toContain('an-action-a-spell-compels-or-forbids');
     // And the split is visible from here rather than only in the record: the
     // bundle stands below the leader, and the largest piece to come out of it
@@ -2649,16 +2654,18 @@ describe('a consumer count is a query', () => {
       // tracked maps through it, which took the shape out of this band rather
       // than moving it down inside one.
       //
-      // And `a-casting-ended-by-a-trigger` dropped **into** this band from the
-      // leading tie when Tiny Hut's caster-leaves ending was built, while
-      // `an-effect-that-suppresses-other-magic` fell out of it: Tiny Hut's
-      // ward and Magic Circle's teleport save were both executed, and Knock's
-      // filed claim was read to the end and handed over.
-      'a-casting-ended-by-a-trigger',
-      'a-second-place-to-put-a-creature',
-      // `a-stat-block-created-mid-fight` stood here too until Unseen Servant
-      // was written on the inline block: the shape lost its tracked claim
-      // and fell out of this band.
+      // `a-casting-ended-by-a-trigger` dropped **into** this band from the
+      // leading tie when Tiny Hut's caster-leaves ending was built, and
+      // climbed back out of it when Blink's die took the coin flip down to
+      // meet it; `a-second-place-to-put-a-creature` stood here too and left
+      // by a build — Blink and Find Familiar's pocket were executed on the
+      // `elsewhere` effect. `an-effect-that-suppresses-other-magic` fell out
+      // when Tiny Hut's ward and Magic Circle's teleport save were executed
+      // and Knock's filed claim was handed over.
+      // What the band below the leaders holds now is the one shape that fell
+      // out of the leading band's old size when Unseen Servant was written on
+      // the inline block and has lost nothing since.
+      'a-stat-block-created-mid-fight',
     ]);
     // **Moved from 20 to 15 by the third catalogue pass, and the total fell
     // further than the tracked column rose.** Twelve undefined spells named
@@ -2987,24 +2994,18 @@ describe('a shape that gets built is content work, not a merge', () => {
         note.includes('a second place to put a creature'),
       ),
     ).toBe(true);
-    // And Blink kept the two halves this build did not reach until it was
-    // written. Both are in the definition's own notes, and **all three of its
-    // sentences are in the tracked map now**: the d6 was there because it
-    // trips a marker, and the other two were dropped on the way out of
-    // `BLOCKED_ON` because no marker could see them — which is the loss the
-    // marker-less entry form was added to stop, arriving a batch late on the
-    // spell this very row is about.
+    // And Blink is **executed** now: the d6 at the end of the caster's turn
+    // and the Ethereal Plane it sends them to are the `elsewhere` effect, so
+    // the two claims this shape and `a-random-outcome-that-is-not-a-d20` held
+    // on it are spent. What is left is the one sentence that was always the
+    // table's, in the executed map where an executed spell's debts live.
     expect(BLOCKED_ON['blink']).toBeUndefined();
-    expect(TRACKED_ADJUDICATED['blink']?.map((entry) => entry.why)).toEqual([
-      'a-random-outcome-that-is-not-a-d20',
-      'a-second-place-to-put-a-creature',
-      'table',
-    ]);
+    expect(TRACKED_ADJUDICATED['blink']).toBeUndefined();
+    expect(ADJUDICATED['blink']).toBeUndefined();
     expect(
-      (SRD_CONTENT.spell('blink')?.unmodelled ?? []).some((note) =>
-        note.includes('a second place to put a creature'),
-      ),
+      (SRD_CONTENT.spell('blink')?.unmodelled ?? []).some((note) => note.includes('shades of gray')),
     ).toBe(true);
+    expect(SRD_CONTENT.spell('blink')?.effects.map((effect) => effect.kind)).toEqual(['elsewhere']);
   });
 
   // And the two spells IE-014 defined leave the map entirely, with their debt

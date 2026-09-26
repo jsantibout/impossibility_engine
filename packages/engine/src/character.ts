@@ -28,9 +28,11 @@ import type {
   MonsterCastLine,
   MonsterForms,
   MonsterMultiattack,
+  MonsterPlaneShift,
   MonsterPull,
   MonsterLegendaryLine,
   MonsterRecharge,
+  MonsterSwallow,
   MonsterSave,
   MonsterTeleport,
   MonsterTrait,
@@ -212,6 +214,13 @@ export interface StatedBonusAction {
    * rule at another price.
    */
   readonly pulls?: MonsterPull;
+  /** Whom this line swallows — see {@link StatedAction.swallows}, the same field. */
+  readonly swallows?: MonsterSwallow;
+  /**
+   * The plane this line shifts to and from — see {@link StatedAction.shiftsPlane}.
+   * SRD Phase Spider prints Ethereal Jaunt under this heading.
+   */
+  readonly shiftsPlane?: MonsterPlaneShift;
   /**
    * The spells this line casts — see {@link StatedAction.casts}, which this is
    * the same field as and for the same reason.
@@ -364,6 +373,25 @@ export interface StatedAction {
    * heading's price.
    */
   readonly pulls?: MonsterPull;
+  /**
+   * Whom this line takes inside its creature, where its sentence is the
+   * book's swallow template — see `MonsterSwallowSchema`.
+   *
+   * SRD Giant Frog and Giant Toad, Swallow. Everything the sentence states is
+   * a rule the second place holds: the grapple ended, the conditions the
+   * record hangs, the damage at the host's turn boundary, the exit from the
+   * corpse. `takePrintedSwallow` is the door.
+   */
+  readonly swallows?: MonsterSwallow;
+  /**
+   * The plane this line moves its creature to and back from — see
+   * `MonsterPlaneShiftSchema`.
+   *
+   * SRD Phase Spider's Ethereal Jaunt, SRD Nightmare's Ethereal Stride, SRD
+   * Ghost's Etherealness: out of the scene into the Ethereal Plane and back
+   * to the spot left, by the same line. `takePrintedPlaneShift` is the door.
+   */
+  readonly shiftsPlane?: MonsterPlaneShift;
 }
 
 /**

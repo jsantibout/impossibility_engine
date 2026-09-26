@@ -589,7 +589,11 @@ describe('the bestiary row counts blocks, and the prose it cannot read', () => {
       'pulls',
       'recharge',
       'save',
+      // The two roads into the second place, read out of the sentence: SRD
+      // Phase Spider's Ethereal Jaunt and SRD Giant Frog's Swallow.
+      'shiftsPlane',
       'spellcasting',
+      'swallows',
       'teleports',
       'text',
       'trait',

@@ -207,6 +207,15 @@
     "isSceneEvent",
     "applyScene"
   ],
+  "fold/elsewhere.ts": [
+    "ELSEWHERE_EVENTS",
+    "ElsewhereEvent",
+    "isElsewhereEvent",
+    "applyElsewhere",
+    "withoutHung",
+    "freeTheSwallowedOfTheDead",
+    "holdsSomebodyInside"
+  ],
   "fold/features.ts": [
     "FEATURES_EVENTS",
     "FeaturesEvent",

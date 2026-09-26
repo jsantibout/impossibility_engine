@@ -896,11 +896,6 @@ export const ADJUDICATED: Readonly<Record<string, readonly Adjudication[]>> = {
       note: 'A second casting measured from the familiar rather than from its caster, and a Reaction spent by the familiar for a spell that belongs to the caster. The rule that a casting is acted through by the caster and nobody else is exactly what this inverts, and the reach half has no field of its own either.',
     },
     {
-      clause: 'you can temporarily dismiss the familiar to a pocket dimension',
-      why: 'a-second-place-to-put-a-creature',
-      note: 'There is one scene, so a creature that is stored rather than destroyed has nowhere to be. It is not `end-condition` and not a death: the familiar keeps existing somewhere the engine has no representation for, and comes back on a later action. Dismissing it forever is the departure the engine already performs and is not the gap.',
-    },
-    {
       clause: 'the telepathic connection within 100 feet',
       why: 'table',
       note: 'The hundred feet is measurable and what it gates is conversation, which the engine’s resolution path never arrives at.',
@@ -1204,6 +1199,10 @@ export const ADJUDICATED: Readonly<Record<string, readonly Adjudication[]>> = {
       note: 'SRD refuses it by name: "a creature that has died of old age". **The engine holds no cause of death**, and the field that would have to hold one is not missing by oversight: `creature-died.cause` is prose for the audit trail, and three of the four ways a creature dies write no such event at all. So the corpse this spell may not touch is one the table declines to hand it, exactly as the body parts it does not restore are an anatomy nothing here has. What the engine does own — whether the creature is dead, and how long it has been — it checks before a slot is spent.',
     },
   ],
+  // Blink and Rope Trick left the tracked map on the second place and carry
+  // no entry here: the sentences they leave to the table — the shades of
+  // gray, the rope and the portal as things — name no mechanic, and are in
+  // each definition's own notes.
   sanctuary: [
     {
       clause: 'choose a new target',
@@ -2150,26 +2149,6 @@ export const TRACKED_ADJUDICATED: Readonly<Record<string, readonly TrackedAdjudi
   // the first; the other two were paid for by nobody and the shapes they claim
   // went uncounted. Recorded now rather than argued about, which is the rule
   // the marker-less entry form exists for.
-  blink: [
-    {
-      marker: 'dice',
-      clause: 'Roll 1d6 at the end of each of your turns',
-      why: 'a-random-outcome-that-is-not-a-d20',
-      note: 'the generator throws any notation parseNotation reads and no SpellEffect asks it for one; a payout at a turn boundary hands over hit points and cannot branch on the face a die showed. **The `chance` effect is not this**: it throws a percentage at the moment of the casting, and this is a die thrown at every turn boundary for the duration, whose two faces put the caster in two different places.',
-    },
-    {
-      marker: null,
-      clause: 'you vanish from your current plane of existence and appear in the Ethereal Plane',
-      why: 'a-second-place-to-put-a-creature',
-      note: 'there is one scene, so a creature who has left it has nowhere to be — and the return "at the start of your next turn" is the same absence read from the other end. The definition says so in its own second line and this is where the shape was owed the claim. **The markers see nothing in this sentence**: the SRD writes a plane change without writing the word teleport, without a distance and without anything moving, which is exactly the shape of sentence the marker-less entry form exists for.',
-    },
-    {
-      marker: null,
-      clause: 'which is cast in shades of gray',
-      why: 'table',
-      note: 'what the caster can perceive of the plane they left is narration end to end, and the clause the markers can see in that sentence is the sixty feet — a distance between two places the engine does not hold, so there is nothing here to measure even in principle. This unit names no mechanic at all and somebody read the paragraph.',
-    },
-  ],
   divination: [
     {
       marker: 'chance',
@@ -3626,14 +3605,6 @@ export const TRACKED_ADJUDICATED: Readonly<Record<string, readonly TrackedAdjudi
       clause: 'You remove poison and rot from nonmagical food and drink',
       why: 'table',
       note: 'the food and drink are objects; the Poisoned condition belongs to a creature and is untouched by this spell, and a definition that cured one would be inventing a rule the sentence does not print. **P3-S6 read this spell to the end**: every printed sentence is the table’s or the engine’s, so what the table is left with is in the definition’s `dmDecides` rather than in `unmodelled` — handed over whole, and no clause of it is expressible with the kinds the engine has today.',
-    },
-  ],
-  'rope-trick': [
-    {
-      marker: null,
-      clause: 'an Invisible 3-foot-by-5-foot portal opens to an extradimensional space',
-      why: 'table',
-      note: 'the engine holds one scene, so a second place is not somewhere a creature can be: who has climbed in, the eight Medium creatures it holds and the rule that attacks and spells cannot cross are all about a space that does not exist in state. **P3-S6 read this spell to the end**: every printed sentence is the table’s or the engine’s, so what the table is left with is in the definition’s `dmDecides` rather than in `unmodelled` — handed over whole, and no clause of it is expressible with the kinds the engine has today.',
     },
   ],
   'speak-with-dead': [

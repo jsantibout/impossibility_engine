@@ -125,7 +125,9 @@ const HANDOVERS: readonly string[] = [
   'mending',
   'message',
   'purify-food-and-drink',
-  'rope-trick',
+  // Rope Trick stood here until the second place was built: its climb, its
+  // eight, its isolation and its drop are executed now, and it is no longer
+  // tracked at all.
   // Re-read on 2026-09-24 and moved off {@link FILED}: the entry that filed
   // it said the Influence action had no spender, and `takeInfluence` has been
   // one since. That command never narrowed by the target's creature type, so
@@ -235,6 +237,11 @@ const EXECUTES: readonly string[] = [
   // shape was then built, and the Attunement a Remove Curse breaks is the
   // engine's now.
   'remove-curse',
+  // Rope Trick moved here off {@link HANDOVERS} when the second place was
+  // built: the climb, the eight Medium creatures, the isolation and the drop
+  // when the spell ends are the `elsewhere` effect, and what is left for the
+  // table is the rope and the portal as things.
+  'rope-trick',
 ];
 
 /**

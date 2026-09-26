@@ -7,8 +7,10 @@ import {
   MonsterSaveSchema,
   MonsterSchema,
   MonsterFormsSchema,
+  MonsterPlaneShiftSchema,
   MonsterPullSchema,
   MonsterSpellcastingSchema,
+  MonsterSwallowSchema,
   MonsterTeleportSchema,
   slugify,
   type Feature,
@@ -20,7 +22,9 @@ import {
   type MonsterForm,
   type MonsterForms,
   type MonsterMultiattack,
+  type MonsterPlaneShift,
   type MonsterPull,
+  type MonsterSwallow,
   type MonsterMultiattackEntry,
   type MonsterRecharge,
   type MonsterRollAddend,
@@ -476,6 +480,9 @@ export function parseSaveLine(text: string): MonsterSave | null {
  * is what keeps the rest of each regex anchored end to end.
  */
 const SUBJECT = "[A-Za-z' -]+";
+
+/** Both apostrophes, because a transcription may carry either. */
+const APOSTROPHE = "['’]";
 
 /**
  * SRD Spider Climb: "The pudding can climb difficult surfaces, including along
@@ -1788,6 +1795,104 @@ export function parsePullLine(text: string): MonsterPull | null {
   return checked.success ? checked.data : null;
 }
 
+/** A line's text with the source's markup and line breaks folded away. */
+const oneLine = (text: string): string =>
+  text.replace(/<br>/g, ' ').replace(/&emsp;/g, ' ').replace(/\s+/g, ' ').trim();
+
+/**
+ * SRD Giant Frog's and Giant Toad's Swallow, which share one opening and two
+ * closings.
+ *
+ * The opening is anchored word for word and the closing is one of the two
+ * the book prints — the frog's one hit at the end of its next turn followed by
+ * a disgorging, or the toad's hit at the end of each of its turns — so a
+ * swallow that said anything else stays prose. The one clause neither closing
+ * turns into a field, "can't use Bite", is a rule about another line and is
+ * carried out in `handedOver` rather than dropped.
+ */
+const SWALLOW_OPENING = new RegExp(
+  `^The (${SUBJECT}) swallows a (Tiny|Small|Medium|Large|Huge) or smaller target it is grappling\\. ` +
+    `While swallowed, the target isn${APOSTROPHE}t Grappled but has the ([A-Z][a-z]+) and ([A-Z][a-z]+) conditions, ` +
+    `and it has Total Cover against attacks and other effects outside the \\1\\. (.*)$`,
+);
+const SWALLOW_NEXT_TURN = new RegExp(
+  `^(While swallowing the target, the (${SUBJECT}) can${APOSTROPHE}t use Bite), and if the \\2 dies, ` +
+    `the swallowed target is no longer Restrained and can escape from the corpse using 5 feet of movement, exiting with the Prone condition\\. ` +
+    `At the end of the \\2${APOSTROPHE}s next turn, the swallowed target takes \\d+ \\((\\d+d\\d+)\\) ([A-Z][a-z]+) damage\\. ` +
+    `If that damage doesn${APOSTROPHE}t kill it, the \\2 disgorges it, causing it to exit Prone\\.$`,
+);
+const SWALLOW_EACH_TURN = new RegExp(
+  `^In addition, the target takes \\d+ \\((\\d+d\\d+)\\) ([A-Z][a-z]+) damage at the end of each of the (${SUBJECT})${APOSTROPHE}s turns\\. ` +
+    `The \\3 can have only one target swallowed at a time, and (it can${APOSTROPHE}t use Bite while it has a swallowed target)\\. ` +
+    `If the \\3 dies, a swallowed creature is no longer Restrained and can escape from the corpse using 5 feet of movement, exiting with the Prone condition\\.$`,
+);
+
+/** Whom this line swallows, or null for every other line. */
+export function parseSwallowLine(text: string): MonsterSwallow | null {
+  const opened = SWALLOW_OPENING.exec(oneLine(text));
+  if (opened === null) return null;
+  const [, , size, first, second, rest] = opened;
+  const shared = {
+    maxSize: size!.toLowerCase(),
+    conditions: [first!.toLowerCase(), second!.toLowerCase()],
+  };
+  const next = SWALLOW_NEXT_TURN.exec(rest!);
+  if (next !== null) {
+    const checked = MonsterSwallowSchema.safeParse({
+      ...shared,
+      // Lower-cased into the engine's own damage vocabulary, as every damage
+      // word the parser reads is — a capital here would miss a Resistance.
+      damage: { dice: next[3]!, type: next[4]!.toLowerCase(), of: 'next', disgorges: true },
+      handedOver: [next[1]!],
+    });
+    return checked.success ? checked.data : null;
+  }
+  const each = SWALLOW_EACH_TURN.exec(rest!);
+  if (each !== null) {
+    const checked = MonsterSwallowSchema.safeParse({
+      ...shared,
+      damage: { dice: each[1]!, type: each[2]!.toLowerCase(), of: 'each', disgorges: false },
+      handedOver: [each[4]!],
+    });
+    return checked.success ? checked.data : null;
+  }
+  return null;
+}
+
+/**
+ * The three sentences the book writes for stepping onto the Ethereal Plane
+ * and back: SRD Phase Spider's, SRD Nightmare's with its willing companions,
+ * and SRD Ghost's cast of the spell of that name with the clause that says
+ * what being there means. Each anchored end to end.
+ */
+const JAUNT_LINE = new RegExp(
+  `^The ${SUBJECT} teleports from the Material Plane to the Ethereal Plane or vice versa\\.$`,
+);
+const STRIDE_LINE = new RegExp(
+  `^The ${SUBJECT} and up to (one|two|three|four|five|six|seven|eight|nine|ten|\\d+) willing creatures within (\\d+) feet of it ` +
+    `teleport to the Ethereal Plane from the Material Plane or vice versa\\.$`,
+);
+const ETHEREALNESS_LINE = new RegExp(
+  `^The (${SUBJECT}) casts the _Etherealness_ spell, requiring no spell components and using [A-Z][a-z]+ as the spellcasting ability\\. ` +
+    `The \\1 is visible on the Material Plane while on the Border Ethereal and vice versa, but it can${APOSTROPHE}t affect or be affected by anything on the other plane\\.$`,
+);
+/** The plane this line steps to and back from, or null for every other line. */
+export function parsePlaneShiftLine(text: string): MonsterPlaneShift | null {
+  const line = oneLine(text);
+  if (JAUNT_LINE.test(line) || ETHEREALNESS_LINE.test(line)) {
+    const checked = MonsterPlaneShiftSchema.safeParse({ plane: 'ethereal' });
+    return checked.success ? checked.data : null;
+  }
+  const stride = STRIDE_LINE.exec(line);
+  if (stride === null) return null;
+  const count = COUNT_WORDS[stride[1]!] ?? Number(stride[1]!);
+  const checked = MonsterPlaneShiftSchema.safeParse({
+    plane: 'ethereal',
+    companions: { count, within: Number(stride[2]!) },
+  });
+  return checked.success ? checked.data : null;
+}
+
 /**
  * SRD Shape-Shift's first sentence, in the two openings the book writes it in:
  * "The werewolf shape-shifts **into** a Large wolf-humanoid hybrid or a Medium
@@ -2670,6 +2775,10 @@ function parseFeatures(
       // And the sixth: a line that drags toward itself what it is already
       // holding, which is `pullToward` at a heading's price.
       const pulls = parsePullLine(text);
+      // And the two roads into the second place: a creature taken inside
+      // another, and a step onto the Ethereal Plane and back.
+      const swallows = parseSwallowLine(text);
+      const shiftsPlane = parsePlaneShiftLine(text);
       const addsToRoll = parseRollAddendLine(text);
       // The Reactions section's other two templates, read off the sentence for
       // the reason every detector here is: SRD Parry's number goes on an
@@ -2698,6 +2807,8 @@ function parseFeatures(
         ...(forms === null ? {} : { forms }),
         ...(onlyInForms === null ? {} : { onlyInForms: [...onlyInForms] }),
         ...(pulls === null ? {} : { pulls }),
+        ...(swallows === null ? {} : { swallows }),
+        ...(shiftsPlane === null ? {} : { shiftsPlane }),
         ...(addsToRoll === null ? {} : { addsToRoll }),
         ...(addsToAc === null ? {} : { addsToAc }),
         ...(usesLine === null ? {} : { usesLine }),

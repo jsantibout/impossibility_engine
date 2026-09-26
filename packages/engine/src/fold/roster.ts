@@ -132,6 +132,10 @@ export function applyRoster({ state, next }: Applying, event: RosterEvent): Game
             // before this field existed says, so both frozen fixtures fold
             // unchanged.
             falling: null,
+            // In the scene, which is what every log written before a creature
+            // could be sent elsewhere says — so both frozen fixtures fold
+            // unchanged.
+            elsewhere: null,
             bonuses: [],
             armorClasses: [],
             rollModifiers: [],

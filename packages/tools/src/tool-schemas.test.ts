@@ -166,8 +166,10 @@ describe('toolSchemas', () => {
     // and the pins are the sum of them all.
     // Seven tracks moved these pins on one night; each move is recorded above
     // and the pins are the sum of them all.
-    expect(toolSchemas(player())).toHaveLength(87);
-    expect(toolSchemas(dm())).toHaveLength(110);
+    // And four more on each for the second-place track, plus two on the DM's
+    // alone — see the pin below.
+    expect(toolSchemas(player())).toHaveLength(91);
+    expect(toolSchemas(dm())).toHaveLength(116);
     // Re-pinned 2026-09-24 for the printed-lines track, which opened one door
     // on the DM's surface alone: `teleport_printed_line` takes the teleport a
     // stat block prints, at the distance the block prints, to a space the DM
@@ -253,10 +255,25 @@ describe('toolSchemas', () => {
     // a Shimmering Shield covers, at a moment nobody else can act in). One
     // tool and 1,792 bytes on the DM's; the player's is untouched, because
     // both decisions are the table's the way a Cone's head count is.
-    expect(toolSchemas(player())).toHaveLength(87);
-    expect(toolSchemas(dm())).toHaveLength(110);
-    expect(JSON.stringify(toolSchemas(player())).length).toBe(132070);
-    expect(JSON.stringify(toolSchemas(dm())).length).toBe(169372);
+    // Re-pinned for the second-place track, which opened four doors on the
+    // model's surface and so on both: `return_from_elsewhere` (a creature
+    // brought back to a space the caller names, once its way back is open),
+    // `climb_into_space` (SRD Rope Trick's rope), and `dismiss_familiar` /
+    // `recall_familiar` (SRD Find Familiar's pocket dimension, both the
+    // summoner's Magic action) — and one field on a tool both already
+    // publish: `end_turn.returns`, where a Blink caster stands when their
+    // turn begins. No number in any of them: every one is a placement on the
+    // lattice or a creature named. Four pins on each surface, and the lengths
+    // move by the same amount on both because every tool is published once.
+    // And two more on the DM's surface alone, for the bestiary's two roads
+    // into the same place: `swallow_printed_line` (whom a frog swallows out
+    // of the creatures it holds is the frog's decision) and
+    // `shift_plane_printed_line` (the Phase Spider's jaunt, the Nightmare's
+    // stride, the Ghost's Etherealness, out and back by one line).
+    expect(toolSchemas(player())).toHaveLength(91);
+    expect(toolSchemas(dm())).toHaveLength(116);
+    expect(JSON.stringify(toolSchemas(player())).length).toBe(137443);
+    expect(JSON.stringify(toolSchemas(dm())).length).toBe(178761);
   });
 });
 

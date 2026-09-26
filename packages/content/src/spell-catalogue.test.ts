@@ -734,6 +734,14 @@ describe('every definition in the catalogue actually casts', () => {
       // `revive` reads: the casting is on the body, which is `aimed`.
       expect(out.outcomes).toEqual([]);
       expect(out.castingId).not.toBeNull();
+    } else if (run.every((effect) => effect.kind === 'elsewhere' && effect.entry !== undefined)) {
+      // The fifth case, and a spell rather than a stub for the reason the
+      // third is: SRD Rope Trick's space opens and **nobody is sent** — every
+      // creature that is ever inside climbed in by its own command, measured
+      // from the point the casting keeps. So the cast reports no outcome and
+      // leaves the record `enterElsewhere` reads: the casting, with its rope.
+      expect(out.outcomes).toEqual([]);
+      expect(fold('seed', [...logFor(spellId), ...out.events]).ongoing[out.castingId!]?.origin).toBeDefined();
     } else {
       expect(out.outcomes.length).toBeGreaterThan(0);
     }

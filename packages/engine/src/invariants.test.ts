@@ -144,6 +144,12 @@ import {
   takePrintedForm,
   takePrintedPull,
   takePrintedTeleport,
+  dismissKeptSummons,
+  enterElsewhere,
+  recallKeptSummons,
+  returnFromElsewhere,
+  takePrintedPlaneShift,
+  takePrintedSwallow,
   takeStatedAction,
   takeStatedBonusAction,
   takeTestReaction,
@@ -549,6 +555,27 @@ const TELEPORTING_LINE = {
   teleports: { feet: 30, mustSee: true as const },
 } as const;
 
+/** The same invented line with the book's plane-shift template read off it. */
+const STEPPING_LINE = { ...PRINTED_LINE, shiftsPlane: { plane: 'ethereal' as const } } as const;
+
+/** And with the book's swallow template read off it, over B, whom A already holds. */
+const SWALLOWING_LINE: StatedAction = {
+  ...PRINTED_LINE,
+  swallows: {
+    maxSize: 'medium',
+    conditions: ['blinded', 'restrained'],
+    damage: { dice: '2d4', type: 'Acid', of: 'each', disgorges: false },
+    handedOver: [],
+  },
+};
+
+/** A with the stepping line under Actions. */
+const STEPPING: readonly GameEvent[] = SETUP.map((event) =>
+  event.type === 'creature-added' && event.id === A
+    ? { ...event, sheet: sheet({ stated: { unreadActions: [STEPPING_LINE] } }) }
+    : event,
+);
+
 /** The same world again, with that line under Actions. */
 const BLINKING: readonly GameEvent[] = SETUP.map((event) =>
   event.type === 'creature-added' && event.id === A
@@ -890,6 +917,14 @@ const HELD: readonly GameEvent[] = [
   },
   { type: 'turn-advanced' },
 ];
+
+/** A holding B, with the swallowing line under Actions, on A's turn. */
+const SWALLOWING: readonly GameEvent[] = HELD.filter((event) => event.type !== 'turn-advanced').map(
+  (event) =>
+    event.type === 'creature-added' && event.id === A
+      ? { ...event, sheet: sheet({ stated: { unreadActions: [SWALLOWING_LINE] } }) }
+      : event,
+);
 
 /**
  * A stirge fixed to B, so the two detach doors have something to let go of.
@@ -1925,6 +1960,69 @@ const ZOMBIE = 'zombie';
  * about its identity. A's Disguise Self holds a Zombie; the Disguise Self is
  * then dismissed, and the Zombie is owed a departure.
  */
+/**
+ * B elsewhere under a casting that has ended, so the way back is open and the
+ * return is the debt `resolveTurn` refuses on.
+ */
+const AWAY: readonly GameEvent[] = [
+  ...SETUP,
+  { type: 'creature-sent-elsewhere', id: B, kind: 'ethereal', source: 'Gone#cast:9', returns: { within: 10 } },
+];
+
+/** A's Rope Trick hanging beside B, with room inside for B to climb. */
+const ROPED: readonly GameEvent[] = (() => {
+  const roped: readonly GameEvent[] = [
+    ...SETUP.map((event) =>
+      event.type === 'spellcasting-declared' && event.id === A
+        ? { ...event, spellcasting: declaredCasting({ ability: 'int', prepared: ['rope-trick'] }) }
+        : event,
+    ),
+    {
+      type: 'resource-pool-declared',
+      id: A,
+      pool: { key: spellSlotKey(2), label: 'level 2 spell slot', max: 2, recovers: 'long-rest' },
+    },
+  ];
+  const cast = unwrap(
+    resolveSpell(
+      fold('s', roped),
+      A,
+      { spellId: 'rope-trick', targets: [], at: { x: 100, y: 100, z: 0 }, slotLevel: 2 },
+      supply(),
+    ),
+    'the rope',
+  );
+  return [...roped, ...cast.events];
+})();
+
+/** An owl A keeps on Find Familiar's terms, with the pocket the spell prints. */
+const KEPT: readonly GameEvent[] = [
+  ...SETUP,
+  ...unwrap(
+    summonCreature(fold('s', SETUP), SRD_CONTENT, {
+      id: id('an-owl'),
+      monsterId: 'owl',
+      by: A,
+      kept: { spell: 'find-familiar', untilSummonerDies: false, pocket: { within: 30 } },
+      placement: { from: { creature: A }, feet: 10, bearing: 180 },
+      initiative: 15,
+    }),
+    'the owl',
+  ).events,
+];
+
+/** And the same owl dismissed to its pocket, so a recall has something to recall. */
+const POCKETED: readonly GameEvent[] = [
+  ...KEPT,
+  {
+    type: 'creature-sent-elsewhere',
+    id: id('an-owl'),
+    kind: 'extradimensional',
+    source: 'kept:a/find-familiar',
+    returns: { within: 30, near: A },
+  },
+];
+
 const STRANDED: readonly GameEvent[] = (() => {
   const cast = unwrap(
     resolveSpell(fold('s', SETUP), A, { spellId: 'disguise-self', targets: [] }, supply()),
@@ -2184,6 +2282,48 @@ const GUARDED: readonly Guarded[] = [
     log: LEGENDARY,
     run: (s, commandId) =>
       takeLegendaryAction(s, A, { line: SHIELD_LINE.name, commandId }, supply()),
+  },
+  /**
+   * The two roads a stat block prints into the second place. A retry that was
+   * not guarded would spend a second Action; on the swallow it would also be
+   * refused by the fold as a creature leaving the scene twice.
+   */
+  {
+    name: 'takePrintedSwallow',
+    log: SWALLOWING,
+    run: (s, commandId) => takePrintedSwallow(s, A, { line: SWALLOWING_LINE.name, target: B, commandId }),
+  },
+  {
+    name: 'takePrintedPlaneShift',
+    log: STEPPING,
+    run: (s, commandId) => takePrintedPlaneShift(s, A, { line: STEPPING_LINE.name, commandId }),
+  },
+  /**
+   * The second place's way back and the two doors on a kept summons. A retry
+   * that was not guarded would stand B in the scene twice — the second time
+   * refused by the fold as a return from nowhere — or spend a second Action.
+   */
+  {
+    name: 'returnFromElsewhere',
+    log: AWAY,
+    run: (s, commandId) =>
+      returnFromElsewhere(s, B, { to: { from: { landmark: 'here' }, feet: 5, bearing: 90 }, commandId }),
+  },
+  {
+    name: 'enterElsewhere',
+    log: ROPED,
+    run: (s, commandId) => enterElsewhere(s, B, SRD_CONTENT, { castingId: 'cast:1', commandId }),
+  },
+  {
+    name: 'dismissKeptSummons',
+    log: KEPT,
+    run: (s, commandId) => dismissKeptSummons(s, A, { who: id('an-owl'), commandId }),
+  },
+  {
+    name: 'recallKeptSummons',
+    log: POCKETED,
+    run: (s, commandId) =>
+      recallKeptSummons(s, A, { who: id('an-owl'), to: { from: { creature: A }, feet: 10, bearing: 180 }, commandId }),
   },
   /**
    * And the sixth, which is the most expensive retry of them: a second
@@ -3673,6 +3813,15 @@ const SPENDERS: readonly Spender[] = [
     name: 'takeLegendaryAction',
     run: (s) => takeLegendaryAction(s, B, { line: SHIELD_LINE.name }, supply()),
   },
+  // The two doors on a kept summons spend the summoner's Magic action, and
+  // the debt is asked before the bond is looked at — so a caster keeping
+  // nothing is still refused for the debt, which is the guard sitting where
+  // it does.
+  { name: 'dismissKeptSummons', run: (s) => dismissKeptSummons(s, B, { who: A }) },
+  { name: 'recallKeptSummons', run: (s) => recallKeptSummons(s, B, { who: A }) },
+  // And the two printed roads, refused for the debt before the line is read.
+  { name: 'takePrintedSwallow', run: (s) => takePrintedSwallow(s, B, { line: 'A Printed Line', target: A }) },
+  { name: 'takePrintedPlaneShift', run: (s) => takePrintedPlaneShift(s, B, { line: 'A Printed Line' }) },
   { name: 'takeDisengage', run: (s) => takeDisengage(s, B, {}) },
   { name: 'takeDodge', run: (s) => takeDodge(s, B, {}) },
   // The debt is checked before the target is looked at, so a shake aimed at a

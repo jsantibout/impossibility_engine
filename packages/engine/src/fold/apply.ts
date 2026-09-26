@@ -55,6 +55,7 @@ import { applyCasting, isCastingEvent } from './casting.js';
 import { applyOngoing, isOngoingEvent } from './ongoing.js';
 import { applyTimers, isTimersEvent } from './timers.js';
 import { applyCombat, isCombatEvent } from './combat.js';
+import { applyElsewhere, freeTheSwallowedOfTheDead, isElsewhereEvent } from './elsewhere.js';
 import { applyScene, isSceneEvent } from './scene.js';
 import { applyFeatures, isFeaturesEvent, resized } from './features.js';
 import { printedSizeOf, printsASize } from '../size.js';
@@ -311,6 +312,11 @@ function applyEventUnder(state: GameState, event: GameEvent, legacy: Content | n
       // thing, which the event itself left behind. Nothing downstream of it
       // reads a Restrained the burnt web was holding.
       liftWhatBrokenObjectsHeld(
+      // The same reading one creature along: what this lifts is a Restrained
+      // whose lifetime was a **living host** — SRD Swallow's "if the frog
+      // dies, the swallowed target is no longer Restrained" — and what it
+      // needs to have seen first is the death the event left behind.
+      freeTheSwallowedOfTheDead(
       dropOrphanedAreaEffects(
         dropStrandedDamage(
           dropOrphanedSaves(
@@ -369,6 +375,7 @@ function applyEventUnder(state: GameState, event: GameEvent, legacy: Content | n
             ),
           ),
         ),
+      ),
       ),
       ),
     ),
@@ -943,6 +950,7 @@ function applyOne(state: GameState, event: GameEvent, legacy: Content | null): G
   if (isTimersEvent(event)) return applyTimers(applying, event);
   if (isCombatEvent(event)) return applyCombat(applying, event);
   if (isSceneEvent(event)) return applyScene(applying, event);
+  if (isElsewhereEvent(event)) return applyElsewhere(applying, event);
   if (isFeaturesEvent(event)) return applyFeatures(applying, event);
   if (isHoldsEvent(event)) return applyHolds(applying, event);
   if (isInventoryEvent(event)) return applyInventory(applying, event);

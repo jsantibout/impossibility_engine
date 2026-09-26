@@ -108,8 +108,11 @@ import {
   takeLegendaryAction,
   takeSearch,
   takePrintedForm,
+  takePrintedPlaneShift,
   takePrintedPull,
+  takePrintedSwallow,
   takePrintedTeleport,
+  type Placement,
   takeStatedAction,
   takeStatedBonusAction,
   takeStudy,
@@ -1998,7 +2001,98 @@ const TAKE_LEGENDARY_ACTION = tool({
     ),
 });
 
+/** A caller's placement in the engine's vocabulary — the player surface's reading, repeated here. */
+const placementOf = (input: z.infer<typeof placementSchema>): Placement => ({
+  from: input.fromLandmark !== undefined ? { landmark: input.fromLandmark } : { creature: who(input.fromCreature!) },
+  feet: input.feet,
+  ...(input.bearing === undefined ? {} : { bearing: input.bearing }),
+  ...(input.elevation === undefined ? {} : { elevation: input.elevation }),
+});
+
+/**
+ * SRD Giant Frog's Swallow, at the DM's door for `pull_printed_line`'s reason:
+ * whom a frog swallows out of the creatures it is grappling is the frog's
+ * decision, and a model choosing is a model moving the monster. The engine
+ * checks the target is grappled and small enough, that nothing is inside
+ * already, and spends the heading's slot; the damage the stay costs is rolled
+ * at the frog's own turn boundary by `end_turn`.
+ */
+const SWALLOW_PRINTED_LINE = tool({
+  name: 'swallow_printed_line',
+  description:
+    'Have the engine take the swallow a creature’s stat block prints — the Giant Frog’s, the Giant Toad’s. Name the heading as the block prints it and which creature this one is grappling goes inside. The engine ends the grapple, takes the target inside (no position, caught by nothing, reaching only the swallower), hangs the conditions the line prints, and rolls the damage the line prints at the swallower’s own turn boundary through `end_turn`; the frog’s line disgorges the target after its one hit, and a swallower that dies leaves the target to climb out of the corpse with `return_from_elsewhere`. Refused for a target the creature is not grappling, one too large for the line, or a second target while one is inside. Only some printed lines can be taken this way: `look` says which, under `engineSwallows`.',
+  mutates: true,
+  input: z.strictObject({
+    who: creatureId.describe('Which creature is taking the line.'),
+    line: printedLineName,
+    target: creatureId.optional().describe('Whom it swallows, out of the creatures it is grappling. Omit it and the engine says whom it holds.'),
+  }),
+  run: (context, args) =>
+    settle(
+      context,
+      takePrintedSwallow(context.campaign.state(), who(args.who), {
+        line: args.line,
+        ...(args.target === undefined ? {} : { target: who(args.target) }),
+        ...identity(context),
+      }),
+      (value) => value.events,
+      (value) => ({
+        ...lineTaken(context, ['stated-action-taken', 'stated-bonus-action-taken'], value.duplicate, args.who),
+        swallowed: value.swallowed,
+      }),
+      (value) => value.unverified,
+    ),
+});
+
+/**
+ * SRD Phase Spider's Ethereal Jaunt, SRD Nightmare's Ethereal Stride and SRD
+ * Ghost's Etherealness: one line, out and back. At the DM's door because the
+ * creature is the DM's, and because the way back is a space the DM names.
+ */
+const SHIFT_PLANE_PRINTED_LINE = tool({
+  name: 'shift_plane_printed_line',
+  description:
+    'Have the engine take the step onto the Ethereal Plane a creature’s stat block prints — the Phase Spider’s Ethereal Jaunt, the Nightmare’s Ethereal Stride, the Ghost’s Etherealness — and the step back, by the same line. Out: the creature (and, for a line that allows them, up to the printed number of willing companions within the printed distance, named here) leaves the scene: no position, caught by nothing, reached by nothing. Back: the same call again returns it to the spot it left or the nearest unoccupied space; name a space with the placement fields where several qualify, and a companion’s under `returns`. Spends whichever slot the heading names along with any recharge or daily limit. Only some printed lines can be taken this way: `look` says which, under `engineShiftsPlane`.',
+  mutates: true,
+  selfAnswers: ['position'],
+  input: z.strictObject({
+    who: creatureId.describe('Which creature is taking the line.'),
+    line: printedLineName,
+    companions: z
+      .array(creatureId)
+      .optional()
+      .describe('The willing creatures going with it, where the line allows any. Naming one states it is willing.'),
+    to: placementSchema.optional().describe('On the way back: where it stands. Omit it to take the one qualifying space or be asked.'),
+    returns: z
+      .array(z.object({ who: creatureId }).and(placementSchema))
+      .optional()
+      .describe('On the way back: where each companion stands.'),
+  }),
+  run: (context, args) =>
+    settle(
+      context,
+      takePrintedPlaneShift(context.campaign.state(), who(args.who), {
+        line: args.line,
+        ...(args.companions === undefined ? {} : { companions: args.companions.map(who) }),
+        ...(args.to === undefined ? {} : { to: placementOf(args.to) }),
+        ...(args.returns === undefined
+          ? {}
+          : { returns: args.returns.map((entry) => ({ who: who(entry.who), to: placementOf(entry) })) }),
+        ...identity(context),
+      }),
+      (value) => value.events,
+      (value) => ({
+        ...lineTaken(context, ['stated-action-taken', 'stated-bonus-action-taken'], value.duplicate, args.who),
+        direction: value.direction,
+        moved: value.moved,
+      }),
+      (value) => value.unverified,
+    ),
+});
+
 export const DM_ONLY_TOOLS: readonly ToolDefinition[] = [
+  SHIFT_PLANE_PRINTED_LINE,
+  SWALLOW_PRINTED_LINE,
   ABILITY_CHECK,
   CAST_PRINTED_LINE,
   TAKE_LEGENDARY_ACTION,

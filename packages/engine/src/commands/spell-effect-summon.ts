@@ -153,6 +153,10 @@ export function resolveSummonEffect(
           kept: {
             spell: definition.id,
             untilSummonerDies: effect.kept.untilSummonerDies === true,
+            // SRD Find Familiar's pocket dimension, pinned so the two doors
+            // that use it (`dismissKeptSummons`, `recallKeptSummons`) open
+            // no book.
+            ...(effect.kept.pocket === undefined ? {} : { pocket: effect.kept.pocket }),
             // SRD Wild Companion: a lifetime the *feature* puts on the bond,
             // over what the spell prints — read off the route the casting came
             // by, and dated so a rest already taken does not count.

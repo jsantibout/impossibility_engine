@@ -585,7 +585,22 @@ const UNCOVERED_EVENT_TYPES: readonly string[] = [
   // seconds old that comes back at one hit point with its death saves afresh,
   // the one ninety seconds old that is refused, the living creature that is
   // refused, and the slot neither refusal spends.
+  // A creature that was elsewhere standing in the scene again, and a creature
+  // leaving the scene for a named kind of nowhere — SRD Blink's Ethereal
+  // Plane, Find Familiar's pocket dimension, Rope Trick's extradimensional
+  // space, a Giant Frog's gullet. Neither log was written when the scene had a
+  // second place at all: `CreatureState.elsewhere` did not exist and
+  // `PositionState.away` did not either, so both fixtures fold to exactly the
+  // states they always folded to with the record null on every creature and
+  // the mark on nobody. `elsewhere.test.ts` folds both and drives them end to
+  // end: the position gone and the ruler refusing `not_here`, the area that
+  // catches nothing, the return refused too far or into an occupied space,
+  // the one qualifying space taken unasked, and the conditions the record
+  // hung lifted by the return. `blink.test.ts` and `swallow.test.ts` drive
+  // the two sentences that write them.
+  'creature-returned',
   'creature-revived',
+  'creature-sent-elsewhere',
   // A summons: the fixtures predate it, and appending a type here is the
   // acknowledgement this list exists to collect.
   'creature-summoned',

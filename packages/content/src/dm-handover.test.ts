@@ -452,7 +452,9 @@ describe('the catalogue hands over exactly the text it means to', () => {
       'mirage-arcane',
       'planar-ally',
       'purify-food-and-drink',
-      'rope-trick',
+      // Rope Trick left this list on the second place: the climb, the eight,
+      // the isolation and the drop are executed, and the rope and the portal
+      // are the definition's own `unmodelled` rather than a whole handover.
       'see-invisibility',
       // **The forty-sixth, and the first that is not a spell the engine merely
       // records.** SRD Silence's three mechanical sentences are executed —

@@ -1,4 +1,4 @@
-import { err, needsContext, ok, type CharacterId, type Result } from '@ie/shared';
+import { err, needsContext, ok, type CharacterId, type Err, type Result } from '@ie/shared';
 import type { CreatureSize } from '@ie/srd';
 // Type-only, and deliberately: `events.ts` reads this module's geometry at
 // value level, so a value edge back would be a real cycle.
@@ -14,6 +14,8 @@ import { itemInstanceNumber } from './item-instance.js';
 // level, so this pulls in one module and not the engine behind it.
 import { activatedLight, printedDifficultGround, printedLight } from './character.js';
 import type { ResourcePool } from './resources.js';
+// Type-only: `elsewhere.ts` reads this module's geometry at value level.
+import type { AwayMark } from './elsewhere.js';
 
 /**
  * Where things are.
@@ -115,6 +117,22 @@ export interface PositionState {
   /** Who is riding what, and whether the mount consented. */
   readonly riding: Readonly<Record<string, Ride>>;
   /**
+   * Who is **elsewhere** — off the lattice in a named kind of nowhere — and,
+   * for a creature inside another, whose body it is in.
+   *
+   * The scene's copy of `CreatureState.elsewhere`, kept because the geometry
+   * answers two questions off it that a bare absence cannot: a ruler asked
+   * about a creature that is away refuses `not_here` rather than asking for a
+   * placement nobody can make, and a swallowed creature is at no distance
+   * from its host and at none from anybody else. Nothing here says where the
+   * creature went or how it comes back; that is the record's.
+   *
+   * A creature in this table has no entry in `positions`, so every reader
+   * that walks the positions — occupancy, areas, auras, riders — leaves it
+   * out without knowing it exists.
+   */
+  readonly away: Readonly<Record<string, AwayMark>>;
+  /**
    * What is lying on the floor, keyed by the copy's own record.
    *
    * The third population in the room, beside the creatures and the landmarks,
@@ -203,11 +221,76 @@ export function scene(extent: SceneExtent, ambient: LightLevel | null = null): P
     ambient,
     riding: {},
     ground: {},
+    away: {},
   };
 }
 
+/**
+ * Where a creature is standing, or null.
+ *
+ * Null for two creatures the scene tells apart and this function does not: one
+ * nobody has placed, and one that is **elsewhere** (`away`). Every reader of a
+ * position treats null the same way — nothing to measure — and the two are
+ * told apart only where a refusal has to say which: see {@link absentFrom}.
+ */
 export function positionOf(state: PositionState, who: CharacterId): Point | null {
   return state.positions[who] ?? null;
+}
+
+/**
+ * The refusal for a creature that has no position, in the kind the fact has.
+ *
+ * A creature nobody has placed is a **missing** fact — `needsContext`, and the
+ * command that knows which rule wanted it attaches the placement request. A
+ * creature that is elsewhere is a **wrong** one: it has left the scene, the
+ * way back is a rule the record holds, and asking a caller to place it would
+ * send them to a door that refuses. So `not_here` is an `err`, and it says
+ * where the creature is instead.
+ */
+function absentFrom(state: PositionState, who: CharacterId, reason: string): Err {
+  const away = state.away[who];
+  if (away !== undefined) {
+    const where =
+      away.kind === 'ethereal'
+        ? 'in the Ethereal Plane'
+        : away.kind === 'extradimensional'
+          ? 'in an extradimensional space'
+          : `inside ${away.host ?? 'another creature'}`;
+    return err('not_here', `${who} is ${where}, not in this scene: ${reason}`);
+  }
+  return needsContext('unplaced', `${who} ${reason}`);
+}
+
+/**
+ * Take a creature off the lattice into a named kind of nowhere.
+ *
+ * The position goes and the size stays, so the way back knows how big a space
+ * to look for; a rider on the departing creature is set down, exactly as
+ * {@link removeCreature} sets one down, because a horse in the Ethereal Plane
+ * is not under anybody. Refuses nothing about the creature's own position: a
+ * creature nobody placed can still be sent elsewhere, and then has no space
+ * to come back to until somebody names one.
+ */
+export function sendAway(state: PositionState, who: CharacterId, mark: AwayMark): PositionState {
+  const positions = { ...state.positions };
+  delete positions[who];
+  const riding = { ...state.riding };
+  delete riding[who];
+  for (const rider of ridersOf(state, who)) delete riding[rider];
+  return { ...state, positions, riding, away: { ...state.away, [who]: mark } };
+}
+
+/**
+ * Stand a creature that was away in the space the return settled on.
+ *
+ * The space has already been checked by whoever chose it — `returnCandidates`
+ * and the return command ask this module's own occupancy — so this is the
+ * bare transition and refuses nothing, which is what lets the fold call it.
+ */
+export function bringBack(state: PositionState, who: CharacterId, at: Point): PositionState {
+  const away = { ...state.away };
+  delete away[who];
+  return { ...state, positions: { ...state.positions, [who]: at }, away };
 }
 
 /**
@@ -588,7 +671,7 @@ function resolveAnchor(state: PositionState, anchor: Anchor): Result<Point> {
   }
   const at = state.positions[anchor.creature];
   if (at === undefined) {
-    return needsContext('unplaced', `${anchor.creature} has no position to measure from`);
+    return absentFrom(state, anchor.creature, 'has no position to measure from');
   }
   return ok(at);
 }
@@ -935,6 +1018,11 @@ export function placeCreature(
   if (state.positions[who] !== undefined) {
     return err('already_placed', `${who} is already in this scene; move them instead`);
   }
+  // A creature that is elsewhere has a space to come back to and a rule about
+  // it; placing it would be a second copy of that answer, chosen by nobody.
+  if (state.away[who] !== undefined) {
+    return absentFrom(state, who, 'cannot be placed; it returns by the way its record names');
+  }
 
   const from = resolveAnchor(state, placement.from);
   if (!from.ok) return from;
@@ -988,7 +1076,7 @@ export function moveCreature(
 ): Result<MoveOutcome> {
   const current = state.positions[who];
   if (current === undefined) {
-    return needsContext('unplaced', `${who} has no position to move from`);
+    return absentFrom(state, who, 'has no position to move from');
   }
 
   const from = resolveAnchor(state, placement.from);
@@ -1029,6 +1117,15 @@ export function moveCreature(
 }
 
 export function removeCreature(state: PositionState, who: CharacterId): Result<PositionState> {
+  // A creature that is away has left the lattice already and leaves the game
+  // from wherever it is: its mark and its size go, and nothing else is there.
+  if (state.away[who] !== undefined) {
+    const away = { ...state.away };
+    delete away[who];
+    const sizes = { ...state.sizes };
+    delete sizes[who];
+    return ok({ ...state, away, sizes });
+  }
   if (state.positions[who] === undefined) {
     return needsContext('unplaced', `${who} is not in this scene`);
   }
@@ -1137,7 +1234,7 @@ export function groundItemsWithin(
   // otherwise answer "nothing within reach" to somebody standing nowhere,
   // which is a fact stated rather than a fact missing.
   if (positionOf(state, who) === null) {
-    return needsContext('unplaced', `${who} has no position to reach from`);
+    return absentFrom(state, who, 'has no position to reach from');
   }
   const near: GroundPile[] = [];
   for (const pile of groundItems(state)) {
@@ -1174,14 +1271,22 @@ export function distanceBetween(
 ): Result<number> {
   if (a === b) {
     return state.positions[a] === undefined
-      ? needsContext('unplaced', `${a} needs placing before distances mean anything`)
+      ? absentFrom(state, a, 'needs placing before distances mean anything')
       : ok(0);
   }
 
+  // **A creature inside another is at no distance from its host**, and at
+  // none from anybody else. SRD Swallow: the swallowed target "has Total Cover
+  // against attacks and other effects outside the frog" — so the frog is the
+  // one creature it reaches and the one that reaches it, and everything else
+  // meets the `not_here` below.
+  if (state.away[a]?.kind === 'inside' && state.away[a].host === b) return ok(0);
+  if (state.away[b]?.kind === 'inside' && state.away[b].host === a) return ok(0);
+
   const boxA = boxOf(state, a);
   const boxB = boxOf(state, b);
-  if (boxA === null) return needsContext('unplaced', `${a} needs placing before distances mean anything`);
-  if (boxB === null) return needsContext('unplaced', `${b} needs placing before distances mean anything`);
+  if (boxA === null) return absentFrom(state, a, 'needs placing before distances mean anything');
+  if (boxB === null) return absentFrom(state, b, 'needs placing before distances mean anything');
 
   return ok(chebyshev(boxA, boxB));
 }
@@ -1208,10 +1313,10 @@ export function bearingBetween(
   const here = positionOf(state, from);
   const there = positionOf(state, to);
   if (here === null) {
-    return needsContext('unplaced', `${from} needs placing before a direction means anything`);
+    return absentFrom(state, from, 'needs placing before a direction means anything');
   }
   if (there === null) {
-    return needsContext('unplaced', `${to} needs placing before a direction means anything`);
+    return absentFrom(state, to, 'needs placing before a direction means anything');
   }
 
   const east = there.x - here.x;
@@ -1242,7 +1347,7 @@ export function distanceToPoint(
   point: Point,
 ): Result<number> {
   const box = boxOf(state, who);
-  if (box === null) return needsContext('unplaced', `${who} needs placing before distances mean anything`);
+  if (box === null) return absentFrom(state, who, 'needs placing before distances mean anything');
   return ok(chebyshev(box, pointBox(point)));
 }
 
@@ -1497,8 +1602,8 @@ export function mount(
   }
 
   const mountAt = state.positions[target];
-  if (state.positions[rider] === undefined) return needsContext('unplaced', `${rider} needs placing first`);
-  if (mountAt === undefined) return needsContext('unplaced', `${target} needs placing first`);
+  if (state.positions[rider] === undefined) return absentFrom(state, rider, 'needs placing first');
+  if (mountAt === undefined) return absentFrom(state, target, 'needs placing first');
 
   // SRD: "you can mount a creature that is within 5 feet of you" — measured
   // space to space like every other distance.
@@ -1971,7 +2076,7 @@ function areaFrame(state: PositionState, origin: AreaOrigin): Result<AreaFrame> 
   if ('creature' in origin) {
     const found = state.positions[origin.creature];
     if (found === undefined) {
-      return needsContext('unplaced', `${origin.creature} needs placing before its area can be resolved`);
+      return absentFrom(state, origin.creature, 'needs placing before its area can be resolved');
     }
     return ok({
       world: cubeCentre(found),

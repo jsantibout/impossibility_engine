@@ -4826,22 +4826,31 @@ export const ROPE_TRICK: SpellDefinition = {
   concentration: false,
   range: { kind: 'touch' },
   targets: { count: 0 },
-  effects: [],
+  // The rope: a point the casting keeps, stated at the cast within the touch
+  // the Range prints, and the five feet the way in reaches from it. The same
+  // field Spiritual Weapon's force stands on, for the same reason — the
+  // casting has a place of its own that later commands are measured from.
+  origin: { reach: 5 },
+  // "Up to eight Medium or smaller creatures can climb into the
+  // extradimensional space by moving up the rope … Anything inside the space
+  // drops out when the spell ends." A place with a door: `enterElsewhere` is
+  // the climb, each creature's own command within five feet of the rope; the
+  // way back is pinned at the climb as five feet from where the creature
+  // climbed in, and the casting's ending leaves everybody inside stranded
+  // until `returnFromElsewhere` names where each drops out.
+  effects: [
+    {
+      kind: 'elsewhere',
+      where: 'extradimensional',
+      entry: { within: 5, holds: 8, maxSize: 'medium' },
+      returns: { within: 5 },
+    },
+  ],
   durationSeconds: 3600,
-  // **Handed over whole**, under the owner's ruling of 2026-09-24 that Meld
-  // into Stone's entry records: the engine holds one scene of spaces creatures
-  // stand in, a second kind of place is a world model nobody has asked for,
-  // and nothing reads the fact afterwards. Who has climbed in, the eight
-  // Medium creatures the space holds and the rule that attacks and spells
-  // cannot cross are all about somewhere that does not exist in state.
-  dmDecides: [
-    'You touch a rope.',
-    'One end of it hovers upward until the rope hangs perpendicular to the ground or the rope reaches a ceiling.',
-    "At the rope's upper end, an Invisible 3-foot-by-5-foot portal opens to an extradimensional space that lasts until the spell ends.",
-    'That space can be reached by climbing the rope, which can be pulled into or dropped out of it.',
-    'The space can hold up to eight Medium or smaller creatures.',
-    "Attacks, spells, and other effects can't pass into or out of the space, but creatures inside it can see through the portal.",
-    'Anything inside the space drops out when the spell ends.',
+  unmodelled: [
+    'the rope hovering upward until it hangs perpendicular or meets a ceiling, the 3-foot-by-5-foot portal at its upper end, and the rope being pulled into or dropped out of the space are the table’s: the engine holds the space as a place creatures are, not a thing on the lattice',
+    'what those inside make out through the portal is the table’s: a creature elsewhere is measured by nothing and declares nothing about anybody in the scene',
+    'what the climb costs the climber is the table’s: the rope is nothing the lattice holds, so the engine charges nothing for going up it',
   ],
 };
 
@@ -11686,13 +11695,28 @@ export const BLINK: SpellDefinition = {
   castingTime: 'action',
   concentration: false,
   range: { kind: 'self' },
-  targets: { count: 0 },
-  effects: [],
+  // Range: Self, so the caster is the target and the ten feet are the
+  // return's own rather than a reach to somebody else — Misty Step's split.
+  targets: { count: 1, self: true },
+  // "Roll 1d6 at the end of each of your turns. On a roll of 4–6, you vanish
+  // … and appear in the Ethereal Plane. At the start of your next turn …
+  // you return to an unoccupied space of your choice that you can see within
+  // 10 feet of the space you vanished from." The boundary throws the book's
+  // die and sends the caster on its top half; the return asks for the space
+  // unless exactly one qualifies, and "when the spell ends" is the stranded
+  // return the turn refuses to advance past.
+  effects: [
+    {
+      kind: 'elsewhere',
+      where: 'ethereal',
+      at: 'end-of-turn',
+      chance: { die: '1d6', onOrAbove: 4 },
+      returns: { within: 10, requiresSight: true, at: 'start-of-turn' },
+    },
+  ],
   durationSeconds: 60,
   unmodelled: [
-    'the 1d6 at the end of each of the caster’s turns is not rolled: the generator throws any notation it is given and no spell effect asks it for one, and a payout at a turn boundary hands over hit points rather than branching on a face',
-    'so the vanishing on a 4–6 does not happen, and neither does the return at the start of the next turn: there is one scene, and the Ethereal Plane is a second place to put a creature',
-    'what the caster can perceive of the plane they left, and who can perceive them, are the DM’s',
+    'what the caster can perceive of the plane they left, and who can perceive them, are the DM’s: "cast in shades of gray", and the Ethereal Plane’s own sights and sounds, describe a place the engine holds nothing of',
   ],
 };
 
@@ -13561,14 +13585,17 @@ export const FIND_FAMILIAR: SpellDefinition = {
       // The value the definition is written around; the casting's stated
       // choice is what lands.
       creatureType: 'Celestial',
-      kept: {},
+      // "As a Magic action, you can temporarily dismiss the familiar to a
+      // pocket dimension … cause it to reappear in an unoccupied space within
+      // 30 feet of you." The pocket is pinned on the bond, and
+      // `dismissKeptSummons` / `recallKeptSummons` are the two doors.
+      kept: { pocket: { within: 30 } },
       cannotAttack: true,
     },
   ],
   unmodelled: [
     'seeing through the familiar’s eyes and hearing what it hears as a Bonus Action, with the benefits of any special senses it has, is not granted: sight here is a pairwise declaration, and one creature borrowing another’s senses has no state to sit in',
     'the familiar delivering a touch spell — "your familiar can deliver the touch" — is not offered, and neither is the Reaction it must take to do so: a casting is acted through by its caster, and a second creature spending its own Reaction to deliver another’s spell has no field',
-    'you can temporarily dismiss the familiar to a pocket dimension, and cause it to reappear within 30 feet as a Magic action: there is one scene, and a creature stored rather than destroyed has nowhere to be',
     'the telepathic connection within 100 feet is the table’s: the distance is measurable and what it gates is conversation',
     'what it leaves behind in its space when it disappears, and what it does with the turns it acts independently on while obeying your commands, are the DM’s',
   ],
