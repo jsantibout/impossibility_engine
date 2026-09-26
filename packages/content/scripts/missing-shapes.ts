@@ -989,13 +989,6 @@ export const ADJUDICATED: Readonly<Record<string, readonly Adjudication[]>> = {
   // failure creates, so it lifts when the Laughter does and `standUp` refuses
   // `cannot_stand` while it stands. What is left of the paragraph is the
   // laughing itself, which is narration.
-  'hunters-mark': [
-    {
-      clause: 'Advantage on a Wisdom (Perception or Survival) check made to find the quarry',
-      why: 'a-fact-only-the-table-can-declare',
-      note: 'SRD: "You also have Advantage on any Wisdom (Perception or Survival) check you make to find it." A `RollModifier` selects a check by ability and by skill, so Wisdom (Perception) and Wisdom (Survival) are each perfectly expressible — two grants, one sentence. What no selector can say is which of those checks is the one being made *to find the quarry*, and that is a fact about the attempt rather than about the roll. Granted unconditionally it would hand the ranger Advantage on every Perception check they roll for the hour the spell runs, which is the silent wrong answer this discipline exists to refuse.',
-    },
-  ],
   // **Hypnotic Pattern is off this map entirely**, and both of the clauses it
   // used to carry left by different doors. "Only a creature that can see the
   // pattern" is `mustSeeTheOrigin`: the pattern is at the casting's origin and

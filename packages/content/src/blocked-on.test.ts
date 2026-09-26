@@ -2273,8 +2273,16 @@ describe('the fought fact is a second build that corrected the query', () => {
     // mechanical marker sees, and has since left the map altogether: the
     // fought fact it read is `autoSucceedIf.fought` now. The undefined
     // population is empty of this shape and the claims are live elsewhere.
+    //
+    // **And the executed population is empty too, which is the shape working
+    // rather than the shape ending.** Both of its claimants left by being given
+    // somewhere for their fact to live: Sleep's elves are a species grant, and
+    // Hunter's Mark's "to find it" is a purpose the asker states on the check.
+    // The two tracked spells still hold it, and the machinery stays — a fact
+    // only the table can declare is a real category, and the next spell that
+    // needs one is filed here rather than argued about.
     expect(fact.undefined).toEqual([]);
-    expect(fact.executed).toEqual(['hunters-mark']);
+    expect(fact.executed).toEqual([]);
     expect(fact.tracked).toEqual(['call-lightning', 'scrying']);
   });
 });

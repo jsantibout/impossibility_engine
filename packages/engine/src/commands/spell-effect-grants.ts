@@ -116,8 +116,15 @@ export function resolveRollModeEffect(
   target: CharacterId,
   world: GameState,
 ): Result<GameState> {
-  const { source, events, outcomes, held } = ctx;
+  const { casterId, source, events, outcomes, held } = ctx;
   let current = world;
+
+  // **Whose mode it is.** Almost always the creature the casting named — Blur
+  // and Beacon of Hope — and SRD Hunter's Mark is the exception the field
+  // exists for: the spell is cast at a quarry and the Advantage on finding it
+  // is the ranger's. `held` follows the grant, because a casting is on a
+  // creature while it holds a live effect of that casting's.
+  const holder = effect.onCaster === true ? casterId : target;
 
   // **Nothing is resisted here**, and that is the effect rather than an
   // omission: Blur and Beacon of Hope ask nobody to save, and the
@@ -130,10 +137,10 @@ export function resolveRollModeEffect(
   // a broken Concentration, the minute running out, a dispel, the
   // caster leaving — ends this too, through machinery that already
   // existed rather than a lifecycle of its own.
-  held.add(target);
+  held.add(holder);
   events.push({
     type: 'roll-modifier-granted',
-    id: target,
+    id: holder,
     modifier: {
       source,
       modifier: effect.modifier,

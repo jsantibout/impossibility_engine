@@ -145,6 +145,19 @@ function familyReaches(selector: RollFamily, rolled: RollFamily): boolean {
 export type RollRelation = 'roller' | 'against-holder';
 
 /**
+ * What an ability check is being made **for**, as a rule can read it.
+ *
+ * A closed vocabulary of *mechanisms*, not of fictions: the caller states the
+ * creature they are trying to find and the engine decides whether that creature
+ * is one the roller has marked, so nothing here is a phrase somebody typed.
+ *
+ * One member, because one sentence in reach asks: SRD Hunter's Mark's "any
+ * Wisdom (Perception or Survival) check you make **to find it**". A second
+ * arrives with the sentence that needs it — see {@link RollSelector.purpose}.
+ */
+export type CheckPurpose = 'find-marked';
+
+/**
  * Which rolls a modifier picks out.
  *
  * `ability` and `skill` are filters and both narrow rather than widen: absent
@@ -202,6 +215,32 @@ export interface RollSelector {
    * "ability checks using the chosen ability".
    */
   readonly skill?: Skill;
+  /**
+   * What the check is **for**, where a sentence narrows by that rather than by
+   * the roll.
+   *
+   * SRD Hunter's Mark: "You also have Advantage on any Wisdom (Perception or
+   * Survival) check you make **to find it**." The ability and the skill are
+   * already selectable and neither of them is the narrowing: a ranger tracking
+   * the quarry and a ranger listening at a door roll the same Wisdom
+   * (Perception) check, and the difference is a fact about the *attempt*. So it
+   * is stated by whoever asks for the check — `TestCommand.purpose`, the shape
+   * `senses` and `fought` already have — and left silent otherwise, which a
+   * purpose-keyed selector reads as a miss.
+   *
+   * **The member names a mechanism rather than a spell.** `find-marked` is
+   * "this check is being made to find a creature the roller has marked", and
+   * whether the roller has marked them is `attackRiders`' answer — what
+   * `attack-rider.marksTarget` wrote, which is the same fact `knowledge.ts`
+   * reads and no spell's name. A homebrew spell that marks a quarry and grants
+   * this mode reaches it.
+   *
+   * **Only for `ability-check`.** An attack roll and a saving throw are not
+   * made *to* anything the caller could state — an attack has its target and a
+   * save has what it is about, both already selectable — so a purpose on either
+   * would pick out nothing for ever.
+   */
+  readonly purpose?: CheckPurpose;
   /**
    * The other participant, pinned — so the selector picks out rolls involving
    * one named creature rather than anybody.
@@ -612,6 +651,14 @@ export function rollModifierKey(source: string, selector: RollSelector): string 
     ...(selector.attackerType === undefined
       ? []
       : [`attacker-type:${[...selector.attackerType].sort().join(',')}`]),
+    // **And what the check is for**, appended for the two paragraphs above's
+    // reasons: every key an existing log holds stays byte-identical, and the
+    // segment carries its own name and a colon, so it cannot be read as the
+    // marker, a class id or a type list. One source that grants a mode on a
+    // check made to find its quarry and another on the same check made for
+    // anything would be two statements, and a key that could not tell them
+    // apart would evict the first.
+    ...(selector.purpose === undefined ? [] : [`purpose:${selector.purpose}`]),
   ].join('|');
 }
 
@@ -776,6 +823,35 @@ export interface RollQuery {
    * creature.
    */
   readonly rollerType?: string | null;
+  /**
+   * The creature this check is being made **to find** — SRD Hunter's Mark's
+   * "any Wisdom (Perception or Survival) check you make to find it".
+   *
+   * Stated by whoever asks for the check, because nothing else could know:
+   * tracking the quarry and listening at a door are the same Wisdom
+   * (Perception) check and the difference is what the attempt is *for*. It is
+   * the shape {@link aboutConditions} has on the other family — a fact about
+   * the roll that only its asker holds — and the shape `senses` has on the
+   * command.
+   *
+   * Absent is a check nobody said the purpose of, which is most of them.
+   */
+  readonly finding?: CharacterId;
+  /**
+   * Whether {@link finding} names a creature the **roller** has marked — what
+   * {@link RollSelector.purpose}'s `find-marked` matches.
+   *
+   * **Filled in by the gatherer rather than by the site that throws the die**,
+   * which is the reading {@link rollerType} and
+   * {@link targetMissingHitPoints} already take: the mark is
+   * `CreatureState.attackRiders`, which `rollModesFor` has the state for and a
+   * caller would only be repeating. So the asker states the purpose and the
+   * engine decides whether the sentence is about it.
+   *
+   * Absent means nobody worked it out, which a purpose-keyed selector reads as
+   * a miss.
+   */
+  readonly findingMarked?: boolean;
 }
 
 /**
@@ -879,6 +955,13 @@ export function selectorMatches(
   // narrowings of one sentence, read the same way `againstMagic` is: a swing
   // that said nothing about being a spell's is not one, and a casting through
   // no class is not a casting through this one.
+  // SRD Hunter's Mark: "any Wisdom (Perception or Survival) check you make **to
+  // find it**." The asker states which creature the attempt is about and the
+  // gatherer decides whether it is one the roller has marked; a check nobody
+  // said the purpose of is a miss, because an unkeyed Perception check is a
+  // different sentence from this one.
+  if (selector.purpose === 'find-marked' && query.findingMarked !== true) return false;
+
   if (selector.onlySpellAttacks === true && query.spellAttack !== true) return false;
   if (
     selector.onlyThroughClass !== undefined &&
@@ -1109,6 +1192,26 @@ export function rollSelectorProblems(
       found.push({
         code: 'condition_off_a_saving_throw',
         reason: `a saving throw and the ability check that ends an effect say what they are about; a ${selector.roll} does not, so naming a condition on one would pick out nothing for ever`,
+      });
+    }
+  }
+
+  // What a check is **for**, held to the one family that can say. See
+  // {@link RollSelector.purpose}: an attack roll and a saving throw are not made
+  // *to* anything a caller states, so a purpose on either would pick out
+  // nothing for ever — the refusal `skill_off_ability_check` makes about the
+  // narrowing beside it.
+  if (selector.purpose !== undefined) {
+    if (selector.purpose !== 'find-marked') {
+      found.push({
+        code: 'bad_check_purpose',
+        reason: `"${String(selector.purpose)}" is not a purpose a check can be made for; the engine reads find-marked`,
+      });
+    }
+    if (selector.roll !== 'ability-check') {
+      found.push({
+        code: 'purpose_off_ability_check',
+        reason: `only an ability check is made *to* something a caller states, so a purpose cannot pick out a ${selector.roll}`,
       });
     }
   }

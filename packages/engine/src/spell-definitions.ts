@@ -2053,6 +2053,28 @@ export type SpellEffect =
        * which is a change with no rules gain.
        */
       readonly modifier: RollModifier;
+      /**
+       * Hang it on the **caster** rather than on whom the effect was aimed at.
+       *
+       * SRD Hunter's Mark: the spell is cast at a quarry ninety feet away, and
+       * "**you** also have Advantage on any Wisdom (Perception or Survival)
+       * check you make to find it". The mode is the ranger's and the target is
+       * the quarry, which is exactly the asymmetry `attack-rider` beside it has
+       * — there the die is thrown by whoever swings and the mark is on somebody
+       * else.
+       *
+       * **Said out loud here where `attack-rider` has it implicitly**, because a
+       * mode's holder is not implied by the sentence: Blur and Beacon of Hope
+       * put theirs on the creature the casting named, and most sentences of this
+       * shape do. Absent is that reading, which is every `roll-mode` effect
+       * written before this field.
+       *
+       * The outcome is still the target's — the effect resolved *on* the quarry
+       * — and `held` records the caster, because a casting is on a creature
+       * while it holds a live effect of that casting's, and this one is on the
+       * caster.
+       */
+      readonly onCaster?: true;
     }
   /**
    * A defence that answers somebody else's attack, with nobody taking a

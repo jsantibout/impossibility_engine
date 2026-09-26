@@ -6317,7 +6317,43 @@ export const HUNTERS_MARK: SpellDefinition = {
   range: { kind: 'ranged', feet: 90 },
   requiresSight: true,
   targets: { count: 1 },
-  effects: [{ kind: 'attack-rider', dice: '1d6', damageType: 'force', marksTarget: true }],
+  effects: [
+    { kind: 'attack-rider', dice: '1d6', damageType: 'force', marksTarget: true },
+    // "You also have Advantage on any Wisdom (Perception or Survival) check you
+    // make **to find it**." Two grants, because a selector names one skill and
+    // the book names two; both hang on the **caster** — the spell is cast at the
+    // quarry and the check is the ranger's — and both are narrowed by what the
+    // check is *for*, so a ranger listening at a door rolls an ordinary
+    // Perception check.
+    {
+      kind: 'roll-mode',
+      onCaster: true,
+      modifier: {
+        mode: 'advantage',
+        selector: {
+          roll: 'ability-check',
+          relation: 'roller',
+          ability: 'wis',
+          skill: 'perception',
+          purpose: 'find-marked',
+        },
+      },
+    },
+    {
+      kind: 'roll-mode',
+      onCaster: true,
+      modifier: {
+        mode: 'advantage',
+        selector: {
+          roll: 'ability-check',
+          relation: 'roller',
+          ability: 'wis',
+          skill: 'survival',
+          purpose: 'find-marked',
+        },
+      },
+    },
+  ],
   // "Concentration, up to 1 hour" — the cap a level 1 or 2 slot buys.
   durationSeconds: 3600,
   // "level 3–4 (up to 8 hours) or 5+ (up to 24 hours)": 8 × 3600 and 24 × 3600.
@@ -6336,9 +6372,6 @@ export const HUNTERS_MARK: SpellDefinition = {
     label: "Hunter's Mark (a new quarry)",
     effects: [],
   },
-  unmodelled: [
-    'the Advantage on a Wisdom (Perception or Survival) check made to find the quarry is not granted: a roll modifier selects Wisdom (Perception) and Wisdom (Survival) perfectly well, and what nothing can select is *which* check is being made to find the quarry — so a grant would hand the ranger Advantage on every Perception check they ever roll',
-  ],
 };
 
 // — the third tracked batch: the twelve a casting time of a minute or more blocked —

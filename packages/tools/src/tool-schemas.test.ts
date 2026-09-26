@@ -289,7 +289,7 @@ describe('toolSchemas', () => {
     expect(toolSchemas(player())).toHaveLength(92);
     expect(toolSchemas(dm())).toHaveLength(118);
     expect(JSON.stringify(toolSchemas(player())).length).toBe(139309);
-    expect(JSON.stringify(toolSchemas(dm())).length).toBe(181464);
+    expect(JSON.stringify(toolSchemas(dm())).length).toBe(181991);
   });
 });
 
