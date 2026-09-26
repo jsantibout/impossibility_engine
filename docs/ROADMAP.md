@@ -3282,3 +3282,29 @@ Appended 2026-09-26, wave seven on Opus:
   'dying', successes, failures }`, `{ outcome: 'stable' }` or `{ outcome:
   'dead' }`, null above 0 — read from `Vitals`, for the app's plaque. Pins:
   player 96 / 158726, DM 124 / 211194. Opus review: PASS.
+- **Regeneration, forms, coven magic and splits** (W7-B12). Regeneration at
+  the turn start with the acid-or-fire marker and a death that waits at 0
+  (a pinned `damage-taken.floor`); sunlight's 20 Radiant at a turn start; a
+  Fire Aura that burns and ignites creatures; Corrosive Form's acid back and a
+  weapon worn down to destruction; Bloodied Fury (`RollSelector.reach:
+  'melee'`); Spider Climb gated on a Climb Speed; Coven Magic cast from a
+  trait with two hag allies within 30 feet; a form a Long Rest takes
+  (`stat-block-replaced`, `take_rest_form`); Troll Spawn's d12 on a 24-hour
+  block deadline (`settle_block_deadlines`, `block_change_owed`); an ooze that
+  splits at `damaged-by-creature` (`split_printed_line`, `damage-taken.types`).
+  Bestiary **36 → 20 lines, 212 → 218 clean blocks**; a `ledger.ts` fix
+  (`unpaid` now asks for a handed-over trait sentence). DM door 127 tools.
+  Main re-ingested. **Left:** the flammable objects a Fire Aura lights, the
+  ammunition Corrosive Form eats, Mending on the worn weapon. Opus review,
+  four defects (one a real summons-size bug), fixed.
+
+Appended 2026-09-27, the owner's answers of the day:
+
+- **Infinite Realms:** a reaction the player's side has no tool for is
+  declined by the runtime by default and said in the feed (a chip later); a
+  turn that talks and moves nothing is allowed.
+- **Light on an object may move and be covered** under its casting's identity
+  (W9-S1 extends `light-and-sight.md` ruling 1); **Feather Fall** reads only
+  whether the landing falls inside the spell's minute; **a departing
+  summons' gear** follows each spell's printed sentence, no general rule;
+  Rope Trick's portal height is a DM-only fact (the §10 falling ruling).
