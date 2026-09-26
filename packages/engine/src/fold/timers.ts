@@ -77,9 +77,35 @@ export function applyTimers({ state, next }: Applying, event: TimersEvent): Game
       }
       if (!event.success || timer.check.onSuccess === 'none') return next;
 
-      // The only consequence this union can express, and it is the one the
-      // repeat save already performs: the casting's effect on that creature
-      // ends, and the casting itself carries on for anyone else it caught.
+      // **A check against what a printed line hung on a creature**, which is
+      // the second kind of target a success can end and arrived with SRD
+      // Bearded Devil's infernal wound: "after the target or a creature within
+      // 5 feet of it takes an action to stanch the wound". There is no
+      // condition and no casting — the wound is a payout under its own source
+      // with a deadline over it — so what the success ends is exactly what the
+      // deadline arriving would have ended, through the same door
+      // `expireEffects` opens. The timer goes with it, because a check that
+      // has been passed has nothing left to be attempted against.
+      if (timer.target.kind === 'grants') {
+        const creature = next.creatures[timer.target.on];
+        const timers = { ...next.timers };
+        delete timers[event.effectKey];
+        return creature === undefined
+          ? { ...next, timers }
+          : {
+              ...next,
+              timers,
+              creatures: {
+                ...next.creatures,
+                [timer.target.on]: releaseGrants(creature, timer.target.source),
+              },
+            };
+      }
+
+      // The only other consequence this union can express, and it is the one
+      // the repeat save already performs: the casting's effect on that
+      // creature ends, and the casting itself carries on for anyone else it
+      // caught.
       if (timer.target.kind !== 'condition') {
         throw new CorruptLogError(
           event,

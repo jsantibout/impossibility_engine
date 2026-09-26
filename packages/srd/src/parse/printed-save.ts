@@ -415,6 +415,16 @@ const UNTIL_TURN = /^until the (start|end) of (its|the [a-z'-]+(?: [a-z'-]+)*'s)
 const FOR_SPAN = /^for (\d+) (hour|minute)s?$/;
 const SPAN_SECONDS: Readonly<Record<string, number>> = { hour: 3600, minute: 60 };
 
+/**
+ * Both apostrophes, because a transcription may carry either.
+ *
+ * The vendored SRD text uses the straight one throughout, and a reader that
+ * insisted on it would stop reading the day somebody pasted a line through a
+ * word processor. `monster.ts` in the engine keeps the same constant for the
+ * same reason; neither package may import the other's.
+ */
+const APOSTROPHE = "['’]";
+
 const SUBJECT = '(?:(?:[Tt]he target|[Ii]t) )?';
 const HAS_CONDITION = new RegExp(
   `^${SUBJECT}has the ([A-Z][a-z]+) condition(?: \\(escape DC (\\d+)\\))?(?: (until [^,]+?|for \\d+ (?:hour|minute)s?))?(?:,? and (.+))?$`,
@@ -1654,6 +1664,85 @@ function readCurse(cursed: string, next: string | undefined): PrintedSaveEffect[
 }
 
 /**
+ * SRD Bearded Devil's Infernal Glaive, sentence one: "The target receives an
+ * infernal wound." SRD Erinyes' Infernal Tail prints the gate here instead of
+ * in the opening: "the target receives an infernal wound **if it doesn't have
+ * one**."
+ *
+ * The gate is matched and dropped, because it is not a fact about this
+ * sentence that a reader could vary: every line printing a wound prints it,
+ * and what keeps it is the executor, which gives no creature a second wound.
+ */
+const RECEIVES_A_WOUND = new RegExp(
+  `^[Tt]he target receives an infernal wound(?: if it doesn${APOSTROPHE}t have one)?$`,
+);
+
+/**
+ * Sentence two: "While wounded, the target loses 5 (1d10) Hit Points at the
+ * start of each of its turns."
+ *
+ * The amount is read like any other printed amount and the **type is not**,
+ * because there is none: the book takes Hit Points away here without naming a
+ * kind of damage, which is the one sentence in the corpus that does.
+ */
+const WOUND_LOSS =
+  /^While wounded, the target loses (\d+) \((\d+d\d+)(?: \+ (\d+))?\) Hit Points at the start of each of its turns$/;
+
+/**
+ * Sentence three: "The wound closes after 1 minute, after a spell restores Hit
+ * Points to the target, or after the target or a creature within 5 feet of it
+ * takes an action to stanch the wound, doing so by succeeding on a DC 12
+ * Wisdom (Medicine) check."
+ *
+ * Three endings in one sentence and all three are read, which is why the
+ * pattern is long: a wound that closed on only two of them would run longer
+ * than the book says, and one that dropped the check would be a rule a table
+ * could not use.
+ */
+const WOUND_CLOSES = new RegExp(
+  '^The wound closes after (\\d+) (minute|hour)s?, after a spell restores Hit Points to the target, ' +
+    'or after the target or a creature within 5 feet of it takes an action to stanch the wound, ' +
+    `doing so by succeeding on a DC (\\d+) ${ABILITY_WORD} \\(([A-Z][a-z]+)\\) check$`,
+);
+
+/**
+ * The three sentences a wound is printed in, read together or not at all.
+ *
+ * {@link readCurse}'s shape over one more sentence, and for its reason: each
+ * of the three is useless without the others. A wound with no loss costs
+ * nothing, a loss with no ending runs for ever, and an ending with nothing to
+ * end is a check against nothing. So all three are read or all three are
+ * carried, and a homebrew line that prints two of them stays prose.
+ */
+function readWound(
+  first: string,
+  second: string | undefined,
+  third: string | undefined,
+): PrintedSaveEffect | null {
+  if (!RECEIVES_A_WOUND.test(first)) return null;
+  if (second === undefined || third === undefined) return null;
+  const loss = WOUND_LOSS.exec(second.trim().replace(/\.$/, ''));
+  if (loss === null) return null;
+  const closes = WOUND_CLOSES.exec(third.trim().replace(/\.$/, ''));
+  if (closes === null) return null;
+  // Five captures: the span and its unit, then the DC, the ability and the
+  // skill the parenthesis names.
+  const ability = ABILITY_KEYS[closes[4]!];
+  const seconds = Number(closes[1]) * (SPAN_SECONDS[closes[2]!] ?? 0);
+  if (ability === undefined || seconds <= 0) return null;
+  return {
+    kind: 'wound',
+    loss: {
+      average: Number(loss[1]),
+      dice: loss[2]!,
+      flat: loss[3] === undefined ? 0 : Number(loss[3]),
+    },
+    closesAfterSeconds: seconds,
+    stanch: { ability, skill: closes[5]!.toLowerCase(), dc: Number(closes[3]) },
+  };
+}
+
+/**
  * The two sentences a Hit Point ceiling is printed in, read together or not at
  * all.
  *
@@ -1778,6 +1867,16 @@ function readSection(
       effects.push(...cursed);
       readSomething = true;
       index += 1;
+      continue;
+    }
+
+    // The curse's shape over one more sentence: the wound, what it costs, and
+    // the three ways it closes. Two sentences are eaten rather than one.
+    const wound = readWound(rest, sentences[index + 1], sentences[index + 2]);
+    if (wound !== null) {
+      effects.push(wound);
+      readSomething = true;
+      index += 2;
       continue;
     }
 
@@ -2330,8 +2429,11 @@ export function parsePrintedSave(text: string): MonsterSave | null {
  * in front, because the creature the save catches is the one the attack just
  * hit.
  */
-const RIDER_SAVE =
-  /^(?:If the target is (a creature), it|[Aa]nd the target) is subjected to the following effect\. _([A-Za-z]+) Saving Throw:_ DC (\d+)\. (_(?:First )?Failure:_ .*)$/;
+const RIDER_SAVE = new RegExp(
+  `^(?:If the target is (a creature)(?: and doesn${APOSTROPHE}t already have an infernal wound)?, it` +
+    '|[Aa]nd the target) is subjected to the following effect\\. ' +
+    '_([A-Za-z]+) Saving Throw:_ DC (\\d+)\\. (_(?:First )?Failure:_ .*)$',
+);
 
 /**
  * The save a **hit's rider** forces, or null where the rider forces none.
@@ -2343,20 +2445,36 @@ const RIDER_SAVE =
  * copy of the grammar here would be a second answer to "what does a Restrained
  * that repeats its save mean", free to disagree with the first.
  *
- * **The gate is read or the rider is not.** The only opening this takes with a
- * condition on it is the book's "If the target is a creature", which is the
- * clause every printing of this shape uses — a creature and not an object. A
- * rider whose gate says anything else (SRD Bearded Devil's "and doesn't
- * already have an infernal wound") comes back null and stays prose, because a
- * gate dropped in silence is a rule nobody printed.
+ * **The gate is read or the rider is not**, and there are two of them now. The
+ * plain one is the book's "If the target is a creature", which is the clause
+ * every printing of this shape uses — a creature and not an object. The second
+ * is SRD Bearded Devil's "and doesn't already have an infernal wound", which
+ * stayed prose for as long as nothing could keep it: it is the one-wound-per-
+ * target rule, and a `wound` clause **is** that rule, so the gate is read only
+ * where the failure it opens really imposes one. A rider whose gate says
+ * anything else still comes back null and stays prose, because a gate dropped
+ * in silence is a rule nobody printed.
  *
- * `targets` on the result is that gate in the book's own words, which is what
- * the field has always held: who the line catches.
+ * `targets` on the result is the plain gate in the book's own words, which is
+ * what the field has always held: who the line catches. The wound's gate is
+ * not there because it is not about who the line catches — it is about what
+ * they already have, and the clause keeps it.
  */
 export function parseRiderSave(rider: string): MonsterSave | null {
   const flat = rider.replace(/\s+/g, ' ').trim();
   const match = RIDER_SAVE.exec(flat);
   if (match === null) return null;
   const who = match[1] ?? 'the target';
-  return parsePrintedSave(`_${match[2]!} Saving Throw:_ DC ${match[3]!}, ${who}. ${match[4]!}`);
+  const save = parsePrintedSave(`_${match[2]!} Saving Throw:_ DC ${match[3]!}, ${who}. ${match[4]!}`);
+  // The wound's gate was matched; if the failure beneath it turned out not to
+  // impose a wound, the gate has nothing keeping it and the whole rider stays
+  // prose rather than being read with a sentence of the book's silently gone.
+  if (save !== null && WOUND_GATE.test(flat)) {
+    const wounds = (save.onFailure ?? []).some((effect) => effect.kind === 'wound');
+    if (!wounds) return null;
+  }
+  return save;
 }
+
+/** The half of {@link RIDER_SAVE}'s opening that only a wound may keep. */
+const WOUND_GATE = new RegExp(`and doesn${APOSTROPHE}t already have an infernal wound`);

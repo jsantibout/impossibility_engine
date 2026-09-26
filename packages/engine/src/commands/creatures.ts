@@ -983,6 +983,17 @@ export function healCreature(
   id: CharacterId,
   amount: number,
   command: CommandIdentity = {},
+  /**
+   * What is restoring them, where the caller knows — a casting's own source.
+   *
+   * Fifth and appended, the reading `applyConditionTo`'s late parameters
+   * already take: no existing call site passes one and none has to. It reaches
+   * the event and nothing here, because the *rule* that reads it is a fold
+   * pass — SRD Bearded Devil's wound closing "after a spell restores Hit
+   * Points to the target" — and hit points coming back are hit points coming
+   * back whoever sent them.
+   */
+  source?: string,
 ): Result<GameEvent[]> {
   // The mirror of `damageCreature`, which has been guarded since command ids
   // landed. Healing was not, and a retried heal healed twice — the same bug in
@@ -1039,7 +1050,13 @@ export function healCreature(
     if (hasPrintedTrait(creature.sheet, 'regains-no-hit-points')) return ok([]);
 
     const events: GameEvent[] = [
-      { type: 'healed', id, amount, ...(stamp === null ? {} : { command: stamp }) },
+      {
+        type: 'healed',
+        id,
+        amount,
+        ...(source === undefined ? {} : { source }),
+        ...(stamp === null ? {} : { command: stamp }),
+      },
     ];
 
     // SRD: the Unconscious condition from 0 hit points lasts "until you regain

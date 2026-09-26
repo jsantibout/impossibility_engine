@@ -713,6 +713,30 @@ export const printedLineSource = (who: CharacterId, line: string): string =>
   `printed:${who}:${line}`;
 
 /**
+ * The mark a wound's own arrangements are filed under, beneath the line's
+ * source.
+ *
+ * SRD Bearded Devil's Infernal Glaive: "The target receives an infernal
+ * wound." Its own key beneath the line's, like the `…:speed` a printed Speed
+ * cut uses, because one line may hang more than one thing under a span and a
+ * shared key would be one deadline for two sentences.
+ *
+ * **And it is recognisable**, which no other sub-key needs to be: the book
+ * gates the wound on the target not already having one — "doesn't already have
+ * an infernal wound" — and *any* wound counts, not merely this devil's. So the
+ * question is asked of the suffix rather than of a source anybody has to know
+ * in advance. Here rather than beside the executor for {@link
+ * printedLineSource}'s reason exactly: two readers, one of them a fold.
+ */
+const WOUND_MARK = ':wound';
+
+/** The source a printed wound's payout and deadline are filed under. */
+export const woundSource = (lineSource: string): string => `${lineSource}${WOUND_MARK}`;
+
+/** Whether a source is a wound's — see {@link woundSource}. */
+export const isWoundSource = (source: string): boolean => source.endsWith(WOUND_MARK);
+
+/**
  * Whether one printed line is **still holding something** on a creature.
  *
  * SRD Gold Dragon Wyrmling's Weakening Breath: "each creature that isn't
@@ -3801,8 +3825,11 @@ function abilityWord(word: string): Ability | null {
  *   grapple ends", the Mimic's Disadvantage on the escape — is one effect
  *   ending with another, which is a lifetime the engine has not got.
  * - **A failure that is not a condition** — the werecreatures' curse, the
- *   Mummy's, the Bearded Devil's infernal wound — has a readable DC and
- *   nothing to impose with it.
+ *   Mummy's — has a readable DC and nothing to impose with it. The Bearded
+ *   Devil's infernal wound was on this list and is not: its three sentences
+ *   are read by `parseRiderSave` into a `wound` clause the printed-save
+ *   executor lands, which is the door a rider's save goes through and not
+ *   this one's.
  * - **A possessive that names neither creature in the hit** — see
  *   {@link NAMES_NOBODY_IN_THE_HIT}.
  *
@@ -3891,8 +3918,11 @@ const one = (rider: PrintedRider): ClauseRead => ({ kind: 'riders', riders: [rid
  * refusals is worth naming because each is a mechanism rather than a wording:
  *
  * - **A failure that is not a condition** — the werecreatures' curse, the
- *   Mummy's, the Bearded Devil's infernal wound — has a readable DC and
- *   nothing to impose with it.
+ *   Mummy's — has a readable DC and nothing to impose with it. The Bearded
+ *   Devil's infernal wound was on this list and is not: its three sentences
+ *   are read by `parseRiderSave` into a `wound` clause the printed-save
+ *   executor lands, which is the door a rider's save goes through and not
+ *   this one's.
  * - **A graded save on a hit** — the Cockatrice's second rung of failure, the
  *   Death Dog's repeat every 24 hours — is a vocabulary the spell side is
  *   building first.

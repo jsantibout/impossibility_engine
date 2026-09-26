@@ -24,12 +24,25 @@
 import type { CharacterId } from '@ie/shared';
 import { instancesEndingEarly } from '../conditions.js';
 import { type EffectEndCause, timerKey } from '../timers.js';
-import { castingNumber, creaturesStandingInCastingArea, type OngoingSpell } from '../spells.js';
+import {
+  castingIdOf,
+  castingNumber,
+  creaturesStandingInCastingArea,
+  type OngoingSpell,
+} from '../spells.js';
+import { isWoundSource } from '../monster.js';
 import { positionOf } from '../positioning.js';
 
 import type { GameEvent } from '../events.js';
 import type { GameState } from '../state.js';
-import { casterOf, endTimedCondition, isOn, releaseCasting, releaseOnTarget } from './release.js';
+import {
+  casterOf,
+  endTimedCondition,
+  isOn,
+  releaseCasting,
+  releaseGrants,
+  releaseOnTarget,
+} from './release.js';
 
 /**
  * Whether the creature that dealt this damage is the caster or one of their
@@ -511,6 +524,55 @@ export function endEarlyEndedConditions(state: GameState, event: GameEvent): Gam
     );
   }
   return current;
+}
+
+/**
+ * SRD Bearded Devil's Infernal Glaive: "The wound closes … **after a spell
+ * restores Hit Points to the target**."
+ *
+ * The third of the wound's three endings, and the only one nothing could
+ * schedule or command. The minute is the grant's own deadline, the stanch is
+ * the check on the same timer, and this is a fact about a `healed` that has
+ * just landed: derived, with no event, the way {@link endEarlyEndedConditions}
+ * derives a sleeper woken by a blow.
+ *
+ * **"A spell", read off the source the heal names** — `castingIdOf` on
+ * `healed.source` — so a Cure Wounds closes it and a Healer's Kit, a Lay On
+ * Hands, a Hit Die spent on a Short Rest and a DM's award do not. A heal that
+ * names nothing closes nothing, which is the withholding direction every
+ * unstated fact in the fold takes: the engine cannot show the healing was
+ * magical, and closing the wound on a maybe would be the rule quietly doing
+ * more than the book says.
+ *
+ * **Every wound goes, not merely one.** The sentence is about the wound and
+ * not about which devil made it, and the same heal that closes one closes the
+ * other — a creature can only have one anyway, which `woundOn` is what keeps.
+ * The timer goes with the grant, because the deadline and the check are both
+ * about a wound that is no longer there.
+ */
+export function closeHealedWounds(state: GameState, event: GameEvent): GameState {
+  if (event.type !== 'healed' || event.source === undefined) return state;
+  if (castingIdOf(event.source) === null) return state;
+  const creature = state.creatures[event.id];
+  if (creature === undefined) return state;
+
+  const doomed = creature.payouts
+    .filter((held) => isWoundSource(held.source))
+    .map((held) => held.source);
+  if (doomed.length === 0) return state;
+
+  const timers = { ...state.timers };
+  for (const source of doomed) {
+    delete timers[timerKey({ kind: 'grants', on: event.id, source })];
+  }
+  return {
+    ...state,
+    timers,
+    creatures: {
+      ...state.creatures,
+      [event.id]: doomed.reduce(releaseGrants, creature),
+    },
+  };
 }
 
 export function endTriggeredEffects(state: GameState, event: GameEvent): GameState {

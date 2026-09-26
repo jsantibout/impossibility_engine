@@ -1253,6 +1253,23 @@ export type GameEvent =
       readonly type: 'healed';
       readonly id: CharacterId;
       readonly amount: number;
+      /**
+       * What restored them, where the healer knows: a casting's own source
+       * (`Cure Wounds#cast:3`), a feature, a pool.
+       *
+       * `temporary-hp-granted.source` one member along and for a sharper
+       * reason than the audit trail that field carries: SRD Bearded Devil's
+       * infernal wound closes "**after a spell** restores Hit Points to the
+       * target", and a `healed` that said only "six hit points appeared"
+       * cannot tell a Cure Wounds from a swig of a potion. `castingIdOf` reads
+       * the answer out of it, so the fold opens no catalogue and asks nobody.
+       *
+       * The fold reads it for that one rule and for nothing else: how many hit
+       * points came back is the whole of what `fold/vitals.ts` needs. Absent
+       * on every heal written before this existed, and absent means what it
+       * always meant — hit points from somewhere nobody named.
+       */
+      readonly source?: string;
       readonly command?: CommandStamp;
     }
   | {
