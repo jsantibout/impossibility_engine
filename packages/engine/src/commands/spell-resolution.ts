@@ -3006,6 +3006,7 @@ function resolveOnTargets(
       const last = lastChargeSpent(
         casterId,
         caster,
+        state.itemsIssued,
         item,
         copy?.instance,
         stored,

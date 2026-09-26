@@ -42,6 +42,7 @@ import type { CreatureState, GameEvent } from '../events.js';
 import type { LastCharge } from '../progression.js';
 import { rollRecorded } from '../rolls.js';
 import type { Supply } from './casting.js';
+import { issueItemCopies } from './inventory.js';
 
 /** The die a last charge is thrown against: SRD's "roll 1d20". */
 const LAST_CHARGE_DIE = '1d20';
@@ -85,6 +86,8 @@ const NOTHING: LastChargeSpent = { rolled: [], destroyed: [] };
 export function lastChargeSpent(
   who: CharacterId,
   creature: CreatureState,
+  /** How many copy records the log has issued: `state.itemsIssued`. */
+  issued: number,
   item: CatalogueItem,
   instance: string | undefined,
   left: number,
@@ -152,6 +155,12 @@ export function lastChargeSpent(
   ];
   if (remains === null) return ok({ rolled, destroyed: leaving });
 
+  // **Labelled through the one compiler**, as every door a copy arrives
+  // through is: `checkContent` refuses a `becomes` naming an item with charges,
+  // so what comes back is the counted stack it asked for — but the decision is
+  // `issueItemCopies`'s to make, and a pool it declared would be declared here.
+  const given = issueItemCopies(issued, supply.content, [{ id: remains.id, quantity: 1 }]);
+  const copy = given.items[0];
   // One of a kind in `equipped`, which is the reading `equipItem` keeps: a
   // second Quarterstaff where one is already in hand goes to the pack.
   const intoHand = held && !creature.equipped.some((worn) => worn.id === remains.id);
@@ -163,9 +172,10 @@ export function lastChargeSpent(
       {
         type: 'items-gained',
         id: who,
-        items: [{ id: remains.id, quantity: 1 }],
+        items: given.items,
         source: `${item.name}, left as ${remains.name} when its last charge was spent`,
       },
+      ...given.pools.map((pool) => ({ type: 'resource-pool-declared' as const, id: who, pool })),
       ...(intoHand
         ? [
             {
@@ -174,6 +184,7 @@ export function lastChargeSpent(
               item: remains.id,
               armor: remains.armor,
               ...(grants.length === 0 ? {} : { grants }),
+              ...(copy?.instance === undefined ? {} : { instance: copy.instance }),
             },
           ]
         : []),
