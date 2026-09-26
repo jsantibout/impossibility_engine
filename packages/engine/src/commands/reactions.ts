@@ -39,7 +39,13 @@ import {
   rollSavingThrow,
 } from '../checks.js';
 import { type CheckContext, isIncapacitated } from '../conditions.js';
-import { applyEvent, type CommandStamp, type GameEvent, type GameState } from '../events.js';
+import {
+  applyEvent,
+  type CommandStamp,
+  type GameEvent,
+  type GameState,
+  type PendingAttack,
+} from '../events.js';
 import { type CommandIdentity, once } from '../idempotency.js';
 import { distanceBetween } from '../positioning.js';
 import {
@@ -58,6 +64,7 @@ import {
   type ReactionOpportunity,
   type SpellReactionWindow,
 } from '../reactions.js';
+import { statedActionOf, statedBonusActionOf } from '../monster.js';
 import { remaining } from '../resources.js';
 import { type Content } from '../content.js';
 import { type SpellDefinition } from '../spell-definitions.js';
@@ -97,6 +104,10 @@ import {
 import { type RollElection } from '../rolls.js';
 import { applyHitRider } from './hit-riders.js';
 import { completeIfSettled, pendingCastingsOf } from './holds.js';
+import {
+  forcePrintedSaveOn,
+  type PrintedSaveOnACreature,
+} from './printed-save-clauses.js';
 import { reactionSwing } from './movement.js';
 import {
   checkBonuses,
@@ -128,6 +139,19 @@ export interface AttackReactionResolution {
   readonly missed: boolean;
   /** What the Reaction did that the engine could not carry out itself. */
   readonly unverified: readonly string[];
+  /**
+   * The printed line this Reaction's response **was**, once the engine has
+   * rolled it — SRD Reflexive Antennae's Antennae.
+   *
+   * Absent for every other response, and absent for a response the engine
+   * still cannot perform: a named line whose own sentence the parser read
+   * nothing out of is handed back in {@link unverified} exactly as it always
+   * was, which is what keeps half a sentence from being performed.
+   */
+  readonly performed?: {
+    readonly line: string;
+    readonly outcome: PrintedSaveOnACreature;
+  };
   /** True when this command id had already been applied; `events` is empty. */
   readonly duplicate: boolean;
 }
@@ -146,11 +170,15 @@ export interface AttackReactionResolution {
  *   miss closes the hold with the same event a settled swing closes it with.
  *   The Reaction is spent either way, because the SRD spends it on the
  *   attempt rather than on the outcome.
- * - **Reflexive Antennae hands its response over.** The line the block names
- *   is a line nothing in the engine performs, so the Reaction is spent, the
- *   log records that it was taken, and what the response *is* comes back in
- *   `unverified` by name. Half a printed line performed would be a creature
- *   doing something nobody printed.
+ * - **Reflexive Antennae performs its response.** The line the block names is
+ *   read off the same sheet this Reaction was read off, and where it is a
+ *   printed save the engine already rolls — Antennae is — the response is
+ *   rolled here rather than handed back by name. The one fact the DM's door
+ *   has to state for an Antennae spent as an Action is the object it touches,
+ *   and the trigger already holds it: the weapon that hit. A named line the
+ *   parser read nothing out of is still handed over whole, because half a
+ *   printed line performed would be a creature doing something nobody
+ *   printed. (W7-B11)
  *
  * **No window state is cleared, because none was written.** `pendingAttack` is
  * the attacker's own hold and this does not close it except by turning the
@@ -207,14 +235,30 @@ export function takeAttackReaction(
     // three-valued reading, the offer reports it through.
     const unverified: string[] = [...undeclaredFacts(feature, context)];
     let missed = false;
+    let performed: AttackReactionResolution['performed'] = undefined;
     if (does.kind === 'raise-ac') {
       const again = reconsiderHeldAttack(pending, does.amount);
       missed = again.missed;
       events.push(...again.events);
     } else if (does.kind === 'use-printed-line') {
-      unverified.push(
-        `${reactor} answered the hit with ${feature.name}, whose response is its own ${does.line} line; the engine does not perform that line, so it is the table's`,
+      // **The response, rolled.** The line is looked up on the reactor's own
+      // sheet — where `creature-added` pinned the block's lines — and nothing
+      // here branches on its name. Where its sentence is the book's save
+      // template, `forcePrintedSaveOn` is the one body that rolls it, the same
+      // body the Action-priced door goes through; where it is not, the name
+      // still goes back to the table, which is what this command always did.
+      const response = performPrintedResponse(
+        events.reduce(applyEvent, state),
+        reactor,
+        pending,
+        feature.name,
+        does.line,
+        supply,
       );
+      if (!response.ok) return response;
+      events.push(...response.value.events);
+      unverified.push(...response.value.unverified);
+      performed = response.value.performed;
     }
 
     events.push({
@@ -226,7 +270,94 @@ export function takeAttackReaction(
       ...(stamp === null ? {} : { command: stamp }),
     });
 
-    return ok({ events, missed, unverified, duplicate: false });
+    return ok({
+      events,
+      missed,
+      unverified,
+      ...(performed === undefined ? {} : { performed }),
+      duplicate: false,
+    });
+  });
+}
+
+/**
+ * The line a Reaction's printed response names, performed where the engine can
+ * perform it and handed over where it cannot.
+ *
+ * SRD Reflexive Antennae is the one line in the book whose whole response is
+ * another of its own headings, and Antennae is a printed save. So the work is
+ * three reads and no new rule: find the heading on the reactor's own sheet,
+ * find the save the parser read beneath it, and roll it at the creature whose
+ * blow opened the window.
+ *
+ * **The object is the weapon that hit.** Antennae's prelude names "one
+ * nonmagical metal object—armor or a weapon—worn or carried by a creature", and
+ * the Action-priced door asks a DM which it is because a creature may be
+ * wearing mail and holding a sword. Here the trigger has already answered:
+ * *this* is the weapon that just struck the rust monster, and it is the copy
+ * the log pinned rather than anything re-read from a catalogue. A blow with no
+ * catalogue weapon behind it — an Unarmed Strike, a stat block's own claw —
+ * leaves the response nothing to reach for, so nothing is rolled and the table
+ * is told, which is the reading `applyPrintedClauses` already gives an
+ * `object-penalty` clause that reaches it without one.
+ */
+function performPrintedResponse(
+  state: GameState,
+  reactor: CharacterId,
+  pending: PendingAttack,
+  feature: string,
+  line: string,
+  supply: Supply,
+): Result<{
+  readonly events: readonly GameEvent[];
+  readonly unverified: readonly string[];
+  readonly performed?: AttackReactionResolution['performed'];
+}> {
+  const creature = state.creatures[reactor];
+  const printed =
+    creature === undefined
+      ? null
+      : (statedActionOf(creature.sheet, line) ?? statedBonusActionOf(creature.sheet, line));
+  const save = printed?.save;
+  const handedOver = (because: string) => ({
+    events: [] as readonly GameEvent[],
+    unverified: [
+      `${reactor} answered the hit with ${feature}, whose response is its own ${line} line; ${because}, so what it does is the table's`,
+    ],
+  });
+
+  if (printed === null || save === undefined) {
+    return ok(handedOver('the engine reads no saving throw beneath that heading'));
+  }
+  // The object the line wants, where it wants one. `targetsObject` is the
+  // parser's own reading of the prelude, so nothing here guesses which lines
+  // need it.
+  if (save.targetsObject === true && pending.weapon === null) {
+    return ok(
+      handedOver(
+        `${line} wears down an object worn or carried and ${pending.attacker} struck with no weapon the engine holds a copy of`,
+      ),
+    );
+  }
+
+  const landed = forcePrintedSaveOn(state, reactor, pending.attacker, line, save, supply, {
+    ...(pending.weapon === null ? {} : { object: pending.weapon }),
+  });
+  if (!landed.ok) return landed;
+  return ok({
+    events: landed.value.events,
+    unverified: [
+      ...landed.value.unverified,
+      // The sentences the reader carried and did not read, handed over at the
+      // moment of use exactly as the Action-priced door hands them over — the
+      // Antennae's Mending sentence among them. The engine performed the rest
+      // of the line and says what it did not.
+      ...(save.handedOver ?? []).map(
+        (sentence) =>
+          `${line}: "${sentence}" — the engine applied the rest of the line; this sentence is the table's`,
+      ),
+    ],
+    performed: { line, outcome: landed.value.outcome },
   });
 }
 

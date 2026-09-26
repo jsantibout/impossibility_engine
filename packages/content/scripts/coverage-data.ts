@@ -1390,9 +1390,37 @@ export interface StatBlockLine {
   readonly addsToAc?: unknown;
   /** The printed line a Reaction's whole response performs, by its heading. */
   readonly usesLine?: string | undefined;
+  /**
+   * Whether the engine **performs** the line {@link usesLine} names, rather
+   * than handing its heading to the table.
+   *
+   * Derived in {@link statBlockLines} rather than read off the line, because
+   * the answer is about a *sibling* line of the same block: the response is
+   * performed exactly where the named heading is one the printed-save reader
+   * got a saving throw out of, which is what `takeAttackReaction` rolls. A
+   * line is the wrong place to hold a fact about its neighbour, so it is
+   * computed where the neighbours are in scope and nowhere else. (W7-B11)
+   */
+  readonly responsePerformed?: boolean;
   /** What a legendary action line does — SRD Unicorn's Charging Horn and Shimmering Shield. */
   readonly legendary?: unknown;
 }
+
+/**
+ * Whether one block performs the heading a Reaction's response names.
+ *
+ * SRD Reflexive Antennae's response is "uses Antennae", and Antennae is a line
+ * of the same block whose saving throw the printed-save reader read — so the
+ * Reaction's own road rolls it. A response naming a heading the reader got
+ * nothing out of is still a name handed to the table. (W7-B11)
+ */
+const performsNamedLine = (
+  monster: (typeof SRD_CONTENT.monsters)[number],
+  heading: string,
+): boolean =>
+  [...monster.actions, ...monster.bonusActions].some(
+    (line) => line.name === heading && line.save !== undefined,
+  );
 
 /** Every line of every section of one block, which is what the shapes count over. */
 export const statBlockLines = (
@@ -1401,7 +1429,11 @@ export const statBlockLines = (
   ...monster.traits,
   ...monster.actions,
   ...monster.bonusActions,
-  ...monster.reactions,
+  ...monster.reactions.map((line) =>
+    line.usesLine === undefined
+      ? line
+      : { ...line, responsePerformed: performsNamedLine(monster, line.usesLine) },
+  ),
   ...monster.legendaryActions,
 ];
 
@@ -1930,20 +1962,24 @@ export const isExecutedLine = (line: StatBlockLine): boolean =>
  * window the engine holds, and the name of the response is structure on the
  * sheet — and it is not **paid**, because the engine performs no printed line
  * as a Reaction's response. What it does instead is offer the Reaction and
- * hand the response to the table by name, which is a handover with a debt
- * behind it rather than a finished sentence. **The response is a line the
- * engine spends now**: the rust monster's Antennae is read — the object the
- * prelude names, the penalty, the two ceilings — and `force_printed_save`
- * rolls it with the weapon that hit named as the object. What is left is the
- * Reaction's own road performing it in place of handing the name over, which
- * is a seam in `commands/reactions.ts` and not in the line.
+ * hand the response to the table by name.
  *
- * It retires when a response is performed rather than named — the same way the
- * Multiattack and Spellcasting rows shrank when their sentences became
- * something the engine runs.
+ * **That seam is closed (W7-B11).** `takeAttackReaction` looks the named
+ * heading up on the reactor's own sheet and, where the printed-save reader got
+ * a saving throw out of it, rolls the response through the same body the
+ * Action-priced door goes through — with the weapon that hit as the object the
+ * prelude names, which is the one fact a DM had to state and the trigger
+ * already holds. So the row counts what is still *named* rather than every
+ * `usesLine`: a response whose heading the reader read nothing out of is still
+ * a sentence handed over, and a homebrew block printing one would appear here
+ * rather than passing for executed.
+ *
+ * It retired the same way the Multiattack and Spellcasting rows shrank: the
+ * sentence became something the engine runs.
  */
 export const REACTION_USE_SHAPE = 'A Reaction whose printed response is handed over';
-export const hasHandedOverResponse = (line: StatBlockLine): boolean => line.usesLine !== undefined;
+export const hasHandedOverResponse = (line: StatBlockLine): boolean =>
+  line.usesLine !== undefined && line.responsePerformed !== true;
 
 /**
  * The shapes a printed stat-block line waits on, over the whole bestiary and
