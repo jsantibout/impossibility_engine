@@ -10,6 +10,7 @@ import {
   fold,
   planCharacter,
   resolveAttack,
+  resolveAttackDamage,
   type CharacterChoices,
   type CharacterSheet,
   type GameEvent,
@@ -156,6 +157,7 @@ const swing = (
     readonly target: CharacterId;
     readonly weapon: string;
     readonly twoHanded?: boolean;
+    readonly hold?: boolean;
     readonly extraDamage?: readonly { readonly source: string; readonly type: string; readonly dice: string }[];
   },
   rng?: Rng,
@@ -174,6 +176,7 @@ const contributionsOf = (events: readonly GameEvent[]): Record<string, number> =
 };
 
 interface LoggedDie {
+  readonly sides: number;
   readonly rolled: number;
   readonly value: number;
   readonly cause: string | null;
@@ -271,24 +274,109 @@ describe('SRD Great Weapon Fighting: "treat any 1 or 2 on a damage die as a 3"',
   });
 
   /**
+   * **SRD Two-Handed: "This weapon requires two hands when you attack with
+   * it."** How a Greatsword is held is the weapon's fact rather than the
+   * caller's, so a swing that does not say `twoHanded` is still a swing in two
+   * hands — which is how a model driving the tools will make it.
+   */
+  it('reaches a Greatsword whose swing does not say how it is held', () => {
+    const out = swing(log, HEWER, { target: GOBLIN, weapon: 'greatsword' }, scripted([18, 1, 2]));
+    const dice = loggedDice(out.log);
+    expect(dice.map((die) => die.rolled)).toEqual([1, 2]);
+    expect(dice.map((die) => die.value)).toEqual([3, 3]);
+  });
+
+  /**
+   * A caller saying one hand is overruled by the weapon rather than refused:
+   * the held attack records an unstated hand as `false`, so the two cannot be
+   * told apart once a blow is held, and they must not come out differently.
+   */
+  it('reaches a Greatsword a caller said was in one hand', () => {
+    const out = swing(
+      log,
+      HEWER,
+      { target: GOBLIN, weapon: 'greatsword', twoHanded: false },
+      scripted([18, 1, 2]),
+    );
+    expect(loggedDice(out.log).map((die) => die.value)).toEqual([3, 3]);
+  });
+
+  /** And across a hold, where the hand the swing was made with is remembered. */
+  it('reaches a held Greatsword swing when its damage settles', () => {
+    const struck = swing(
+      log,
+      HEWER,
+      { target: GOBLIN, weapon: 'greatsword', hold: true },
+      scripted([18]),
+    );
+    const settled = unwrap(
+      resolveAttackDamage(fold('seed', struck.log), HEWER, {}, supply(scripted([1, 2]))),
+      'settle',
+    );
+    const dice = loggedDice(settled.events);
+    expect(dice.map((die) => die.rolled)).toEqual([1, 2]);
+    expect(dice.map((die) => die.value)).toEqual([3, 3]);
+  });
+
+  /**
    * "The weapon must have the Two-Handed or Versatile property to gain this
-   * benefit", and a Longsword held in one hand is not being held in two.
+   * benefit", and a Longsword held in one hand is not being held in two. A
+   * Versatile weapon may be held either way, so for it the hand stays the
+   * caller's to say, and unsaid it is one hand: its d8, and no style.
    */
   it('does nothing for a weapon the sentence does not reach', () => {
     const out = swing(log, HEWER, { target: GOBLIN, weapon: 'longsword' }, scripted([18, 1]));
     const dice = loggedDice(out.log);
+    expect(dice.map((die) => die.sides)).toEqual([8]);
     expect(dice.map((die) => die.rolled)).toEqual([1]);
     expect(dice.map((die) => die.value)).toEqual([1]);
   });
 
-  it('reaches the same Longsword once it is Versatile in two hands', () => {
+  it('reaches the same Longsword once it is Versatile in two hands, on its d10', () => {
     const out = swing(
       log,
       HEWER,
       { target: GOBLIN, weapon: 'longsword', twoHanded: true },
       scripted([18, 1]),
     );
-    expect(loggedDice(out.log).map((die) => die.value)).toEqual([3]);
+    const dice = loggedDice(out.log);
+    expect(dice.map((die) => die.sides)).toEqual([10]);
+    expect(dice.map((die) => die.value)).toEqual([3]);
+  });
+
+  /**
+   * A weapon with neither property never qualifies, however it is said to be
+   * held; and a Two-Handed weapon that is not a Melee one — a Shortbow — is
+   * outside the sentence's first word.
+   */
+  it('never reaches a one-handed weapon, nor a Two-Handed Ranged one', () => {
+    const armed: readonly GameEvent[] = [
+      ...log,
+      {
+        type: 'items-gained',
+        id: HEWER,
+        items: [
+          { id: 'shortsword', quantity: 1 },
+          { id: 'mace', quantity: 1 },
+        ],
+        source: 'the quartermaster',
+      },
+    ];
+    for (const weapon of ['shortsword', 'mace']) {
+      for (const twoHanded of [undefined, true]) {
+        const out = swing(
+          armed,
+          HEWER,
+          { target: GOBLIN, weapon, ...(twoHanded === undefined ? {} : { twoHanded }) },
+          scripted([18, 1]),
+        );
+        expect(loggedDice(out.log).map((die) => die.value), `${weapon} ${String(twoHanded)}`).toEqual([1]);
+      }
+    }
+    // The Goblin beside the archer puts the shot at Disadvantage: two d20s.
+    const shot = swing(log, HEWER, { target: ORC, weapon: 'shortbow' }, scripted([18, 18, 1]));
+    expect(shot.attack!.mode).toBe('disadvantage');
+    expect(loggedDice(shot.log).map((die) => die.value)).toEqual([1]);
   });
 
   /**
