@@ -140,6 +140,35 @@ export interface CatalogueItem {
    * wearing an item's name.
    */
   readonly unmodelled?: readonly string[];
+  /**
+   * Printed text only a person at the table can answer, in the book's words.
+   *
+   * `SpellDefinition.dmDecides`' item twin, and the second list for the
+   * reason that one is a second list. `docs/design/content.md` states the
+   * test that sorts a sentence into one or the other:
+   *
+   * > **A table fact that a rule then reads is a debt; a table fact nothing
+   * > reads afterwards is a handover.**
+   *
+   * An `unmodelled` line is a debt — the blocker map ranks it and one day a
+   * shape pays it. A line here will never be paid: what a cube's faces look
+   * like, how far a chime's tone carries, what a suit of armour appears to be.
+   * Filed as a debt it would keep the item partial forever and put work on a
+   * list nobody should do, so an item whose only unexecuted text is the
+   * table's is complete, and the report counts it apart.
+   *
+   * Each entry is a quotation of the item's own entry — a whole sentence
+   * where the whole sentence is the table's, and the clause alone where the
+   * rest of it is a mechanic the record executes — and `magic-items.test.ts`
+   * holds every one against the page. `checkContent` refuses an empty one, a
+   * sentence filed in both lists, and the mark `handedOver` writes,
+   * spelled by hand in either.
+   *
+   * **Nothing reads it at runtime yet**, and nothing read `unmodelled` either:
+   * the door that carries an item's handover out of a use or a casting under
+   * its mark is a later track's, so moving a sentence here loses no caller.
+   */
+  readonly dmDecides?: readonly string[];
 }
 
 /**

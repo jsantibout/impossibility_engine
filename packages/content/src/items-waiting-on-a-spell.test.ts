@@ -516,14 +516,15 @@ describe('a Crystal Ball scrys, and the two that scry and do more', () => {
   /**
    * The fourth orb, whose spell was never the blocker either: Scrying is
    * tracked, `checkContent` asks for a definition rather than an executable
-   * one, and the Truesight the entry is named for is the note.
+   * one, and the Truesight the entry is named for is handed to the DM: it is
+   * centred on a sensor the engine does not hold, and nothing reads it.
    */
   it('scrys off the Crystal Ball of True Seeing against the orb’s own seventeen', () => {
     const { log, out } = castFrom('crystal-ball-of-true-seeing', 'scrying');
     expect(castOf(out.events)?.slotless).toBe('magic-item');
     expect(ongoingSpellOf(fold('seed', log), out.castingId!)?.numbers.saveDc).toBe(17);
     expect(
-      SRD_CONTENT.item('crystal-ball-of-true-seeing')?.unmodelled?.join(' '),
+      SRD_CONTENT.item('crystal-ball-of-true-seeing')?.dmDecides?.join(' '),
       'the Truesight says where it is centred',
     ).toContain("centered on the spell's sensor");
   });

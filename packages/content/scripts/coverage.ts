@@ -28,7 +28,7 @@
  */
 
 import { writeFileSync } from 'node:fs';
-import { SPELL_DEFINITIONS } from '@ie/content';
+import { SPELL_DEFINITIONS, SRD_MAGIC_ITEMS } from '@ie/content';
 import { pathToFileURL } from 'node:url';
 import { dryBuild, refuseStaleBuild } from './build-freshness.js';
 import {
@@ -243,8 +243,9 @@ function renderMagicItems(coverage: MagicItemCoverage): readonly string[] {
     '| **Parsed** | `@ie/srd` has the entry: name, category, rarity line, attunement bracket, charges, prose |',
     '| **Transcribed** | at least one catalogue record was read out of that entry |',
     '| **Instances** | the catalogue records those entries expand to |',
-    '| **Complete** | a record that carries no `unmodelled` note: it does everything its entry says |',
+    '| **Complete** | a record that carries no `unmodelled` note: it does everything its entry says, or hands the rest to the DM |',
     '| **Partial** | a record carrying at least one, quoting the clause it leaves to the table |',
+    '| **Handed over** | a record carrying a `dmDecides` sentence: printed text only the table can answer, in the book’s words. A handover is not a debt, so it never makes a record partial |',
     '',
     '**One entry is not one item.** The SRD writes _Weapon, +1, +2, or +3_ once,',
     'as a template over the weapon table; the catalogue holds a +1, a +2 and a +3',
@@ -260,6 +261,13 @@ function renderMagicItems(coverage: MagicItemCoverage): readonly string[] {
     `| Parsed | Transcribed | Instances | of which complete | of which partial |`,
     `|---|---|---|---|---|`,
     `| ${coverage.parsed} | ${coverage.transcribed} | ${coverage.instances} | ${coverage.complete} | ${coverage.partial} |`,
+    '',
+    // Counted here off the catalogue rather than carried on the audit: a
+    // handover moves no record between complete and partial, so it is a
+    // count beside that split and never a part of it.
+    '| Records handing printed text to the DM |',
+    '|---|',
+    `| ${SRD_MAGIC_ITEMS.filter((item) => (item.dmDecides ?? []).length > 0).length} |`,
     '',
     'An entry with **no** record is one whose whole text is beyond the grant',
     'vocabulary. `packages/content/src/items.ts` states the three rules that',

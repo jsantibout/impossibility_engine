@@ -857,12 +857,24 @@ const NAMED_ITEMS: readonly CatalogueItem[] = [
        * SRD Boots of the Winterlands: "_Cold Resistance._ You have Resistance
        * to Cold damage and can tolerate temperatures of 0 degrees Fahrenheit
        * or lower without any additional protection."
+       *
+       * **The temperature is handed over and the terrain is owed**, which is
+       * the debt/handover test run on two halves of one item. How cold it is
+       * is the table's, and the one rule the SRD prints about it reads nothing
+       * the boots do not already grant: Extreme Cold's save is automatically
+       * made by "Creatures that have Resistance or Immunity to Cold damage"
+       * (Gameplay Toolbox), and the Resistance is the grant above. Ice and
+       * snow are different: Difficult Terrain is a patch movement reads, and a
+       * patch made of ice is a fact a rule would then consult — so that stays
+       * a debt.
        */
       attunement: {},
       grants: [resistanceWhileWorn(['cold'])],
       unmodelled: [
-        'the other half of the same sentence — you "can tolerate temperatures of 0 degrees Fahrenheit or lower without any additional protection" — and there is no weather here to tolerate',
         '"_Winter Strider._ You ignore Difficult Terrain created by ice or snow": terrain has no kinds in the engine, and what a square is made of is the DM\'s',
+      ],
+      dmDecides: [
+        'You ... can tolerate temperatures of 0 degrees Fahrenheit or lower without any additional protection.',
       ],
     },
   ),
@@ -973,6 +985,12 @@ const NAMED_ITEMS: readonly CatalogueItem[] = [
        * one requirement rather than two, which is what makes the pair worth
        * having — "while worn" and "while attuned" are separable and this is the
        * item that separates them.
+       *
+       * **The silence is the table's.** Hearing is modelled nowhere: a check
+       * that relies on it says so through its caller, and whether a guard
+       * hears a footstep is the DM's call before any die is thrown. No rule
+       * reads what a step sounds like, so the first sentence is handed over
+       * and the second is granted.
        */
       grants: [
         {
@@ -995,8 +1013,8 @@ const NAMED_ITEMS: readonly CatalogueItem[] = [
           requires: WORN,
         },
       ],
-      unmodelled: [
-        '"your steps make no sound, regardless of the surface you are moving across": silence is not Advantage on anything, and whether a guard hears you is the DM\'s',
+      dmDecides: [
+        'While you wear these boots, your steps make no sound, regardless of the surface you are moving across.',
       ],
     },
   ),
@@ -1022,10 +1040,20 @@ const NAMED_ITEMS: readonly CatalogueItem[] = [
   magicArmor(
     { id: 'glamoured-studded-leather', name: 'Glamoured Studded Leather', row: 'studded-leather-armor' },
     {
-      /** SRD: "While wearing this armor, you gain a +1 bonus to Armor Class." */
+      /**
+       * SRD: "While wearing this armor, you gain a +1 bonus to Armor Class."
+       *
+       * **The glamour is handed over whole, Bonus Action and all.** What a
+       * suit of armour looks like is read by no rule, and the Bonus Action is
+       * the price of that table fact — handed over the way Clairvoyance's
+       * Bonus Action switching sight for hearing and Mage Hand's Magic action
+       * are, because nothing it buys is anything the engine could hold.
+       */
       grants: [armorClassWhileWorn(1)],
-      unmodelled: [
-        'the glamour: "You can also take a Bonus Action to cause the armor to assume the appearance of a normal set of clothing or some other kind of armor" — what a suit of armour looks like is the DM\'s, and an illusion costs an action nothing here would spend',
+      dmDecides: [
+        'You can also take a Bonus Action to cause the armor to assume the appearance of a normal set of clothing or some other kind of armor.',
+        'You decide what it looks like—including color, style, and accessories—but the armor retains its normal bulk and weight.',
+        'The illusory appearance lasts until you use this property again or doff the armor.',
       ],
     },
   ),
@@ -1337,6 +1365,14 @@ const NAMED_ITEMS: readonly CatalogueItem[] = [
        * whoever is allied and in range — and it is the reason an item's grant
        * has to declare `auraFeet`: no feature is standing behind it to say how
        * far it goes.
+       *
+       * **The Alarm is the table's; the reach is still owed.** Natural sleep
+       * is not held — `wake` refuses a creature "merely asleep in the ordinary
+       * way" — and the one sleep the engine does hold, SRD Sleep's, is the
+       * one the paragraph's second sentence excludes. So who is asleep, and
+       * being woken, is a fact nothing afterwards reads. "Within your reach"
+       * is different: a distance the engine measures, read here as wielded,
+       * and it stays a debt.
        */
       attunement: {},
       grants: [
@@ -1353,8 +1389,11 @@ const NAMED_ITEMS: readonly CatalogueItem[] = [
           requires: WORN_AND_ATTUNED,
         },
       ],
+      dmDecides: [
+        'The weapon magically awakens each subject who is sleeping naturally when combat begins.',
+        "This benefit doesn't wake a subject from magically induced sleep.",
+      ],
       unmodelled: [
-        '"_Alarm._ The weapon magically awakens each subject who is sleeping naturally when combat begins": natural sleep is not a condition the engine holds',
         'the weapon\'s reach: the book asks that it be "within your reach", and the engine reads that as wielded — `while-worn` — because being in hand is the nearest fact it keeps',
       ],
     },
@@ -1954,11 +1993,19 @@ const NAMED_ITEMS: readonly CatalogueItem[] = [
        * spell's sensor", which is the one thing about Scrying the engine does
        * not hold. Granting it on the wearer would be a Truesight in the wrong
        * place, which is a better orb than the book prints.
+       *
+       * **And it is handed over rather than owed**, because nothing would read
+       * it. The sensor is the table's — Scrying's own note calls it fiction,
+       * and the tracked map rules Clairvoyance's sensor the same way: nothing
+       * is measured from it and nothing is resolved at it. Sight here is a
+       * declared fact between two creatures, and this orb makes no attack,
+       * casting or save through its sensor, so a Truesight centred there
+       * reaches no rule; what the scrier sees through it is the DM's to say.
        */
       attunement: {},
       grants: [castsSpellAtWill('scrying', { saveDc: 17 })],
-      unmodelled: [
-        'the sight the orb is named for: "you have Truesight with a range of 120 feet centered on the spell\'s sensor" measures from the Scrying sensor, and a `sense` effect reaches out from the creature holding it — so a grant here would put the Truesight on the wearer instead of where the book puts it',
+      dmDecides: [
+        "In addition, you have Truesight with a range of 120 feet centered on the spell's sensor.",
       ],
     },
   ),
@@ -2017,14 +2064,21 @@ const NAMED_ITEMS: readonly CatalogueItem[] = [
        * *executable*, and SRD's sentence about a casting from an item —
        * "uses its normal casting time, range, and duration" — is every word
        * arithmetic a tracked definition carries.
+       *
+       * **Both remaining sentences are the table's.** The tone is Knock's own
+       * "loud knock, audible up to 300 feet away" in another voice, and
+       * Knock hands that over; hearing is modelled nowhere. And "useless" is
+       * already the whole of what a rule could read: the pool at zero refuses
+       * every further strike. The cracked tube stays a pound in the pack,
+       * which is what the book leaves it as.
        */
       grants: [
         countedUses('chime-of-opening', 'Chime of Opening strikes', 10),
         castsSpell('knock', 1),
       ],
-      unmodelled: [
-        '"After the tenth time, it cracks and becomes useless": the pool at zero refuses every further strike, which is the whole of what the chime then does — but nothing takes the cracked tube out of the inventory it is carried in',
-        'the sound: "The spell\'s customary knocking sound is replaced by the clear, ringing tone of the chime, which is audible out to 300 feet" — what a casting sounds like, and how far, is the table\'s',
+      dmDecides: [
+        "The spell's customary knocking sound is replaced by the clear, ringing tone of the chime, which is audible out to 300 feet.",
+        'After the tenth time, it cracks and becomes useless.',
       ],
     },
   ),
@@ -2044,6 +2098,11 @@ const NAMED_ITEMS: readonly CatalogueItem[] = [
        * are defined — two of them since before this batch, and three written
        * for this entry. The DC is printed once, before the table, so it
        * governs every row, including the two that roll nothing.
+       *
+       * The cube itself is handed over: its size and which marking a face
+       * carries describe an object, and no rule reads either — what the
+       * engine holds is six spells out of one pool at six prices, chosen by
+       * naming the spell.
        */
       attunement: {},
       grants: [
@@ -2055,9 +2114,7 @@ const NAMED_ITEMS: readonly CatalogueItem[] = [
         castsSpell('resilient-sphere', 4, { saveDc: 17 }),
         castsSpell('wall-of-force', 5, { saveDc: 17 }),
       ],
-      unmodelled: [
-        'the faces themselves are the DM\'s: "This cube is about an inch across. Each face has a distinct marking on it" describes an object, and which marking a face carries is not a fact the engine holds — what it holds is that six spells come out of one pool at six prices',
-      ],
+      dmDecides: ['This cube is about an inch across.', 'Each face has a distinct marking on it.'],
     },
   ),
   wornItem(
@@ -2077,15 +2134,26 @@ const NAMED_ITEMS: readonly CatalogueItem[] = [
        *
        * No bracket on the type line, which is the surprising half of a
        * Legendary entry: anybody may pick the cube up and press a side.
+       *
+       * **Which plane a side leads to is the table's**, and so is the press
+       * that picks it. Plane Shift's destination is ruled the DM's in the
+       * tracked map, and Gate's far end is Gate's own debt, reported on every
+       * casting from its definition — what the cube adds is only *which* plane
+       * that far end is, a name the GM gives and no rule reads. The press is
+       * the gesture that chooses a row, and a `casts` grant is chosen by
+       * naming the spell; the casting itself is elided out of both sentences,
+       * because that half is the engine's.
        */
       grants: [
         charges('cubic-gate', 'Cubic Gate', 3, '1d3'),
         castsSpell('gate', 1),
         castsSpell('plane-shift', 1),
       ],
-      unmodelled: [
-        'the six sides and what they lead to: "The six sides of the cube are each keyed to a different plane of existence, one of which is the Material Plane. The other sides are linked to planes determined by the GM" — the GM chooses the planes and the engine holds one scene, so which side was pressed decides nothing it could read',
-        'how each casting is asked for: "Pressing one side of the cube" and "Pressing one side of the cube twice" are the gesture that chooses the row, and a `casts` grant is chosen by naming the spell',
+      dmDecides: [
+        'The six sides of the cube are each keyed to a different plane of existence, one of which is the Material Plane.',
+        'The other sides are linked to planes determined by the GM.',
+        'Pressing one side of the cube ... opening a portal to the plane of existence keyed to that side.',
+        'Pressing one side of the cube twice ... transporting the targets to the plane of existence keyed to that side.',
       ],
     },
   ),
@@ -2272,11 +2340,18 @@ const NAMED_ITEMS: readonly CatalogueItem[] = [
   wornItem(
     { id: 'sovereign-glue', name: 'Sovereign Glue', kind: 'wondrous' },
     {
+      /**
+       * **The bond is the table's, from both ends and in its jar.** Nothing
+       * holds two objects together and no rule would ask whether they are:
+       * movement moves no attached thing, and breaking an object is a door's
+       * hit points rather than a join. So an ounce is spent, and the table says
+       * what it stuck to, what may unstick it, and what it was kept in.
+       */
       grants: [rolledUses('sovereign-glue', 'Sovereign Glue ounces', '1d6 + 1')],
-      unmodelled: [
-        'the bond itself: a substance that "can form a permanent adhesive bond between any two objects" is not a mechanical state — nothing holds two objects together and no rule would ask — so an ounce is spent and the table says what it stuck to',
-        'what dissolves the bond: "the bond it creates can be broken only by the application of _Universal Solvent_ or _Oil of Etherealness_, or with a _Wish_ spell" names the same absent state from the other end',
-        'the jar the glue is kept in: "It must be stored in a jar or flask that has been coated inside with _Oil of Slipperiness_" is one item\'s condition on another, and inventory holds neither containers nor coatings',
+      dmDecides: [
+        'This viscous, milky-white substance can form a permanent adhesive bond between any two objects.',
+        'It must be stored in a jar or flask that has been coated inside with _Oil of Slipperiness_.',
+        'Once it has done so, the bond it creates can be broken only by the application of _Universal Solvent_ or _Oil of Etherealness_, or with a _Wish_ spell.',
       ],
     },
   ),
@@ -2286,11 +2361,17 @@ const NAMED_ITEMS: readonly CatalogueItem[] = [
       /**
        * The Sovereign Glue's tube, with the same rolled count and the same
        * absent state on the other side of it.
+       *
+       * Handed over for the glue's reason: an adhesive is not a state the
+       * engine holds, so what an ounce dissolves is the table's, and so is the
+       * surface it is poured on — nothing is targeted and no roll is made, so
+       * "within reach" measures nothing a rule reads. The ounces are elided
+       * out of the pour, because counting them is the pool's.
        */
       grants: [rolledUses('universal-solvent', 'Universal Solvent ounces', '1d6 + 1')],
-      unmodelled: [
-        'what an ounce dissolves: "Each ounce instantly dissolves up to 1 square foot of adhesive it touches" — an adhesive is not a state the engine holds, so the ounce is spent and the dissolving is the table\'s',
-        '"onto a surface within reach": the reach here is an arm\'s rather than a weapon\'s — nothing is targeted, no roll is made, and the engine\'s ruler is never asked',
+      dmDecides: [
+        'You can take a Utilize action to pour ... onto a surface within reach.',
+        'Each ounce instantly dissolves up to 1 square foot of adhesive it touches, including _Sovereign Glue_.',
       ],
     },
   ),
