@@ -57,6 +57,10 @@ export function applyElsewhere({ state, next }: Applying, event: ElsewhereEvent)
         source: event.source,
         returns: event.returns,
         ...(event.damage === undefined ? {} : { damage: event.damage }),
+        // The two ways out and the one bar a printed line pins — W7-B10.
+        ...(event.escape === undefined ? {} : { escape: event.escape }),
+        ...(event.pullOut === undefined ? {} : { pullOut: event.pullOut }),
+        ...(event.noVerbalCasting === undefined ? {} : { noVerbalCasting: event.noVerbalCasting }),
       };
       const moved = withCreature(next, event.id, { elsewhere: record }, creature);
       if (scene === null) return moved;

@@ -1633,6 +1633,7 @@ export const TRAIT_KINDS_WITH_A_READER: readonly string[] = [
   'drags-for-free',
   'emanation-is-difficult-terrain',
   'hides-in-dim-light-or-darkness',
+  'holds-creatures-inside',
   'jumps-by-dexterity',
   'jumps-without-a-running-start',
   'long-jump-with-a-running-start',
@@ -1697,7 +1698,6 @@ export const TRAIT_KINDS_WITH_A_READER: readonly string[] = [
  *
  * | Lines | The one seam each waits on |
  * |---|---|
- * | Ooze Cube | `a-second-place-to-put-a-creature`: the cube holds a Large creature or four Medium ones **inside itself**, they have Total Cover there, and a neighbour pulls one out on a check. The narrow-gap half of its paragraph is the movement family below; the rest is not, and reading the whole as fiction would lose four rules |
  * | Regeneration ×2 | a marker on a creature saying a trait does not function on its next turn — a grant with a turn-order deadline that a boundary reads |
  * | Corrosive Form | a hit that knows it was melee, which only the attack path can answer |
  * | Coven Magic ×3 | a cast line gated on two allies within thirty feet; the cast line is read and the gate is not |
@@ -2073,11 +2073,18 @@ export const MONSTER_LINE_SHAPES: readonly (readonly [
    *
    * | Lines | The kind, and the seam |
    * |---|---|
-   * | Gelatinous Cube's Engulf, Shambling Mound's Engulf | a creature inside another one — a position the lattice has a word for now, `inside`, which the Giant Frog's and Giant Toad's Swallow are executed on. What these two wait on is the **save reader**: each is a saving throw whose failure puts the target inside, the cube's per space entered during a move and the mound's under a grapple, and the printed-save reader has no arm that hands its failure to the second place |
    * | Ghost's Possession, Harpy's Luring Song | `a-creature-somebody-else-is-playing`. A body somebody else drives and a compulsion that walks a creature toward a cliff are the same want, and the doctrine puts both at the table |
    *
    * The table is pinned to the catalogue by {@link UNREAD_SAVE_SEAMS}, so a
    * row that has been built comes out in the same commit.
+   *
+   * **The Gelatinous Cube's Engulf and the Shambling Mound's Engulf left this
+   * table in W7-B10**: the save reader grew the arm the row said they waited
+   * on — an `engulfs` clause whose failure sends the target `inside` with its
+   * escape, its payout at the host's boundary and the Verbal-casting bar
+   * pinned on the record, and a grapple clause marked `inside` for the
+   * mound's — and the Ooze Cube trait is read as `holds-creatures-inside`,
+   * the room the cube has and the neighbour's pull out of it.
    *
    * **The Bulette's Deadly Leap and the Centaur Trooper's Trampling Charge
    * left this table in W7-B9**: the save reader grew a `movesThen` prelude —
@@ -2200,10 +2207,6 @@ export const LINE_RESIDUE_SEAMS: Readonly<Record<string, string>> = {
 export const UNREAD_SAVE_SEAMS: Readonly<Record<string, string>> = {
   'otherworldly-steed/Fell Glare (Fiend Only; Recharges after a Long Rest)':
     'a span anchored on a **third** creature\'s turn — "The target has the Frightened condition until the end of **your** next turn", the summoner\'s, where `PrintedSpan` names the target\'s turn or the source\'s and no other. The DC is read ("DC equals your spell save DC" is `dcFromSummoner`, resolved from the casting that raised the steed); the span is what keeps the line prose, and the heading\'s type gate and its rest recharge wait on the same reading.',
-  'gelatinous-cube/Engulf':
-    '`a-second-place-to-put-a-creature`: a creature inside another one, with its own escape, its own damage at the swallower\'s boundary and a way out when the cube dies. The Shambling Mound\'s Engulf, the Giant Frog\'s Swallow and the Giant Toad\'s are the same want.',
-  'shambling-mound/Engulf':
-    'the same second place — a creature inside the mound, Blinded and Restrained there, damaged at the mound\'s turn boundary and free when the mound dies. One seam for the four lines that print it.',
   'ghost/Possession (Recharge 6)':
     '`a-creature-somebody-else-is-playing`: "the ghost disappears, and the target is possessed by the ghost" — a body one creature drives and another owns, which the doctrine puts at the table rather than in a record the engine would have to invent a driver for.',
   'harpy/Luring Song':

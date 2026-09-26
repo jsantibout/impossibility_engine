@@ -1308,11 +1308,16 @@ describe('a hold that owes a payout at its holder boundary', () => {
       expect(has(freed, BREN, 'restrained')).toBe(false);
       expect(paidBy(freed, `${seed}-free`)).toEqual([]);
 
-      // The three sentences the reader carried reach the table at the moment
-      // of use, in the book's own words.
+      // The one sentence the reader still carries reaches the table at the
+      // moment of use, in the book's own words. The other two — the cap on
+      // what the hold may have and the neighbour's pull — are read since
+      // W7-B10: the cap is the door's `holding_enough`, and the pull is the
+      // escape check widened to a creature within reach of the held one.
       expect(out.unverified.some((one) => one.includes('suffocating unless it can breathe water'))).toBe(true);
-      expect(out.unverified.some((one) => one.includes('one Large creature or up to two Medium'))).toBe(true);
-      expect(out.unverified.some((one) => one.includes('pull a creature out of it'))).toBe(true);
+      expect(out.unverified.some((one) => one.includes('one Large creature or up to two Medium'))).toBe(false);
+      expect(out.unverified.some((one) => one.includes('pull a creature out of it'))).toBe(false);
+      const [hold] = timersOn(state, BREN);
+      expect(hold?.check).toMatchObject({ dc: 14, byAnotherWithinReach: true });
       return;
     }
     throw new Error('no seed failed the save');

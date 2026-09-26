@@ -1188,9 +1188,27 @@ const PRINTED_SAVE_CLAUSES = [
   }),
 ] as const;
 
-const PrintedSaveClauseSchema = z.discriminatedUnion('kind', PRINTED_SAVE_CLAUSES);
+/**
+ * The clause union, inferred once and then **named**.
+ *
+ * `MonsterSaveSchema` embeds this union four times, `FeatureSchema` embeds
+ * that save twice (a line's own and a hit's rider), and `MonsterSchema` embeds
+ * a feature five times — so an inferred type here is serialised some forty
+ * times into the package's declarations, and the day the union grew a clause
+ * for W7-B10 the compiler refused to write `MonsterSchema`'s at all (TS7056).
+ * Annotating the exported schemas as `z.ZodType<...>` of the inferred alias
+ * prints a name in every one of those places instead of the whole union. The
+ * runtime value is untouched; only the declaration is shorter.
+ */
+export const printedSaveClauses = z.discriminatedUnion('kind', PRINTED_SAVE_CLAUSES);
+/** Everything a branch's `then` arm may hold — see {@link PRINTED_SAVE_CLAUSES}. */
+export type PrintedSaveClause = z.infer<typeof printedSaveClauses>;
+const PrintedSaveClauseSchema: z.ZodType<PrintedSaveClause> = printedSaveClauses;
 
-export const PrintedSaveEffectSchema = z.discriminatedUnion('kind', [
+// Exported beside their named forms, and only so the declarations can refer to
+// them: a type alias over an unexported value is printed structurally, which
+// is the expansion the naming exists to avoid.
+export const printedSaveEffects = z.discriminatedUnion('kind', [
   ...PRINTED_SAVE_CLAUSES,
   /**
    * SRD Sea Hag: "_Failure:_ If the target has 20 Hit Points or fewer, it
@@ -1224,9 +1242,8 @@ export const PrintedSaveEffectSchema = z.discriminatedUnion('kind', [
     }),
   }),
 ]);
-export type PrintedSaveEffect = z.infer<typeof PrintedSaveEffectSchema>;
-/** Everything a branch's `then` arm may hold — see {@link PRINTED_SAVE_CLAUSES}. */
-export type PrintedSaveClause = z.infer<typeof PrintedSaveClauseSchema>;
+export type PrintedSaveEffect = z.infer<typeof printedSaveEffects>;
+export const PrintedSaveEffectSchema: z.ZodType<PrintedSaveEffect> = printedSaveEffects;
 
 /**
  * The further thing a start-of-turn aura asks before it catches anybody.
@@ -3081,7 +3098,7 @@ const MonsterTraitMechanicSchema = z.discriminatedUnion('kind', [
  * An intersection rather than a field repeated on twenty-odd members: every
  * mechanic may carry one, and the discriminator still narrows.
  */
-export const MonsterTraitSchema = MonsterTraitMechanicSchema.and(
+export const monsterTraitSchema = MonsterTraitMechanicSchema.and(
   z.object({
     /**
      * The clauses under this heading the reader carried and did not read.
@@ -3097,7 +3114,9 @@ export const MonsterTraitSchema = MonsterTraitMechanicSchema.and(
     handedOver: z.array(z.string().min(1)).min(1).optional(),
   }),
 );
-export type MonsterTrait = z.infer<typeof MonsterTraitSchema>;
+export type MonsterTrait = z.infer<typeof monsterTraitSchema>;
+/** Named, for the reason `PrintedSaveEffectSchema` is: a feature embeds it, and a block embeds five features. */
+export const MonsterTraitSchema: z.ZodType<MonsterTrait> = monsterTraitSchema;
 
 /**
  * Every trait kind this schema admits, in the order the union declares them.
@@ -3162,7 +3181,7 @@ export type MonsterLegendaryLine = z.infer<typeof MonsterLegendaryLineSchema>;
  * read out of that sentence, present only where it read something. A line
  * carrying neither is prose, exactly as every line was.
  */
-export const FeatureSchema = z.object({
+export const featureSchema = z.object({
   name: z.string().min(1),
   text: z.string().min(1),
   /** The numbers of a printed attack line, where this line is one. */
@@ -3397,7 +3416,18 @@ export const FeatureSchema = z.object({
    */
   usesLine: z.string().min(1).optional(),
 });
-export type Feature = z.infer<typeof FeatureSchema>;
+/**
+ * An interface rather than an alias, and the difference is what the compiler
+ * prints: an alias over `z.infer<…>` resolves to zod's own mapped type and is
+ * written out structurally wherever it appears, while an interface is always
+ * written by name. `MonsterSchema` embeds a feature five times, and the
+ * inferred type written five times over is what the compiler refused to
+ * serialise (TS7056) the day the clause union grew for W7-B10. The runtime
+ * value is untouched and the type is identical.
+ */
+// eslint-disable-next-line @typescript-eslint/no-empty-object-type
+export interface Feature extends z.infer<typeof featureSchema> {}
+export const FeatureSchema: z.ZodType<Feature> = featureSchema;
 
 export const MonsterSchema = z.object({
   id: z.string().regex(/^[a-z0-9-]+$/),

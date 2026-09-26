@@ -49,7 +49,13 @@ import { type SpellcastingState } from './spellcasting.js';
 import type { RestBenefit, RestKind } from './rest.js';
 import { type Deadline } from './time.js';
 import { type GrantedHealingRule, type GrantedHitPointMaximum } from './vitals.js';
-import type { ElsewhereDamage, ElsewhereKind, ElsewhereReturn } from './elsewhere.js';
+import type {
+  ElsewhereDamage,
+  ElsewhereEscape,
+  ElsewhereKind,
+  ElsewherePullOut,
+  ElsewhereReturn,
+} from './elsewhere.js';
 import {
   type EffectEndCause,
   type EffectTarget,
@@ -2909,6 +2915,15 @@ export type GameEvent =
       readonly source: string;
       readonly returns: ElsewhereReturn;
       readonly damage?: ElsewhereDamage;
+      /**
+       * The two ways out a printed line offers, and the one bar it puts on
+       * the creature inside — W7-B10. Pinned for the reason `returns` is: an
+       * escape a round later opens no book. Absent on every record written
+       * before, which fold as they always did.
+       */
+      readonly escape?: ElsewhereEscape;
+      readonly pullOut?: ElsewherePullOut;
+      readonly noVerbalCasting?: true;
       readonly command?: CommandStamp;
     }
   /**

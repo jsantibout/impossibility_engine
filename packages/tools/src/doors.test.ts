@@ -441,6 +441,13 @@ const SELF_ANSWERED_FIELDS: Readonly<Record<string, readonly string[]>> = {
   'end_turn:position': ['returns'],
   'recall_familiar:position': ['to'],
   'return_from_elsewhere:position': ['to'],
+  // And the two ways out of a creature a printed line offers — W7-B10: the
+  // engulfed creature's own check and a neighbour's pull, each carrying the
+  // space the freed creature stands in, and the pull carrying whom where the
+  // host holds more than one.
+  'escape_from_inside:position': ['to'],
+  'pull_out_of_creature:position': ['to'],
+  'pull_out_of_creature:creature': ['target'],
 };
 
 describe('every kind a tool answers on itself has a field to carry it', () => {

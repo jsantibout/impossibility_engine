@@ -23,6 +23,8 @@ import type {
   MonsterRecharge,
   MonsterSave,
   MonsterTrait,
+  PrintedHoldCapacity,
+  PrintedPullOut,
 } from '@ie/srd';
 import type { StatedLegendaryAction } from './character.js';
 // The two readers of the branch shape, from the subpath that is schemas and no
@@ -1277,6 +1279,30 @@ export const describePerDay = (uses: number): string =>
 /** Whether this creature's stat block states a trait of the given shape. */
 export const hasPrintedTrait = (sheet: CharacterSheet, kind: MonsterTrait['kind']): boolean =>
   sheet.stated?.traits?.some((trait) => trait.kind === kind) === true;
+
+/**
+ * What a creature holds inside itself, and how a neighbour gets somebody out
+ * — SRD Ooze Cube, read off the `holds-creatures-inside` trait — W7-B10.
+ *
+ * Null for the many blocks that print no such trait, which is what lets an
+ * engulf with no printed capacity take its target without a cap: a limit
+ * nobody printed is not one the engine invents.
+ */
+export interface InsideRoom {
+  readonly capacity: PrintedHoldCapacity;
+  readonly pullOutBy?: PrintedPullOut;
+}
+
+export function insideRoomOf(sheet: CharacterSheet): InsideRoom | null {
+  for (const trait of sheet.stated?.traits ?? []) {
+    if (trait.kind !== 'holds-creatures-inside') continue;
+    return {
+      capacity: trait.capacity,
+      ...(trait.pullOutBy === undefined ? {} : { pullOutBy: trait.pullOutBy }),
+    };
+  }
+  return null;
+}
 
 /**
  * The name SRD Undead Fortitude's save and its floor are recorded under.

@@ -6572,6 +6572,17 @@ export function silencedBy(state: GameState, who: CharacterId): string | null {
   for (const { spell, standing } of areaStandingOn(state, who)) {
     if (standing.kind === 'no-verbal-casting') return spell;
   }
+  // **And the record a printed line pinned** — W7-B10. SRD Gelatinous Cube:
+  // an engulfed target "can't cast spells with a Verbal component", which is
+  // Silence's sentence about a place the size of one creature. Read off the
+  // creature's own second-place record, so the bar lifts with the return and
+  // nothing has to remember it; the heading comes back off the source the
+  // record was filed under, which is what the refusal quotes.
+  const record = state.creatures[who]?.elsewhere;
+  if (record?.noVerbalCasting === true) {
+    const slash = record.source.lastIndexOf('/');
+    return slash === -1 ? record.source : record.source.slice(slash + 1);
+  }
   return null;
 }
 

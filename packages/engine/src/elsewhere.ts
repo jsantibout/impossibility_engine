@@ -22,13 +22,15 @@
  * no command and no event in them. `commands/elsewhere.ts` is the door and
  * `fold/elsewhere.ts` is the seam.
  */
-import type { CharacterId } from '@ie/shared';
-import type { CreatureSize } from '@ie/srd';
+import type { Ability, CharacterId, Skill } from '@ie/shared';
+import type { CreatureSize, PrintedHoldCapacity } from '@ie/srd';
+import { sizeAtMost } from './positioning.js';
 import type { Deadline, TurnMoment } from './time.js';
 import type { GameState } from './state.js';
 import { castingIdOf } from './spells.js';
 import {
   distanceBetweenPoints,
+  distanceToPoint,
   placeCreature,
   type Point,
   type PositionState,
@@ -116,6 +118,45 @@ export type ElsewhereDamage =
       readonly disgorges: true;
     };
 
+/**
+ * The check a creature inside another may spend an action on to get out —
+ * SRD Gelatinous Cube's "An engulfed target can try to escape by taking an
+ * action to make a DC 12 Strength (Athletics) check." — W7-B10.
+ *
+ * Pinned on the record at the leaving, as the way back is, so the escape a
+ * round later opens no book. Its own door (`escapeFromInside`) rather than an
+ * `EffectCheck` on a timer, for `escapeGrapple`'s reason turned round: a
+ * success here has to put the creature *somewhere*, and a space is a choice
+ * the fold cannot make.
+ */
+export interface ElsewhereEscape {
+  readonly ability: Ability;
+  readonly skill?: Skill;
+  readonly dc: number;
+}
+
+/**
+ * A neighbour's action that pulls a creature out of another — SRD Ooze Cube's
+ * "As an action, a creature within 5 feet of the cube can pull a creature or an
+ * object out of the cube by succeeding on a DC 12 Strength (Athletics) check,
+ * and the puller takes 10 (3d6) Acid damage." — W7-B10.
+ *
+ * {@link ElsewhereEscape}'s twin from the outside: the reach is measured to
+ * the **host**, because the creature inside has no position to be within
+ * five feet of. The price is the puller's, rolled where the pull lands.
+ */
+export interface ElsewherePullOut {
+  readonly within: number;
+  readonly ability: Ability;
+  readonly skill?: Skill;
+  readonly dc: number;
+  readonly damage?: {
+    readonly dice: string | null;
+    readonly flat: number;
+    readonly damageType: string;
+  };
+}
+
 /** A creature's second place — see `CreatureState.elsewhere`. */
 export interface Elsewhere {
   readonly kind: ElsewhereKind;
@@ -138,6 +179,16 @@ export interface Elsewhere {
   readonly source: string;
   readonly returns: ElsewhereReturn;
   readonly damage?: ElsewhereDamage;
+  /** The check the creature's own action buys to get out — W7-B10. */
+  readonly escape?: ElsewhereEscape;
+  /** The neighbour's action that pulls the creature out — W7-B10. */
+  readonly pullOut?: ElsewherePullOut;
+  /**
+   * SRD Gelatinous Cube: an engulfed target "can't cast spells with a Verbal
+   * component" — SRD Silence's standing, read by `silencedBy` off this record
+   * while the creature is inside. — W7-B10.
+   */
+  readonly noVerbalCasting?: true;
 }
 
 /** The record on a creature, or null for one standing in the scene. */
@@ -172,6 +223,30 @@ export function heldInside(state: GameState, host: CharacterId): readonly Charac
       const record = state.creatures[who]?.elsewhere;
       return record?.kind === 'inside' && record.host === host;
     });
+}
+
+/**
+ * Whether a hold with room for so many has room for one more of this size —
+ * W7-B10.
+ *
+ * SRD Ooze Cube: "the cube can hold one Large creature or up to four Medium or
+ * Small creatures inside itself at a time." SRD Water Elemental's Whelm prints
+ * the same shape over a grapple. A bare count is a count; the sized shape
+ * reads the book's "or" as exclusive — a Large creature needs the hold empty,
+ * and a smaller one needs no Large creature already in it and a place among
+ * the smaller ones. The sizes are whatever the caller measured, so an
+ * enlarged prisoner counts as what it is now.
+ */
+export function roomInside(
+  capacity: PrintedHoldCapacity,
+  held: readonly CreatureSize[],
+  newcomer: CreatureSize,
+): boolean {
+  if ('creatures' in capacity) return held.length < capacity.creatures;
+  const bigHeld = held.filter((size) => !sizeAtMost(size, 'medium')).length;
+  const smallHeld = held.length - bigHeld;
+  if (!sizeAtMost(newcomer, 'medium')) return held.length === 0 && capacity.large >= 1;
+  return bigHeld === 0 && smallHeld < capacity.mediumOrSmaller;
 }
 
 /**
@@ -211,6 +286,26 @@ export function returnAnchor(scene: PositionState, record: Elsewhere): Point | n
 }
 
 /**
+ * How far a space is from what the return is measured from — W7-B10.
+ *
+ * From the named creature's whole box where the record names one and it is
+ * standing in the scene, so a space beside any part of a Large host is five
+ * feet away; from the anchor point otherwise. The one ruler `returnCandidates`
+ * and `settleReturn` share, so the candidates and the refusal cannot disagree.
+ */
+export function returnDistance(scene: PositionState, record: Elsewhere): (at: Point) => number {
+  const near = record.returns.near;
+  if (near !== undefined && scene.positions[near] !== undefined) {
+    return (at) => {
+      const apart = distanceToPoint(scene, near, at);
+      return apart.ok ? apart.value : Number.POSITIVE_INFINITY;
+    };
+  }
+  const anchor = returnAnchor(scene, record);
+  return (at) => (anchor === null ? Number.POSITIVE_INFINITY : distanceBetweenPoints(anchor, at));
+}
+
+/**
  * Every space the record lets the creature come back to, on the lattice.
  *
  * Within `returns.within` of the anchor, unoccupied for the creature's own
@@ -242,12 +337,19 @@ export function returnCandidates(
   const free = (at: Point): boolean =>
     placeCreature(probe, who, { from: { point: at }, feet: 0, size }).ok;
 
+  // **From the creature's whole box where the rule names a creature** —
+  // W7-B10. "Within 5 feet of the cube" is five feet from any of the cube's
+  // four cubes, and a Large host measured from its origin alone left the far
+  // side of its body out of reach. The scan is widened by the largest
+  // footprint so that far side is inside it; the ruler is exact.
+  const measure = returnDistance(scene, record);
+  const span = 20;
   const ring = (radius: number): readonly Point[] => {
     const found: Point[] = [];
-    for (let x = anchor.x - radius; x <= anchor.x + radius; x += 5) {
-      for (let y = anchor.y - radius; y <= anchor.y + radius; y += 5) {
+    for (let x = anchor.x - radius - span; x <= anchor.x + radius + span; x += 5) {
+      for (let y = anchor.y - radius - span; y <= anchor.y + radius + span; y += 5) {
         const at = { x, y, z: anchor.z };
-        if (distanceBetweenPoints(anchor, at) !== radius) continue;
+        if (measure(at) !== radius) continue;
         if (free(at)) found.push(at);
       }
     }

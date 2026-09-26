@@ -47,13 +47,27 @@ import {
 import { DECLARED_DAMAGE_TYPE } from '@ie/srd/schemas';
 import type { MonsterDamage, MonsterSave, PrintedSaveEffect, PrintedSpan } from '@ie/srd';
 import { applyEvent, type GameEvent, type GameState } from '../events.js';
-import { sizeAtMost, sizeOf } from '../positioning.js';
+import {
+  distanceBetween,
+  distanceToPoint,
+  moveCreature,
+  type Placement,
+  type Point,
+  type PositionState,
+  positionOf,
+  sizeAtMost,
+  sizeOf,
+} from '../positioning.js';
+import { heldInside, printedElsewhereSource, roomInside, type ElsewhereDamage } from '../elsewhere.js';
+import { effectiveSizeOf } from '../size.js';
 import type { RollFamily } from '../roll-modifiers.js';
 import type { Duration } from '../time.js';
 import type { RepeatSave } from '../timers.js';
 import { conditionInstanceId, hasCondition } from '../conditions.js';
 import { rollSavingThrow, type D20TestResult } from '../checks.js';
-import { isWoundSource, printedLineSource, woundSource } from '../monster.js';
+import { insideRoomOf, isWoundSource, printedLineSource, woundSource } from '../monster.js';
+import { sendingEvents } from './elsewhere.js';
+import { grapplesOn } from './unarmed.js';
 import { evadesHalfDamage, sheetAsItStands } from '../standing.js';
 import { dropToZero } from '../vitals.js';
 import { applyConditionTo, schedule } from './conditions.js';
@@ -125,6 +139,14 @@ export interface PrintedSaveFacts {
    * creature". The door asks for it where the line wants one.
    */
   readonly object?: string;
+  /**
+   * Where this creature steps to on a success that relocates it — SRD
+   * Gelatinous Cube's "the target moves to an unoccupied space within 5 feet
+   * of the cube" — W7-B10. Stated by the caller per creature; unstated, the
+   * one space that qualifies is taken and several are reported rather than
+   * chosen, because by the time a success clause runs the die is thrown.
+   */
+  readonly landing?: Placement;
 }
 
 
@@ -474,6 +496,49 @@ export interface PrintedDamageDealt {
 export const NOTHING_DEALT: PrintedDamageDealt = { total: 0, byType: {} };
 
 /**
+ * The unoccupied spaces within so many feet of a creature that another could
+ * step into, sorted so every replay answers alike — W7-B10.
+ *
+ * SRD Gelatinous Cube's "an unoccupied space within 5 feet of the cube",
+ * measured from the cube's whole box rather than its origin cube, which is
+ * what `distanceToPoint` does; whether the stepper fits is asked of the scene
+ * itself through `moveCreature`, so a Large stepper needs a Large gap. The
+ * search square is generous and the ruler is exact.
+ */
+function spacesClearOf(
+  scene: PositionState,
+  near: CharacterId,
+  who: CharacterId,
+  within: number,
+): readonly Point[] {
+  const anchor = scene.positions[near];
+  if (anchor === undefined) return [];
+  const reach = within + 20;
+  const found: Point[] = [];
+  for (let x = anchor.x - reach; x <= anchor.x + reach; x += 5) {
+    for (let y = anchor.y - reach; y <= anchor.y + reach; y += 5) {
+      const at = { x, y, z: anchor.z };
+      const apart = distanceToPoint(scene, near, at);
+      if (!apart.ok || apart.value === 0 || apart.value > within) continue;
+      if (moveCreature(scene, who, { from: { point: at }, feet: 0, bearing: 0 }).ok) found.push(at);
+    }
+  }
+  return found.sort((a, b) => a.x - b.x || a.y - b.y);
+}
+
+/** The engine's skill key for a printed parenthesis word, where it is one. */
+const skillOf = (word: string | undefined): { readonly skill?: Skill } => {
+  if (word === undefined) return {};
+  const lowered = word.toLowerCase();
+  return SKILL_NAMES.has(lowered) ? { skill: lowered as Skill } : {};
+};
+
+/** A stat block's sheet is always there for a creature that forced a save; this names the impossible case. */
+const source_sheet_missing = (): never => {
+  throw new Error('a printed save was forced by a creature with no sheet');
+};
+
+/**
  * Apply the clauses one outcome of a printed save carries to one creature.
  *
  * @param dealt what the line's damage came to on this target after its own
@@ -556,6 +621,43 @@ export function applyPrintedClauses(
         // A grapple is the grapple every other door makes: sourced to the
         // grappler, escaped at the printed DC through `escapeGrapple`.
         const grapple = clause.escapeDc !== undefined;
+
+        // **A hold already as full as the line allows** — W7-B10. SRD Water
+        // Elemental's Whelm: "The elemental can grapple one Large creature or
+        // up to two Medium or smaller creatures at a time." The door refuses
+        // a line that could hold nobody named; here, where the damage has
+        // landed and the die is thrown, a target the hold has no room for is
+        // simply not held, and the caller is told.
+        if (grapple && clause.capacity !== undefined) {
+          const held = (Object.keys(current.creatures) as CharacterId[])
+            .sort()
+            .filter((who) => grapplesOn(current, who).some((one) => one.grappler === source))
+            .map((who) => effectiveSizeOf(current, who) ?? 'medium');
+          const newcomer = effectiveSizeOf(current, target) ?? 'medium';
+          if (!roomInside(clause.capacity, held, newcomer)) {
+            unverified.push(
+              `${source} already holds as many creatures as ${line} allows, and ${target} was not grappled`,
+            );
+            break;
+          }
+        }
+        // **And the neighbour's way of ending the hold** — W7-B10. SRD Water
+        // Elemental's Whelm: "As an action, a creature within 5 feet of the
+        // elemental can pull a creature out of it by succeeding on a DC 14
+        // Strength (Athletics) check." The grapple's own escape check is the
+        // record, and `byAnotherWithinReach` is the clause that widens who may
+        // attempt it — the held creature stands in the holder's space, so a
+        // neighbour within five feet of one is within five feet of the other.
+        // The book prints one DC on both in every line that prints this; a
+        // line that printed two would be a check this record cannot hold, and
+        // is said so.
+        const pullOutMatches =
+          clause.pullOutBy !== undefined && grapple && clause.pullOutBy.dc === clause.escapeDc;
+        if (clause.pullOutBy !== undefined && grapple && !pullOutMatches) {
+          unverified.push(
+            `${line} lets a neighbour pull ${target} out on a DC ${clause.pullOutBy.dc} check, and its escape is DC ${clause.escapeDc}; the engine holds one DC per hold, so the pull is the table's`,
+          );
+        }
 
         // **The thing the line makes, and the condition it holds.** SRD Giant
         // Spider's Web: "The target has the Restrained condition until the web
@@ -641,7 +743,12 @@ export function applyPrintedClauses(
             durationOf(clause.lasts, clause.repeats?.capSeconds, source, target),
             repeat,
             {},
-            grapple ? escapeCheck(source, clause.escapeDc!) : undefined,
+            grapple
+              ? {
+                  ...escapeCheck(source, clause.escapeDc!),
+                  ...(pullOutMatches ? { byAnotherWithinReach: true as const } : {}),
+                }
+              : undefined,
             // SRD Couatl: "it has the Restrained condition until the grapple
             // ends." SRD Chuul: "While Poisoned, the target has the Paralyzed
             // condition." One lifetime, the cause's, which is exactly what
@@ -700,11 +807,173 @@ export function applyPrintedClauses(
           ]);
         }
         landedInstances.set(clause.condition, conditionInstanceId(clause.condition, conditionSource));
+        // **A hold that puts its target inside the holder** — W7-B10. SRD
+        // Shambling Mound's Engulf: "The target is pulled into the shambling
+        // mound's space and has the Grappled condition." The second place,
+        // under the grapple's own source: the record moves with the mound as
+        // every record does, the return lifts what is filed under that source,
+        // and `wayBackClosed` opens the door the moment the grapple ends —
+        // the escape, a lapse or a release — leaving the space to climb out
+        // to as the command's choice. Five feet of the host, the reading a
+        // swallow's corpse already takes.
+        if (grapple && clause.inside === true) {
+          const sent = sendingEvents(
+            current,
+            target,
+            { kind: 'inside', host: source, source: conditionSource, returns: { within: 5, near: source } },
+            null,
+          );
+          if (!sent.ok) {
+            if (sent.code !== 'already_elsewhere') return sent;
+            unverified.push(`${target} is already elsewhere and was grappled where it is rather than pulled into ${source}'s space`);
+          } else land(sent.value);
+        }
         // What the **line** said, which is this clause and whatever it said
         // the clause carries. The implications a condition always has are not
         // here and should not be: those are what the condition means, and a
         // caller reading this is reading what the block printed.
         conditions.push(clause.condition, ...(clause.implies ?? []));
+        break;
+      }
+
+      case 'engulfs': {
+        // SRD Gelatinous Cube's Engulf — W7-B10: "the target is engulfed. An
+        // engulfed target is suffocating, can't cast spells with a Verbal
+        // component, has the Restrained condition, and takes 10 (3d6) Acid
+        // damage at the start of each of the cube's turns. … An engulfed target
+        // can try to escape by taking an action to make a DC 12 Strength
+        // (Athletics) check."
+        //
+        // **The second place, under the line's own source**, as a swallow is:
+        // no position, caught by nothing, reaching only the host, moving with
+        // it because the record does. What this clause adds is pinned on the
+        // record — the conditions hung, the damage at the host's boundary, the
+        // target's own escape, the neighbour's pull the host's trait prints,
+        // and the Verbal-casting bar — so the ways out open no book.
+        const room = insideRoomOf(current.creatures[source]?.sheet ?? source_sheet_missing());
+        if (room !== null) {
+          const held = heldInside(current, source).map((who) => effectiveSizeOf(current, who) ?? 'medium');
+          const newcomer = effectiveSizeOf(current, target) ?? 'medium';
+          // The door that moved the creature has already refused a walk
+          // through more creatures than it has room for; this is the honesty
+          // for a caller that reached the clause another way.
+          if (!roomInside(room.capacity, held, newcomer)) {
+            unverified.push(`${source} has no room inside itself for ${target}, and ${target} was not engulfed`);
+            break;
+          }
+        }
+        // "at the start of each of the cube's turns" — the host's boundary,
+        // which is the one `ElsewhereDamage.each` names. A payout at the
+        // target's own turns is a boundary that record does not have, and a
+        // flat amount with no dice is a notation it cannot carry: both are
+        // rare enough in the book to be said rather than built.
+        let damage: ElsewhereDamage | undefined;
+        if (clause.payout !== undefined) {
+          if (clause.payout.onTurnOf === 'source' && clause.payout.damage.dice !== null && clause.payout.damage.flat === 0) {
+            damage = {
+              dice: clause.payout.damage.dice,
+              damageType: clause.payout.damage.type,
+              each: clause.payout.at === 'start' ? 'start-of-turn' : 'end-of-turn',
+            };
+          } else {
+            unverified.push(
+              `${line}: the damage an engulfed ${target} takes at each turn boundary is printed in a shape the record cannot carry, and is the table's`,
+            );
+          }
+        }
+        const pullOut = room?.pullOutBy;
+        const sent = sendingEvents(
+          current,
+          target,
+          {
+            kind: 'inside',
+            host: source,
+            source: printedElsewhereSource(source, line),
+            returns: { within: 5, near: source },
+            ...(damage === undefined ? {} : { damage }),
+            ...(clause.whileInside === undefined ? {} : { conditions: clause.whileInside }),
+            ...(clause.escape === undefined
+              ? {}
+              : { escape: { ability: clause.escape.ability, dc: clause.escape.dc, ...skillOf(clause.escape.skill) } }),
+            ...(pullOut === undefined
+              ? {}
+              : {
+                  pullOut: {
+                    within: pullOut.within,
+                    ability: pullOut.ability,
+                    dc: pullOut.dc,
+                    ...skillOf(pullOut.skill),
+                    ...(pullOut.damage === undefined
+                      ? {}
+                      : {
+                          damage: {
+                            dice: pullOut.damage.dice,
+                            flat: pullOut.damage.flat,
+                            damageType: pullOut.damage.type,
+                          },
+                        }),
+                  },
+                }),
+            ...(clause.noVerbalCasting === true ? { noVerbalCasting: true as const } : {}),
+          },
+          null,
+        );
+        if (!sent.ok) {
+          if (sent.code !== 'already_elsewhere') return sent;
+          unverified.push(`${target} is already elsewhere and could not be engulfed by ${source}`);
+          break;
+        }
+        land(sent.value);
+        conditions.push(...(clause.whileInside ?? []));
+        break;
+      }
+
+      case 'steps-clear': {
+        // SRD Gelatinous Cube's success — W7-B10: "the target moves to an
+        // unoccupied space within 5 feet of the cube." The caller's stated
+        // space, checked; the one space that qualifies, taken; several,
+        // reported — a rider on a settled outcome never refuses, because the
+        // die is thrown. The other half of the sentence, "If there is no
+        // unoccupied space, the target fails the save instead", is settled
+        // before the roll by `forcePrintedSaveOn`, which is why this arm sees
+        // only a success with somewhere to step.
+        const scene = current.scene;
+        if (scene === null) {
+          unverified.push(`nobody has laid out a scene, so ${target} did not step clear of ${source}`);
+          break;
+        }
+        if (positionOf(scene, target) === null) {
+          unverified.push(`${target} has no position, so ${line} could not move it clear of ${source}`);
+          break;
+        }
+        let landing: Placement | null = null;
+        if (facts.landing !== undefined) {
+          const placed = moveCreature(scene, target, facts.landing);
+          if (!placed.ok) {
+            unverified.push(`${line}: ${target} could not step to the stated space (${placed.reason}), and stands where it was`);
+            break;
+          }
+          const apart = distanceBetween(placed.value.state, target, source);
+          if (!apart.ok || apart.value > clause.within) {
+            unverified.push(
+              `${line}: the stated space is ${apart.ok ? `${apart.value} feet` : 'an unmeasurable distance'} from ${source}, and the target steps within ${clause.within}; it stands where it was`,
+            );
+            break;
+          }
+          landing = facts.landing;
+        } else {
+          const clear = spacesClearOf(scene, source, target, clause.within);
+          if (clear.length === 1) landing = { from: { point: clear[0]! }, feet: 0, bearing: 0 };
+          else {
+            unverified.push(
+              clear.length === 0
+                ? `${line}: no unoccupied space within ${clause.within} feet of ${source} is free for ${target} to step to`
+                : `${line}: ${target} steps to an unoccupied space within ${clause.within} feet of ${source}, and ${clear.length} qualify; nobody has said which — place it with a forced move`,
+            );
+          }
+        }
+        if (landing === null) break;
+        land([{ type: 'creature-moved', id: target, placement: landing, forced: true }]);
         break;
       }
 
@@ -1414,7 +1683,26 @@ export function forcePrintedSaveOn(
       ),
     );
   }
-  const success = save?.success ?? false;
+  let success = save?.success ?? false;
+
+  // **A success the room turns back into a failure** — W7-B10. SRD Gelatinous
+  // Cube: "_Success:_ Half damage, and the target moves to an unoccupied space
+  // within 5 feet of the cube. If there is no unoccupied space, the target
+  // fails the save instead." Settled here, before the damage, because the
+  // failure's dice are not the success's half: a creature with nowhere to step
+  // takes the whole blow and is engulfed, which is what the book says.
+  const stepping = (printed.onSuccessEffects ?? []).find(
+    (clause): clause is Extract<PrintedSaveEffect, { kind: 'steps-clear' }> =>
+      clause.kind === 'steps-clear' && clause.otherwiseFails === true,
+  );
+  if (success && stepping !== undefined && current.scene !== null && positionOf(current.scene, target) !== null) {
+    if (spacesClearOf(current.scene, by, target, stepping.within).length === 0) {
+      success = false;
+      unverified.push(
+        `${target} made the save against ${line}, and no unoccupied space within ${stepping.within} feet of ${by} is free — the book says it fails the save instead, and it did`,
+      );
+    }
+  }
 
   // SRD Evasion, read off the creature standing in it and off the *line's* own
   // sentence: it triggers on an effect that offers half on a made Dexterity

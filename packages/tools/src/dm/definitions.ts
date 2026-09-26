@@ -2143,6 +2143,20 @@ const MOVE_PRINTED_LINE = tool({
       route: routeSchema
         .optional()
         .describe('For a charge: the 5-foot spaces crossed, in order, ending where the run ends. Leave the placement fields out.'),
+      // Where each creature that saves steps to, for a line whose success
+      // relocates it — W7-B10. Stated before the dice because the dice decide
+      // who needs one; an entry for a creature that fails is ignored.
+      landings: z
+        .array(
+          z.object({
+            who: creatureId.describe('The creature this landing is for.'),
+            to: placementSchema.describe('Where it steps to if it saves.'),
+          }),
+        )
+        .optional()
+        .describe(
+          'For a line whose success moves the creature clear — the Gelatinous Cube’s Engulf, "the target moves to an unoccupied space within 5 feet of the cube" — where each creature in the way steps to if it saves. A creature that fails ignores its entry; a creature that saves with none takes the one qualifying space, or is reported among several for you to place with `move_creature`.',
+        ),
       // The placement fields, each optional here because a charge states a
       // route instead and a caller asked `undeclared_destination` sends
       // neither the first time. Their own rule — exactly one anchor — holds
@@ -2172,6 +2186,13 @@ const MOVE_PRINTED_LINE = tool({
         {
           line: args.line,
           ...(args.route === undefined ? {} : { route: args.route.map(aPoint) }),
+          ...(args.landings === undefined
+            ? {}
+            : {
+                landings: Object.fromEntries(
+                  args.landings.map((landing) => [who(landing.who), placementOf(landing.to)]),
+                ),
+              }),
           ...(args.feet === undefined || (args.fromLandmark === undefined && args.fromCreature === undefined)
             ? {}
             : {

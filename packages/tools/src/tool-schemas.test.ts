@@ -174,6 +174,8 @@ describe('toolSchemas', () => {
     // `move_printed_line`; `teleport_printed_line` and `move` grew fields.
     // And one on each for the ground-move-and-bond track, `command_summons`
     // — SRD Unseen Servant's Bonus Action, a placement and never a number.
+    // And two on each for the insides-and-holds track (W7-B10),
+    // `escape_from_inside` and `pull_out_of_creature`.
     expect(toolSchemas(player())).toHaveLength(93);
     expect(toolSchemas(dm())).toHaveLength(120);
     // Re-pinned 2026-09-24 for the printed-lines track, which opened one door
@@ -315,6 +317,10 @@ describe('toolSchemas', () => {
     // — the creature a Perception or Survival check is made to find, SRD
     // Hunter's Mark's purpose — on the DM's door alone; the player's is
     // untouched.
+    // Re-pinned for the insides-and-holds track — W7-B10: `escape_from_inside`
+    // and `pull_out_of_creature` on both surfaces (a creature's own way out of
+    // the creature holding it inside, and a neighbour's), and `landings` on
+    // the DM's `move_printed_line` for a line whose success steps clear.
     expect(toolSchemas(player())).toHaveLength(93);
     expect(toolSchemas(dm())).toHaveLength(120);
     expect(JSON.stringify(toolSchemas(player())).length).toBe(147836);

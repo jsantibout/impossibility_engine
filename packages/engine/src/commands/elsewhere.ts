@@ -24,8 +24,12 @@ import {
   needsContext,
   ok,
   type Result,
+  type RollMode,
 } from '@ie/shared';
 import type { CreatureSize } from '@ie/srd';
+import type { Bonus, ModeSource } from '../bonuses.js';
+import { rollAbilityCheck, type D20TestResult } from '../checks.js';
+import { spendAction } from '../combat.js';
 import { applyEvent, type CommandStamp, type GameEvent, type GameState } from '../events.js';
 import { type CommandIdentity, once } from '../idempotency.js';
 import type { Content } from '../content.js';
@@ -36,12 +40,15 @@ import {
   printedElsewhereSource,
   returnAnchor,
   returnCandidates,
+  returnDistance,
   type ElsewhereDamage,
+  type ElsewhereEscape,
   type ElsewhereKind,
+  type ElsewherePullOut,
   type ElsewhereReturn,
 } from '../elsewhere.js';
 import {
-  distanceBetweenPoints,
+  distanceBetween,
   distanceToPoint,
   placeCreature,
   type Placement,
@@ -49,7 +56,7 @@ import {
   type PositionState,
 } from '../positioning.js';
 import { castingIdOf, castingSource } from '../spells.js';
-import { canSee } from '../standing.js';
+import { actionRulesOn, canSee, effectiveConditions, rollModesFor, sheetAsItStands } from '../standing.js';
 import { effectiveSizeOf } from '../size.js';
 import { endOfNextTurn, isDue, resolveDuration, timeView, type TurnMoment } from '../time.js';
 import { rollRecorded } from '../rolls.js';
@@ -67,9 +74,9 @@ import {
   unknownCreature,
 } from './command.js';
 import { mayAct } from './holds.js';
-import { grappleSource, grapplesOn } from './unarmed.js';
+import { grapplerOf, grappleSource, grapplesOn } from './unarmed.js';
 import type { Supply } from './casting.js';
-import { rollSpellDice } from './rolls.js';
+import { checkBonuses, recordD20Test, rollSpellDice, spentRollModifiers, withFlatAddend } from './rolls.js';
 import { dealSpellDamage } from './damage.js';
 import { ongoingSpellsOn } from './ongoing.js';
 import type { EffectContext, EffectOfKind } from './spell-effect-context.js';
@@ -85,6 +92,10 @@ export interface Sending {
   readonly damage?: ElsewhereDamage;
   /** What the record hangs while the creature is away, filed under `source`. */
   readonly conditions?: readonly ConditionName[];
+  /** The two ways out a printed line offers, and the Verbal-casting bar — W7-B10. */
+  readonly escape?: ElsewhereEscape;
+  readonly pullOut?: ElsewherePullOut;
+  readonly noVerbalCasting?: true;
 }
 
 /**
@@ -119,6 +130,9 @@ export function sendingEvents(
       source: sending.source,
       returns: sending.returns,
       ...(sending.damage === undefined ? {} : { damage: sending.damage }),
+      ...(sending.escape === undefined ? {} : { escape: sending.escape }),
+      ...(sending.pullOut === undefined ? {} : { pullOut: sending.pullOut }),
+      ...(sending.noVerbalCasting === undefined ? {} : { noVerbalCasting: sending.noVerbalCasting }),
       ...(stamp === null ? {} : { command: stamp }),
     },
     ...(sending.conditions ?? []).map(
@@ -241,7 +255,7 @@ export function settleReturn(
       'return_too_far',
       `${who} may return within ${record.returns.within} feet of ${
         record.returns.near ?? 'the space it left'
-      }, and that space is ${distanceBetweenPoints(anchor, at)} feet away`,
+      }, and that space is ${returnDistance(scene.value, record)(at)} feet away`,
     );
   }
   return ok({ at, unverified });
@@ -356,6 +370,14 @@ function wayBackClosed(state: GameState, who: CharacterId): string | null {
   if (record === null || record === undefined) return null;
   if (record.kind === 'inside') {
     const host = record.host === undefined ? undefined : state.creatures[record.host];
+    // **A hold that has ended opens the way** — W7-B10. SRD Shambling Mound's
+    // Engulf puts its target inside under the grapple's own source, and the
+    // escape, a lapse or a release ends the grapple in the fold, which may not
+    // choose the space the creature climbs out to. So the record stays until a
+    // return names one, and this is what says the door is open.
+    if (grapplerOf(record.source) !== null && !grapplesOn(state, who).some((held) => held.source === record.source)) {
+      return null;
+    }
     if (host !== undefined && !host.vitals.dead) {
       return `${who} is inside ${record.host}, and only ${record.host}'s death or its own line lets ${who} out`;
     }
@@ -1016,6 +1038,387 @@ export function takePrintedSwallow(
         unverified: printed.handedOver.map(
           (clause) => `${found.line.name}: "${clause}" is a rule about another line, and the engine does not apply it; a DM does`,
         ),
+        duplicate: false,
+      });
+    },
+  );
+}
+
+// — the two ways out of a creature that a printed line offers — W7-B10 ————————
+
+export interface EscapeInsideCommand extends CommandIdentity {
+  /** Where to stand on a success. Absent is the one space that qualifies, or asked about. */
+  readonly to?: Placement;
+  /** Advantage or Disadvantage the table knows about and the engine does not. */
+  readonly modes?: readonly (RollMode | ModeSource)[];
+  /** Named modifiers the table supplies: Guidance's 1d4. */
+  readonly bonuses?: readonly Bonus[];
+}
+
+export interface EscapeInsideOutcome {
+  readonly events: readonly GameEvent[];
+  /** The check, or null when this command id had already been applied. */
+  readonly check: D20TestResult | null;
+  readonly success: boolean;
+  /** Where the creature stands now, or null where it is still inside. */
+  readonly at: Point | null;
+  readonly unverified: readonly string[];
+  readonly duplicate: boolean;
+}
+
+/**
+ * SRD Gelatinous Cube: "An engulfed target can try to escape by taking an
+ * action to make a DC 12 Strength (Athletics) check. On a successful check,
+ * the target escapes and enters the nearest unoccupied space."
+ *
+ * **Its own door, for `escapeGrapple`'s reason turned round.** That command
+ * exists beside `resolveEffectCheck` because the book offers two abilities
+ * and an `EffectCheck` holds one; this one exists because a success has to
+ * put the creature *somewhere*, and a timer's success in the fold may not
+ * choose a space. So the check is pinned on the record rather than on a timer
+ * (`Elsewhere.escape`), the space is settled **before** the die — the one
+ * question this can ask is asked with nothing spent — and a success stands the
+ * creature back in the scene through the same `settleReturn` every way back
+ * goes through, which lifts everything the record hung.
+ *
+ * It costs the Action in combat, because the sentence says so, and the roll
+ * goes through `rollAbilityCheck` so proficiency, Expertise, the conditions
+ * and every granted mode reach it without this command remembering to.
+ */
+export function escapeFromInside(
+  state: GameState,
+  who: CharacterId,
+  command: EscapeInsideCommand,
+  supply: Supply,
+): Result<EscapeInsideOutcome> {
+  return once(
+    state,
+    `escape-inside:${who}`,
+    command,
+    () => ({ events: [], check: null, success: false, at: null, unverified: [], duplicate: true }),
+    (stamp) => {
+      if (state.pendingMove !== null) {
+        return err('move_pending', `${state.pendingMove.mover} is already mid-move; settle it first`);
+      }
+      if (state.pendingAttack !== null) {
+        return err('attack_pending', 'a hit is waiting for its damage; settle it first');
+      }
+      const owedHere = mayAct(state, who);
+      if (owedHere !== null) return owedHere;
+      const creature = creatureOf(state, who);
+      if (creature === null) return unknownCreature(who);
+      const record = creature.elsewhere;
+      if (record === null || record.kind !== 'inside') {
+        return err('not_inside', `${who} is not inside another creature, so there is nothing to climb out of`);
+      }
+      const escape = record.escape;
+      if (escape === undefined) {
+        return err(
+          'no_escape_from_inside',
+          `${who} is ${describeElsewhere(record)}, and the line that put it there offers no check to get out; the host's death or its own line is the way`,
+        );
+      }
+
+      // The space first, with nothing spent: a caller asked which of several
+      // spaces has been asked nothing a die decided.
+      const settled = settleReturn(state, who, command.to, (count, within, near) =>
+        needsContext(
+          'return_space_required',
+          `${who} comes out to an unoccupied space within ${within} feet of ${near}, and ${count} qualify; nobody has said which`,
+          [
+            {
+              kind: 'position',
+              subject: who,
+              need: `the space ${who} comes out to`,
+              because: 'the book offers a choice of unoccupied spaces and the engine makes none of them',
+              satisfyWith: 'escapeFromInside again with `to` naming the space',
+            },
+          ],
+        ),
+      );
+      if (!settled.ok) return settled;
+
+      const events: GameEvent[] = [];
+      const combat = state.combat;
+      if (combat !== null && combat.budgets[who] !== undefined) {
+        const spent = spendAction(combat, who, creature.conditions, { rules: actionRulesOn(state, who) });
+        if (!spent.ok) return spent;
+        events.push({ type: 'action-spent', id: who });
+      }
+
+      const issuedBefore = supply.issuer.count;
+      const query = {
+        family: 'ability-check' as const,
+        roller: who,
+        ability: escape.ability,
+        ...(escape.skill === undefined ? {} : { skill: escape.skill }),
+      };
+      const fromFeatures = rollModesFor(state, query).modes;
+      const sheet = sheetAsItStands(state, who) ?? creature.sheet;
+      const rolled = rollAbilityCheck(supply.issuer, supply.rng, sheet, escape.ability, {
+        dc: escape.dc,
+        ...(escape.skill === undefined ? {} : { skill: escape.skill }),
+        conditions: effectiveConditions(state, who),
+        modes: [...fromFeatures, ...(command.modes ?? [])],
+        bonuses: checkBonuses(state, who, command.bonuses, escape.skill),
+      });
+      if (!rolled.ok) return rolled;
+      const host = record.host ?? 'another creature';
+      events.push(
+        { type: 'rolls-issued', count: supply.issuer.count - issuedBefore, rng: supply.rng.snapshot() },
+        {
+          ...recordD20Test(
+            who,
+            `check to escape from inside ${host}`,
+            rolled.value,
+            rolled.value.success ? 'climbs out' : 'still inside',
+          ),
+          ...(stamp === null ? {} : { command: stamp }),
+        },
+        ...spentRollModifiers(state, query),
+      );
+      if (!rolled.value.success) {
+        return ok({ events, check: rolled.value, success: false, at: null, unverified: [], duplicate: false });
+      }
+      events.push(...returnEvents(state, who, settled.value.at, null));
+      return ok({
+        events,
+        check: rolled.value,
+        success: true,
+        at: settled.value.at,
+        unverified: settled.value.unverified,
+        duplicate: false,
+      });
+    },
+  );
+}
+
+export interface PullOutCommand extends CommandIdentity {
+  /** The creature being pulled out of. */
+  readonly host: CharacterId;
+  /** Whom to pull out, where the host holds more than one. Asked about otherwise. */
+  readonly target?: CharacterId;
+  /** Where the pulled creature stands on a success. Absent is the one space that qualifies, or asked about. */
+  readonly to?: Placement;
+  readonly modes?: readonly (RollMode | ModeSource)[];
+  readonly bonuses?: readonly Bonus[];
+}
+
+export interface PullOutOutcome {
+  readonly events: readonly GameEvent[];
+  readonly check: D20TestResult | null;
+  readonly success: boolean;
+  /** Whom the pull was at, or null on a duplicate. */
+  readonly target: CharacterId | null;
+  /** Where the pulled creature stands now, or null where it is still inside. */
+  readonly at: Point | null;
+  readonly unverified: readonly string[];
+  readonly duplicate: boolean;
+}
+
+/**
+ * SRD Ooze Cube: "As an action, a creature within 5 feet of the cube can pull
+ * a creature or an object out of the cube by succeeding on a DC 12 Strength
+ * (Athletics) check, and the puller takes 10 (3d6) Acid damage."
+ *
+ * {@link escapeFromInside} from the outside, and not `byAnotherWithinReach`
+ * on a timer: that clause measures the neighbour's reach to the creature the
+ * effect is on, and a creature inside another has no position to be within
+ * five feet of. So the reach is measured to the **host**, off the record the
+ * engulf pinned (`Elsewhere.pullOut`), the space is settled before the die,
+ * the puller spends the Action and rolls, and on a success the held creature
+ * comes out and the puller pays the printed price — rolled off the host's
+ * sheet, because the acid is the cube's.
+ *
+ * The line's grapple twin — SRD Water Elemental's Whelm — is not this door:
+ * a creature the elemental holds stands in the elemental's space, so its
+ * escape check carries `byAnotherWithinReach` and `resolveEffectCheck` is the
+ * neighbour's road there.
+ */
+export function pullOutOfCreature(
+  state: GameState,
+  puller: CharacterId,
+  command: PullOutCommand,
+  supply: Supply,
+): Result<PullOutOutcome> {
+  return once(
+    state,
+    `pull-out:${puller}`,
+    command,
+    () => ({ events: [], check: null, success: false, target: null, at: null, unverified: [], duplicate: true }),
+    (stamp) => {
+      if (state.pendingMove !== null) {
+        return err('move_pending', `${state.pendingMove.mover} is already mid-move; settle it first`);
+      }
+      if (state.pendingAttack !== null) {
+        return err('attack_pending', 'a hit is waiting for its damage; settle it first');
+      }
+      const owedHere = mayAct(state, puller);
+      if (owedHere !== null) return owedHere;
+      const creature = creatureOf(state, puller);
+      if (creature === null) return unknownCreature(puller);
+      const host = creatureOf(state, command.host);
+      if (host === null) return unknownCreature(command.host);
+
+      // Whom, out of the creatures the host holds inside. Asked for rather
+      // than refused where several are and nobody said, as a swallow asks.
+      const inside = heldInside(state, command.host);
+      let target = command.target;
+      if (target === undefined) {
+        if (inside.length === 1) target = inside[0]!;
+        else if (inside.length === 0) {
+          return err('not_inside', `nobody is inside ${command.host}, so there is nobody to pull out`);
+        } else {
+          return needsContext(
+            'undeclared_pull_target',
+            `${command.host} holds ${inside.join(', ')} inside it, and nobody has said which ${puller} pulls out`,
+            [
+              {
+                kind: 'creature',
+                subject: puller,
+                need: `the creature ${puller} pulls out of ${command.host}`,
+                because: 'the book offers the choice to whoever is pulling, and the engine makes none of them',
+                satisfyWith: 'pullOutOfCreature again with its target filled in',
+              },
+            ],
+          );
+        }
+      }
+      const record = state.creatures[target]?.elsewhere;
+      if (record === null || record === undefined || record.kind !== 'inside' || record.host !== command.host) {
+        return err('not_inside', `${target} is not inside ${command.host}`);
+      }
+      const pull = record.pullOut;
+      if (pull === undefined) {
+        return err(
+          'no_pull_out',
+          `the line that put ${target} inside ${command.host} offers a neighbour no way to pull it out`,
+        );
+      }
+
+      // Within reach of the **host**: the creature inside has no position.
+      const scene = sceneFor(state, puller, `${puller} to reach ${command.host} from`);
+      if (!scene.ok) return scene;
+      const apart = distanceBetween(scene.value, puller, command.host);
+      if (!apart.ok) {
+        return apart.code === 'not_here'
+          ? apart
+          : needsContext('unplaced', `nobody has said where ${puller} and ${command.host} are standing, and the pull reaches ${pull.within} feet`, [
+              {
+                kind: 'position',
+                subject: puller,
+                need: `where ${puller} is standing`,
+                because: 'the pull is made from within reach of the creature holding the target',
+                satisfyWith: `a placeCreatureInScene command for ${puller}`,
+              },
+            ]);
+      }
+      if (apart.value > pull.within) {
+        return err('out_of_reach', `${puller} is ${apart.value} feet from ${command.host}, and the pull reaches ${pull.within}`);
+      }
+
+      // The space first, with nothing spent.
+      const pulled = target;
+      const settled = settleReturn(state, target, command.to, (count, within, near) =>
+        needsContext(
+          'return_space_required',
+          `${pulled} comes out to an unoccupied space within ${within} feet of ${near}, and ${count} qualify; nobody has said which`,
+          [
+            {
+              kind: 'position',
+              subject: pulled,
+              need: `the space ${pulled} comes out to`,
+              because: 'the book offers a choice of unoccupied spaces and the engine makes none of them',
+              satisfyWith: 'pullOutOfCreature again with `to` naming the space',
+            },
+          ],
+        ),
+      );
+      if (!settled.ok) return settled;
+
+      const events: GameEvent[] = [];
+      const combat = state.combat;
+      if (combat !== null && combat.budgets[puller] !== undefined) {
+        const spent = spendAction(combat, puller, creature.conditions, { rules: actionRulesOn(state, puller) });
+        if (!spent.ok) return spent;
+        events.push({ type: 'action-spent', id: puller });
+      }
+
+      const issuedBefore = supply.issuer.count;
+      const query = {
+        family: 'ability-check' as const,
+        roller: puller,
+        ability: pull.ability,
+        ...(pull.skill === undefined ? {} : { skill: pull.skill }),
+      };
+      const fromFeatures = rollModesFor(state, query).modes;
+      const sheet = sheetAsItStands(state, puller) ?? creature.sheet;
+      const rolled = rollAbilityCheck(supply.issuer, supply.rng, sheet, pull.ability, {
+        dc: pull.dc,
+        ...(pull.skill === undefined ? {} : { skill: pull.skill }),
+        conditions: effectiveConditions(state, puller),
+        modes: [...fromFeatures, ...(command.modes ?? [])],
+        bonuses: checkBonuses(state, puller, command.bonuses, pull.skill),
+      });
+      if (!rolled.ok) return rolled;
+      // The check's die counted first and the stamped record after it — the
+      // order `escapeGrapple` writes — and the price's dice counted again
+      // below where they are thrown.
+      events.push(
+        { type: 'rolls-issued', count: supply.issuer.count - issuedBefore, rng: supply.rng.snapshot() },
+        {
+          ...recordD20Test(
+            puller,
+            `check to pull ${target} out of ${command.host}`,
+            rolled.value,
+            rolled.value.success ? 'pulls them out' : 'cannot get a grip',
+          ),
+          ...(stamp === null ? {} : { command: stamp }),
+        },
+        ...spentRollModifiers(state, query),
+      );
+
+      const unverified: string[] = [];
+      const issuedBeforeThePrice = supply.issuer.count;
+      let current = events.reduce(applyEvent, state);
+      if (rolled.value.success) {
+        const back = returnEvents(current, target, settled.value.at, null);
+        events.push(...back);
+        current = back.reduce(applyEvent, current);
+        unverified.push(...settled.value.unverified);
+        // "and the puller takes 10 (3d6) Acid damage" — the host's acid,
+        // rolled off the host's sheet, landing on the one who reached in.
+        if (pull.damage !== undefined) {
+          const label = `${pull.damage.damageType} damage pulling ${target} out of ${command.host}`;
+          const dice = rollSpellDice(supply, host.sheet, label, pull.damage.damageType, pull.damage.dice ?? undefined);
+          if (!dice.ok) return dice;
+          const hurt = dealSpellDamage(
+            current,
+            puller,
+            withFlatAddend(dice.value, pull.damage.flat),
+            label,
+            supply,
+            { by: command.host },
+          );
+          if (!hurt.ok) return hurt;
+          events.push(...hurt.value.events);
+          unverified.push(...hurt.value.unverified);
+        }
+      }
+      if (supply.issuer.count > issuedBeforeThePrice) {
+        events.push({
+          type: 'rolls-issued',
+          count: supply.issuer.count - issuedBeforeThePrice,
+          rng: supply.rng.snapshot(),
+        });
+      }
+      return ok({
+        events,
+        check: rolled.value,
+        success: rolled.value.success,
+        target,
+        at: rolled.value.success ? settled.value.at : null,
+        unverified,
         duplicate: false,
       });
     },

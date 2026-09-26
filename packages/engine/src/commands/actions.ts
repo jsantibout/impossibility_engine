@@ -53,7 +53,8 @@ import { type StatedAction, type StatedBonusAction } from '../character.js';
 import { formNamed, wrongFormFor } from '../forms.js';
 import { grapplesOn } from './unarmed.js';
 import { pullToward } from './spell-effect-movement.js';
-import type { CreatureSize } from '@ie/srd';
+import type { CreatureSize, PrintedSaveEffect } from '@ie/srd';
+import { roomInside } from '../elsewhere.js';
 import { rollAbilityCheck, type D20TestResult } from '../checks.js';
 import { isDown } from '../vitals.js';
 import {
@@ -1426,6 +1427,34 @@ export function forcePrintedSave(
       // would go with it — no SRD line that grants this immunity prints
       // either, and a homebrew one that did would be spending on a room that
       // had already learned to look away, which is what the book describes.
+      // **A hold already as full as the line allows** — W7-B10. SRD Shambling
+      // Mound's Engulf: "can have only one creature Grappled by this action at
+      // a time." SRD Water Elemental's Whelm: "one Large creature or up to two
+      // Medium or smaller creatures at a time." Refused here, before anything
+      // is spent, where the hold could reach *nobody* named; a line that could
+      // hold some of those named is rolled, and the clause executor leaves the
+      // rest unheld and says so.
+      const capped = (answered.onFailure ?? []).find(
+        (clause): clause is Extract<PrintedSaveEffect, { kind: 'condition' }> =>
+          clause.kind === 'condition' && clause.escapeDc !== undefined && clause.capacity !== undefined,
+      );
+      if (capped?.capacity !== undefined) {
+        const capacity = capped.capacity;
+        const held = (Object.keys(state.creatures) as CharacterId[])
+          .sort()
+          .filter((who) => grapplesOn(state, who).some((grapple) => grapple.grappler === id))
+          .map((who) => effectiveSizeOf(state, who) ?? 'medium');
+        const roomFor = targets.some((target) =>
+          roomInside(capacity, held, effectiveSizeOf(state, target) ?? 'medium'),
+        );
+        if (!roomFor) {
+          return err(
+            'holding_enough',
+            `${id} already holds as many creatures as ${line.name} allows${held.length === 0 ? '' : ` (${held.length})`}, and none of ${targets.join(', ')} could be held`,
+          );
+        }
+      }
+
       const shielded = printedLineSource(id, line.name);
       const immune = targets.filter((target) =>
         (state.creatures[target]?.lineImmunities ?? []).some((held) => held.source === shielded),
