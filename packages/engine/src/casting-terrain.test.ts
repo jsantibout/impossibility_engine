@@ -291,9 +291,21 @@ describe('a casting writes a patch on the lattice', () => {
 
     const game = new Game();
     game.conjure('grease', undefined, TOWARDS);
+    // The Grease knocked the walker Prone at the cast — every save in this
+    // fixture fails — and a Prone creature crawls at double (SRD Crawling,
+    // W7-B9), which is the other rule and not this one's. Stood up by hand, so
+    // the number below is the ground's alone.
+    const greased = game.fight().state;
+    expect(greased.creatures[WALKER]!.conditions.conditions).toContain('prone');
+    const standing = fold('seed', [
+      ...game.log,
+      ...greased.creatures[WALKER]!.conditions.instances
+        .filter((instance) => instance.condition === 'prone')
+        .map((instance): GameEvent => ({ type: 'condition-removed', id: WALKER, condition: 'prone', source: instance.source })),
+    ]);
     const walked = unwrap(
       resolveMove(
-        game.fight().state,
+        standing,
         WALKER,
         { placement: { from: { landmark: 'inside' }, feet: 0 } },
         supply('walk'),

@@ -249,21 +249,20 @@ describe('the door that rolls a printed line’s saving throw', () => {
   });
 
   it('refuses a line whose sentence it could not structure, naming the other door', () => {
-    // SRD Bulette's Deadly Leap: "The bulette spends 5 feet of movement to
-    // jump to a space within 15 feet that contains one or more Large or
-    // smaller creatures. _Dexterity Saving Throw:_ …" A movement printed
-    // before the save refuses the line whole, because half of it is a rule
-    // nobody printed and a save the engine rolls and then does nothing with is
-    // a die thrown for no reason. (The Gold Dragon Wyrmling's Weakening
-    // Breath, which used to stand here, is read now — a mode over a family
-    // and a penalty on the target's own damage rolls, under one repeat save —
-    // as the Brass Dragon Wyrmling's Sleep Breath was before it.)
-    const t = fight('leaping', 'bulette');
+    // SRD Gelatinous Cube's Engulf: a save whose failure puts the target
+    // *inside* the cube, which the printed-save reader has no arm for, so the
+    // line stays prose and this door refuses it whole — a save the engine
+    // rolls and then does nothing with is a die thrown for no reason. (The
+    // Bulette's Deadly Leap, which used to stand here, is read now — W7-B9 —
+    // and refused for a different reason below; the Gold Dragon Wyrmling's
+    // Weakening Breath before it is read too, as the Brass Dragon Wyrmling's
+    // Sleep Breath was before that.)
+    const t = fight('engulfing', 'gelatinous-cube');
     turnOf(t, 'fang');
 
     const out = t.call('force_printed_save', {
       who: 'fang',
-      line: 'Deadly Leap',
+      line: 'Engulf',
       targets: ['grish'],
     });
     expect(out.status).toBe('refused');
@@ -271,6 +270,23 @@ describe('the door that rolls a printed line’s saving throw', () => {
     expect(out.code).toBe('line_states_no_save');
 
     // And nothing was spent for the refusal.
+    expect(t.campaign.log().some((event) => event.type === 'action-spent')).toBe(false);
+  });
+
+  it('refuses a line that moves the creature first, naming the door that moves it', () => {
+    // SRD Bulette's Deadly Leap: "The bulette spends 5 feet of movement to
+    // jump to a space within 15 feet that contains one or more Large or
+    // smaller creatures. _Dexterity Saving Throw:_ DC 15, each creature in the
+    // bulette's destination space." Who the save catches is whoever's space
+    // the bulette landed in, which the lattice knows and a head count cannot
+    // say — so `move_printed_line` takes it and this door refuses it.
+    const t = fight('leaping', 'bulette');
+    turnOf(t, 'fang');
+
+    const out = t.call('force_printed_save', { who: 'fang', line: 'Deadly Leap', targets: ['grish'] });
+    expect(out.status).toBe('refused');
+    if (out.status !== 'refused') return;
+    expect(out.code).toBe('line_moves_first');
     expect(t.campaign.log().some((event) => event.type === 'action-spent')).toBe(false);
   });
 
