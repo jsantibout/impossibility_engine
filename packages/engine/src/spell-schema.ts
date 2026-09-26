@@ -2142,11 +2142,21 @@ export function checkActionRule(
     if (rule.casting !== undefined && rule.casting !== true) {
       bad('a rule either forbids casting or says nothing about it; `casting` is `true` or absent');
     }
+    // **And handling a thing is the fourth**, for the casting's reason: SRD
+    // Gaseous Form's "can't … manipulate objects, and any objects it was
+    // carrying or holding can't be dropped, used, or otherwise interacted with"
+    // is one sentence over spenders that mostly cost nothing, so it is neither a
+    // slot nor a named action and a rule whose whole content is this forbids
+    // something.
+    if (rule.objects !== undefined && rule.objects !== true) {
+      bad('a rule either forbids handling objects or says nothing about it; `objects` is `true` or absent');
+    }
     if (
       (rule.slots?.length ?? 0) + (rule.actions?.length ?? 0) === 0 &&
-      rule.casting !== true
+      rule.casting !== true &&
+      rule.objects !== true
     ) {
-      bad('a rule that forbids no slot, no action and no casting forbids nothing; name what the spell takes away');
+      bad('a rule that forbids no slot, no action, no casting and no handling forbids nothing; name what the spell takes away');
     }
     return;
   }

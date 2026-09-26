@@ -392,6 +392,31 @@ export type ActionRule =
        * made.
        */
       readonly casting?: true;
+      /**
+       * SRD Gaseous Form: "The target can't talk or **manipulate objects**, and
+       * any objects it was carrying or holding can't be dropped, used, or
+       * otherwise interacted with."
+       *
+       * **Not a slot and not one of {@link NAMED_ACTIONS}**, which is
+       * {@link casting}'s reason with a different list on the other side of it:
+       * `utilize` is a named action and is *one* of the things this sentence
+       * forbids, and the rest — a drop, an equip, a free interaction, a
+       * purchase, something picked up off the floor — are spenders that cost
+       * nothing, or nothing nameable. A rule forbidding the Utilize alone would
+       * have left a cloud free to shed its armour and hand its sword to a
+       * friend.
+       *
+       * So every command that puts a hand on a thing reads it, through
+       * {@link refuseObjectHandling}, and refuses `cannot_manipulate_objects`.
+       * {@link governs} does not read it, for `casting`'s reason: it is not a
+       * fact about a *slot* being spent.
+       *
+       * **What it does not reach is somebody else's hands.** A forced drop is a
+       * thing done *to* the creature — SRD Command's Drop, a disarm — and this
+       * sentence is about what the target may do, so `forcedDrop` is left alone
+       * deliberately rather than by omission.
+       */
+      readonly objects?: true;
     }
   /**
    * SRD Wind Walk, Fear, Magic Jar: one slot narrowed to a named few.
@@ -746,6 +771,40 @@ function refuseSpend(
       'action_forbidden',
       `${id} cannot take ${SLOT_NAMES[slot]}: ${held.label} forbids it until ${held.until}`,
     );
+  }
+  return ok(true);
+}
+
+/**
+ * The refusal every command that puts a hand on a thing shares.
+ *
+ * SRD Gaseous Form: "The target can't talk or manipulate objects, and any
+ * objects it was carrying or holding can't be dropped, used, or otherwise
+ * interacted with." One sentence over six spenders — a free interaction, a
+ * Utilize, a drop, an equip, an unequip, a purchase and whatever is lying on the
+ * floor — so it is one reader rather than six spellings, for
+ * {@link refuseSpend}'s reason.
+ *
+ * **It is not {@link refuseSpend}**, because nothing here is a slot. Half of
+ * these spend nothing at all, and `governs` therefore has nothing to answer
+ * about them: the question is not "may this creature take an action" but "may
+ * this creature touch anything", which is a different sentence that happens to
+ * be written on the same rule.
+ *
+ * The first rule that bites wins, and the refusal names it and says until when —
+ * the discipline every refusal in this file keeps.
+ */
+export function refuseObjectHandling(
+  id: CharacterId,
+  rules: readonly GrantedActionRule[],
+): Result<true> {
+  for (const held of rules) {
+    if (held.rule.kind === 'forbids' && held.rule.objects === true) {
+      return err(
+        'cannot_manipulate_objects',
+        `${id} cannot handle anything: ${held.label} until ${held.until}`,
+      );
+    }
   }
   return ok(true);
 }

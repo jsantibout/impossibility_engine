@@ -921,9 +921,9 @@ export const ADJUDICATED: Readonly<Record<string, readonly Adjudication[]>> = {
   // casting — which a level 4 slot is what makes visible.
   'gaseous-form': [
     {
-      clause: 'the things the cloud cannot do are not forbidden',
+      clause: 'one of the four things the cloud cannot do is not forbidden',
       why: 'an-action-the-engine-has-no-spender-for',
-      note: 'two of the four, and the other two are built: "Finally, the target can\u2019t attack or cast spells" is one `forbids` rule naming the Attack action and, through the field this track gave that arm, the casting. What is left is "The target can\u2019t talk or manipulate objects" and "any objects it was carrying or holding can\u2019t be dropped, used, or otherwise interacted with" \u2014 talking is not an action anything spends, and what is in a creature\u2019s hands is a fact the engine does not hold. The Magic action its target takes to end the spell is no longer here either: `endOngoingSpellOnSelf` is that door and it charges that price.',
+      note: 'one of the four, and the other three are built: "Finally, the target can’t attack or cast spells" is one `forbids` rule naming the Attack action and the casting, and "manipulate objects" with the objects that "can’t be dropped, used, or otherwise interacted with" is `forbids.objects`, read by every command that puts a hand on a thing — a drop, an equip, an unequip, a purchase, a free interaction, a Utilize and the ground pile. What is left is "The target can’t talk", and talking is not an action anything spends. It cannot be handed over either: the SRD prints it inside the same sentence as the object clauses, and a handover is a verbatim sentence, so handing it over would ask the table to adjudicate three quarters of a rule the engine enforces.',
     },
   ],
   'gentle-repose': [

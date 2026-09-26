@@ -38,6 +38,7 @@ import {
   isStatablePrice,
   disengage,
   permitsGrantedAction,
+  refuseObjectHandling,
   spendAction,
   spendBonusAction,
   spendReaction,
@@ -3107,6 +3108,13 @@ export function useFreeObjectInteraction(
     const owedHere = mayAct(state, id);
     if (owedHere !== null) return owedHere;
 
+    // SRD Gaseous Form: "any objects it was carrying or holding can't be
+    // dropped, used, or otherwise interacted with." The free interaction *is*
+    // the interaction that sentence names, and it spends no slot, so the rule
+    // is read here rather than reached through a spend.
+    const handling = refuseObjectHandling(id, actionRulesOn(state, id));
+    if (!handling.ok) return handling;
+
     if (state.combat === null) {
       return err(
         'not_in_combat',
@@ -3196,6 +3204,11 @@ export function takeUtilize(
       );
     }
     const rules = actionRulesOn(state, id);
+    // SRD Gaseous Form again, before the price is worked out: a rule that
+    // forbids handling refuses the whole spend, and `forbids.actions: ['utilize']`
+    // would have said only half of that sentence.
+    const handling = refuseObjectHandling(id, rules);
+    if (!handling.ok) return handling;
     const priced: GameEvent[] = [];
     if (from !== 'action') {
       const allowed = allowsPrice(id, 'utilize', from, rules, choiceOf(command));

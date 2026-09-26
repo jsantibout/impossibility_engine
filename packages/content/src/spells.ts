@@ -7226,12 +7226,19 @@ export const GASEOUS_FORM: SpellDefinition = {
     // feet of walking back into a body that has no legs. The hovering is what
     // `flightLost` reads, so a cloud that stops does not fall.
     { kind: 'speed', change: 'only', mode: 'fly', feet: 10, hover: true },
-    // "Finally, the target can't attack or cast spells." Two halves of one
-    // sentence in one rule: the Attack action is one of the twelve a spender
-    // names itself as, and a casting is the third thing a `forbids` may take —
-    // read by `castSpell`, because a casting comes out of three different
-    // slots and no one of them names it.
-    { kind: 'action-rule', rule: { kind: 'forbids', actions: ['attack'], casting: true } },
+    // "The target can't talk or **manipulate objects**, and any objects it was
+    // carrying or holding can't be dropped, used, or otherwise interacted
+    // with." / "Finally, the target can't attack or cast spells." Three of the
+    // four in one rule: the Attack action is one of the twelve a spender names
+    // itself as, a casting is the third thing a `forbids` may take — read by
+    // `castSpell`, because a casting comes out of three different slots and no
+    // one of them names it — and handling is the fourth, read by every command
+    // that puts a hand on a thing. Talking is the one the engine has no spender
+    // for and never will.
+    {
+      kind: 'action-rule',
+      rule: { kind: 'forbids', actions: ['attack'], casting: true, objects: true },
+    },
   ],
   durationSeconds: 3600,
   // "or if it takes a Magic action to end the spell on itself" — both
@@ -7248,7 +7255,7 @@ export const GASEOUS_FORM: SpellDefinition = {
   unmodelled: [
     'the cloud itself is the DM’s: what the target looks like, that it "can pass through narrow openings", and that "it treats liquids as though they were solid surfaces" are fiction, and the gear coming along changes nothing the engine holds',
     '"The target can enter and occupy the space of another creature" is not applied: occupancy is a rule the engine owns outright, and nothing lets an effect tell that rule to believe something different about one creature',
-    'two of the things the cloud cannot do are not forbidden: "The target can’t talk or manipulate objects" and "any objects it was carrying or holding can’t be dropped, used, or otherwise interacted with" — talking is nothing anybody spends, and what is in a creature’s hands is a fact the engine does not hold. The other two of that sentence are taken away: the Attack action and the casting',
+    'one of the four things the cloud cannot do is not forbidden: "The target can’t talk". Three are taken away — the Attack action, the casting, and every hand a command puts on a thing, which is "manipulate objects" and the objects that "can’t be dropped, used, or otherwise interacted with" — and talking is not an action anything spends. It is not a handover either, because the SRD prints it inside the same sentence as the object clauses the engine now enforces, and handing that sentence over would ask the table to adjudicate three quarters of a rule',
   ],
 };
 
