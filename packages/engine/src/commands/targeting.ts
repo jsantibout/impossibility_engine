@@ -59,6 +59,7 @@ import {
   rangeFeetAt,
   type SpellArea,
   type SpellDefinition,
+  type SpellEffect,
   statedChoiceReaches,
   statesFoughtFact,
   statesWillingFact,
@@ -962,6 +963,40 @@ const admitsSize = (
 /** "Medium" or "Small or Medium" — the rule as a refusal names it. */
 const describeSizes = (rule: CreatureSize | readonly CreatureSize[]): string =>
   typeof rule === 'string' ? titleSize(rule) : rule.map(titleSize).join(' or ');
+
+/**
+ * How many creatures a casting may raise or reassert at this slot.
+ *
+ * SRD Animate Dead prints two arms and the book's own words tell them apart:
+ * a casting that animates anything reaches the target rule's count — one at
+ * level 3 — with "two additional … for each spell slot level above 3", animate
+ * or reassert in any mix; a casting that **only** reasserts, every target a
+ * creature the caster controls through this spell and no bones stated, "rather
+ * than animating a new creature" reaches `reassertsUpTo` — four — with the
+ * same two more per level. The base is the definition's either way and the
+ * arithmetic is `targetCountFor`'s; for a spell that raises nothing this *is*
+ * `targetCountFor`, unchanged.
+ */
+export function raiseAllowanceFor(
+  state: GameState,
+  casterId: CharacterId,
+  definition: SpellDefinition,
+  request: { readonly targets: readonly CharacterId[]; readonly bonesAt?: readonly Placement[] },
+  castLevel: number,
+): number {
+  const raising = definition.effects.find(
+    (effect): effect is Extract<SpellEffect, { readonly kind: 'raise' }> => effect.kind === 'raise',
+  );
+  const onlyReasserting =
+    raising?.reassertsUpTo !== undefined &&
+    (request.bonesAt?.length ?? 0) === 0 &&
+    request.targets.length > 0 &&
+    request.targets.every((target) => controlsThrough(state, casterId, target, definition.id));
+  const rule = onlyReasserting
+    ? { ...definition.targets, count: raising!.reassertsUpTo! }
+    : definition.targets;
+  return targetCountFor(rule, definition.level, castLevel);
+}
 
 /**
  * Whether `target` is a creature `casterId` controls **through `spellId`** —
@@ -2254,7 +2289,10 @@ export function namedTargets(
   // be zero: `{ count: 0, extraPerSlotLevelAbove: 2 }` is a legal target rule
   // that names two creatures a slot level up, and reading `targets.count`
   // here would refuse it at every slot.
-  const printed = targetCountFor(definition.targets, definition.level, castLevel);
+  // **And the other arm of a raising's count**, where the casting only
+  // reasserts a control it already holds — see `raiseAllowanceFor`. For every
+  // other spell this is `targetCountFor`, unchanged.
+  const printed = raiseAllowanceFor(state, casterId, definition, request, castLevel);
   const allowed =
     printed === 0
       ? 0

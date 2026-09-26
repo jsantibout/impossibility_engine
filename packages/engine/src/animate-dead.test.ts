@@ -7,6 +7,8 @@ import { createRollIssuer } from './rolls.js';
 import { fold, type GameEvent, type GameState } from './events.js';
 import { CorruptLogError } from './fold/common.js';
 import type { Placement } from './positioning.js';
+import type { SpellDefinition } from './spell-definitions.js';
+import { checkSpellDefinitionValue } from './spell-schema.js';
 import { declaredCasting } from './spellcasting.js';
 import {
   addCreature,
@@ -314,12 +316,56 @@ describe('the count is the slot’s', () => {
     expect(g.raised()).toEqual([]);
   });
 
-  it('counts a reassertion against the same total', () => {
+  it('counts a reassertion mixed with an animation against the animating arm', () => {
     const g = new Game();
     unwrap(g.animate({ targets: [BANDIT] }), 'the first rite');
     const zombie = g.one();
     const refused = g.animate({ targets: [zombie, SECOND], slotLevel: 3 });
     expect(isErr(refused) && refused.code).toBe('too_many_targets');
+  });
+
+  /**
+   * SRD: "This use of the spell reasserts your control over **up to four**
+   * creatures you have animated with this spell rather than animating a new
+   * creature." A level 5 rite raises five; a level 3 recast that only
+   * reasserts reaches four of them and not the fifth.
+   */
+  it('reasserts up to four at level 3 when the casting animates nothing', () => {
+    const g = new Game();
+    unwrap(
+      g.animate({ targets: [BANDIT, SECOND], bonesAt: [bones(45), bones(135), bones(270)], slotLevel: 5 }),
+      'the great rite',
+    );
+    const five = g.raised();
+    expect(five).toHaveLength(5);
+
+    const refused = g.animate({ targets: five, slotLevel: 3 });
+    expect(isErr(refused) && refused.code).toBe('too_many_targets');
+
+    g.push(unwrap(advanceTime(g.state, 3600, 'an hour'), 'an hour'));
+    const four = five.slice(0, 4);
+    const fifthsClock = g.state.creatures[five[4]!]!.summonedBy!.controlled!.until;
+    const renewed = unwrap(g.animate({ targets: four, slotLevel: 3 }), 'the reassertion');
+    expect(renewed.filter((e) => e.type === 'summons-control-renewed').map((e) => (e as { id: string }).id).sort()).toEqual(four);
+    expect(renewed.filter((e) => e.type === 'creature-added')).toEqual([]);
+    for (const who of four) {
+      expect(g.state.creatures[who]?.summonedBy?.controlled?.until).toBe(g.state.elapsed + DAY);
+    }
+    // The fifth keeps the clock the great rite gave it.
+    expect(g.state.creatures[five[4]!]?.summonedBy?.controlled?.until).toBe(fifthsClock);
+    expect(fifthsClock).toBeLessThan(g.state.elapsed + DAY);
+    expect(replayed(g.events)).toEqual(g.state);
+  });
+
+  it('adds two per slot level above 3 to a pure reassertion too', () => {
+    const g = new Game();
+    unwrap(
+      g.animate({ targets: [BANDIT, SECOND], bonesAt: [bones(45), bones(135), bones(270)], slotLevel: 5 }),
+      'the great rite',
+    );
+    const five = g.raised();
+    unwrap(g.animate({ targets: five, slotLevel: 4 }), 'six would be allowed; five are named');
+    expect(g.raised()).toEqual(five);
   });
 
   it('refuses a casting that names neither a corpse nor bones, before anything is spent', () => {
@@ -418,5 +464,94 @@ describe('the fold holds the bond to one lifetime', () => {
         { type: 'summons-control-renewed', id: SECOND, by: WIZ, until: 1000 },
       ]),
     ).toThrow(CorruptLogError);
+  });
+
+  it('refuses a renewal by somebody who does not hold the control', () => {
+    const g = new Game();
+    unwrap(g.animate({ targets: [BANDIT] }, RIVAL), 'the rival’s rite');
+    const zombie = g.one();
+    expect(() =>
+      fold('seed', [
+        ...g.events,
+        { type: 'summons-control-renewed', id: zombie, by: WIZ, until: g.state.elapsed + DAY },
+      ]),
+    ).toThrow(/controlled by rival; wiz cannot renew/);
+  });
+});
+
+describe('the validator holds the vocabulary', () => {
+  // Judged as untyped input, which is how a homebrew definition arrives and
+  // the pass the placement rules run in.
+  const problems = (definition: SpellDefinition): readonly string[] =>
+    checkSpellDefinitionValue(definition).map((problem) => problem.code);
+
+  const RAISE: SpellDefinition = {
+    id: 'raise-the-fallen',
+    name: 'Raise the Fallen',
+    level: 3,
+    school: 'necromancy',
+    castingTime: 'action',
+    concentration: false,
+    range: { kind: 'ranged', feet: 10 },
+    targets: { count: 1, optional: true, mustBeDead: true, orControlled: true },
+    effects: [{ kind: 'raise', fromCorpse: 'zombie', controlSeconds: 86400 }],
+  };
+
+  it('accepts the shape Animate Dead is written in', () => {
+    expect(problems(RAISE)).toEqual([]);
+  });
+
+  it('refuses a control span that is not a whole positive number of seconds', () => {
+    for (const controlSeconds of [0, -1, 1.5, 'a day']) {
+      expect(
+        problems({ ...RAISE, effects: [{ kind: 'raise', fromCorpse: 'zombie', controlSeconds } as never] }),
+      ).toContain('bad_control_span');
+    }
+  });
+
+  it('refuses a reassert count that is not a whole positive number', () => {
+    for (const reassertsUpTo of [0, 2.5, 'four']) {
+      expect(
+        problems({
+          ...RAISE,
+          effects: [{ kind: 'raise', fromCorpse: 'zombie', controlSeconds: 86400, reassertsUpTo } as never],
+        }),
+      ).toContain('bad_reassert_count');
+    }
+  });
+
+  it('refuses the controlled admission on a spell that raises nothing', () => {
+    expect(problems({ ...RAISE, effects: [] })).toContain('controlled_without_a_raise');
+  });
+
+  /**
+   * A raising inside a printed branch would be counted against a target rule
+   * the branch is never sized off and placed by a request the branch never
+   * reads — the same placement rule `summon` and `preserves` keep, on the
+   * same seam.
+   */
+  it('refuses a raising anywhere but the casting’s own list', () => {
+    expect(
+      problems({
+        ...RAISE,
+        // Without the admission, which is a definition-level refusal of its
+        // own (`controlled_without_a_raise`) and would end validation before
+        // the branches are walked.
+        targets: { count: 1, optional: true, mustBeDead: true },
+        effects: [],
+        options: {
+          raise: { label: 'Raise', effects: [{ kind: 'raise', fromCorpse: 'zombie', controlSeconds: 86400 }] },
+          leave: { label: 'Leave it', handsOver: ['the body lies'] },
+        },
+      }),
+    ).toContain('raise_outside_the_casting');
+  });
+
+  it('holds a size list to the six sizes, and refuses an empty one', () => {
+    const sized = (mustBeSize: unknown) =>
+      problems({ ...RAISE, targets: { ...RAISE.targets, mustBeSize } } as SpellDefinition);
+    expect(sized(['small', 'medium'])).toEqual([]);
+    expect(sized([])).toContain('unknown_size');
+    expect(sized(['small', 'itsy'])).toContain('unknown_size');
   });
 });

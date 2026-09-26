@@ -11649,7 +11649,9 @@ export const SILENCE: SpellDefinition = {
  * > "The creature is under your control for 24 hours, after which it stops
  * > obeying any command you've given it. To maintain control of the creature
  * > for another 24 hours, you must cast this spell on the creature again
- * > before the current 24-hour period ends."
+ * > before the current 24-hour period ends. This use of the spell reasserts
+ * > your control over up to four creatures you have animated with this spell
+ * > rather than animating a new creature."
  *
  * **A `raise`, and the third kind of bond.** The corpses are the targets —
  * dead, Humanoid, Small or Medium, which is the one target rule in the book
@@ -11661,8 +11663,14 @@ export const SILENCE: SpellDefinition = {
  * would have taken a Zombie at 0 Hit Points away, and the book leaves it
  * lying. A recast on a creature the caster already controls renews the day
  * (`orControlled` admits it; `summons-control-renewed` records it) rather
- * than raising it twice. The count is the slot's, corpses and bones together:
- * one at level 3 and two more per level above, animate or reassert in any mix.
+ * than raising it twice. The count is the slot's and the book prints it in
+ * two arms: a casting that animates anything reaches one at level 3 and two
+ * more per level above, animate or reassert in any mix; a casting that only
+ * reasserts — every target already the caster's, no bones — reaches four at
+ * level 3 (`reassertsUpTo`) and the same two more per level above. The book
+ * does not say whether its "two additional" reads from one or from four on a
+ * pure reassertion; each arm is read from its own base here, which is the
+ * plain reading and a one-field change if the table rules otherwise.
  *
  * Commanding a creature the caster controls is taking its turn, which a bonded
  * creature's summoner already does; the Bonus Action the book spends on the
@@ -11698,6 +11706,9 @@ export const ANIMATE_DEAD: SpellDefinition = {
       fromBones: 'skeleton',
       // "under your control for 24 hours"
       controlSeconds: 24 * 60 * 60,
+      // "reasserts your control over up to four creatures … rather than
+      // animating a new creature"
+      reassertsUpTo: 4,
     },
   ],
   // The command, in the book's words: commanding a creature the caster

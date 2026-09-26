@@ -251,10 +251,10 @@ import {
   namedTargets,
   placeOrigin,
   rollsAimedAt,
+  raiseAllowanceFor,
   type SpellResolution,
   type SpellTargetOutcome,
 } from './targeting.js';
-import { targetCountFor } from '../spell-definitions.js';
 
 /**
  * Cast a spell the engine has a definition for, and resolve it on its targets.
@@ -1556,7 +1556,9 @@ export function castOrRelease(
           `${definition.name} is cast on a corpse or a pile of bones, and neither was named`,
         );
       }
-      const allowed = targetCountFor(definition.targets, definition.level, castLevel);
+      // The same two arms `namedTargets` counted the corpses against, with the
+      // bones added — see `raiseAllowanceFor`.
+      const allowed = raiseAllowanceFor(state, casterId, definition, { targets, ...(request.bonesAt === undefined ? {} : { bonesAt: request.bonesAt }) }, castLevel);
       if (targets.length + piles > allowed) {
         return err(
           'too_many_raised',

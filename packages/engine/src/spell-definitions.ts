@@ -3760,13 +3760,19 @@ export type SpellEffect =
    * sentence "reasserts your control"; `TargetRule.orControlled` is what lets
    * the rule admit a live Undead beside the corpses.
    *
-   * **The count is the target rule's.** Corpses are named targets and bones
-   * are stated points (`CastSpellRequest.bonesAt`), and the two together may
+   * **The count is the target rule's, and the book prints two arms of it.**
+   * Corpses are named targets and bones are stated points
+   * (`CastSpellRequest.bonesAt`), and a casting that animates anything may
    * not exceed what `targetCountFor` gives the slot — one at the spell's own
    * level and `extraPerSlotLevelAbove` more per level up, animate or reassert
-   * in any mix. A corpse's key leaves the roster and the creature's arrives in
-   * its space; bones were never a creature and the creature stands where the
-   * caster pointed, inside the spell's range.
+   * in any mix. A casting that **only** reasserts — every target a creature
+   * the caster controls through this spell, and no bones — is the book's
+   * other sentence, "reasserts your control over up to four creatures … rather
+   * than animating a new creature", and its base is {@link reassertsUpTo}
+   * with the same two more per level up (`raiseAllowanceFor`). A corpse's key
+   * leaves the roster and the creature's arrives in its space; bones were
+   * never a creature and the creature stands where the caster pointed, inside
+   * the spell's range.
    *
    * Written for Animate Dead; SRD Create Undead's Ghouls are the same shape
    * over another block and the same 24 hours.
@@ -3783,6 +3789,16 @@ export type SpellEffect =
       readonly fromBones?: string;
       /** How long the caster controls what it raised, in seconds: 24 hours is 86400. */
       readonly controlSeconds: number;
+      /**
+       * SRD Animate Dead: "This use of the spell reasserts your control over
+       * **up to four** creatures you have animated with this spell rather than
+       * animating a new creature."
+       *
+       * The base count of a casting that only reasserts, in place of the
+       * target rule's `count`; `extraPerSlotLevelAbove` still adds to it.
+       * Absent, a reassertion is counted like an animation.
+       */
+      readonly reassertsUpTo?: number;
     }
   /**
    * A creature the casting puts into the world, out of the bestiary.

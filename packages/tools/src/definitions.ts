@@ -2582,7 +2582,7 @@ const CAST_SPELL = tool({
       .array(placementSchema)
       .optional()
       .describe(
-        'Where the piles of bones lie that Animate Dead turns into Skeletons, one placement per pile, measured from a landmark or a creature like every other space and never as a raw coordinate. A corpse is a creature and goes in `targets` instead; bones were never one, so you point at the space. The engine checks that each pile is inside the spell’s range and that corpses and piles together do not exceed what the slot allows — one at level 3, two more per level above — and raises a Skeleton at each; whether bones really lie there is yours. Naming any on a spell that raises nothing from bones is refused, and so is a casting that names neither a corpse nor a pile.',
+        'Where the piles of bones lie that Animate Dead turns into Skeletons, one placement per pile, measured from a landmark or a creature like every other space and never as a raw coordinate. A corpse is a creature and goes in `targets` instead; bones were never one, so you point at the space. The engine checks that each pile is inside the spell’s range and that corpses and piles together do not exceed what the slot allows — one at level 3 and two more per level above for a casting that animates anything; a casting that only renews control over undead you already command reaches four at level 3 and two more per level above — and raises a Skeleton at each; whether bones really lie there is yours. Naming any on a spell that raises nothing from bones is refused, and so is a casting that names neither a corpse nor a pile.',
       ),
     slotKind: z
       .enum(['spell', 'pact'])

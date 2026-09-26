@@ -4092,6 +4092,14 @@ function checkEffect(
           reason: 'a raised creature is controlled for a whole number of seconds, at least one; SRD Animate Dead prints 24 hours',
         });
       }
+      const reasserts = (effect as { readonly reassertsUpTo?: unknown }).reassertsUpTo;
+      if (reasserts !== undefined && (!Number.isInteger(reasserts) || (reasserts as number) < 1)) {
+        found.push({
+          field: `${path}.reassertsUpTo`,
+          code: 'bad_reassert_count',
+          reason: 'a casting that only reasserts control reaches a whole number of creatures, at least one; SRD Animate Dead prints "up to four"',
+        });
+      }
       return;
     }
 
