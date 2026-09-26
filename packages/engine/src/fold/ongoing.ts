@@ -18,7 +18,8 @@ import {
   unhandledEvent,
   type Applying,
 } from './common.js';
-import { casterOf, holdsNothingOf, releaseCasting, releaseOnTarget } from './release.js';
+import { casterOf, holdsNothingOf, releaseCasting, releaseOnTarget, releaseGrants } from './release.js';
+import { castingSource } from '../spells.js';
 import { raiseAreaArrivals } from './areas.js';
 
 /** The event types this seam owns. Every one of them, and no other seam's. */
@@ -26,6 +27,7 @@ export const ONGOING_EVENTS = [
   'spell-ongoing',
   'spell-ended',
   'spell-activated',
+  'spell-option-changed',
   'area-effect-settled',
   'casting-save-recorded',
   'spell-origin-moved',
@@ -111,6 +113,30 @@ export function applyOngoing({ state, next, legacy }: Applying, event: OngoingEv
     // struck on a turn nobody cast it.
     case 'spell-activated':
       return next;
+
+    // SRD Alter Self's swap: what the casting hung on its caster goes, and the
+    // word is re-pinned. The caster's grants alone — a re-choosing spell is
+    // Range: Self, and a casting that hung anything elsewhere would be one the
+    // validator refused the field to.
+    case 'spell-option-changed': {
+      const record = state.ongoing[event.castingId];
+      if (record === undefined) {
+        throw new CorruptLogError(event, `${event.castingId} is not running`);
+      }
+      const caster = next.creatures[record.caster];
+      return {
+        ...next,
+        ...(caster === undefined
+          ? {}
+          : {
+              creatures: {
+                ...next.creatures,
+                [record.caster]: releaseGrants(caster, castingSource(record.spell, record.castingId)),
+              },
+            }),
+        ongoing: { ...next.ongoing, [event.castingId]: { ...record, option: event.option } },
+      };
+    }
 
     case 'area-effect-settled': {
       const at = state.owedAreaEffects.findIndex(

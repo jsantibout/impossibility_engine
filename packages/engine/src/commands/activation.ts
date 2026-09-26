@@ -26,7 +26,7 @@ import { creatureOf, unknownCreature } from './command.js';
 import { unsettledRefusal } from './holds.js';
 import { reachFromCaster, reachFromOrigin, relocateOrigin } from './ongoing.js';
 import { resolveEffects } from './spell-resolution.js';
-import { statedChoice, statedDamageType } from '../spell-definitions.js';
+import { handedOver, statedChoice, statedDamageType } from '../spell-definitions.js';
 import { type SpellResolution, type SpellTargetOutcome } from './targeting.js';
 import { settleAreaEffects } from './turns.js';
 
@@ -77,6 +77,15 @@ export interface ActivateSpellCommand extends CommandIdentity {
    * caller who supplies none gets the honest gap instead.
    */
   readonly via?: readonly Point[];
+  /**
+   * The branch to run in place of the one running — SRD Alter Self's "replace
+   * the option you chose with a different one".
+   *
+   * **Required** where the activation re-chooses and **refused** where it does
+   * not, the symmetry every stated fact keeps; refused too for the word already
+   * running (`same_option`) and for one the spell does not print.
+   */
+  readonly option?: string;
   /**
    * How far to move a creature this casting is holding off the ground, signed:
    * positive is up and negative is down.
@@ -251,11 +260,15 @@ export function activateSpell(
     // melee spell attack" — a target that may be declined. Moonbeam's later
     // Magic action has no attack to decline, so a named target is a caller
     // asking the beam to do something it does not do.
-    if (activation.movesArea !== undefined || activation.redirects === true) {
+    if (
+      activation.movesArea !== undefined ||
+      activation.redirects === true ||
+      activation.reoptions === true
+    ) {
       if (command.targets.length > 0) {
         return err(
           'wrong_target_count',
-          `${record.spell}'s later action moves the area and strikes nobody, got ${command.targets.length} target(s)`,
+          `${record.spell}'s later action ${activation.reoptions === true ? 'changes its own form' : 'moves the area'} and strikes nobody, got ${command.targets.length} target(s)`,
         );
       }
     } else {
@@ -271,6 +284,38 @@ export function activateSpell(
     if (target !== null && creatureOf(state, target) === null) return unknownCreature(target);
 
     const unverified: string[] = [];
+
+    // — the word a re-choosing action speaks ————————————————————————————————
+    //
+    // SRD Alter Self: "replace the option you chose with a different one".
+    // Before the action is charged, as every stated fact is: a word refused
+    // must cost its caster nothing.
+    if (activation.reoptions !== true) {
+      if (command.option !== undefined) {
+        return err(
+          'no_option_clause',
+          `${record.spell}'s later action changes no form; which branch is not a fact it asks for`,
+        );
+      }
+    } else {
+      const branches = definition.options ?? {};
+      const names = Object.keys(branches).sort();
+      if (command.option === undefined) {
+        return err(
+          'option_required',
+          `${record.spell} prints ${names.map((key) => branches[key]!.label).join(', ')} and the engine will not choose between them; name which`,
+        );
+      }
+      if (!names.includes(command.option)) {
+        return err('unknown_option', `${record.spell} prints ${names.join(', ')}, not ${command.option}`);
+      }
+      if (command.option === record.option) {
+        return err(
+          'same_option',
+          `${record.spell} is already ${branches[command.option]!.label}; the Magic action replaces the option with a different one`,
+        );
+      }
+    }
 
     // — the two facts a later action states, and the symmetry both keep ————
     //
@@ -441,6 +486,43 @@ export function activateSpell(
       by: casterId,
       ...(stamp === null ? {} : { command: stamp }),
     });
+
+    // **The re-choice, whole, and nothing below it.** SRD Alter Self's Magic
+    // action takes the old form away and puts the new one on: the event
+    // releases every grant this casting hung on its caster and re-pins the
+    // word, and the new branch's effects run off the record's own numbers on
+    // the caster — with the substitutions the first branch had, so a stated
+    // growth type reaches a second pair of claws.
+    if (activation.reoptions === true && command.option !== undefined) {
+      happened({ type: 'spell-option-changed', castingId: record.castingId, option: command.option });
+      const branch = definition.options?.[command.option];
+      // `state` and not `current`, for the reason the run below passes it: the
+      // resolver replays the accumulator onto the state it is handed.
+      const resolvedForm = resolveEffects(state, casterId, creatureOf(current, casterId), definition, {
+        castLevel: record.level,
+        route: null,
+        numbers: record.numbers,
+        targets: [casterId],
+        unverified,
+        supply,
+        castingId: record.castingId,
+        events,
+        effects: statedChoice(
+          statedDamageType(branch?.effects ?? [], record.damageType),
+          record.choice?.of,
+          record.choice?.value,
+        ),
+        label: activation.label,
+      });
+      if (!resolvedForm.ok) return resolvedForm;
+      // And the branch's own sentences go out with the swap, as they did with
+      // the casting.
+      unverified.push(
+        ...(branch?.unmodelled ?? []).map((gap) => `${record.spell}: ${gap}`),
+        ...(branch?.handsOver ?? []).map((printed) => handedOver(record.spell, printed)),
+      );
+      return ok({ ...resolvedForm.value, unverified });
+    }
 
     // **The curse leaves the creature it was on.** SRD prints the Bonus Action
     // as a *move* — "move the mark to a new creature", "curse a new creature" —

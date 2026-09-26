@@ -112,9 +112,7 @@ export const MISSING_SHAPES = {
   'a-mode-on-the-save-a-spell-forces':
     '`docs/design/rolls-and-damage.md`: "nothing records what a save was against" — the sentence that already blocks Countercharm. A `RollModifier` selects a roll by family, ability and skill, so there is no way to select the saving throws an effect from a Fiend forces. **Re-described rather than kept**: the audit found this id claimed by six clauses whose real blockers were three different things, and that the description misstated its own. What is left is the clause that genuinely needs a save to remember its provenance.',
   'a-fact-only-the-table-can-declare':
-    'a fact the engine does not hold and cannot derive, which a rule then reads — how well you know a creature, whether you are outdoors in a storm, whether you are fighting it. Declared cover, declared sight and declared allegiance are the discipline CLAUDE.md already draws for this; the audit (§4) is where these clauses were found filed as a selector problem when what they want is the fact. **IE-030 built the fought fact and this is what it left**: `CastSpellRequest.fought` carries it and the five spells that read it as Advantage are finished, while SRD Enthrall reads the same fact as "Any creature you or your companions are fighting automatically succeeds on this save" — an outcome `checks.ts` has no `autoSucceed` for, beside `autoFail`, and which no definition could write until it does.',
-  'a-bonus-narrowed-to-a-skill':
-    '**The ongoing side is built and the standing side is what is left.** `BonusNarrowing` is the axis that was missing: an `ActiveBonus` now carries an optional ability and skill beside its `BonusApplies` list, `bonusesFor` withholds a narrowed bonus from a roll that does not match, and `checkBonuses` and `savingSupport` pass what the roll knows about itself — which is what finished Guidance and is what Pass without Trace, Enthrall’s check half and Slow’s Dexterity saves would be written against. It is **beside** `BonusApplies` rather than a member of it, which that type’s docstring argues for directly: a member says what a bonus applies to, a skill check *is* an ability check, and every member has to be read by `bonusesFor`. Two things are left. A **standing** grant has no such field — `standingBonuses` reads `StandingBonusApplies` and `standingCheckBonuses` is a sibling gatherer keyed by a feature’s own named skills — so `bard:jack-of-all-trades`, whose narrowing is "a skill proficiency you **lack**" rather than a named skill, still has nowhere to go. And `passivePerception` reads the sheet and no stored bonus whatever, so Enthrall’s second half has no reader at either end. The original description follows, and it is the half that is now built. SRD prints two — a **skill** (Enthrall) and **one ability’s saving throws** (Slow, whose −2 would otherwise land on every save the target ever makes, including the one the spell itself calls for). One axis, one absent reader, two sentences. The original description follows, and it is the skill half: a bonus or penalty that reaches one skill rather than the whole family, and reaches Passive Perception. `docs/design/rolls-and-damage.md` names the axis and its whole membership — "covers attacks, saves and ability checks — all rolls" and now an Armour Class — and a skill is not a member, so SRD Enthrall’s "a −10 penalty to Wisdom (Perception) checks and Passive Perception" would land on every ability check the target ever makes. `passivePerception` reads the sheet and no stored bonus at all, so the second half has no reader whatever. The narrower residue of the fought fact IE-030 built, and the reason Enthrall is not finished by it.',
+    'a fact the engine does not hold and cannot derive, which a rule then reads — how well you know a creature, whether you are outdoors in a storm, whether you are fighting it. Declared cover, declared sight and declared allegiance are the discipline CLAUDE.md already draws for this; the audit (§4) is where these clauses were found filed as a selector problem when what they want is the fact. **IE-030 built the fought fact**: `CastSpellRequest.fought` carries it, the five spells that read it as Advantage are finished, and SRD Enthrall reads the same fact as an automatic success through `autoSucceedIf: { fought: true }`. What is left under this id is every other fact of the kind — how well you know a creature, whether you are outdoors — that no request yet states.',
   'an-automatic-success-by-creature-type':
     'IE-019 built `TypedSaveOutcome`, and spell-definitions.ts says exactly how far: "Two consumers, and they are the two shapes the SRD prints — Blight’s automatic failure and Shatter’s Disadvantage." The book prints a third, and one spell writes it: an automatic **success**. A two-member union missing its third member is a narrower gap than the family it came out of, and is what is left of it on this axis.',
   'a-filter-on-the-attackers-creature-type':
@@ -123,8 +121,6 @@ export const MISSING_SHAPES = {
     'an area or a trigger that catches only named creature types. `designatesUnaffected` is the one filter an area has and it is explicit ids chosen once — `docs/design/space-and-areas.md`: "Designating creatures unaffected is a choice, and never allegiance ... it is **explicit**, because a cleric may spare an enemy and may decline to spare an ally." A predicate over a *type* is a different question, and IE-019 answered it for an outcome rather than for who is caught.',
   'a-condition-immunity-narrowed-to-its-source':
     'an Immunity to a condition that holds against **some** of its causes and not others. IE-042 built the unconditional grant — the seventh sourced family, folded into the one gatherer — and this is the sentence that grant will not carry: SRD Protection from Evil and Good protects against gaining the Charmed or Frightened conditions "from them", SRD Freedom of Movement says "spells and other magical effects can neither reduce the target’s Speed nor cause the target to have the Paralyzed or Restrained conditions", and Magic Circle and Hallow narrow theirs to a creature type chosen at the casting. `docs/design/characters-and-equipment.md` draws the identical line on the printed side — "A qualified defence is not an unconditional one." — and keeps such entries out of the automatic table, where `conditionApplicability` answers `needs-adjudication` rather than guessing. `conditionImmunitiesOf` answers yes or no about a *condition* and is told nothing whatever about what is trying to cause it, so there is no second argument for the qualification to arrive in. The honest residue of the shape IE-042 retired, and four spells claim it.',
-  'a-condition-a-spell-suppresses':
-    'a condition switched off while it stays on the creature, by a **spell**. The reading exists and only a feature can write it: `StandingGrant`’s `condition-immunity` member is SRD Aura of Courage, and `docs/design/characters-and-equipment.md` states the distinction this needs — "An immunity refuses the condition outright; a suppression lets it land and does nothing with it, and merging them would get both wrong." `suppressedConditions` and `effectiveConditions` derive the answer from a feature’s standing effects and from nothing else; no spell effect kind writes a `StandingEffect`, so SRD Calm Emotions’ "If the creature was already Charmed or Frightened, those conditions are suppressed for the duration" has the storage it needs and no way whatever to reach it. The second residue IE-042 left: the Immunity in the first half of that bullet is built, and the suppression in the second half is a different rule.',
   'an-outcome-that-reads-the-targets-hit-points':
     'a threshold on the target’s current Hit Points, read before anything is rolled. PROGRESS.md ranks it: "Reads the target’s current Hit Points | 0 / 4 | vitals". The vitals are there and no effect asks them a question.',
   'a-target-rule-the-format-cannot-state':
@@ -168,8 +164,6 @@ export const MISSING_SHAPES = {
     '**Built.** `docs/design/rolls-and-damage.md` says it now: "A selector may name a family of D20 Tests, and it must then name the ability behind them". `RollFamily` gained the glossary’s own union of the other three, and `rollSelectorProblems` refuses it with no ability on it, because every consumer in reach prints the narrowing and a bare selector would reach every roll its holder ever made. SRD Ray of Enfeeblement is executed off it. **Three claimants are left**: Enlarge/Reduce, which prints the phrase as two families and waits on the choice made at the casting; and Foresight and Resurrection, which print it **bare** at levels this engine does not reach. The id stays because the bare phrase is still a widening nobody has asked for, and it arrives with the spell that writes it exactly as this member did.',
   'a-roll-result-an-effect-replaces':
     'a die whose result an effect overrides or throws again. `docs/design/rolls-and-damage.md` has both halves for damage dice — "Substitute a value | Great Weapon Fighting: 1 or 2 counts as 3 | `treatLowRollsAs`" — and for a D20 Test it had only `rerollTest`, which is a Reaction a feature takes. **The half that is retired is the pipeline reroll**: a `reroll-test-die` grant names a face, `sheetAsItStands` derives it onto the sheet every roller already asks for, and `rollD20Recorded` throws the counted die again and keeps the first throw on `roll-recorded.supersedes` — which reaches every ability check, saving throw, attack roll, Initiative and death save without a roll site having to know, and is SRD Luck whole. What is left under this name is a **spell effect** reaching either half: nothing a definition can write replaces a die or a result, so the reroll above is a feature’s sentence and only a feature’s.',
-  'a-damage-penalty-a-spell-grants':
-    '**Built.** `docs/design/rolls-and-damage.md` says it now: "A creature may be made to subtract from its own damage rolls". The twentieth sourced grant, and the mirror of the granted reduction on the other side of a blow: that one stands on whoever is hit and this one on whoever swung, and `damagePenaltyOf` is the one reader, shared by the road a defender is holding open and the one nobody may answer. `BonusApplies` is untouched and still names no damage, for the reason its own docstring gives. SRD Ray of Enfeeblement is executed off it. **One claimant is left**, Enlarge/Reduce, whose 1d4 is this grant with the floor it already carries and whose blocker is the choice made at the casting.',
   'an-action-a-spell-compels-or-forbids':
     '**Gate G1 read this id as five mechanisms and it is a bundle no longer: four of the five have left it, two of them built by the batch that read them apart.** The action-rule vocabulary says four things now, and the catalogue writes all four: a slot or a named action **taken away** (`forbids`), one slot **narrowed** to a named few and failing closed (`permits-only`), a named action **paid for out of a cheaper slot** (`allows`), and — the member that creates rather than governs — an **extra action** handed to a turn (`grants`), once as a casting resolves or at the start of every turn the casting sees. SRD Expeditious Retreat’s "You take the Dash action" is the first of those and SRD Haste’s "it gains an additional action on each of its turns" the second, and both spells are executed. **Spending somebody else’s budget left on the owner’s ruling of 2026-09-22**: a spell may and a caller may not, `OutcomeRiders.spends` in packages/engine/src/spell-definitions.ts is the vocabulary that charges a slot and performs nothing, and SRD Dissonant Whispers is executed off it. The self-cure went to `a-self-cure-a-spell-forbids` and the rule coupling two slots to an id of its own, which has since been **built and retired**: `ActionRule`’s fifth member is `one-of`, the spenders ask the turn’s own budget whether a coupled slot has gone, and SRD Slow, the Dretch and the Copper Dragons all execute it; the sentences that need somebody to **play** the creature went to `a-creature-somebody-else-is-playing`; and the two mis-filings G1 found went to `an-action-the-engine-has-no-spender-for` before any of it. **Seven spells and two magic items are left under it, and they are four things.** A **lifetime** rather than a rule: SRD Befuddlement’s clause never ends at all, which an Instantaneous casting may not hang, and `RiderDuration` offers four named moments and a span in seconds with no member for a grant that simply does not end. The **attacks counted inside** one Attack action rather than the actions in a turn — SRD Slow’s "it can make only one attack if it takes the Attack action" — which is the spell-side face of the gap docs/archive/design/characters-and-equipment.md names from the feature side, "Extra attacks inside the Attack action. The economy counts one Attack action, not the attacks in it". A Reaction the spell **hands over** for an errand no spender is told apart by — SRD Wall of Stone’s "it can use its Reaction to move up to its Speed", SRD Power Word Heal’s standing up, and SRD Wind Walk’s Magic action "to begin reverting" — which is `allows` polarity over a name that is not one of the engine’s, and is the same want that sent Speak with Animals to the feature book. And two spells whose definitions execute nothing — SRD Confusion and SRD Tsunami, both tracked, both carrying an empty effect list because the sentence that blocks them is the economy whole — which is where the Mace of Terror and the Ring of Elemental Command sit too, each naming the id as a bare blocker for what a creature it has caught must then do with its turns. Narrowed rather than retired, which is `a-mode-on-the-save-a-spell-forces`’ precedent — and a reader should note the four are still four, so nobody should brief this id as a unit either.',
   'an-action-the-engine-has-no-spender-for':
@@ -203,7 +197,7 @@ export const MISSING_SHAPES = {
   'a-cap-on-how-many-castings-run-at-once':
     '**Built, and the id is empty.** `replacesPriorCasting` in spell-definitions.ts is the cap the SRD writes twice — "The hand vanishes ... if you cast this spell again" — and it is a cap of **one**, applied by ending the prior casting. `maxRunning` is the same field with a number in it and `replacedCastings` is one arithmetic for both sentences: the oldest castings by this caster of this spell end until the new one is the last that fits. SRD Prestidigitation’s three is the only spell in the book that writes it and is executed off it. Kept rather than deleted because an id is a key two branches append to, and because the reading it records — ending the oldest rather than refusing the fourth — is the one a later homebrew spell will meet.',
   'a-duration-the-slot-changes':
-    'PROGRESS.md, on Major Image: "Concentration and duration that **change with the slot level** ... which `SpellDefinition` cannot express". **IE-035 built the half that is a longer span**: `durationAtSlot` is a per-definition table of slot level to seconds, read where the deadline is scheduled, and the six spells printing the SRD’s "Your Concentration can last longer with a spell slot of…" — Hex, Hunter’s Mark, the three Dominates — and SRD Mass Suggestion’s "The duration is longer with…" all read their own table. **And the Concentration half is built too**: `concentrationEndsAtSlot` is the slot from which a spell stops requiring Concentration, which SRD Bestow Curse prints at level 5 and SRD Major Image prints at level 4, beside its other clause. **And the ending half is built now too**: `untilDispelledAtSlot` is the slot from which a casting stops having a deadline at all, which SRD Major Image prints at level 4 beside its Concentration clause — so that spell is executed and the field it wanted is the third of the family, read by `untilDispelledAt` where the deadline would have been scheduled. What is left under this id is an ending that is **not** the absence of one: SRD Bestow Curse’s level 9 slot prints the same "lasts until dispelled" and has not been written yet, and SRD Geas’s level 9 slot makes the spell last "until it is ended by one of the spells mentioned above" — one spell naming another as its ending, which no field here says and a table of seconds could not.',
+    'PROGRESS.md, on Major Image: "Concentration and duration that **change with the slot level** ... which `SpellDefinition` cannot express". **IE-035 built the half that is a longer span**: `durationAtSlot` is a per-definition table of slot level to seconds, read where the deadline is scheduled, and the six spells printing the SRD’s "Your Concentration can last longer with a spell slot of…" — Hex, Hunter’s Mark, the three Dominates — and SRD Mass Suggestion’s "The duration is longer with…" all read their own table. **And the Concentration half is built too**: `concentrationEndsAtSlot` is the slot from which a spell stops requiring Concentration, which SRD Bestow Curse prints at level 5 and SRD Major Image prints at level 4, beside its other clause. **And the ending half is built now too**: `untilDispelledAtSlot` is the slot from which a casting stops having a deadline at all, which SRD Major Image prints at level 4 beside its Concentration clause — so that spell is executed and the field it wanted is the third of the family, read by `untilDispelledAt` where the deadline would have been scheduled. SRD Bestow Curse’s level 9 slot prints the same "lasts until dispelled" and reads the same field. What is left under this id is an ending that is **not** the absence of one: SRD Geas’s level 9 slot makes the spell last "until it is ended by one of the spells mentioned above" — one spell naming another as its ending, which no field here says and a table of seconds could not.',
   'a-deadline-anchored-to-a-rest':
     '`docs/design/time-and-turns.md`: "`duration.ts` has two types" — "A span of time" and "A moment in the turn order". A rest is neither, and the SRD anchors effects to one constantly. The clock records `lastShortRestAt` and a rest is a span the engine measures, so the fact is there and no deadline can name it.',
   'an-effect-that-fires-when-the-casting-ends':
@@ -642,11 +636,6 @@ export const ADJUDICATED: Readonly<Record<string, readonly Adjudication[]>> = {
       why: 'a-repeat-save-that-does-something-on-a-failure',
       note: 'the third of the four faces, and the one branch of the spell that is still a debt. A repeat save hung on a casting ends the casting on a success and this one ends nothing — a third value the vocabulary does not carry — and its failure compels the Dodge action for that turn, where a failure branch applies a condition. Both halves are the shape’s own sentence.',
     },
-    {
-      clause: 'is not applied: `untilDispelled` is a property of the spell',
-      why: 'a-duration-the-slot-changes',
-      note: 'the one arm of the slot table left. The lengths are `durationAtSlot` and the Concentration is `concentrationEndsAtSlot`, both written; what a table of seconds cannot say is an ending rather than a length, which is what a level 9 slot buys. SRD Major Image prints the same clause and names the same shape.',
-    },
   ],
   'black-tentacles': [
     {
@@ -855,28 +844,6 @@ export const ADJUDICATED: Readonly<Record<string, readonly Adjudication[]>> = {
       note: 'The commands the link carries are the target’s actions — not the slots they come out of, which a spell may now spend, but which action is taken and at what. That is a decision, and it is made by somebody who is not playing the creature.',
     },
   ],
-  fear: [
-    {
-      clause: 'drops whatever it is holding',
-      why: 'what-a-creature-is-holding',
-      note: 'SRD: a creature that fails must "drop whatever it is holding". A weapon does come out of a hand now — `OutcomeRiders.drops` is the verb and SRD Heat Metal is executed off it — and this clause names **no object**: the rider drops the one thing the caster stated at the casting, where Fear empties whatever the creature happens to be holding. The half that is left is the plural, and it is what the shape’s own description now says is left.',
-    },
-    // **The Dash itself is written now**, as the legality `ActionRule` was
-    // derived from this very sentence to say: the Action slot is narrowed to
-    // the Dash and fails closed. What the clause above used to hold was two
-    // gaps in one entry, and they are two entries because only one of them was
-    // ever about the action economy.
-    {
-      clause: 'by the safest route',
-      why: 'table',
-      note: 'SRD: "moves away from you by the safest route on each of its turns unless there is nowhere to move". A direction is fiction and an engine that walked the creature would be playing it; the narrowing the same sentence prints is executed, and where a Frightened creature goes — and whether there is anywhere to go at all — is the DM’s.',
-    },
-    {
-      clause: 'ends its turn out of your line of sight',
-      why: 'a-repeat-save-raised-by-a-trigger',
-      note: 'SRD: "If the creature ends its turn in a space where it doesn\'t have line of sight to you, the creature makes a Wisdom saving throw." A repeat save is raised by a turn boundary and owed by whoever holds the condition; this one is owed only where a pairwise sight declaration says the target cannot see the caster, which no boundary reads.',
-    },
-  ],
   'feather-fall': [
     {
       clause: 'a creature you can see',
@@ -955,6 +922,13 @@ export const ADJUDICATED: Readonly<Record<string, readonly Adjudication[]>> = {
       clause: 'the days are taken back only while this casting is still running',
       why: 'healing-that-raises-the-dead',
       note: 'the sentence is executed while the casting runs — `preserves` marks the body, the record pins the moment, and `preservedSpan` takes the span back out of the time since `Vitals.diedAt`. What is left is the word **spent**: the span is read off the castings running on the body now, so a repose that has ended hands the window back, and a corpse ten days under one and then dispelled is refused a resurrection the book allows. Carrying that needs a span accumulated on the creature and written by an event, which is a primitive the vocabulary has not got — and the window is this shape\u2019s own mechanism, which is why the residue is filed here rather than anywhere new.',
+    },
+  ],
+  'glyph-of-warding': [
+    {
+      clause: 'Wisdom (Perception) check against your spell save DC to notice',
+      why: 'table',
+      note: 'SRD: "The glyph is nearly imperceptible and requires a successful Wisdom (Perception) check against your spell save DC to notice." A check somebody makes when they search is the table’s to call for — `ability_check` rolls it against the DC the sheet derives — and the casting offers nothing of its own, because nothing in the engine says a creature is looking.',
     },
   ],
   'gust-of-wind': [
@@ -1046,13 +1020,6 @@ export const ADJUDICATED: Readonly<Record<string, readonly Adjudication[]>> = {
       clause: 'Lightly Obscured and Difficult Terrain',
       why: 'difficult-terrain-an-area-creates',
       note: 'SRD: "its area is Lightly Obscured and Difficult Terrain". The swarm’s saves and damage all run, and the ground is writable now — `areaTerrain` says it — on a definition nobody has re-read: the spell is level 5 and out of level-5 reach. The obscurement half waits on `light-and-obscurement-the-scene-holds` whatever happens to the first.',
-    },
-  ],
-  invisibility: [
-    {
-      clause: 'an attack roll that costs no Attack action',
-      why: 'a-casting-ended-by-a-trigger',
-      note: 'SRD: "The spell ends early immediately after the target makes an attack roll, deals damage, or casts a spell." All three are built; the residue is which *event* records an attack roll. `target-attacks` reads `attack-made`, which is the Attack action, and the only thing naming the roller of a free swing — an Opportunity Attack, or any attack outside combat — is `roll-recorded`, which changes no state by rule. A free swing that lands still ends the spell through the damage it deals, so what is left is a free swing that misses.',
     },
   ],
   // The spell this map predicted IE-017 would finish and which IE-042 actually
@@ -1214,11 +1181,12 @@ export const ADJUDICATED: Readonly<Record<string, readonly Adjudication[]>> = {
       why: 'table',
       note: 'owner’s ruling, 2026-09-22, and a limit the book does not print: it gives a save each time a creature targets the warded one. A failure here costs nothing, so without the limit an attacker re-declares until the save passes and the spell is undone. The ledger records both outcomes, so an attacker who cleared the ward is through for the turn and one who did not is barred for it.',
     },
-    {
-      clause: 'costs no Attack action',
-      why: 'table',
-      note: 'SRD ends this spell "if the warded creature makes an attack roll", and an attack roll changes no state by rule — `roll-recorded` is an audit line — so the ending hangs on the swing that spends something or on the blow that lands. An Opportunity Attack that misses, or any swing outside combat, leaves the ward standing where the book would end it.',
-    },
+    // "if the warded creature makes an attack roll" was filed here as a gap —
+    // `roll-recorded` was an audit line and the ending hung on the swing that
+    // spent something — and is one no longer: the roll's own record says it
+    // was an attack roll (`roll-recorded.attackRoll`) and the ending seam reads
+    // it, so an Opportunity Attack that misses ends the ward where the book
+    // ends it. Removed rather than reworded, because the map holds gaps.
   ],
   'shining-smite': [
     {
@@ -1713,39 +1681,6 @@ export const TRACKED_ADJUDICATED: Readonly<Record<string, readonly TrackedAdjudi
       note: 'who may attempt a check is derived from what its timer sits on, and this one sits on neither branch: the casting is on the caster and holds nothing on the creature being probed. SpellCheck.onSuccess has deliberately no end-casting either, and names this spell while refusing it.',
     },
   ],
-  'enlarge-reduce': [
-    {
-      marker: 'saving-throw',
-      clause: 'If the target is an unwilling creature, it can make a Constitution saving throw',
-      why: 'a-creature-fact-an-effect-overrides',
-      note: 'what the save gates is a size category, and size is a fact the engine holds authoritatively and reads for sharing a space, passing through and what a template catches. Nothing lets an effect write over one for a duration.',
-    },
-    {
-      marker: 'roll-mode',
-      clause: 'The target also has Advantage on Strength checks and Strength saving throws',
-      why: 'a-selector-for-every-d20-test',
-      // **Re-filed once the branch existed.** This entry used to blame
-      // `a-choice-made-at-the-casting`, on the reading that the reduce half
-      // prints Disadvantage on the same two rolls and nothing recorded which
-      // half the caster chose. `SpellDefinition.options` records it —
-      // `OngoingSpell.option` pins the word and the definition now has two
-      // branches to hang these on — so what is actually missing is the
-      // narrowing, and that is a different shape.
-      note: 'the branch is recorded now and the mode is still unwritable: SRD names an ability check **and** a saving throw in one breath, and a RollSelector says one family. Two modifiers would be one sentence written twice, which is the argument that shape’s own description makes about the phrase "D20 Tests".',
-    },
-    {
-      marker: 'extra-damage',
-      clause: 'deal an extra 1d4 damage on a hit',
-      why: 'a-rider-on-a-later-weapon-attack',
-      note: 'extra damage with no type, and so of the weapon’s own: the attack-rider grant hangs a notation and a damage type together, and that shape’s own description names this spell among what is left.',
-    },
-    {
-      marker: 'dice',
-      clause: 'deal 1d4 less damage on a hit',
-      why: 'a-damage-penalty-a-spell-grants',
-      note: 'the reduce half subtracts from a later damage roll and floors the result at 1; a rider that takes dice away from an attack is the shape this names, and no grant applies one.',
-    },
-  ],
   'private-sanctum': [
     {
       marker: 'teleport',
@@ -2116,20 +2051,6 @@ export const TRACKED_ADJUDICATED: Readonly<Record<string, readonly TrackedAdjudi
   // mode narrowed by the attacker's creature type, and a condition Immunity
   // narrowed by the type of whatever is causing the condition — so the spell
   // is executed-partial and what is left of it is filed in `ADJUDICATED`.
-  'alter-self': [
-    {
-      marker: 'dice',
-      clause: 'it deals 1d6 damage of the type in parentheses',
-      why: 'a-rider-on-a-later-weapon-attack',
-      note: 'the notation is ordinary and what it rides is not: an Unarmed Strike made on some later turn, whose damage this replaces rather than adds to, and whose attack and damage rolls change ability besides.',
-    },
-    {
-      marker: 'speed',
-      clause: 'gain a Swim Speed equal to your Speed',
-      why: 'movement-modes',
-      note: 'Fly, Climb and Swim have no reader — no rule in the engine asks about one — so a Swim Speed would be a number nothing consults, and the spell-definition vocabulary refuses the field by name for exactly that reason.',
-    },
-  ],
   'dragons-breath': [
     {
       marker: 'saving-throw',
@@ -2705,26 +2626,6 @@ export const TRACKED_ADJUDICATED: Readonly<Record<string, readonly TrackedAdjudi
       note: 'three Speeds printed in the stat block the spell contains, on the creature that stat block describes and that no casting produces.',
     },
   ],
-  'glyph-of-warding': [
-    {
-      marker: 'saving-throw',
-      clause: 'Each creature in the area makes a Dexterity saving throw',
-      why: 'a-creature-type-predicate-an-area-reads',
-      note: 'the rune catches whoever set it off, and the caster may refine the trigger so that only named creature types do — an area catches whoever is in it, and its one filter is an explicit list chosen at the casting.',
-    },
-    {
-      marker: 'dice',
-      clause: '5d8 Acid, Cold, Fire, Lightning, or Thunder damage',
-      why: 'a-choice-made-at-the-casting',
-      note: 'the damage type is one of five chosen when the glyph is created, and a casting has nowhere to record a choice made at the moment it was made — so the dice cannot be typed and are not rolled.',
-    },
-    {
-      marker: 'ability-check',
-      clause: 'requires a successful Wisdom (Perception) check against your spell save DC to notice',
-      why: 'a-choice-made-at-the-casting',
-      note: 'the check is against a glyph whose whole configuration — explosive rune or spell glyph, trigger, damage type, stored spell — is chosen when it is inscribed, so there is nothing inscribed for anybody to notice.',
-    },
-  ],
   confusion: [
     {
       marker: 'saving-throw',
@@ -3147,27 +3048,15 @@ export const TRACKED_ADJUDICATED: Readonly<Record<string, readonly TrackedAdjudi
       note: 'failing the check costs the creature its movement entirely, and the economy is guarded by the conditions the engine names with no lever for a spell to take a move away directly.',
     },
   ],
-  // — the three the marker-keyed entry form could not carry ——————————————————
+  // — the marker-keyed entry form could not carry these ———————————————————————
   //
   // Each of these spells was written, run and reverted, and each for the same
   // reason: the blocker that matters is printed in words no mechanical marker
   // knows, so the definition could not bring it out of `BLOCKED_ON` and the
   // unclaimed-shape guard then demanded the shape be retired. The entry
-  // carrying `marker: null` is the one that was missing.
-  enthrall: [
-    {
-      marker: 'saving-throw',
-      clause: 'to make a Wisdom saving throw',
-      why: 'a-fact-only-the-table-can-declare',
-      note: 'the save is not raised because the sentence after it hands an automatic success to whoever the caster and their companions are fighting, and checks.ts prints an autoFail with no autoSucceed beside it — the fact IE-030 built reads as Advantage and as nothing else.',
-    },
-    {
-      marker: null,
-      clause: 'a −10 penalty to Wisdom (Perception) checks and Passive Perception',
-      why: 'a-bonus-narrowed-to-a-skill',
-      note: 'the whole cost of a failed save, and the markers see none of it: a bonus reaches attacks, saves and ability checks as families, so this would land on every ability check the target makes, and passivePerception reads the sheet rather than any stored bonus.',
-    },
-  ],
+  // carrying `marker: null` is the one that was missing. (Enthrall stood here
+  // first and is executed now: the fought fact read as a success, and one
+  // stored bonus read by the check and by the passive score.)
   'flesh-to-stone': [
     {
       marker: 'saving-throw',
@@ -3207,26 +3096,6 @@ export const TRACKED_ADJUDICATED: Readonly<Record<string, readonly TrackedAdjudi
   // Hallow is also where the lifted cap is spent: three of its entries answer
   // one sentence, because the Hallowed Ward is one sentence with three
   // different gaps in it and all three trip the same `condition` marker.
-  'calm-emotions': [
-    {
-      marker: 'saving-throw',
-      clause: 'choose for each creature',
-      why: 'a-spells-effects-applied-to-different-targets',
-      note: 'SRD: "must succeed on a Charisma saving throw or be affected by one of the following effects (choose for each creature)". A casting applies one effect list to every target it caught, so a spell picking a different one per creature has nowhere to record which — which is why the save is not raised at all: neither branch of it could be settled.',
-    },
-    {
-      marker: 'defence',
-      clause: 'Immunity to the Charmed and Frightened conditions',
-      why: 'a-spells-effects-applied-to-different-targets',
-      note: 'the effect itself is expressible — IE-042\'s `condition-immunity`, which Mind Blank writes unconditionally, and two names in one clause is the plural list the kind carries. What blocks it is the sentence above rather than anything about the Immunity: it is one of two outcomes chosen creature by creature, and the casting has nowhere to record which creature got which.',
-    },
-    {
-      marker: null,
-      clause: 'those conditions are suppressed for the duration',
-      why: 'a-condition-a-spell-suppresses',
-      note: 'the sole claimant of its shape and the reason this spell went unwritten: suppression hands the condition back when the spell ends, so it is not `end-condition`, and it is not the Immunity beside it either — that refuses a condition and this silences one that has already landed. The markers see nothing here because `\\bcondition\\b` does not match "conditions".',
-    },
-  ],
   hallow: [
     {
       marker: null,
@@ -3384,14 +3253,6 @@ export const TRACKED_ADJUDICATED: Readonly<Record<string, readonly TrackedAdjudi
       clause: 'that spell is suppressed for 10 minutes',
       why: 'table',
       note: 'read to the end, and handed over whole rather than filed as a debt. This clause was filed under `an-effect-that-suppresses-other-magic`, and the entry itself recorded why building that state would still leave the sentence unreachable: Arcane Lock is cast on a door, a door is not in state, and nothing could name the casting Knock would suppress. Every other sentence of the spell — the lock, the bar, the chest, the knock heard 300 feet off — is about an object the engine holds no state for. So the casting is made, the slot spent, and the four printed sentences go to the table in the book’s words.',
-    },
-  ],
-  'speak-with-plants': [
-    {
-      marker: null,
-      clause: 'turn Difficult Terrain caused by plant growth',
-      why: 'difficult-terrain-an-area-creates',
-      note: 'the clause after it — turning ordinary ground into Difficult Terrain — is writable now, and this one is the direction that is not: **removing** it. Nothing in the lattice subtracts, because `terrainAt` takes the dearest rate lying over a space and a patch cancelling its neighbours is the one thing a rate cannot say.'
     },
   ],
   'animate-dead': [
@@ -4772,6 +4633,8 @@ export { DEFINED as DEFINED_SPELL_IDS };
  * for.
  */
 export const ITEM_SHAPES = {
+  'a-bonus-narrowed-to-a-skill':
+    '**A standing bonus that reaches one skill.** This id stood in the spell vocabulary while SRD Enthrall claimed it, and Enthrall is executed now: the *ongoing* side is whole — `BonusNarrowing` is the axis, the `buff` effect and the `bonus` rider in `spell-definitions.ts` carry it as `only`, an `ActiveBonus` carries an optional ability and skill beside its `BonusApplies` list, `bonusesFor` withholds a narrowed bonus from a roll that does not match, `checkBonuses` and `savingSupport` pass what the roll knows about itself, and `passivePerceptionOf` in packages/engine/src/standing.ts derives the passive score from the same stored bonus — which is what finished Guidance, Pass without Trace, Slow’s Dexterity saves and Enthrall’s −10. What is left is true of an item and false of a casting, which is the rule this vocabulary keeps: a **standing** grant has no such field. `standingBonuses` reads `StandingBonusApplies` and `standingCheckBonuses` is a sibling gatherer keyed by a feature’s own named skills, so a `flat-bonus` an item grants reaches `ability-check` as a whole family — Gloves of Thievery’s SRD line, "+5 bonus to Dexterity (Sleight of Hand) checks", would land on every Intelligence, Wisdom and Strength check the wearer ever makes — and `bard:jack-of-all-trades`, whose SRD narrowing is "a skill proficiency you **lack**" rather than a named skill, has nowhere to go either. The field is the same one the ongoing side grew; the reader that has not grown it is the standing one.',
   'a-spell-an-item-casts-that-nothing-executes':
     'the item’s line says it casts a named spell and the catalogue has **no definition of that spell at all**. `checkContent` refuses the pairing in as many words — packages/engine/src/content.ts, "which this content has no executable definition of" — so an item that casts Scrying, Levitate or Gate cannot be written until the spell is, and the blocker is the spell’s own. It is the largest single blocker in the book’s magic items and it is not item work at all, which is the finding: a tranche aimed at wands buys nothing until the spells under them exist. **The word that decides an entry is *definition*, not *executable*, and this description said otherwise for a batch.** The predicate `checkContent` hands an item is `spells.some(s => s.id === id)` — packages/engine/src/content.ts, the call site of `itemGrantProblems` — and `castFromItem` reads `content.spell(id)`, so a **tracked** definition answers both. That is SRD’s own sentence about what a casting from an item is: "The spell uses its normal casting time, range, and duration, and the user of the item must concentrate if the spell requires Concentration", every word of which a tracked definition already carries. A Wand of Magic Detection and a Ring of Animal Influence came off this shape without a line of spell work, and `item-casts-a-tracked-spell.test.ts` drives both directions so the distinction cannot be lost again. What *should* name this shape is an entry whose spell nothing defines — and, for a **potion**, a spell whose definition resolves nothing, because a `confers` grant carries the definition’s `SpellEffect[]` and "an item that confers an empty list confers nothing". **Sixty definitions later, every entry here has been read against the catalogue again**, entry by entry and spell by spell rather than against this line: thirteen named the shape with every spell they print already defined and have been re-pointed or transcribed, which is why this is no longer the heaviest blocker in the book. The two the last reading wrote down as wrong are both settled — `chime-of-opening` is transcribed, because a use count that never comes back is `recovers: \'special\'` on a pool keyed to the copy; and `amulet-of-the-planes` is **unread**, because what gates its defined Plane Shift is "make a DC 15 Intelligence (Arcana) check" and a check gating a casting still has no id, which is a shape this vocabulary will not invent in a note.',
   'a-save-an-item-forces':
@@ -5293,7 +5156,7 @@ export const ITEM_BLOCKED_ON: Readonly<Record<string, ItemEntry>> = {
     {
       clause: 'a +5 bonus to Dexterity (Sleight of Hand) checks',
       why: 'a-bonus-narrowed-to-a-skill',
-      note: 'a `flat-bonus` reaches `ability-check` and that is the whole family, so this five would land on every Intelligence, Wisdom and Strength check the wearer ever makes. The narrowing to one skill is the shape the spell map already names for SRD Enthrall’s Perception penalty, and a pair of gloves prints it the other way up.',
+      note: 'a `flat-bonus` reaches `ability-check` and that is the whole family, so this five would land on every Intelligence, Wisdom and Strength check the wearer ever makes. The narrowing to one skill is the field a casting’s stored bonus already carries — SRD Enthrall’s Perception penalty reads it — and a pair of gloves prints the same sentence the other way up, on a standing grant that has no such field.',
     },
   ],
   'handy-haversack': ['a-container-with-a-space-of-its-own'],

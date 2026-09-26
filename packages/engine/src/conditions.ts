@@ -748,6 +748,19 @@ export interface GrantedConditionImmunity {
    * rather than the fourteen types.
    */
   readonly fromTypes?: readonly string[];
+  /**
+   * A condition the creature already has is silenced while the grant stands.
+   *
+   * SRD Calm Emotions: "If the creature was already Charmed or Frightened,
+   * those conditions are suppressed for the duration." An Immunity refuses a
+   * condition that has not landed; this is the second sentence, about one
+   * that has. `suppressedConditions` in `standing.ts` reads it beside SRD Aura
+   * of Courage's standing grant, so a feature's suppression and a casting's
+   * are one rule read from two sources, and `releaseCasting` hands the
+   * condition back by taking the grant away. Absent is SRD Heroism and SRD
+   * Mind Blank, which print no such sentence.
+   */
+  readonly suppresses?: true;
 }
 
 /**

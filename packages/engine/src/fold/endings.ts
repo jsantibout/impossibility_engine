@@ -17,9 +17,11 @@
  * the two end different things through different doors.
  *
  * Two things this module is careful about. A trigger hangs on a consequence
- * event and never on `roll-recorded`, which changes no state by rule. And
- * "ally" is declared allegiance with three answers, of which only two end
- * anything — `allyOfCaster` withholds rather than inventing.
+ * event, or on the one structured fact `roll-recorded` carries — that an
+ * attack roll was **made**, which is the whole of SRD Invisibility's first
+ * sentence and asks nothing about what the die came to. And "ally" is
+ * declared allegiance with three answers, of which only two end anything —
+ * `allyOfCaster` withholds rather than inventing.
  */
 import type { CharacterId } from '@ie/shared';
 import { instancesEndingEarly } from '../conditions.js';
@@ -68,12 +70,16 @@ export function allyOfCaster(
 /**
  * What this event says happened, in the vocabulary a trigger is written in.
  *
- * **Read off the event, and off a consequence event rather than a roll.**
- * `roll-recorded` changes no state by rule — that is what the event is for —
- * so hanging an ending on one would end a spell on the strength of a number
- * whose outcome had not happened. `attack-made` is therefore what
- * `target-attacks` reads: it is the Attack action rather than every attack
- * roll, and Invisibility's own `unmodelled` records what that leaves out.
+ * **Read off the event, and off a consequence event rather than a roll** —
+ * with one exception the sentence itself makes. `roll-recorded` changes no
+ * state by rule, so no ending hangs on what a die came to; but SRD
+ * Invisibility ends when the target "makes an attack roll", which is a fact
+ * about the roll having been thrown and not about its outcome, and the only
+ * event that names the roller of a swing that spent no Attack action is the
+ * roll's own record. So `target-attacks` reads `roll-recorded.attackRoll`, a
+ * structured mark the two attack rollers write and nothing else does, and
+ * still reads `attack-made` beside it: a log written before the mark carries
+ * only the action, and must fold to the state it always did.
  *
  * One event can say two things: damage names both its dealer — the fact
  * Hellish Rebuke needed, because `source` is prose and prose cannot be aimed
@@ -154,6 +160,11 @@ function endingFactsOf(state: GameState, event: GameEvent): readonly EndingFact[
   switch (event.type) {
     case 'attack-made':
       return [{ cause: 'target-attacks', who: event.id }];
+    // "makes an attack roll": every road — the Attack action, an Opportunity
+    // Attack, a readied swing, a swing outside any fight, a later
+    // activation's spell attack — and only the roll that says it was one.
+    case 'roll-recorded':
+      return event.attackRoll === true ? [{ cause: 'target-attacks', who: event.who }] : [];
     // The settled casting, never the declared one: SRD Counterspell makes a
     // declaration that may dissipate "with no effect", and a spell that never
     // settled is not one the target cast.
@@ -363,8 +374,9 @@ const endingKey = (castingId: string, subject: CharacterId): string =>
  * on a creature that has just cast a spell, and no caller has to remember a
  * sentence printed on somebody else's spell.
  *
- * **Cheap first.** Five event types can say anything at all here — the four
- * consequence events and `creature-moved`, for the one cause about a place —
+ * **Cheap first.** Seven event types can say anything at all here — the six
+ * consequence events (`endingFactsOf`'s cases, `roll-recorded` the newest of
+ * them) and `creature-moved`, for the one cause about a place —
  * and every other event returns before `ongoing` is touched. That is the
  * discipline `anyCreature` established for the three passes that sort the
  * whole cast.
@@ -420,7 +432,7 @@ export function endTriggeredCastings(state: GameState, event: GameEvent): GameSt
  * What holds it is the **timer**, and the timer is what this pass reads.
  *
  * Beside that function rather than inside it, and reading the same
- * {@link EndingFact}s off the same four events: one reading of the log, two
+ * {@link EndingFact}s off the same six events: one reading of the log, two
  * populations. Folding the two loops together would mean one walk over two
  * unrelated records answering to two different release doors, which is a
  * shared loop rather than a shared rule.
@@ -439,7 +451,7 @@ export function endTriggeredCastings(state: GameState, event: GameEvent): GameSt
  * it touches the condition, so nothing a release does can hand the loop back
  * a timer it has already settled.
  *
- * **Cheap first.** Four event types can say anything at all *to a timer*, and
+ * **Cheap first.** Six event types can say anything at all *to a timer*, and
  * every other one returns before `timers` is touched — including a
  * `creature-moved`, whose one fact names no `who` and so is dropped here
  * before the walk rather than discarded once per timer inside it.

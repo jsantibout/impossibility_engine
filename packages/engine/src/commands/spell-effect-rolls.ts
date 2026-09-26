@@ -387,6 +387,10 @@ function resolveOneAttackRoll(
       total: result.total,
       contributions: [{ source: 'spell attack', amount: attackModifier }],
       outcome: result.hit ? 'hit' : 'miss',
+      // SRD Invisibility's "makes an attack roll" reaches a spell attack
+      // thrown by a later activation — Spiritual Weapon's swing — which no
+      // `spell-cast` records. See `roll-recorded.attackRoll`.
+      attackRoll: true,
       ...(superseded === undefined
         ? {}
         : { supersedes: { natural: superseded.roll.natural, total: superseded.total } }),
@@ -574,7 +578,15 @@ function resolveOneAttackRoll(
   // `standingAttackDamage`, because the *feature* half beside it is weapon
   // rules — Sneak Attack and Rage Damage — and a spell attack must not take
   // them.
-  const carried = grantedAttackRiders(current.creatures[casterId], { weapon: null, target });
+  // **And says it is a spell attack**, which is the one fact that keeps SRD
+  // Enlarge/Reduce's "weapons or Unarmed Strikes" die off a Fire Bolt. A
+  // rider that names no type is of the blow's own, and on this road the blow's
+  // own is the spell's.
+  const carried = grantedAttackRiders(current.creatures[casterId], {
+    weapon: null,
+    target,
+    spellAttack: true,
+  }).map((rider) => ({ ...rider, type: rider.type ?? effect.damageType }));
   const declared = dieEffectsOf(ctx);
   // A critical doubles the dice, which is `rollAttackDamage`'s job, so
   // this one call keeps the weapon-shaped signature rather than going
@@ -1287,6 +1299,7 @@ function castingHostedRepeat(
       ability: effect.ability,
       dc: saveDc,
       onSuccess: repeats.onSuccess,
+      ...(repeats.onlyIf === undefined ? {} : { onlyIf: repeats.onlyIf }),
       label: `${ctx.name} (${ABILITY_NAMES[effect.ability]} save)`,
     },
     // **Carried only where this event *replaces* the casting's own timer**,
@@ -1424,6 +1437,12 @@ export function resolveSaveEffect(
     // `creature-added` pins, read here exactly as the Immunity above is read and
     // overriding the same total. The rating is never null by this point: a
     // target nobody has rated was asked about above, before a die moved.
+    // **Or whom the caster is fighting, which is the third member.** SRD
+    // Enthrall: "Any creature you or your companions are fighting automatically
+    // succeeds on this save." The fact was stated at the casting and refused
+    // unstated — `declaredFacts` reads `statesFoughtFact` — so the only
+    // question left is whether the caster named *this* creature, exactly as
+    // the Advantage below asks it.
     const sparedBy =
       effect.autoSucceedIf === undefined
         ? null
@@ -1431,9 +1450,13 @@ export function resolveSaveEffect(
           ? (victim.cr ?? 0) > effect.autoSucceedIf.challengeRatingAbove
             ? `${name}: a creature whose Challenge Rating is above ${effect.autoSucceedIf.challengeRatingAbove} automatically succeeds on the save`
             : null
-          : conditionImmunitiesOf(current, target).includes(effect.autoSucceedIf.immuneTo)
-            ? `${name}: a creature with Immunity to the ${effect.autoSucceedIf.immuneTo} condition automatically succeeds on the save`
-            : null;
+          : 'fought' in effect.autoSucceedIf
+            ? fought?.includes(target) === true
+              ? `${name}: a creature you or your companions are fighting automatically succeeds on the save`
+              : null
+            : conditionImmunitiesOf(current, target).includes(effect.autoSucceedIf.immuneTo)
+              ? `${name}: a creature with Immunity to the ${effect.autoSucceedIf.immuneTo} condition automatically succeeds on the save`
+              : null;
     const save = rollSavingThrow(supply.issuer, supply.rng, sheet, effect.ability, {
       dc: saveDc,
       conditions: support.conditions,

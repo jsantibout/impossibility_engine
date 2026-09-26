@@ -131,12 +131,11 @@ export const INVISIBILITY: SpellDefinition = {
   effects: [{ kind: 'condition', condition: { name: 'invisible' } }],
   durationSeconds: 3600,
   endsEarly: [
+    // "makes an attack roll": every roll, on every road — an Opportunity
+    // Attack that misses included. See `roll-recorded.attackRoll`.
     { on: 'target-attacks', ends: 'casting' },
     { on: 'target-deals-damage', ends: 'casting' },
     { on: 'target-casts', ends: 'casting' },
-  ],
-  unmodelled: [
-    'an attack roll that costs no Attack action — an Opportunity Attack, or any swing outside combat — ends this spell only if it hits: the attack roll itself is recorded on `roll-recorded`, which changes no state by rule, so nothing may hang the ending on it',
   ],
 };
 
@@ -2301,7 +2300,23 @@ export const CHARM_PERSON: SpellDefinition = {
  * > Action. **Range:** Self. **Duration:** Concentration, up to 1 minute.
  * > "Each creature in a 30-foot Cone must succeed on a Wisdom saving throw or
  * > drop whatever it is holding and have the Frightened condition for the
- * > duration."
+ * > duration. A Frightened creature takes the Dash action and moves away from
+ * > you by the safest route on each of its turns unless there is nowhere to
+ * > move. If the creature ends its turn in a space where it doesn't have line
+ * > of sight to you, the creature makes a Wisdom saving throw. On a
+ * > successful save, the spell ends on that creature."
+ *
+ * Three sentences and three different answers. The first is a save, a drop
+ * and a condition, all of them the engine's: `drops.all` is Command's Drop
+ * — "whatever it is holding" names no object — and the Frightened is the
+ * casting's for the duration. The second is a compulsion, and the ruling on
+ * compulsions stands: the Action slot is narrowed to the Dash and fails
+ * closed, so the engine refuses everything else and walks nobody; the route
+ * and the "unless there is nowhere to move" are the table's, handed over in
+ * the book's words. The third is a repeat save with a **gate** — owed only
+ * where the creature cannot see the caster, which is `SpellRepeatSave.onlyIf`
+ * and the sight declaration the boundary reads — ending the spell on that
+ * creature alone.
  */
 export const FEAR: SpellDefinition = {
   id: 'fear',
@@ -2318,6 +2333,9 @@ export const FEAR: SpellDefinition = {
       kind: 'save',
       ability: 'wis',
       condition: 'frightened',
+      // "drop whatever it is holding": no object is named because there is
+      // none to name — SRD Command's Drop, on a failure this save settles.
+      drops: { all: true },
       // "A Frightened creature takes the Dash action" — written as the
       // legality it is, and never as an instruction that executes. The Action
       // slot is narrowed to the Dash and fails closed, so the engine refuses
@@ -2327,13 +2345,18 @@ export const FEAR: SpellDefinition = {
       modifiers: [
         { kind: 'action', rule: { kind: 'permits-only', slot: 'action', actions: ['dash'] } },
       ],
+      // "If the creature ends its turn in a space where it doesn't have line
+      // of sight to you, the creature makes a Wisdom saving throw. On a
+      // successful save, the spell ends on that creature." The repeat rides
+      // the Frightened it imposed and is owed only behind the gate.
+      repeats: { at: 'end-of-turn', onSuccess: 'end-on-target', onlyIf: 'cannot-see-caster' },
     },
   ],
   durationSeconds: 60,
-  unmodelled: [
-    'a creature that fails drops whatever it is holding',
-    'the Dash away from you by the safest route, and the "unless there is nowhere to move" it stops at, are the DM’s: the engine narrows the Action to the Dash and moves nobody',
-    'the Wisdom save a Frightened creature makes when it ends its turn out of your line of sight, which would end the spell on that creature',
+  // The compulsion's route and its stop, in the book's words, under the
+  // ruling that a compelled Dash is adjudicated and never performed.
+  dmDecides: [
+    'A Frightened creature takes the Dash action and moves away from you by the safest route on each of its turns unless there is nowhere to move.',
   ],
 };
 
@@ -7409,20 +7432,24 @@ export const DETECT_THOUGHTS: SpellDefinition = {
  * stated fact, `OngoingSpell.option` pins it, and this definition has two
  * branches to hang the clauses on.
  *
- * **What is left is every clause inside them, and each waits on its own
- * shape.** The Advantage or Disadvantage on Strength checks and Strength
- * saving throws is *not* the easy `roll-mode` that paragraph claimed: SRD
- * names an ability check **and** a saving throw in one breath and a
- * `RollSelector` says one family. The size change is a fact the engine holds
- * authoritatively and nothing writes over one for a duration — the twin of
- * the creature type a spell overrides, which is built. And the ±1d4 on a hit
- * is damage with no type of its own on one side and a penalty on a damage roll
- * on the other. Each branch says so in its own `unmodelled` list.
+ * **And every clause inside them is built now, each on the shape it waited
+ * for.** The Advantage or Disadvantage on Strength checks and Strength saving
+ * throws is two `mode` riders — SRD names an ability check **and** a saving
+ * throw in one breath, and a `RollSelector` says one family, so the sentence
+ * is written twice and the pair is the book's. The size change is a `size`
+ * rider: a *step* hung as a sourced grant, the twin of the creature-type Mask,
+ * read by `effectiveSizeOf` over whatever size the creature otherwise has and
+ * given back through every door that ends a grant. The extra 1d4 is a
+ * `later-blow` rider with no type of its own — the weapon's, as SRD Magic
+ * Weapon's plus is — reaching weapons and Unarmed Strikes and never a spell;
+ * and the −1d4 is the `damage-penalty` rider Ray of Enfeeblement writes, with
+ * the floor of 1 the parenthesis prints.
  *
- * **The Constitution save is not rolled either**, and the reason is the three
- * above: a saving throw whose failure imposes no condition and hangs no rider
- * is a die thrown for nothing, which the definition validator refuses rather
- * than accepts.
+ * **The Constitution save is rolled, and only for a creature that objects.**
+ * "If the target is an unwilling creature, it can make a Constitution saving
+ * throw" is `unlessWilling`, read for the first time inside a branch: one
+ * consent clause over two branches that each carry the save it gates, because
+ * a save in the common list would be one roll no branch could read.
  *
  * The Potion of Growth is the other end of that: the bottle **makes** the
  * choice, so the conferral writes the enlarge branch and nothing is guessed.
@@ -7437,34 +7464,88 @@ export const ENLARGE_REDUCE: SpellDefinition = {
   range: { kind: 'ranged', feet: 30 },
   targets: { count: 1, self: true },
   requiresSight: true,
+  // **Empty, and the save is in each branch.** "If the target is an unwilling
+  // creature, it can make a Constitution saving throw. On a successful save,
+  // the spell has no effect" is one roll per casting whichever half was
+  // chosen, and a save in the common list would be a roll whose outcome the
+  // branch could not read — the rule `SpellDefinition.options` states.
   effects: [],
-  // "see the chosen effect below": two branches, and the shell of them is what
-  // this definition is. Every clause inside either branch is filed rather than
-  // built — see each branch's own lines — and what changes is that there is
-  // now somewhere to hang them when those shapes land, and that the casting
-  // records which half was chosen.
   options: {
     enlarge: {
       label: 'Enlarge',
-      unmodelled: [
-        'the size increase is not applied: "The target’s size increases by one category—from Medium to Large, for example" writes over a fact the engine holds authoritatively and reads for sharing a space, passing through and what a template catches. It is the twin of the creature type a spell overrides, which is built: that one is a mask a grant hangs and gives back, and a size has no such reader',
-        'the Advantage on Strength checks and Strength saving throws is not granted: one modifier cannot say both families, and the two rolls the sentence names are an ability check and a saving throw',
-        'the extra 1d4 on a hit is not hung: "attacks with its enlarged weapons or Unarmed Strikes deal an extra 1d4 damage" is damage with no type of its own, so it is the weapon’s, and the rider that hangs a notation on a later attack names a type beside it',
+      effects: [
+        {
+          kind: 'save',
+          ability: 'con',
+          // "If the target is an unwilling creature": the save is offered to
+          // the creature that objects and to nobody else.
+          unlessWilling: true,
+          modifiers: [
+            // "The target's size increases by one category".
+            { kind: 'size', steps: 1 },
+            // "Advantage on Strength checks and Strength saving throws": two
+            // rolls named in one clause, so two selectors.
+            {
+              kind: 'mode',
+              modifier: {
+                mode: 'advantage',
+                selector: { roll: 'ability-check', relation: 'roller', ability: 'str' },
+              },
+            },
+            {
+              kind: 'mode',
+              modifier: {
+                mode: 'advantage',
+                selector: { roll: 'saving-throw', relation: 'roller', ability: 'str' },
+              },
+            },
+            // "attacks with its enlarged weapons or Unarmed Strikes deal an
+            // extra 1d4 damage on a hit": no type, so the weapon's own, and
+            // never a spell's.
+            { kind: 'later-blow', dice: '1d4', weaponOrUnarmedOnly: true, by: 'target' },
+          ],
+        },
       ],
     },
     reduce: {
       label: 'Reduce',
-      unmodelled: [
-        'the size decrease is not applied, for the reason the increase is not: "decreases by one category—from Medium to Small, for example" is a fact the engine holds and nothing lets an effect write over one for a duration',
-        'the Disadvantage on Strength checks and Strength saving throws is not granted, for the reason the Advantage is not',
-        'the subtraction on a hit is not hung: "deal 1d4 less damage on a hit (this can’t reduce the damage below 1)" is a penalty on a damage roll, and nothing a spell grants reaches a damage roll at all',
+      effects: [
+        {
+          kind: 'save',
+          ability: 'con',
+          unlessWilling: true,
+          modifiers: [
+            // "The target's size decreases by one category".
+            { kind: 'size', steps: -1 },
+            {
+              kind: 'mode',
+              modifier: {
+                mode: 'disadvantage',
+                selector: { roll: 'ability-check', relation: 'roller', ability: 'str' },
+              },
+            },
+            {
+              kind: 'mode',
+              modifier: {
+                mode: 'disadvantage',
+                selector: { roll: 'saving-throw', relation: 'roller', ability: 'str' },
+              },
+            },
+            // "deal 1d4 less damage on a hit (this can't reduce the damage
+            // below 1)".
+            { kind: 'damage-penalty', dice: '1d4', floor: 1 },
+          ],
+        },
       ],
     },
   },
   durationSeconds: 60,
-  unmodelled: [
-    'the Constitution saving throw an unwilling target makes is not rolled: what a failure would impose is the three clauses each branch files above, and a saving throw that decides nothing is a die thrown for nothing — which the definition validator refuses rather than accepts',
-    'the gear changing size with the target, and a thrown weapon returning to normal after it hits or misses, are the DM’s',
+  // The gear and the thrown weapon are fiction the engine holds nothing of,
+  // handed over in the book's words.
+  dmDecides: [
+    'Everything that a targeted creature is wearing and carrying changes size with it.',
+    'Any item it drops returns to normal size at once.',
+    'A thrown weapon or piece of ammunition returns to normal size immediately after it hits or misses a target.',
   ],
 };
 
@@ -9437,7 +9518,6 @@ export const SANCTUARY: SpellDefinition = {
   unmodelled: [
     'the branch the save buys is offered as two commands rather than one: "choose a new target" is a second swing at a creature nobody warded, because the engine aims nothing on a caller’s behalf, and "lose the attack" is declining to make one',
     'an attacker gets one save per ward per turn rather than one each time they target, which is a limit the book does not print — owner’s ruling, 2026-09-22, in exchange for a failure that costs nothing not being re-rollable until it passes',
-    'an attack roll that costs no Attack action — an Opportunity Attack, or any swing outside combat — ends this spell only if it hits: the attack roll itself is recorded on `roll-recorded`, which changes no state by rule, so nothing may hang the ending on it',
   ],
 };
 
@@ -10234,9 +10314,14 @@ export const SLEET_STORM: SpellDefinition = {
  * > present into Difficult Terrain that lasts for the duration."
  *
  * A conversation with a hedge, and one mechanical sentence in the middle of
- * it that goes **both ways**: this is the only spell in the book that can
- * take Difficult Terrain away as well as make it. Neither direction has
- * anywhere to be written, because the ground holds no such property.
+ * it that goes **both ways**: the only spell in the book that can take
+ * Difficult Terrain away as well as make it. Both directions are written now.
+ * The Emanation `stays`, so the caster's square is pinned at the casting
+ * and the ground stays changed when the druid walks off; which direction is
+ * the caster's word, so each is a branch carrying its own `areaTerrain` — the
+ * glossary's rate one way, and `clears` the other, a patch that overrides
+ * whatever else lies over a space rather than a cheaper rate that would lose.
+ * The conversation is the table's, in the book's words.
  */
 export const SPEAK_WITH_PLANTS: SpellDefinition = {
   id: 'speak-with-plants',
@@ -10247,11 +10332,30 @@ export const SPEAK_WITH_PLANTS: SpellDefinition = {
   concentration: false,
   range: { kind: 'self' },
   targets: { count: 0 },
+  // "an immobile 30-foot Emanation": the caster's square, pinned.
+  area: { kind: 'emanation', distance: 30, origin: 'self', stays: true },
   effects: [],
+  // "You can also turn Difficult Terrain caused by plant growth … into
+  // ordinary terrain … Or you can turn ordinary terrain where plants are
+  // present into Difficult Terrain": one Emanation, two directions, and the
+  // caster's word says which. Which ground is plant-grown is the table's, as
+  // which ground is thicket always has been.
+  options: {
+    clear: {
+      label: 'Turn plant-grown Difficult Terrain into ordinary terrain',
+      areaTerrain: { clears: true },
+    },
+    overgrow: {
+      label: 'Turn ordinary terrain where plants are present into Difficult Terrain',
+      areaTerrain: { costPerFoot: 2 },
+    },
+  },
   durationSeconds: 600,
-  unmodelled: [
-    'the terrain is not changed in either direction, and the two halves are blocked on different things. Turning ordinary ground into Difficult Terrain is writable — `areaTerrain` says it and four definitions write it — and two things stand between this spell and it. The definition carries no `area`, and terrain without one is refused at authoring; and the area the book prints is "an immobile 30-foot Emanation", where an Emanation is stored as the creature it comes from and re-read against where that creature is now, so a patch written on one would walk away with the druid. Turning plant-grown Difficult Terrain **back** into ordinary ground is writable nowhere: the lattice takes the dearest rate lying over a space, by the book’s own rule that Difficult Terrain is not cumulative, and nothing in it subtracts',
-    'the conversation is the DM’s: questioning plants about the past day, giving them simple commands, and talking to a Plant creature as if you shared a language are all narration',
+  dmDecides: [
+    'You imbue plants in an immobile 30-foot Emanation with limited sentience and animation, giving them the ability to communicate with you and follow your simple commands.',
+    "You can question plants about events in the spell's area within the past day, gaining information about creatures that have passed, weather, and other circumstances.",
+    "The spell doesn't enable plants to uproot themselves and move about, but they can move their branches, tendrils, and stalks for you.",
+    'If a Plant creature is in the area, you can communicate with it as if you shared a common language.',
   ],
 };
 
@@ -11453,10 +11557,17 @@ export const UNSEEN_SERVANT: SpellDefinition = {
  * > that new growth, it deals 1d6 damage of the type in parentheses instead of
  * > dealing the normal damage for your Unarmed Strike."
  *
- * Three branches, chosen at the casting and swapped on a later Magic action,
- * and the two that are arithmetic are arithmetic the engine does not have: a
- * Swim Speed is a movement mode with no reader, and the claw is a rider on an
- * Unarmed Strike the spell never sees.
+ * Three branches, chosen at the casting and swapped on a later Magic action —
+ * and all three are written. **Aquatic Adaptation** is a Swim Speed that
+ * matches the walking Speed, the `match-walk` member the vocabulary grew for
+ * exactly this sentence; the gills are the table's. **Change Appearance** is
+ * handed over whole. **Natural Weapons** is a `weapon-rider` on the Unarmed
+ * Strike — `unarmed`, because a fist has no id to name — with its die, the type
+ * the caster stated (`damageTypeStated`, substituted into the rider and pinned)
+ * and the spellcasting ability **imposed** rather than offered, because the
+ * book says "instead" and "rather than". And **the swap is `reoptions`**: a
+ * Magic action that names a different branch, releases what the casting hung
+ * on its caster and runs the new branch off the record's own numbers.
  */
 export const ALTER_SELF: SpellDefinition = {
   id: 'alter-self',
@@ -11466,15 +11577,58 @@ export const ALTER_SELF: SpellDefinition = {
   castingTime: 'action',
   concentration: true,
   range: { kind: 'self' },
-  targets: { count: 0 },
+  // On the caster, which is who a Range: Self spell alters.
+  targets: { count: 1, self: true },
+  // "claws (Slashing), fangs (Piercing), horns (Piercing), or hooves
+  // (Bludgeoning)": the growth is the caster's, stated at the casting and
+  // asked for only where the branch holds a slot for it.
+  damageTypeStated: ['slashing', 'piercing', 'bludgeoning'],
   effects: [],
+  options: {
+    'aquatic-adaptation': {
+      label: 'Aquatic Adaptation',
+      // "gain a Swim Speed equal to your Speed".
+      effects: [{ kind: 'speed', change: 'match-walk', mode: 'swim' }],
+      handsOver: ['You sprout gills and grow webs between your fingers.'],
+      unmodelled: [
+        'breathing underwater is the table’s: the engine holds no water and nothing drowns in it',
+      ],
+    },
+    'change-appearance': {
+      label: 'Change Appearance',
+      handsOver: [
+        'You alter your appearance.',
+        'You decide what you look like, including your height, weight, facial features, sound of your voice, hair length, coloration, and other distinguishing characteristics.',
+        'You can make yourself appear as a member of another species, though none of your statistics change.',
+        "You can't appear as a creature of a different size, and your basic shape stays the same; if you're bipedal, you can't use this spell to become quadrupedal, for instance.",
+        'For the duration, you can take a Magic action to change your appearance in this way again.',
+      ],
+    },
+    'natural-weapons': {
+      label: 'Natural Weapons',
+      effects: [
+        {
+          kind: 'weapon-rider',
+          // "When you use your Unarmed Strike": the fist, not a weapon.
+          unarmed: true,
+          // "it deals 1d6 damage of the type in parentheses instead of dealing
+          // the normal damage for your Unarmed Strike": the die replaces the
+          // fist's, and the type is the stated growth's — the default is the
+          // slot `statedDamageType` fills.
+          die: '1d6',
+          damageType: 'slashing',
+          // "you use your spellcasting ability modifier for the attack and
+          // damage rolls rather than using Strength": imposed, not offered.
+          castingAbility: true,
+          imposesAbility: true,
+        },
+      ],
+    },
+  },
+  // "you can take a Magic action to replace the option you chose with a
+  // different one".
+  activation: { action: 'action', reoptions: true, effects: [], label: 'Alter Self (a new form)' },
   durationSeconds: 3600,
-  unmodelled: [
-    'which of the three forms was taken is not recorded, and neither is the Magic action that swaps it for another; a definition’s effects are written once and these are chosen at the table',
-    'the Swim Speed is not granted: Fly, Climb and Swim are not distinguished from walking, so there is nothing for "equal to your Speed" to be equal to',
-    'the 1d6 Slashing, Piercing or Bludgeoning from claws, fangs, horns or hooves is not dealt, and the spellcasting modifier does not replace Strength on those rolls: both ride on an Unarmed Strike made later, which this casting never sees',
-    'breathing underwater, and every word of what the caster looks like, are the DM’s',
-  ],
 };
 
 /**
@@ -13704,7 +13858,9 @@ export const FIND_STEED: SpellDefinition = {
  * carries the lengths and `concentrationEndsAtSlot` carries the clause beside
  * them — "the spell doesn't require Concentration" from level 5 up — which is
  * a fact about the casting rather than about its length and so is its own
- * field. The level 9 arm is out of reach and says so below.
+ * field. The level 9 arm is `untilDispelledAtSlot`, the third
+ * field of the same family: a slot that changes what *kind* of ending the
+ * spell has rather than how long it runs.
  */
 export const BESTOW_CURSE: SpellDefinition = {
   id: 'bestow-curse',
@@ -13800,9 +13956,10 @@ export const BESTOW_CURSE: SpellDefinition = {
   // "If you use a level 5+ spell slot, the spell doesn’t require
   // Concentration."
   concentrationEndsAtSlot: 5,
-  unmodelled: [
-    'the level 9 slot’s "the spell lasts until dispelled" is not applied: `untilDispelled` is a property of the spell rather than of the slot it was cast with, and a table of seconds cannot say "no ending at all" — a level 9 casting runs the twenty-four hours a level 7 one does',
-  ],
+  // "If you use a level 9 spell slot, the spell lasts until dispelled." The
+  // third field of the slot family, and the one a table of seconds could not
+  // say: an ending rather than a length. Same reader as SRD Major Image's.
+  untilDispelledAtSlot: 9,
 };
 
 /**
@@ -14074,10 +14231,20 @@ export const GIANT_INSECT: SpellDefinition = {
  * > store a prepared spell of level 3 or lower in the glyph by casting it as
  * > part of creating the glyph."
  *
- * The hour is real and the "until dispelled or triggered" is real, and that is
- * the whole of what a definition can say: the glyph's trigger, its type
- * filter, its damage type and its stored spell are all chosen when it is
- * inscribed, and one of those choices is *another casting*.
+ * The hour is real and the "until dispelled or triggered" is real — and so is
+ * the rune. **The trigger is a decision**: the caster invents it and the
+ * engine holds nothing it could read it from, so `triggerGlyph` on the DM's
+ * door says it occurred, and `triggered` is the effect list that door fires —
+ * a Dexterity save over the pinned Sphere, 5d8 of the type the caster stated
+ * (Chromatic Orb's `damageTypeStated`), half on a success, a die more per slot
+ * above 3, and the casting ending because it fired. The record pins the list
+ * with its type substituted, so the door opens no catalogue.
+ *
+ * Two halves stay filed. The **spell glyph** is a casting that casts another
+ * spell, stored now and set off later, which is the stack `docs/design/casting.md`
+ * declined; and the **creature-type refinement** is a predicate an area does not
+ * read — the rune catches whoever stands in the Sphere when the DM says it went
+ * off. The check to notice the glyph is the table's to call for.
  */
 export const GLYPH_OF_WARDING: SpellDefinition = {
   id: 'glyph-of-warding',
@@ -14089,15 +14256,38 @@ export const GLYPH_OF_WARDING: SpellDefinition = {
   concentration: false,
   range: { kind: 'touch' },
   targets: { count: 0 },
+  // "a 20-foot-radius Sphere centered on the glyph": the glyph is a point the
+  // caster touches, and the rune erupts over it later.
+  area: { kind: 'sphere', radius: 20, origin: 'point' },
+  // "Acid, Cold, Fire, Lightning, or Thunder damage (your choice when you
+  // create the glyph)": stated at the inscription and pinned into the rune.
+  damageTypeStated: ['acid', 'cold', 'fire', 'lightning', 'thunder'],
+  // Nothing happens at the inscription; the rune is what the decision fires.
   effects: [],
+  triggered: {
+    label: 'Glyph of Warding (the explosive rune)',
+    effects: [
+      {
+        kind: 'save-damage',
+        ability: 'dex',
+        // "5d8 … on a failed save or half as much damage on a successful one";
+        // "increases by 1d8 for each spell slot level above 3".
+        damage: { dice: '5d8', perSlotLevelAbove: '1d8' },
+        damageType: 'acid',
+        onSuccess: 'half',
+      },
+    ],
+  },
   untilDispelled: true,
+  dmDecides: [
+    'You inscribe it either on a surface (such as a table or a section of floor) or within an object that can be closed (such as a book or chest) to conceal the glyph.',
+    "You can also set conditions for creatures that don't trigger the glyph, such as those who say a certain password.",
+  ],
   unmodelled: [
-    'no glyph is inscribed: what it is and what sets it off are both chosen when the spell is cast — an explosive rune or a spell glyph, a trigger the caster invents, a damage type out of five — and a casting has nowhere to record a choice made at the moment it was made',
-    'so the Dexterity save in the 20-foot-radius Sphere and the 5d8 of the chosen type, half on a success, are never resolved, and neither is the extra die a slot above 3 adds',
-    'refining the trigger so that only named creature types set it off is a second absence: an area catches whoever is in it, and the one filter it has is an explicit list of creatures designated at the casting',
-    'a spell glyph is a casting that casts another spell, stored now and resolved later at a target chosen by whoever walked into it, which nothing does',
-    'the Wisdom (Perception) check to notice it is not offered, because the thing to be noticed is not in the world',
-    'the surface or object it is drawn on, the ten feet it may be moved before it breaks, and the passwords that excuse a creature are the DM’s',
+    'the spell glyph is not inscribed: "You can store a prepared spell of level 3 or lower in the glyph by casting it as part of creating the glyph" is a casting that casts another spell, stored now and set off later at whoever triggered it, which is the stack the casting design declined',
+    'refining the trigger so that only creatures of certain types set it off is not applied: the rune catches whoever stands in the Sphere when the DM says it went off, and a predicate over a creature type is a filter an area does not read',
+    'the Wisdom (Perception) check against your spell save DC to notice the glyph is not offered by the casting: the DM calls for it when somebody searches, and the DC is the sheet’s',
+    'the ten feet the surface or object may be moved before the glyph breaks is the DM’s to watch, who ends the casting when it does',
   ],
 };
 
@@ -15124,8 +15314,10 @@ export const TSUNAMI: SpellDefinition = {
  *
  * `TrackedAdjudication.marker` may be null now, which is a marker-less entry:
  * *the markers see nothing here, and somebody read the paragraph.* So the
- * readings survive the move, the three shapes keep a claimant, and these are
- * the definitions that were waiting on it.
+ * readings survive the move, the shapes keep a claimant, and these are the
+ * definitions that were waiting on it. Two of the three have since been paid
+ * — Spare the Dying's range and Enthrall's narrowed bonus — which is the exit
+ * the form exists to make possible.
  */
 
 /**
@@ -15177,11 +15369,14 @@ export const SPARE_THE_DYING: SpellDefinition = {
  * > Passive Perception until the spell ends."
  *
  * One sentence of save and two of outcome, and neither outcome can be written.
- * `checks.ts` has an `autoFail` and no `autoSucceed`, so the creature you are
- * fighting cannot be handed its success; and a bonus reaches attacks, saves and
- * ability checks as families, never one **skill**, while `passivePerception`
- * reads the sheet and no stored bonus at all. A save whose failure costs
- * nothing the engine can apply is a save worth not raising.
+ * Two halves, and each was half-built when this was written. The automatic
+ * success is `autoSucceedIf: { fought: true }` — the fought fact SRD Charm
+ * Person reads as Advantage, stated once on the request and read here as a
+ * success — so the bandit the party is fighting is spared before the die is
+ * read. The penalty is a `bonus` rider narrowed to one skill, Guidance's
+ * narrowing with the sign turned round, and Passive Perception is
+ * `passivePerceptionOf`: the sheet's score with the same stored bonus added,
+ * so the book's two halves are one number read at two ends.
  */
 export const ENTHRALL: SpellDefinition = {
   id: 'enthrall',
@@ -15194,14 +15389,28 @@ export const ENTHRALL: SpellDefinition = {
   // "creatures of your choice that you can see within range": the SRD states
   // no count, so range and sight are the whole of the bound.
   targets: { count: 0, unlimited: true },
-  effects: [],
-  durationSeconds: 60,
-  unmodelled: [
-    'the Wisdom save is not raised, because neither branch of it can be written down',
-    'the automatic success for "any creature you or your companions are fighting" is an outcome checks.ts has no autoSucceed for, beside its autoFail — and the fact it reads is one IE-030 built for Advantage and for nothing else',
-    'and a failure buys a −10 penalty to Wisdom (Perception) checks and Passive Perception: a bonus reaches attacks, saves and ability checks as whole families and never one skill, so applying it would penalise every ability check the target ever makes, and passivePerception reads the sheet rather than any stored bonus',
-    'so who is distracted, and what they therefore fail to notice, is the DM’s for the minute this runs',
+  effects: [
+    {
+      kind: 'save',
+      ability: 'wis',
+      // "Any creature you or your companions are fighting automatically
+      // succeeds on this save": the fought fact, stated at the casting.
+      autoSucceedIf: { fought: true },
+      // "On a failed save, a target has a −10 penalty to Wisdom (Perception)
+      // checks and Passive Perception until the spell ends." One stored bonus,
+      // narrowed to the skill, read by the check and by the passive score.
+      modifiers: [
+        {
+          kind: 'bonus',
+          bonus: { source: 'Enthrall', flat: 10 },
+          applies: ['ability-check'],
+          direction: 'subtract',
+          only: { skill: 'perception' },
+        },
+      ],
+    },
   ],
+  durationSeconds: 60,
 };
 
 /**
@@ -15279,14 +15488,20 @@ export const FLESH_TO_STONE: SpellDefinition = {
  * > suppressed for the duration. The creature becomes Indifferent about
  * > creatures of your choice that it's Hostile toward."
  *
- * One save and two alternative outcomes, and what blocks the spell is the word
- * **choose**: a casting applies one effect list to everybody it caught, so a
- * spell picking a different one per creature has nowhere to record which. The
- * Immunity beside it is expressible — Mind Blank writes exactly that effect —
- * and is not written here for that reason rather than for its own. The
- * suppression in the next sentence is a different rule again: an Immunity
- * refuses a condition, and a suppression lets one land, silences it, and hands
- * it back when the spell ends.
+ * One save and two alternative outcomes, chosen creature by creature — and
+ * both are built. **The word is per creature**: `optionPerTarget` says so,
+ * `CastSpellRequest.optionByTarget` names a branch for each Humanoid the
+ * Sphere caught, and each creature runs the common list and then its own. The
+ * save sits in each branch, for the rule `SpellDefinition.options` states: a
+ * save in the common list would be one roll no branch could read. **The first
+ * branch is an `immunity` rider with `suppressesHeld`**: the Immunity Mind
+ * Blank writes, reached from a settled save, and the second sentence — a
+ * Charmed or Frightened already on the creature goes quiet rather than being
+ * ended, and is there again when the spell ends — is `suppressedConditions`
+ * reading a casting's grant beside Aura of Courage's. **The second branch is
+ * the table's**: an attitude is a fact the engine does not hold, so the save
+ * is rolled for its verdict alone and the sentence goes out in the book's
+ * words.
  */
 export const CALM_EMOTIONS: SpellDefinition = {
   id: 'calm-emotions',
@@ -15296,16 +15511,50 @@ export const CALM_EMOTIONS: SpellDefinition = {
   castingTime: 'action',
   concentration: true,
   range: { kind: 'ranged', feet: 60 },
-  targets: { count: 0 },
+  // "Each Humanoid in a 20-foot-radius Sphere centered on a point you choose
+  // within range": the area names who it catches, and the type narrows it.
+  targets: { count: 0, mustBeType: 'Humanoid' },
+  area: { kind: 'sphere', radius: 20, origin: 'point' },
+  // **Empty, and the save is in each branch.** One Charisma save per creature
+  // whichever branch it was given, and a save in the common list would be a
+  // roll whose outcome the branch could not read.
   effects: [],
+  // "(choose for each creature)": the word is per creature.
+  optionPerTarget: true,
+  options: {
+    immunity: {
+      label: 'Immunity to the Charmed and Frightened conditions',
+      effects: [
+        {
+          kind: 'save',
+          ability: 'cha',
+          modifiers: [
+            // "The creature has Immunity to the Charmed and Frightened
+            // conditions until the spell ends. If the creature was already
+            // Charmed or Frightened, those conditions are suppressed for the
+            // duration."
+            { kind: 'immunity', conditions: ['charmed', 'frightened'], suppressesHeld: true },
+          ],
+        },
+      ],
+    },
+    indifference: {
+      label: 'Indifferent about creatures of your choice',
+      effects: [
+        // "or be affected by one of the following effects": the save is the
+        // spell's, and what a failure buys here is an attitude the engine
+        // holds no fact for — so the die is rolled for its verdict and the
+        // sentence goes to the table.
+        { kind: 'save', ability: 'cha', verdictOnly: true },
+      ],
+      handsOver: [
+        "The creature becomes Indifferent about creatures of your choice that it's Hostile toward.",
+        'This indifference ends if the target takes damage or witnesses its allies taking damage.',
+        "When the spell ends, the creature's attitude returns to normal.",
+      ],
+    },
+  },
   durationSeconds: 60,
-  unmodelled: [
-    'the Charisma saving throw is not raised, because what a failure buys cannot be written down: "be affected by one of the following effects (choose for each creature)" is two different outcomes out of one casting, chosen creature by creature, and a casting applies one list to everybody it caught',
-    'so the Immunity to the Charmed and Frightened conditions is not granted — the effect exists and Mind Blank writes it, and what stops it here is the choice in the sentence above rather than anything about the Immunity',
-    'and a condition the target already has is not silenced: suppression lets a condition land, switches it off and gives it back when the spell ends, which the engine derives from a feature’s standing effects and no spell effect can write',
-    'the Indifferent attitude is the DM’s outright — an attitude toward somebody is not a fact the engine holds, so nothing becomes Indifferent, the indifference does not end when the target takes damage or watches an ally take damage, and nothing returns to normal when the minute is up',
-    'the 20-foot-radius Sphere is the DM’s to draw and who stands in it is theirs to say; what the engine holds is the slot, the Action, the Concentration and the minute',
-  ],
 };
 
 /**

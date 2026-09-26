@@ -545,6 +545,19 @@ const SIZE_ORDER: readonly CreatureSize[] = [
 
 const sizeRank = (size: CreatureSize): number => SIZE_ORDER.indexOf(size);
 
+/**
+ * A size moved by a number of categories, held to the book's ends.
+ *
+ * SRD Enlarge/Reduce: "increases by one category — from Medium to Large, for
+ * example". Off {@link SIZE_ORDER} rather than off a second list, for the
+ * reason `sizeRank` is: the six are ranked in one place. A step past Gargantuan
+ * or below Tiny stops there, because the book prints nothing beyond either.
+ */
+export function shiftSize(size: CreatureSize, steps: number): CreatureSize {
+  const at = Math.min(SIZE_ORDER.length - 1, Math.max(0, sizeRank(size) + steps));
+  return SIZE_ORDER[at] ?? size;
+}
+
 export function sizeOf(state: PositionState, who: CharacterId): CreatureSize | null {
   return state.sizes[who] ?? null;
 }
@@ -2180,7 +2193,7 @@ export function creaturesInArea(
 export const DIFFICULT_TERRAIN = 2;
 
 /** Ordinary ground: a foot costs a foot. */
-const ORDINARY_GROUND = 1;
+export const ORDINARY_GROUND = 1;
 
 /**
  * Where a patch of ground lies, in the same vocabulary an area of effect uses.
@@ -2234,8 +2247,19 @@ export interface LatticePatch {
 
 /** A patch of expensive ground, as the table or a casting declared it. */
 export interface DifficultPatch extends LatticePatch {
-  /** Feet of movement spent per foot of ground. At least {@link DIFFICULT_TERRAIN}. */
+  /** Feet of movement spent per foot of ground. At least {@link DIFFICULT_TERRAIN}, unless it clears. */
   readonly costPerFoot: number;
+  /**
+   * This patch makes the ground under it **ordinary**, whatever else lies there.
+   *
+   * SRD Speak with Plants: "turn Difficult Terrain caused by plant growth …
+   * into ordinary terrain that lasts for the duration." The one sentence that
+   * takes Difficult Terrain away, and it is an override rather than a rate:
+   * `chargeAt` takes the dearest rate over a space and a cheaper one would lose,
+   * so a clearing patch wins outright. Its `costPerFoot` is `ORDINARY_GROUND`,
+   * which the floor below excuses exactly here.
+   */
+  readonly clears?: true;
 }
 
 /**
@@ -2252,9 +2276,26 @@ export function declareDifficultPatch(
   region: TerrainRegion,
   costPerFoot: number,
   source?: string,
+  clears?: true,
 ): Result<PositionState> {
   if (patch.trim().length === 0) {
     return err('bad_patch', 'a patch of ground needs a name, so a refusal can say what it was');
+  }
+  // A clearing patch is open floor by definition — see {@link DifficultPatch.clears}.
+  if (clears === true) {
+    if (costPerFoot !== ORDINARY_GROUND) {
+      return err(
+        'bad_terrain_cost',
+        `a patch that clears the ground charges the open floor's ${ORDINARY_GROUND}, not ${costPerFoot}`,
+      );
+    }
+    return ok({
+      ...state,
+      terrain: {
+        ...state.terrain,
+        [patch]: { region, costPerFoot, clears, ...(source === undefined ? {} : { source }) },
+      },
+    });
   }
   if (!Number.isInteger(costPerFoot) || costPerFoot < DIFFICULT_TERRAIN) {
     return err(
@@ -2753,14 +2794,20 @@ function chargeAt(
   space: Point,
 ): TerrainCharge {
   let costPerFoot = ORDINARY_GROUND;
+  let cleared = false;
   const over: string[] = [];
   for (const [name, patch] of patches) {
     if (!spaceInRegion(scene, patch.region, space)) continue;
     over.push(name);
+    if (patch.clears === true) cleared = true;
     if (patch.costPerFoot > costPerFoot) costPerFoot = patch.costPerFoot;
   }
 
-  return over.length === 0 ? OPEN_FLOOR : { costPerFoot, patches: over };
+  // SRD Speak with Plants' cleared ground: an override rather than a rate, so
+  // it beats whatever else lies over the space — see {@link DifficultPatch.clears}.
+  // Every patch is still named, so a report can say what the clearing covered.
+  if (over.length === 0) return OPEN_FLOOR;
+  return { costPerFoot: cleared ? ORDINARY_GROUND : costPerFoot, patches: over };
 }
 
 /** How bright one space is, and what made it so. */

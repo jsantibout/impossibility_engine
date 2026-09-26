@@ -51,12 +51,13 @@ import {
   type Point,
   type PointAnchoring,
   type TerrainRegion,
+  ORDINARY_GROUND,
 } from '../positioning.js';
 import { damageWindowOpen, fallingNow } from '../reactions.js';
 import { remaining, slotKeyOf, type SlotKind } from '../resources.js';
 import { type RollIssuer } from '../rolls.js';
 import { type Content } from '../content.js';
-import { type ReactionTrigger, type SpellDefinition } from '../spell-definitions.js';
+import { areaTerrainOf, type ReactionTrigger, type SpellDefinition } from '../spell-definitions.js';
 import { type CastingRoute, routesFor, type SpellcastingState } from '../spellcasting.js';
 import {
   castingSource,
@@ -1425,9 +1426,11 @@ export function terrainPatchOf(
   castingId: string,
   region: TerrainRegion | null,
   lastsWithTheCasting: boolean,
+  /** The branch the casting ran, where the ground is the branch's — SRD Speak with Plants. */
+  option?: string,
 ): readonly GameEvent[] {
-  const terrain = definition.areaTerrain;
-  if (terrain === undefined || region === null) return [];
+  const terrain = areaTerrainOf(definition, option);
+  if (terrain === null || region === null) return [];
 
   return [
     {
@@ -1436,7 +1439,10 @@ export function terrainPatchOf(
       // and a refusal can say which ground slowed the mover.
       patch: `${definition.name} (${castingId})`,
       region,
-      costPerFoot: terrain.costPerFoot,
+      // A clearing patch is open floor with the override set; every other is
+      // its printed rate — see `AreaTerrain.clears`.
+      costPerFoot: terrain.clears === true ? ORDINARY_GROUND : terrain.costPerFoot!,
+      ...(terrain.clears === true ? { clears: true as const } : {}),
       ...(lastsWithTheCasting ? { source: castingId } : {}),
     },
   ];

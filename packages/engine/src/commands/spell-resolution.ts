@@ -100,6 +100,8 @@ import {
   teleportOf,
   weaponRiderOf,
   optionEffects,
+  laysTerrain,
+  type SpellOption,
   statedChoice,
   statedDamageType,
   damageTypesDealt,
@@ -440,7 +442,7 @@ export function resolveDeclaredCast(
 
     /** Where the patches this settlement lays lie — see `terrainPatchOf`. */
     const settledTerrain =
-      (definition.areaTerrain === undefined &&
+      (!laysTerrain(definition) &&
         definition.areaLight === undefined &&
         definition.areaObscurement === undefined) ||
       definition.area === undefined
@@ -957,13 +959,19 @@ export function castOrRelease(
     // _Grovel_ does not, so a spell that reported both would tell the table to
     // walk a creature it had knocked Prone. Read off the word this casting
     // spoke, and nothing at all for the four it did not.
-    const branch =
-      request.option === undefined ? undefined : definition.options?.[request.option];
+    // **Or the branches, plural, where the word is per creature**: each chosen
+    // branch's lists once, in the order the branches are printed, so two
+    // goblins given one word report its sentence once.
+    const branches = branchesRun(definition, request.option, request.optionByTarget);
     const unverified: string[] = [
       ...(definition.unmodelled ?? []).map((gap) => `${definition.name}: ${gap}`),
-      ...(branch?.unmodelled ?? []).map((gap) => `${definition.name}: ${gap}`),
+      ...branches.flatMap((branch) =>
+        (branch.unmodelled ?? []).map((gap) => `${definition.name}: ${gap}`),
+      ),
       ...(definition.dmDecides ?? []).map((printed) => handedOver(definition.name, printed)),
-      ...(branch?.handsOver ?? []).map((printed) => handedOver(definition.name, printed)),
+      ...branches.flatMap((branch) =>
+        (branch.handsOver ?? []).map((printed) => handedOver(definition.name, printed)),
+      ),
       // And what the *grant* printed about this spell, which is the same
       // question one host along: a stat block's "(self only)", "(level 4
       // version)", "(lasts 24 hours)" are clauses the grant has no field for,
@@ -1062,6 +1070,41 @@ export function castOrRelease(
     } | null = null;
 
     if (definition.area !== undefined) {
+      // **An Emanation that stays pins the caster's own square.** SRD Tiny
+      // Hut's "remains stationary" and SRD Speak with Plants' "immobile
+      // 30-foot Emanation" are Range: Self, so the caster states no point, and
+      // they do not move, so a point is what the record needs — the caster's
+      // square at this moment, which is a fact the scene holds and nobody
+      // invents. A caster nobody has placed has no square to pin, and is asked
+      // rather than guessed. A wall's point is the first space of the path the
+      // caster drew, read here for the same record.
+      const isWall = definition.area.kind === 'wall';
+      const stays = definition.area.kind === 'emanation' && definition.area.stays === true;
+      const pinnedAt: Point | null | undefined =
+        request.at !== undefined
+          ? request.at
+          : isWall
+            ? request.path?.[0]
+            : stays
+              ? (state.scene === null ? null : positionOf(state.scene, casterId))
+              : undefined;
+      if (pinnedAt === null) {
+        return needsContext(
+          'needs_context',
+          `${definition.name} is measured from where ${casterId} is standing, and nobody has placed them`,
+          [
+            {
+              kind: 'position',
+              subject: casterId,
+              need: `where ${casterId} is standing`,
+              because: `${definition.name} pins its Emanation to the caster's square`,
+              satisfyWith: `placeCreatureInScene(${casterId}, …)`,
+            },
+          ],
+        );
+      }
+      // The catch is measured from the caster as every self-origin area is;
+      // the pin is for the record and the patch, not for the request.
       const resolved = areaTargets(
         state,
         casterId,
@@ -1094,23 +1137,16 @@ export function castOrRelease(
       // be reconstructed from the book and a point. And an Emanation that
       // **stays** — SRD Tiny Hut's "remains stationary" — pins the space its
       // caster stood on, which is the point it is measured from once the
-      // caster has walked off.
-      const isWall = definition.area.kind === 'wall';
-      const stays = definition.area.kind === 'emanation' && definition.area.stays === true;
-      const pinnedAt: Point | undefined =
-        request.at ??
-        (isWall
-          ? request.path?.[0]
-          : stays && state.scene !== null
-            ? (positionOf(state.scene, casterId) ?? undefined)
-            : undefined);
+      // caster has walked off. All three are read into `pinnedAt` above,
+      // where an unplaced caster is asked for rather than guessed at.
       if (
         (definition.areaTrigger !== undefined ||
+          definition.triggered !== undefined ||
           definition.areaStanding !== undefined ||
           Object.values(definition.options ?? {}).some(
             (branch) => branch.areaStanding !== undefined,
           ) ||
-          definition.areaTerrain !== undefined ||
+          laysTerrain(definition) ||
           definition.areaLight !== undefined ||
           definition.areaObscurement !== undefined) &&
         pinnedAt !== undefined
@@ -1292,6 +1328,16 @@ export function castOrRelease(
         targets,
       ),
     );
+
+    // **A branch per creature covers exactly the creatures caught.** SRD Calm
+    // Emotions' "(choose for each creature)": asked here, with the targets
+    // settled and before anything is spent, because an area's caught list is
+    // what the map has to cover and `declaredFacts` runs before it exists. A
+    // caught creature nobody chose for is refused rather than defaulted, and a
+    // name for a creature the Sphere did not reach is a caster choosing for
+    // somebody the spell never touched.
+    const uncovered = perTargetOptionProblem(definition, request.optionByTarget, targets);
+    if (uncovered !== null) return uncovered;
 
     // **A printed later consequence asks for the timeline it needs**, at the
     // same moment and by the same rule: with the targets settled, before the
@@ -2159,7 +2205,7 @@ function resolveOnTargets(
    * first; the fact is the area's.
    */
   const terrainRegion =
-    (definition.areaTerrain === undefined &&
+    (!laysTerrain(definition) &&
       definition.areaLight === undefined &&
       definition.areaObscurement === undefined) ||
     definition.area === undefined
@@ -2216,6 +2262,8 @@ function resolveOnTargets(
     // in the definition an activation already holds, so there is no second
     // half for the record to lose. See `OngoingSpell.option`.
     ...(request.option === undefined ? {} : { option: request.option }),
+    // And the map, where the word is per creature — see `OngoingSpell.optionByTarget`.
+    ...(request.optionByTarget === undefined ? {} : { optionByTarget: request.optionByTarget }),
     // **And the moment a body began being kept**, for the one spell in the
     // book whose running span is subtracted from another casting's window —
     // SRD Gentle Repose. Read off the clock at the cast, because that is the
@@ -2446,6 +2494,15 @@ function resolveOnTargets(
       `${definition.name} is declared now and settled later, and nothing on the declaration records ${unpinnable.join(' or ')}; cast it without holding it, or leave the option out`,
     );
   }
+  // **Nor a branch per creature**: a map keyed by creatures an area has not
+  // yet caught is a fact the settlement would have to ask again, and a
+  // declaration takes no fresh request. See `SpellDefinition.optionPerTarget`.
+  if (declaring && request.optionByTarget !== undefined) {
+    return err(
+      'per_target_option_on_a_declaration',
+      `${definition.name} chooses a branch for each creature it catches, and a declaration cannot record a choice for creatures it has not caught yet; cast it without holding it`,
+    );
+  }
 
   // SRD: a Ritual "doesn't expend a spell slot" — nor a feat's free casting,
   // nor anything else. So there is no payment to choose and none is asked for;
@@ -2624,9 +2681,9 @@ function resolveOnTargets(
       // and the branch's alike, because a branch's sentence is printed text
       // this casting read from the catalogue and CLAUDE.md's rule 5 does not
       // ask which field it came out of.
-      ...(handoversPinned(definition, request.option).length === 0
+      ...(handoversPinned(definition, request.option, request.optionByTarget).length === 0
         ? {}
-        : { dmDecides: handoversPinned(definition, request.option) }),
+        : { dmDecides: handoversPinned(definition, request.option, request.optionByTarget) }),
       // The one thing the engine models of a spell's components, carried down
       // for the one rule that asks — SRD Silence. Carried rather than looked
       // up, because `castSpell` holds a spell's *name* and no definition; and
@@ -2802,6 +2859,11 @@ function resolveOnTargets(
       castingId,
       events,
       effects: running,
+      // The map, where the word is per creature, with the substitutions the
+      // common list took — see `perTargetEffects`.
+      ...(request.optionByTarget === undefined ? {} : { optionByTarget: request.optionByTarget }),
+      ...(request.damageType === undefined ? {} : { damageType: request.damageType }),
+      ...(answeredChoice === undefined ? {} : { choice: answeredChoice }),
       ...(origin === null ? {} : { from: origin }),
       ...(fought === undefined ? {} : { fought }),
       ...(request.leapTo === undefined ? {} : { leapTo: request.leapTo }),
@@ -3063,6 +3125,45 @@ function resolveOneEffect(
   }
 }
 
+/**
+ * The branch effects one creature runs, for a spell that chooses per creature.
+ *
+ * Null where the spell chooses once or the casting stated no map, which is
+ * every other casting in the book — and a caller that spreads `null` as
+ * "nothing more" keeps the common list byte-for-byte what it was. The branch's
+ * list takes the substitutions the common list took, through the same two
+ * readers, so a branch that grows a stated damage type or choice is answered
+ * the day it does.
+ *
+ * **Two things the common list gets that a per-creature branch does not**,
+ * named so the day a branch needs them is a change here rather than a
+ * surprise: the creature-type pre-flight (`creatureTypeNeeds`) and the
+ * caster's feature riders (`withCastingRiders`, `damageTypesDealt`) both
+ * read `optionEffects(definition, request.option)`, and `request.option` is
+ * necessarily undefined when the word is per creature — so they see the
+ * common list alone. SRD Calm Emotions' branches print no creature-type
+ * predicate and no damage, so nothing reaches the gap today.
+ */
+function perTargetEffects(
+  definition: SpellDefinition,
+  context: {
+    readonly optionByTarget?: Readonly<Record<string, string>>;
+    readonly damageType?: string;
+    readonly choice?: string;
+  },
+  target: CharacterId,
+): readonly SpellEffect[] | null {
+  const named = context.optionByTarget?.[target];
+  if (named === undefined || definition.options === undefined) return null;
+  const branch = definition.options[named];
+  if (branch === undefined) return null;
+  return statedChoice(
+    statedDamageType(branch.effects ?? [], context.damageType),
+    definition.choiceStated?.of,
+    context.choice,
+  );
+}
+
 export function resolveEffects(
   state: GameState,
   casterId: CharacterId,
@@ -3109,6 +3210,17 @@ export function resolveEffects(
      * than a second resolver kept in step with this one by hand.
      */
     readonly effects?: readonly SpellEffect[];
+    /**
+     * The branch each creature runs, for a spell that chooses per creature —
+     * see `SpellDefinition.optionPerTarget` and `perTargetEffects`, which
+     * reads it beside the two substitutions below so a branch's list is
+     * answered exactly as the common one was.
+     */
+    readonly optionByTarget?: Readonly<Record<string, string>>;
+    /** The damage type the casting stated, for the branch lists above. */
+    readonly damageType?: string;
+    /** The value the casting chose, for the branch lists above. */
+    readonly choice?: string;
     /** How the log reads, when an activation wants its own wording. */
     readonly label?: string;
     /**
@@ -3266,6 +3378,9 @@ export function resolveEffects(
     ability: context.ability ?? route?.ability ?? caster?.sheet.spellcastingAbility ?? null,
     targets,
     ...(context.rollsPerTarget === undefined ? {} : { rollsPerTarget: context.rollsPerTarget }),
+    ...(context.optionByTarget === undefined ? {} : { optionByTarget: context.optionByTarget }),
+    ...(context.damageType === undefined ? {} : { damageType: context.damageType }),
+    ...(context.choice === undefined ? {} : { choice: context.choice }),
     unverified,
     supply,
     events,
@@ -3312,6 +3427,16 @@ export function resolveEffects(
         ...(pinnedStanding === undefined ? {} : { areaStanding: pinnedStanding }),
         ...(becomes.types === undefined ? {} : { types: becomes.types }),
         ...(becomes.path === undefined ? {} : { path: becomes.path }),
+        // And what a DM's decision fires, pinned with the type the caster
+        // stated — SRD Glyph of Warding's rune. See `OngoingSpell.triggered`.
+        ...(definition.triggered === undefined
+          ? {}
+          : {
+              triggered: {
+                effects: statedDamageType(definition.triggered.effects, becomes.damageType),
+                label: definition.triggered.label,
+              },
+            }),
         // And what ends it early, pinned by the same rule for the same
         // reason: a sentence corrected in the catalogue next month must not
         // reach a casting made today.
@@ -3368,6 +3493,7 @@ export function resolveEffects(
         // And the branch the casting ran, so a later activation acts through
         // the word its caster spoke — see `OngoingSpell.option`.
         ...(becomes.option === undefined ? {} : { option: becomes.option }),
+        ...(becomes.optionByTarget === undefined ? {} : { optionByTarget: becomes.optionByTarget }),
         // And the moment the body began being kept — see
         // `OngoingSpell.preserving`, which `revive` is the one reader of.
         ...(becomes.preserving === undefined ? {} : { preserving: becomes.preserving }),
@@ -3403,7 +3529,15 @@ export function resolveEffects(
   // read by people too, and the webs appearing after the casting they belong
   // to is the order they happened in.
   events.push(
-    ...terrainPatchOf(definition, castingId, context.terrainRegion ?? null, becomes !== undefined),
+    ...terrainPatchOf(
+      definition,
+      castingId,
+      context.terrainRegion ?? null,
+      becomes !== undefined,
+      // The branch the casting ran, where the ground is the branch's — SRD
+      // Speak with Plants' two directions.
+      becomes?.option,
+    ),
     ...lightPatchesOf(
       state,
       definition,
@@ -3423,6 +3557,17 @@ export interface EffectRun {
   readonly origin: EffectOrigin;
   /** The list to resolve. Never derived here: the caller knows which list it means. */
   readonly effects: readonly SpellEffect[];
+  /**
+   * The branch each creature runs after {@link effects}, for a casting that
+   * chooses per creature — see `SpellDefinition.optionPerTarget` and
+   * {@link perTargetEffects}. Only a casting can carry one; an item confers
+   * one list.
+   */
+  readonly optionByTarget?: Readonly<Record<string, string>>;
+  /** The damage type the casting stated, for the branch lists above. */
+  readonly damageType?: string;
+  /** The value the casting chose, for the branch lists above. */
+  readonly choice?: string;
   readonly castLevel: number;
   /**
    * The level of the slot that paid for this casting — see
@@ -3768,7 +3913,14 @@ export function runEffects(
   };
 
   for (const target of targets) {
-    for (const effect of effects) {
+    // **The common list, and then the branch this creature was given** — SRD
+    // Calm Emotions' "(choose for each creature)". Every other casting runs
+    // one list for everybody, which is what `effects` already is; the map is
+    // read here and nowhere else, off the branches the definition prints,
+    // with the same substitutions the common list had.
+    const own =
+      origin.kind === 'casting' ? perTargetEffects(origin.definition, run, target) : null;
+    for (const effect of own === null ? effects : [...effects, ...own]) {
       const victim = current.creatures[target];
       if (victim === undefined) continue;
 
@@ -3889,6 +4041,8 @@ interface OngoingRecordPlan {
   readonly choice?: StatedChoicePin;
   /** The branch the casting ran, where the spell prints branches. */
   readonly option?: string;
+  /** The branch each creature ran, where the spell chooses per creature. */
+  readonly optionByTarget?: Readonly<Record<string, string>>;
   /** When this casting began keeping a body — see `OngoingSpell.preserving`. */
   readonly preserving?: number;
   /** The ending its caster chose — see `OngoingSpell.endsAfterTrigger`. */
@@ -3992,9 +4146,73 @@ function statedFacts(
 function handoversPinned(
   definition: SpellDefinition,
   option: string | undefined,
+  optionByTarget?: Readonly<Record<string, string>>,
 ): readonly string[] {
-  const branch = option === undefined ? undefined : definition.options?.[option];
-  return [...(definition.dmDecides ?? []), ...(branch?.handsOver ?? [])];
+  return [
+    ...(definition.dmDecides ?? []),
+    ...branchesRun(definition, option, optionByTarget).flatMap((branch) => branch.handsOver ?? []),
+  ];
+}
+
+/**
+ * The branches this casting runs, in the order the definition prints them:
+ * the one word spoken, or — SRD Calm Emotions' "(choose for each creature)" —
+ * every branch some creature was given, once each.
+ *
+ * One reader for the two readers that report a branch's sentences, so the
+ * handover reported to the caller and the one pinned into the log cannot
+ * disagree about which branches ran.
+ */
+function branchesRun(
+  definition: SpellDefinition,
+  option: string | undefined,
+  optionByTarget: Readonly<Record<string, string>> | undefined,
+): readonly SpellOption[] {
+  const options = definition.options;
+  if (options === undefined) return [];
+  if (optionByTarget !== undefined) {
+    const chosen = new Set(Object.values(optionByTarget));
+    return Object.keys(options)
+      .filter((key) => chosen.has(key))
+      .map((key) => options[key]!);
+  }
+  const branch = option === undefined ? undefined : options[option];
+  return branch === undefined ? [] : [branch];
+}
+
+/**
+ * Whether a per-creature choice covers exactly the creatures the casting
+ * caught — see `SpellDefinition.optionPerTarget`.
+ *
+ * Null where the spell chooses once, or where every caught creature is named
+ * and nobody else is. The shape of the answer and the branch names were
+ * checked at the door by `declaredFacts`; this is the half that needs the
+ * settled list.
+ */
+function perTargetOptionProblem(
+  definition: SpellDefinition,
+  optionByTarget: Readonly<Record<string, string>> | undefined,
+  targets: readonly CharacterId[],
+): Result<never> | null {
+  if (definition.optionPerTarget !== true || optionByTarget === undefined) return null;
+  const caught = new Set<string>(targets);
+  for (const target of targets) {
+    if (optionByTarget[target] === undefined) {
+      return err(
+        'option_required_for_target',
+        `${definition.name} chooses for each creature, and nobody said which branch ${target} gets`,
+      );
+    }
+  }
+  for (const who of Object.keys(optionByTarget).sort()) {
+    if (!caught.has(who)) {
+      return err(
+        'option_for_uncaught_target',
+        `${definition.name} did not catch ${who}, so there is no branch to choose for them`,
+      );
+    }
+  }
+  return null;
 }
 
 /**

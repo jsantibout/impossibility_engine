@@ -882,6 +882,14 @@ const UNCOVERED_EVENT_TYPES: readonly string[] = [
   // the Bonus Action, each putting the original sheet back.
   'sense-granted',
   'shape-assumed',
+  // A size moved by a category — SRD Enlarge/Reduce's step, a sourced grant in
+  // the family `grantsOf` enumerates. Neither log was written when a casting
+  // could move a size at all, and every creature in both carries an empty
+  // `sizeOverrides`, which is what `creature-added` starts one with.
+  // `enlarge-reduce.test.ts` folds it and drives it end to end: the fighter
+  // Large to every reader and to the map, Medium again when the Concentration
+  // is let go, and a goblin that made its save left exactly as it was.
+  'size-overridden',
   'speed-modifier-granted',
   // The direction an ongoing spell blows its Line in, changed on a later turn.
   // Neither log was written when an activation could re-aim anything — SRD
@@ -894,6 +902,11 @@ const UNCOVERED_EVENT_TYPES: readonly string[] = [
   // which way, nothing rolled or moved by the turning, and a Bonus Action that
   // named no direction refused.
   'spell-aim-changed',
+  // A running spell swapping one of its printed branches for another — SRD
+  // Alter Self's Magic action. Neither log was written when a casting could
+  // re-choose; `alter-self.test.ts` folds it and drives it: the claws gone,
+  // the swim come, the word re-pinned, and the Action spent.
+  'spell-option-changed',
   // A line a stat block prints under **Actions** that the parser read nothing
   // out of, taken. Neither log was written when those lines reached a sheet as
   // anything but names, and nothing could spend one — so both fixtures fold to

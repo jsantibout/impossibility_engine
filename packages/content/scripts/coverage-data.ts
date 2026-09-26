@@ -161,6 +161,12 @@ export const PARTIAL_SPELLS: readonly string[] = Object.entries(ADJUDICATED)
  */
 export const VERIFIED_SPELLS: readonly string[] = [
   'acid-splash',
+  // `alter-self.test.ts` (engine): the claws dealing 1d6 Slashing with
+  // Charisma on a punch, the growth's type asked for, the Magic action
+  // swapping claws for gills — the swim come, the rider gone, the word
+  // re-pinned, the Action spent — and the same word, an unprinted one and
+  // none refused; Change Appearance handed over whole.
+  'alter-self',
   'animal-friendship',
   'arcane-sword',
   // `creature-type-override.test.ts`: the Mask laid on a Fey goblin, the
@@ -199,6 +205,12 @@ export const VERIFIED_SPELLS: readonly string[] = [
   'blink',
   'blur',
   'burning-hands',
+  // `calm-emotions.test.ts` (engine): one goblin chosen for the Immunity and
+  // one for indifference off one Sphere, the Frightened already on the first
+  // silenced and back when the Concentration is let go, the second's sentence
+  // handed over, a saved creature granted nothing, the map pinned on the
+  // record, and the six refusals a per-creature choice is held to.
+  'calm-emotions',
   'charm-monster',
   'charm-person',
   'chill-touch',
@@ -238,6 +250,13 @@ export const VERIFIED_SPELLS: readonly string[] = [
   'divine-smite',
   'eldritch-blast',
   'enhance-ability',
+  // `enlarge-reduce.test.ts` (engine): the fighter Large to every reader and
+  // to the map and Medium again when the Concentration is let go, Advantage
+  // on a Strength save and check and not on a Dexterity save, a longsword hit
+  // a die heavier off one seed; Reduced, the reverse and a hit a die lighter
+  // and never below one; a goblin that makes the Constitution save left as it
+  // was and one that fails it shrunk; a willing target offered no die.
+  'enlarge-reduce',
   // `ensnaring-strike.test.ts` (engine): a Ranger's held hit settled with the
   // strike, the goblin's Strength save and the Restrained under the casting,
   // the Ogre's Advantage read off its size, the resisted ending, the d6 at the
@@ -249,6 +268,11 @@ export const VERIFIED_SPELLS: readonly string[] = [
   // creature and not the rest, the Concentration ending releasing everybody,
   // and the ground charging double until it does.
   'entangle',
+  // `enthrall.test.ts` (engine): the bandit the party is fighting spared
+  // before the die is read, the bystander's Perception check ten lower than
+  // its Insight check off one die, and its Passive Perception ten lower
+  // through the same stored bonus.
+  'enthrall',
   'faerie-fire',
   'false-life',
   'fear',
@@ -270,6 +294,13 @@ export const VERIFIED_SPELLS: readonly string[] = [
   // without it, a repose laid seventy seconds late taking back only what it
   // ran for, a living target refused, and the record on the body.
   'gentle-repose',
+  // `glyph-of-warding.test.ts` (engine): an hour's inscription pinning the
+  // rune and its stated type on a record with no deadline, the DM's decision
+  // erupting on the thief ten feet from the glyph and not the one forty feet
+  // off, the casting ended by the firing, the slot carried into the dice, one
+  // command id firing it once, and a spent glyph or a spell with no trigger
+  // refused.
+  'glyph-of-warding',
   'goodberry',
   'grease',
   'greater-invisibility',
@@ -482,6 +513,12 @@ export const VERIFIED_SPELLS: readonly string[] = [
   // the other two, thirty feet reached by a level 5 cleric and refused to a
   // level 4 one, and the shortlist bounded by the same band.
   'spare-the-dying',
+  // `speak-with-plants.test.ts` (engine): the mouther's carried ground
+  // ordinary inside thirty feet of the druid's square and still double beyond
+  // it, the Emanation pinned to the square rather than the druid, the ground
+  // back when the ten minutes are up, and the other branch overgrowing open
+  // ground.
+  'speak-with-plants',
   // Driven end to end by `casting-terrain.test.ts`: the Sphere conjured at a
   // point through `resolveSpell`, and the glossary's rate charged over it.
   // The move that costs twice the ground it crosses is Grease's in the same
@@ -630,6 +667,8 @@ export const isExecuted = (definition: SpellDefinition): boolean =>
   definition.effects.length > 0 ||
   definition.activation !== undefined ||
   definition.areaTrigger !== undefined ||
+  // What a DM's decision fires is resolved by the engine — SRD Glyph of Warding's rune.
+  definition.triggered !== undefined ||
   definition.areaStanding !== undefined ||
   definition.areaTerrain !== undefined ||
   definition.areaLight !== undefined ||
@@ -640,7 +679,12 @@ export const isExecuted = (definition: SpellDefinition): boolean =>
     // A branch's own standing clauses count for the reason the common list's
     // do: SRD Magic Circle's two directions are two lists of clauses the
     // Cylinder imposes, and nothing else the spell does.
-    (branch) => (branch.effects ?? []).length > 0 || (branch.areaStanding ?? []).length > 0,
+    // A branch that lays ground executes as surely as one that rolls — SRD
+    // Speak with Plants' two directions carry no effects and change the map.
+    (branch) =>
+      (branch.effects ?? []).length > 0 ||
+      (branch.areaStanding ?? []).length > 0 ||
+      branch.areaTerrain !== undefined,
   );
 
 /** Every definition the engine resolves something of, by id. */

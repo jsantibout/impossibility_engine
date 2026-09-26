@@ -12,6 +12,7 @@ import {
 } from './positioning.js';
 import type {
   AreaTrigger,
+  TriggeredEffects,
   CastingEndRider,
   CastingEndTrigger,
   SpellArea,
@@ -285,6 +286,13 @@ export interface OngoingSpell {
    */
   readonly areaTrigger?: AreaTrigger;
   /**
+   * What a DM's decision fires over {@link area}, once — SRD Glyph of
+   * Warding's explosive rune. Pinned at the cast with its stated type
+   * substituted, for the reason {@link areaTrigger} is: the door that fires it
+   * opens no catalogue. See `SpellDefinition.triggered`.
+   */
+  readonly triggered?: TriggeredEffects;
+  /**
    * What stops this casting before its time is up — **as cast**.
    *
    * Pinned for the reason {@link area} and {@link numbers} are, and the rule
@@ -534,6 +542,13 @@ export interface OngoingSpell {
    * record written before this fold to exactly the state it always did.
    */
   readonly option?: string;
+  /**
+   * Which branch each creature ran, for a spell that chooses per creature —
+   * SRD Calm Emotions' "(choose for each creature)". Pinned for the reason
+   * {@link option} is, and beside it rather than in it: a word and a map are
+   * two shapes, and a record written before either folds unchanged.
+   */
+  readonly optionByTarget?: Readonly<Record<string, string>>;
   /**
    * What {@link area} does to whoever is standing in it — **as cast**.
    *
@@ -801,10 +816,11 @@ export function originOfArea(
   anchoring: PointAnchoring,
 ): AreaOrigin | null {
   // SRD Tiny Hut: "A 10-foot Emanation springs into existence around you and
-  // **remains stationary** for the duration." An Emanation that stays is
-  // measured from the point its caster stood on at the cast — pinned as the
-  // record's `origin` — and not from wherever the caster has since walked to.
-  // See `SpellArea`'s `stays`.
+  // **remains stationary** for the duration"; SRD Speak with Plants: "an
+  // immobile 30-foot Emanation". An Emanation that stays is the one
+  // self-origin area that is not carried: the resolution pinned the caster's
+  // square as its point, and it is measured from there — see `SpellArea`'s
+  // `stays`.
   if (area.origin === 'self' && !(area.kind === 'emanation' && area.stays === true)) {
     return { creature: caster };
   }
@@ -1097,6 +1113,12 @@ export const areaStampKey = (castingId: string, target: string): string =>
 export type OngoingEndReason =
   /** SRD Dispel Magic, and anything else that ends a spell by naming it. */
   | 'dispelled'
+  /**
+   * SRD Glyph of Warding: "Once a glyph is triggered, this spell ends." The
+   * DM decided the trigger occurred and the rune fired; the ending is what the
+   * firing costs, written by `triggerGlyph` in the same batch as the eruption.
+   */
+  | 'triggered'
   /** SRD Mage Hand: "The hand vanishes ... if you cast this spell again." */
   | 'recast'
   /**

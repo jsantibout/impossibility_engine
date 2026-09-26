@@ -2374,7 +2374,6 @@ const NAMED_ITEMS: readonly CatalogueItem[] = [
       unmodelled: [
         '"you and each creature and object within a 10-foot Emanation originating from you": a conferral reaches its user or one creature within 5 feet and has no field for an area, so only the thrower is made Invisible and the companions the dust catches are the table\'s — as is every object it touches, which is not a creature at all',
         '"The duration is the same for all subjects" follows from the above rather than being honoured: there is one subject, so the sentence has nothing to keep in step',
-        '"makes an attack roll": the engine reads `target-attacks` off `attack-made`, which is the Attack action rather than every attack roll — a free swing that misses leaves the dust running, and one that lands deals damage and ends it. The same residue SRD Potion of Invisibility records, in the same words',
       ],
     },
   ),
@@ -2598,7 +2597,6 @@ const POTIONS: readonly CatalogueItem[] = [
       },
     ],
     unmodelled: [
-      '"if you make an attack roll": the engine reads `target-attacks` off `attack-made`, which is the Attack action rather than every attack roll. A free swing that misses — an Opportunity Attack, an attack outside combat — leaves the potion running, because the only event naming the roller of one is `roll-recorded` and that event changes no state by rule. A free swing that lands deals damage, and `target-deals-damage` catches it. The same residue SRD Invisibility records',
     ],
   },
   {

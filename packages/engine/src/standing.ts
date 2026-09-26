@@ -9,7 +9,13 @@ import {
   type RollMode,
   type Skill,
 } from '@ie/shared';
-import type { Bonus, BonusNarrowing, ModeSource, StandingBonusApplies } from './bonuses.js';
+import {
+  bonusesFor,
+  type Bonus,
+  type BonusNarrowing,
+  type ModeSource,
+  type StandingBonusApplies,
+} from './bonuses.js';
 import type { CreatureSize } from '@ie/srd';
 import type { HazardName } from './hazards.js';
 import type { TurnAnchor, TurnMoment } from './time.js';
@@ -37,6 +43,7 @@ import {
   armorClass,
   armorClassFloor,
   hasSpeedInMode,
+  passivePerception,
   speedInMode,
   type CharacterSheet,
   type MovementMode,
@@ -3615,11 +3622,13 @@ export function strikeStyleFor(
   // the sheet's and a casting is an act somebody just took, so the deliberate
   // thing wins where both reach the same swing — a Monk/Druid who spends a
   // Bonus Action on Shillelagh gets Shillelagh's die and not Martial Arts'. It
-  // can shadow nothing else: a weapon rider is keyed on one weapon's id, so an
-  // Unarmed Strike — which every class style covers and no rider can — never
-  // reaches this branch at all. That is what makes putting it first safe,
-  // where a style with an empty `weapons` list in the same position would take
-  // the Monk's fist away.
+  // can shadow one thing, and does so on purpose: a weapon rider is keyed on
+  // one weapon's id, so an Unarmed Strike reaches this branch only through a
+  // rider that says `unarmed` — SRD Alter Self's claws — and that casting is an
+  // act somebody just took, so it wins over a Monk's Martial Arts die exactly
+  // as Shillelagh wins over it on a staff. A style with an empty `weapons` list
+  // in the same position would take every Monk's fist away; a rider reaches
+  // the one fist it was cast on.
   const imbued = weaponRidersFor(creature, context.weapon).find(
     (rider) => rider.die !== undefined || rider.ability !== undefined,
   );
@@ -5689,10 +5698,25 @@ export interface GrantedAttackRider {
   /** The extra dice, e.g. `1d4`. A notation rather than a `DiceScaling`: no
    * SRD sentence of this shape grows its dice with the slot or the level. */
   readonly dice: string;
-  /** The damage type the sentence names. Never the weapon's own. */
-  readonly damageType: string;
+  /**
+   * The damage type the sentence names, or absent for the blow's own.
+   *
+   * SRD Enlarge/Reduce's "an extra 1d4 damage" prints none, so the die is of
+   * whatever the weapon deals — the reading `attack-damage` already takes of a
+   * feature's untyped die, and `standingAttackDamage` files the two the same
+   * way: an untyped die beside the bonuses of the blow's own type, a typed one
+   * as a component of its own.
+   */
+  readonly damageType?: string;
   /** SRD Divine Favor's "attacks **with weapons**". Absent reaches any attack. */
   readonly weaponOnly?: true;
+  /**
+   * SRD Enlarge/Reduce's "attacks with its enlarged **weapons or Unarmed
+   * Strikes**": every attack roll but a spell's. The spell road names itself
+   * to {@link grantedAttackRiders}, which is the one fact that tells a Fire
+   * Bolt from a punch — both swing no weapon.
+   */
+  readonly weaponOrUnarmedOnly?: true;
   /** SRD Hunter's Mark's "**to the target**". Absent reaches any target. */
   readonly target?: CharacterId;
   /**
@@ -5744,12 +5768,20 @@ export interface GrantedAttackRider {
  */
 export function grantedAttackRiders(
   creature: CreatureState | undefined,
-  context: { readonly weapon: Weapon | null; readonly target: CharacterId },
-): readonly { readonly source: string; readonly type: string; readonly dice: string }[] {
+  context: {
+    readonly weapon: Weapon | null;
+    readonly target: CharacterId;
+    /** The spell road says so; a weapon or an Unarmed Strike says nothing. */
+    readonly spellAttack?: true;
+  },
+): readonly { readonly source: string; readonly type?: string; readonly dice: string }[] {
   if (creature === undefined) return [];
   return creature.attackRiders
     .filter((rider) => {
       if (rider.weaponOnly === true && context.weapon === null) return false;
+      // SRD Enlarge/Reduce's "weapons or Unarmed Strikes": a punch and a Fire
+      // Bolt both swing no weapon, and only the road knows which it is on.
+      if (rider.weaponOrUnarmedOnly === true && context.spellAttack === true) return false;
       if (rider.target !== undefined && rider.target !== context.target) return false;
       return true;
     })
@@ -5758,7 +5790,7 @@ export function grantedAttackRiders(
       // Favor" rather than `Divine Favor#cast:3`. The casting id stays in the
       // grant, which is what ends it.
       source: spellOfSource(rider.source),
-      type: rider.damageType,
+      ...(rider.damageType === undefined ? {} : { type: rider.damageType }),
       dice: rider.dice,
     }));
 }
@@ -5789,7 +5821,13 @@ export function spellDamageRiders(
 ): readonly { readonly source: string; readonly type: string; readonly dice: string }[] {
   if (creature === undefined) return [];
   return creature.attackRiders
-    .filter((rider) => rider.alsoSpells === true && rider.target === target)
+    // A rider with no type of its own is of the blow's, and a spell's blow is
+    // the spell's; no rider in the book prints both `alsoSpells` and no type,
+    // so the narrowing is the type system's rather than a rule.
+    .filter(
+      (rider): rider is GrantedAttackRider & { readonly damageType: string } =>
+        rider.alsoSpells === true && rider.target === target && rider.damageType !== undefined,
+    )
     .map((rider) => ({
       source: spellOfSource(rider.source),
       type: rider.damageType,
@@ -5846,8 +5884,30 @@ export interface GrantedWeaponRider {
    * for the first, and {@link name} carries the second.
    */
   readonly source: string;
-  /** The weapon, by catalogue id: the one the casting or the use was aimed at. */
-  readonly weapon: string;
+  /**
+   * The weapon, by catalogue id: the one the casting or the use was aimed at.
+   *
+   * Absent where {@link unarmed} is set — SRD Alter Self's Natural Weapons
+   * imbue a fist, which has no id — and one of the two is always present.
+   */
+  readonly weapon?: string;
+  /**
+   * The rider rides the Unarmed Strike — see `weapon-rider.unarmed`.
+   * `weaponRidersFor` answers with it for a swing with no weapon in it.
+   */
+  readonly unarmed?: true;
+  /**
+   * SRD Alter Self's "rather than using Strength": {@link ability} is imposed
+   * on the swing rather than weighed against the weapon's own — the reading
+   * `AttackOptions.imposedAbility` takes of SRD True Strike.
+   */
+  readonly imposesAbility?: true;
+  /**
+   * SRD Alter Self's "damage of the type in parentheses": a type the rider
+   * imposes on the blow, as the casting stated it. Never beside
+   * {@link damageTypes}, which is an offer the swing answers.
+   */
+  readonly damageType?: string;
   /**
    * How a log names what imbued this weapon, where the source is not a spell.
    *
@@ -5971,7 +6031,11 @@ export function weaponRidersFor(
   creature: CreatureState | undefined,
   weapon: Weapon | null,
 ): readonly GrantedWeaponRider[] {
-  if (creature === undefined || weapon === null) return [];
+  if (creature === undefined) return [];
+  // **A swing with no weapon in it is an Unarmed Strike**, and the riders that
+  // answer for it are the ones that say so — SRD Alter Self's claws. Every
+  // rider keyed to an object answers only for that object.
+  if (weapon === null) return creature.weaponRiders.filter((rider) => rider.unarmed === true);
   return creature.weaponRiders.filter((rider) => {
     if (rider.weapon !== weapon.id) return false;
     // SRD Shillelagh: "melee attacks using that weapon". A Dagger thrown is a
@@ -6920,8 +6984,14 @@ export function weaponRiderDamageType(
   weapon: Weapon | null,
   chosen: Readonly<Record<string, string>> | undefined,
 ): string | null {
+  const riders = weaponRidersFor(state.creatures[who], weapon);
+  // **An imposed type first, and it asks nobody.** SRD Alter Self's claws are
+  // Slashing on every swing — "instead of dealing the normal damage" — so the
+  // type is the rider's, not an offer the swing answers.
+  const imposed = riders.find((rider) => rider.damageType !== undefined);
+  if (imposed?.damageType !== undefined) return imposed.damageType;
   if (chosen === undefined) return null;
-  for (const rider of weaponRidersFor(state.creatures[who], weapon)) {
+  for (const rider of riders) {
     if (rider.damageTypes === undefined) continue;
     const named = chosen[riderChoiceKey(rider)];
     if (named !== undefined && rider.damageTypes.includes(named)) return named;
@@ -7373,12 +7443,17 @@ export function standingAttackDamage(
   // closed on the defensive side. The spell-attack path calls
   // {@link grantedAttackRiders} on its own, because it must not take the
   // feature half above.
-  extra.push(
-    ...grantedAttackRiders(state.creatures[who], {
-      weapon: context.weapon,
-      target: context.target,
-    }),
-  );
+  // **A rider with no type of its own is of the blow's**, which is where SRD
+  // Enlarge/Reduce's "an extra 1d4 damage" goes: beside the bonuses, exactly
+  // as an untyped `attack-damage` grant went above, so a Mace under it deals
+  // one Bludgeoning total rather than a Bludgeoning and a something else.
+  for (const rider of grantedAttackRiders(state.creatures[who], {
+    weapon: context.weapon,
+    target: context.target,
+  })) {
+    if (rider.type === undefined) bonuses.push({ source: rider.source, dice: rider.dice });
+    else extra.push({ source: rider.source, type: rider.type, dice: rider.dice });
+  }
 
   // **And the damage half of the imbued weapon's plus.** SRD Magic Weapon's +1
   // is of the weapon's **own** type — a Mace under it deals 7 Bludgeoning, not
@@ -7445,6 +7520,42 @@ export function attackDamageDiceOf(
 }
 
 /**
+ * This creature's Passive Perception, as the rules read it.
+ *
+ * SRD: "a passive check ... 10 + all modifiers that normally apply to the
+ * check." `passivePerception` on the sheet is the score the sheet alone gives;
+ * this is that score with what a running spell has hung on the creature's
+ * Wisdom (Perception) checks added — SRD Enthrall's "a −10 penalty to Wisdom
+ * (Perception) checks **and Passive Perception**" is one stored bonus read at
+ * both ends, which is what keeps the two halves of that sentence from being
+ * two answers.
+ *
+ * **Only the flat part of a bonus reaches a passive score.** A die is not a
+ * modifier that "normally applies" to a check nobody rolls — SRD Guidance's
+ * 1d4 lands on a check made and on nothing passive — so a dice-only bonus
+ * contributes nothing here, and a flat one contributes its sign.
+ * Advantage and Disadvantage are the sheet function's own `mode`, and a
+ * caller that knows one passes it as it always did.
+ *
+ * Null for a creature this state does not hold, for `effectiveSizeOf`'s
+ * reason: nothing is derived about nobody.
+ */
+export function passivePerceptionOf(
+  state: GameState,
+  who: CharacterId,
+  mode: RollMode = 'normal',
+): number | null {
+  const creature = state.creatures[who];
+  if (creature === undefined) return null;
+  const sheet = sheetAsItStands(state, who) ?? creature.sheet;
+  const flat = bonusesFor(creature.bonuses, 'ability-check', {
+    ability: 'wis',
+    skill: 'perception',
+  }).reduce((sum, bonus) => sum + (bonus.flat ?? 0), 0);
+  return passivePerception(sheet, mode) + flat;
+}
+
+/**
  * Conditions that are on this creature but currently do nothing.
  *
  * Kept separate from removing them, because the SRD is explicit that the
@@ -7459,6 +7570,17 @@ export function suppressedConditions(
   const names = new Set<ConditionName>();
   for (const { effect } of standingFor(state, who)) {
     if (effect.grant.kind === 'condition-immunity') names.add(effect.grant.condition);
+  }
+  // **And a casting's, where its sentence says so.** SRD Calm Emotions: "If
+  // the creature was already Charmed or Frightened, those conditions are
+  // suppressed for the duration." The same rule Aura of Courage's standing
+  // grant states, read from a second source — a sourced grant the casting
+  // hung and every ending takes away — so the condition is back the moment
+  // the spell ends. An Immunity that prints no such sentence suppresses
+  // nothing: Heroism's Frightened stays on a creature that already had it.
+  for (const granted of state.creatures[who]?.grantedConditionImmunities ?? []) {
+    if (granted.suppresses !== true) continue;
+    for (const condition of granted.conditions) names.add(condition);
   }
   return [...names].sort();
 }

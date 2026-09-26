@@ -58,7 +58,7 @@ import { applyCombat, isCombatEvent } from './combat.js';
 import { applyElsewhere, freeTheSwallowedOfTheDead, isElsewhereEvent } from './elsewhere.js';
 import { applyScene, isSceneEvent } from './scene.js';
 import { applyFeatures, isFeaturesEvent, resized } from './features.js';
-import { printedSizeOf, printsASize } from '../size.js';
+import { overriddenSizeOf, printedSizeOf, printsASize } from '../size.js';
 import { applyHolds, isHoldsEvent } from './holds.js';
 import { applyInventory, isInventoryEvent, withEquipment } from './inventory.js';
 import { applyGrants, isGrantsEvent } from './grants.js';
@@ -380,6 +380,8 @@ function applyEventUnder(state: GameState, event: GameEvent, legacy: Content | n
       ),
     ),
     ),
+    // The world before this event, so the pass sees an override leave.
+    state,
     ),
   ));
 }
@@ -890,7 +892,7 @@ export function wearsHeavyArmor(creature: CreatureState): boolean {
  * this pass for as long as it holds the feature. Only where the creature is
  * standing somewhere and its own size is known.
  */
-function settleSizes(state: GameState): GameState {
+function settleSizes(state: GameState, before: GameState): GameState {
   const scene = state.scene;
   if (scene === null) return state;
   let current = state;
@@ -899,8 +901,19 @@ function settleSizes(state: GameState): GameState {
     if (creature === undefined || creature.size === null || scene.sizes[key] === undefined) continue;
     // Only a creature whose sheet prints a size is settled: a DM who stated a
     // size on the map for anybody else is not overruled by the record.
-    if (!printsASize(creature)) continue;
-    const wanted = printedSizeOf(creature) ?? creature.size;
+    //
+    // **Or one a running effect has moved, or has just stopped moving.** SRD
+    // Enlarge/Reduce's step is a sourced grant, read here over the same base
+    // every other reader takes, so the map grows with the fighter — and the
+    // event that released the grant is the one moment the map has to be given
+    // back, which is why the world before the event is read beside the world
+    // after it: a creature that carried an override a moment ago is owned by
+    // this pass for exactly that one event.
+    const moved =
+      creature.sizeOverrides.length > 0 ||
+      (before.creatures[key]?.sizeOverrides.length ?? 0) > 0;
+    if (!printsASize(creature) && !moved) continue;
+    const wanted = overriddenSizeOf(creature, printedSizeOf(creature) ?? creature.size);
     if (scene.sizes[key] !== wanted) current = resized(current, creature.id, wanted);
   }
   return current;

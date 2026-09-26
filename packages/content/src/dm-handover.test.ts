@@ -3,21 +3,7 @@ import { SPELL_DEFINITIONS, SRD_CONTENT } from '@ie/content';
 import { asCharacterId, expect as unwrap, type CharacterId } from '@ie/shared';
 import type { CharacterSheet } from '@ie/engine';
 import type { CreatureSize } from '@ie/srd/schemas';
-import {
-  advanceTime,
-  createRng,
-  createRollIssuer,
-  declaredCasting,
-  dmDecisionsIn,
-  fold,
-  pendingCastingsOf,
-  remaining,
-  resolveDeclaredCast,
-  resolveSpell,
-  spellSlotKey,
-  type GameEvent,
-  type Rng,
-} from '@ie/engine';
+import { advanceTime, createRng, createRollIssuer, declaredCasting, dmDecisionsIn, fold, optionEffects, pendingCastingsOf, remaining, resolveDeclaredCast, resolveSpell, spellSlotKey, type GameEvent, type Rng } from '@ie/engine';
 import {
   BLOCKED_ON,
   TRACKED_ADJUDICATED,
@@ -323,6 +309,23 @@ const aimedAt = (definition: (typeof SPELL_DEFINITIONS)[number]) => {
     ...(definition.typesStated === undefined
       ? {}
       : { types: [definition.typesStated.options[0]!] }),
+    // The stated damage type, where the list this casting speaks — the common
+    // list, the first branch, or what a DM's decision fires — holds a slot for
+    // it: SRD Glyph of Warding's rune prints five and the engine chooses none.
+    ...(definition.damageTypeStated === undefined ||
+    !(
+      definition.options === undefined ||
+      optionEffects(definition, branches.sort()[0]).some(
+        (effect) => 'damageType' in effect && effect.damageType !== undefined,
+      )
+    )
+      ? {}
+      : { damageType: definition.damageTypeStated[0]! }),
+    // A cone, a cube or a line needs a direction to point it in — SRD Fear's
+    // 30-foot cone — and the sweep points every one east of the shrine.
+    ...(definition.area !== undefined && ['cone', 'cube', 'line'].includes(definition.area.kind)
+      ? { towards: { x: 100, y: 50, z: 0 } }
+      : {}),
     // **An area the caster puts somewhere needs the point.** A `self` origin
     // is the caster's own space and refuses to be moved, so only a
     // point-origin volume is placed — five feet from the shrine, which is
@@ -422,10 +425,23 @@ describe('the catalogue hands over exactly the text it means to', () => {
       'dream',
       'druidcraft',
       'elementalism',
+      // SRD Enlarge/Reduce's gear: 'Everything that a targeted creature is
+      // wearing and carrying changes size with it', the dropped item and the
+      // thrown weapon — fiction the engine holds nothing of, beside four
+      // clauses it executes whole.
+      'enlarge-reduce',
+      // SRD Fear's compelled Dash — 'moves away from you by the safest route
+      // ... unless there is nowhere to move' — under the ruling that a
+      // compulsion is adjudicated and never performed: the Action is narrowed
+      // to the Dash by the engine and the route is the table's.
+      'fear',
       'find-traps',
       'floating-disk',
       'gate',
       'gentle-repose',
+      // SRD Glyph of Warding's inscription and its invented trigger, beside
+      // the rune the DM's door fires.
+      'glyph-of-warding',
       'identify',
       'illusory-script',
       // **Knock, read to the end.** Every one of its sentences is about an
@@ -470,6 +486,9 @@ describe('the catalogue hands over exactly the text it means to', () => {
       // what goes to the table is the dome's weather, its light, its colour
       // and its opacity, and the failure at the casting if it is not big
       // enough — facts about a room and about creatures nobody has placed.
+      // SRD Speak with Plants' conversation, beside the two directions of
+      // ground it executes.
+      'speak-with-plants',
       'tiny-hut',
       'tongues',
       'water-breathing',
@@ -823,7 +842,11 @@ describe('each of the forty-seven is cast, and hands its own text to the table',
     // The verdict itself is not pinned here — what this file is about is that
     // the spell casts and hands its text over — and `verdict-only-save.test.ts`
     // is where the mark's own behaviour is driven.
-    if (definition.effects.length === 0) {
+    // The list this casting ran is the common list and the first branch in
+    // key order — SRD Enlarge/Reduce carries every clause in its two branches
+    // and an empty common list.
+    const ran = optionEffects(definition, Object.keys(definition.options ?? {}).sort()[0]);
+    if (ran.length === 0) {
       expect(out.cast.outcomes).toEqual([]);
       return;
     }
@@ -831,12 +854,22 @@ describe('each of the forty-seven is cast, and hands its own text to the table',
     // no event and reports no outcome — what Revivify needs is on the record,
     // the moment the keeping began — so the corpse it was aimed at is filed
     // into `aimed` and nothing comes back in the outcomes to be about it.
-    if (definition.effects.every((effect) => effect.kind === 'preserves')) {
+    if (ran.every((effect) => effect.kind === 'preserves')) {
       expect(out.cast.outcomes).toEqual([]);
       return;
     }
-    expect(out.cast.outcomes.map((one) => one.target)).toEqual([bodyFor(definition)]);
-    expect(out.cast.outcomes[0]?.save?.roll).toBeDefined();
+    // The outcomes are about whom the casting was aimed at — the caster, for a
+    // spell that may take itself, SRD Enlarge/Reduce — or, for a template the
+    // caster points, whoever it caught: SRD Fear's cone finds the raven.
+    const aimed = aimedAt(definition).targets;
+    if (aimed.length === 0) {
+      expect(out.cast.outcomes.length).toBeGreaterThan(0);
+    } else {
+      expect(out.cast.outcomes.map((one) => one.target)).toEqual(aimed);
+    }
+    // A save was rolled, or — for a caster taking their own Enlarge/Reduce,
+    // who is willing and offered no die — the effect simply landed.
+    expect(out.cast.outcomes[0]?.save?.roll ?? out.cast.outcomes[0]?.affected).toBeDefined();
   });
 
   /**

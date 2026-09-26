@@ -626,11 +626,11 @@ describe('the condition-immunity family is read sentence by sentence', () => {
    * tripping no marker. A defined spell is not in this population, however
    * partial its definition.
    */
+  // **Calm Emotions was the first entry here and is executed now**: the
+  // per-creature choice is `optionPerTarget` and the suppression is the
+  // `immunity` rider's `suppressesHeld`, so it keeps no tracked entry and
+  // the suppression shape — its sole claimant gone — is retired.
   const BACKFILLED: readonly (readonly [string, readonly ShapeId[]])[] = [
-    [
-      'calm-emotions',
-      ['a-condition-a-spell-suppresses', 'a-spells-effects-applied-to-different-targets'],
-    ],
     [
       'hallow',
       [
@@ -721,17 +721,16 @@ describe('the condition-immunity family is read sentence by sentence', () => {
         (effect) => effect.kind === 'condition-immunity',
       ),
     ).toHaveLength(1);
-    // Calm Emotions is the one spell the suppression residue blocks, and it
-    // **was undefined for that reason**: the tracked map anchored a clause to a
-    // sentence that trips a mechanical marker, and "those conditions are
-    // suppressed for the duration" trips none — so a tracked definition could
-    // not carry this reading, and writing one would have retired a shape that
-    // is still missing. `marker: null` is the entry form that ended that, so
-    // the spell is written, the reading is kept, and the shape is claimed by
-    // the one sentence it was always about.
-    expect(consumersOf('a-condition-a-spell-suppresses').undefined).toEqual([]);
-    expect(consumersOf('a-condition-a-spell-suppresses').tracked).toEqual(['calm-emotions']);
-    expect(consumersOf('a-condition-a-spell-suppresses').unseen).toEqual(['calm-emotions']);
+    // Calm Emotions was the one spell the suppression residue blocked, and the
+    // residue is paid: `GrantedConditionImmunity.suppresses` is the flag,
+    // `suppressedConditions` reads a casting's grant beside a feature's, and
+    // the shape — its sole claimant gone — is retired rather than kept for a
+    // sentence nothing is blocked on.
+    expect(Object.keys(MISSING_SHAPES)).not.toContain('a-condition-a-spell-suppresses');
+    expect(TRACKED_ADJUDICATED['calm-emotions']).toBeUndefined();
+    expect(
+      (SRD_CONTENT.spell('calm-emotions')?.options?.['immunity']?.effects ?? []).length,
+    ).toBeGreaterThan(0);
   });
 
   /**
@@ -834,12 +833,9 @@ describe('the condition-immunity family is read sentence by sentence', () => {
     expect(BLOCKED_ON['mind-blank']).toBeUndefined();
     expect(ADJUDICATED['mind-blank']?.map((entry) => entry.why)).toEqual(['table']);
 
-    for (const shape of [
-      'a-condition-immunity-narrowed-to-its-source',
-      'a-condition-a-spell-suppresses',
-    ] as const) {
-      expect(consumersOf(shape).unblocks, shape).toEqual([]);
-    }
+    // The suppression residue is retired now — see `covers every spell the two
+    // residues block` — so only the narrowing residue is asked.
+    expect(consumersOf('a-condition-immunity-narrowed-to-its-source').unblocks).toEqual([]);
   });
 
   /**
@@ -2203,39 +2199,25 @@ describe('the fought fact is a second build that corrected the query', () => {
   });
 
   /**
-   * Enthrall is the correction, and it keeps **both** halves of why.
+   * Enthrall was the correction, and it is executed now.
    *
-   * The fought shape stands because Enthrall's reading of that fact is still
-   * unexpressible; the minted id carries the penalty, which was never about
-   * the fact at all and which the entry had never recorded.
-   *
-   * **It is a tracked definition now and both halves came with it**, which is
-   * the part that could not be done until a tracked entry was allowed to carry
-   * no marker. The save trips one, so the automatic success is anchored to the
-   * sentence that forces the save; the −10 trips none — `\bcheck\b` does not
-   * match "checks" — so the penalty is the marker-less entry, and without it
-   * `a-bonus-narrowed-to-a-skill` would have had no claimant left in any
-   * population the day this spell was written.
-   *
-   * **Pass without Trace was the second claimant and has left**, which is the
-   * shape narrowing to what is actually missing rather than the claim
-   * weakening. "a +10 bonus to Dexterity (Stealth) checks" is the same gap in
-   * the same words and it was read off an undefined paragraph; the spell is
-   * written now, and the bonus is narrowed — `AreaStanding`'s `bonus` member
-   * carries the `BonusNarrowing` Guidance's stored bonus already carried, and
-   * `areaBonuses` withholds it from every check that names another skill. What
-   * is left under the id is Enthrall's, which is the half nothing reaches: a
-   * *penalty* on a **stored** bonus, gathered by `checkBonuses` off the
-   * creature rather than derived from where it is standing.
+   * The fought shape stood because Enthrall's reading of that fact — an
+   * automatic success — was unexpressible; `autoSucceedIf: { fought: true }`
+   * is the third member and reads the same stated fact. The minted id carried
+   * the penalty, which was never about the fact at all: a `bonus` rider
+   * narrowed to a skill, and `passivePerceptionOf` reading the same stored
+   * bonus at the passive end. So the spell owes no map anything, and the
+   * narrowed-bonus id left the spell vocabulary for the item one, where its
+   * remaining claimants are — a standing grant with no narrowing is true of an
+   * item and false of a casting, which is that vocabulary's own rule.
    */
-  it('leaves Enthrall blocked, on the outcome and on the penalty', () => {
+  it('finishes Enthrall and moves the narrowed bonus to the item vocabulary', () => {
     expect(BLOCKED_ON['enthrall']).toBeUndefined();
-    expect(SRD_CONTENT.spell('enthrall')).not.toBeNull();
-    expect((TRACKED_ADJUDICATED['enthrall'] ?? []).map((entry) => entry.why)).toEqual([
-      'a-fact-only-the-table-can-declare',
-      'a-bonus-narrowed-to-a-skill',
-    ]);
-    expect(consumersOf('a-bonus-narrowed-to-a-skill').unseen).toEqual(['enthrall']);
+    expect(TRACKED_ADJUDICATED['enthrall']).toBeUndefined();
+    expect(ADJUDICATED['enthrall']).toBeUndefined();
+    expect(SRD_CONTENT.spell('enthrall')?.effects.length).toBeGreaterThan(0);
+    expect(Object.keys(MISSING_SHAPES)).not.toContain('a-bonus-narrowed-to-a-skill');
+    expect(Object.keys(ITEM_SHAPES)).toContain('a-bonus-narrowed-to-a-skill');
     expect(consumersOf('a-fact-only-the-table-can-declare').unblocks).toEqual([]);
   });
 
@@ -2280,13 +2262,14 @@ describe('the fought fact is a second build that corrected the query', () => {
     const fact = consumersOf('a-fact-only-the-table-can-declare');
     // Call Lightning was the second undefined consumer and is tracked now, so
     // its reading — the extra 1d10 for being outdoors in a storm — moved into
-    // the tracked map against the sentence it was read from. Enthrall was the
-    // one left, and it followed the same way once a tracked entry could carry
-    // the half of it no mechanical marker sees: the undefined population is
-    // empty of this shape and all three claims are live somewhere else.
+    // the tracked map against the sentence it was read from. Enthrall followed
+    // the same way once a tracked entry could carry the half of it no
+    // mechanical marker sees, and has since left the map altogether: the
+    // fought fact it read is `autoSucceedIf.fought` now. The undefined
+    // population is empty of this shape and the claims are live elsewhere.
     expect(fact.undefined).toEqual([]);
     expect(fact.executed).toEqual(['hunters-mark', 'sleep']);
-    expect(fact.tracked).toEqual(['call-lightning', 'enthrall', 'scrying']);
+    expect(fact.tracked).toEqual(['call-lightning', 'scrying']);
   });
 });
 
@@ -2383,19 +2366,20 @@ describe('a consumer count is a query', () => {
     // of named branches, one of which a casting runs, named as the tenth
     // stated fact and pinned onto the record. Thaumaturgy's six wonders and
     // Command's five words left by that door, and Enlarge/Reduce's two halves
-    // are the shell of it with every clause inside them filed under a shape of
-    // its own. What is left under the id is **Glyph of Warding**, whose two
-    // glyphs are a stored casting rather than a branch — a shape of its own,
-    // and the one population the claim still reads across.
+    // are whole. **Glyph of Warding left last**: its rune is `triggered`, an
+    // effect list a DM's decision fires over the pinned Sphere with the type
+    // the caster stated, so the damage type is `damageTypeStated` and no
+    // longer a choice with nowhere to go. The spell glyph — a stored casting
+    // — is a shape of its own and a sentence no marker sees, so it is the
+    // definition's own `unmodelled` and the executed map holds only the check
+    // to notice, which is the table's.
     for (const id of ['glyph-of-warding']) {
-      const shapes =
-        BLOCKED_ON[id] !== undefined
-          ? blockersOf(id)
-          : [
-              ...(ADJUDICATED[id]?.map((e) => e.why) ?? []),
-              ...(TRACKED_ADJUDICATED[id]?.map((e) => e.why) ?? []),
-            ];
-      expect(shapes, id).toContain('a-choice-made-at-the-casting');
+      expect(BLOCKED_ON[id]).toBeUndefined();
+      expect(TRACKED_ADJUDICATED[id]).toBeUndefined();
+      expect(ADJUDICATED[id]?.map((e) => e.why)).toEqual(['table']);
+      expect(
+        (SRD_CONTENT.spell(id)?.unmodelled ?? []).some((line) => line.includes('casts another spell')),
+      ).toBe(true);
     }
   });
 
@@ -2506,7 +2490,9 @@ describe('a consumer count is a query', () => {
     // names no mechanic at all; Spider Climb's Climb Speed is granted and
     // what is left — which walls a creature may walk on — is the table's,
     // filed against a lattice that holds no surfaces.
-    expect(modes.tracked).toEqual(['alter-self', 'freedom-of-movement']);
+    // Alter Self left this population when its Swim Speed was written — the
+    // 'match-walk' member in the swim mode — so the tracked claimant is one.
+    expect(modes.tracked).toEqual(['freedom-of-movement']);
     // A floor below the population rather than on it, lowered by the batch
     // that wrote Freedom of Movement — which moved a spell from the third
     // population into the second and so shrank this one by one.
@@ -2623,7 +2609,14 @@ describe('a consumer count is a query', () => {
     // at the boundary, so `a-random-outcome-that-is-not-a-d20` lost one
     // to a build in the same wave. Each leader lost exactly one, and the
     // band at the top is the two of them, asserted as a set.
-    expect(leaders).toEqual(['a-casting-ended-by-a-trigger', 'a-random-outcome-that-is-not-a-d20']);
+    //
+    // **And broken a third time, from the other side.** Invisibility's last
+    // clause — the free swing that misses — was paid when
+    // `roll-recorded.attackRoll` gave the ending seam the fact it lacked, so
+    // `a-casting-ended-by-a-trigger` lost a consumer to a build rather than
+    // to a re-filing and the coin flip leads alone. Still asserted by
+    // measurement, for the reason above.
+    expect(leaders).toEqual(['a-random-outcome-that-is-not-a-d20']);
     expect(Object.keys(SPLIT_BUNDLES)).toContain('an-action-a-spell-compels-or-forbids');
     // And the split is visible from here rather than only in the record: the
     // bundle stands below the leader, and the largest piece to come out of it
@@ -2665,6 +2658,10 @@ describe('a consumer count is a query', () => {
       // What the band below the leaders holds now is the one shape that fell
       // out of the leading band's old size when Unseen Servant was written on
       // the inline block and has lost nothing since.
+      // And `a-casting-ended-by-a-trigger` is back in this band once more,
+      // after Invisibility's free swing was paid for: one consumer is what
+      // separates the top band from this one.
+      'a-casting-ended-by-a-trigger',
       'a-stat-block-created-mid-fight',
     ]);
     // **Moved from 20 to 15 by the third catalogue pass, and the total fell
@@ -2914,20 +2911,18 @@ describe('a shape that gets built is content work, not a merge', () => {
   // when the spell ends, which is not a removal — and, once IE-042 built the
   // Immunity in the clause beside it, is not that either: an Immunity refuses a
   // condition and a suppression silences one that has already landed.
-  // The spell is tracked now, so the reading moved rather than went: both
-  // shapes are in `TRACKED_ADJUDICATED` against the sentences they were read
-  // from, and the suppression is the marker-less one — "conditions" is not
-  // "condition", so no guard could have demanded it.
+  // **Both readings are paid now.** The per-creature choice is
+  // `optionPerTarget`, the suppression is the `immunity` rider's
+  // `suppressesHeld` read by `suppressedConditions` beside a feature's, and
+  // the spell keeps no tracked entry — so the reading is the grant's own field
+  // rather than a map's, and neither a removal nor a bare Immunity.
   it('reads suppression as neither a removal nor the granted immunity', () => {
     expect(BLOCKED_ON['calm-emotions']).toBeUndefined();
-    expect(
-      [...new Set((TRACKED_ADJUDICATED['calm-emotions'] ?? []).map((entry) => entry.why))].sort(),
-    ).toEqual(['a-condition-a-spell-suppresses', 'a-spells-effects-applied-to-different-targets']);
-    expect(
-      (TRACKED_ADJUDICATED['calm-emotions'] ?? []).find(
-        (entry) => entry.why === 'a-condition-a-spell-suppresses',
-      )?.marker,
-    ).toBeNull();
+    expect(TRACKED_ADJUDICATED['calm-emotions']).toBeUndefined();
+    const branch = SRD_CONTENT.spell('calm-emotions')?.options?.['immunity']?.effects?.[0];
+    const rider = branch?.kind === 'save' ? branch.modifiers?.[0] : undefined;
+    expect(rider?.kind).toBe('immunity');
+    expect(rider?.kind === 'immunity' && rider.suppressesHeld).toBe(true);
   });
 
   /**
@@ -3248,20 +3243,16 @@ describe('a trigger that ends a casting is a partial build, and the map says whi
   });
 
   /**
-   * Invisibility is the eighth and keeps a **narrower** clause, because the
-   * residue is about which event records an attack roll rather than about the
-   * cause. `target-attacks` reads `attack-made`, which is the Attack action;
-   * a free swing — an Opportunity Attack, or any attack outside combat —
-   * leaves only `roll-recorded`, which changes no state by rule. One that
-   * lands still ends the spell through `target-deals-damage`.
+   * Invisibility is the eighth, and it kept a **narrower** clause for longer
+   * than the others: the residue was about which event records an attack roll
+   * rather than about the cause. `target-attacks` read `attack-made`, the
+   * Attack action, so a free swing that missed — an Opportunity Attack, or any
+   * attack outside combat — left the spell running. `roll-recorded.attackRoll`
+   * is the structured mark the two attack rollers write now, the ending seam
+   * reads it, and the spell owes the map nothing.
    */
-  it('keeps the narrower residue on the spell whose sentence names a roll', () => {
-    expect(ADJUDICATED['invisibility']?.map((e) => e.why)).toEqual([
-      'a-casting-ended-by-a-trigger',
-    ]);
-    expect(ADJUDICATED['invisibility']?.[0]?.clause).toBe(
-      'an attack roll that costs no Attack action',
-    );
+  it('owes nothing once the roll itself names its roller', () => {
+    expect(ADJUDICATED['invisibility']).toBeUndefined();
   });
 
   /**

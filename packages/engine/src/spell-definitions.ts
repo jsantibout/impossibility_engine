@@ -544,6 +544,30 @@ export interface SpellRepeatSave {
    */
   readonly alsoWhenDamaged?: { readonly mode: 'advantage' };
   /**
+   * A fact that must hold at the boundary for the save to be owed at all.
+   *
+   * SRD Fear: "If the creature ends its turn in a space where it doesn't have
+   * line of sight to you, the creature makes a Wisdom saving throw. On a
+   * successful save, the spell ends on that creature." Every other repeat in
+   * the book is owed at its moment unconditionally; this one is owed only
+   * where the creature cannot see the caster, and a boundary that raised it
+   * regardless would hand a cornered goblin a save the book withholds.
+   *
+   * **Read by the fold where the debt is raised, off the same pairwise sight
+   * the rest of the engine reads** — `canSee(target, caster)` — and the
+   * three-valued answer keeps its meaning: only a declared *no* raises the
+   * save. Nobody having said is not the creature having lost sight of the
+   * caster, and a boundary has nobody to ask; the table declares sight and
+   * the next boundary reads it. The caster is the casting's, found through
+   * the mark the condition carries, so a repeat under any other source is
+   * never gated — there is no caster for the sentence to be about.
+   *
+   * A union of one member, for {@link alsoWhenDamaged}'s reason: the field
+   * says what the gate *reads*, and a second sentence of this shape arrives
+   * as a second member rather than as a boolean.
+   */
+  readonly onlyIf?: 'cannot-see-caster';
+  /**
    * What a **failure** does, where the SRD writes a failure that acts.
    *
    * SRD Sleep: "at which point it must repeat the save. If the target fails
@@ -909,8 +933,25 @@ export type ModifierRider =
       readonly kind: 'later-blow';
       /** The extra dice the sentence prints, e.g. `1d8`. */
       readonly dice: string;
-      /** The type it prints: Bestow Curse's Necrotic. */
-      readonly damageType: string;
+      /**
+       * The type it prints: Bestow Curse's Necrotic.
+       *
+       * **Absent is the blow's own type.** SRD Enlarge/Reduce: "deal an extra
+       * 1d4 damage on a hit" — damage with no type of its own, so it is the
+       * weapon's, exactly as SRD Magic Weapon's plus is; `standingAttackDamage`
+       * files an untyped rider beside the bonuses of the blow's own type and a
+       * typed one beside the extra components, which is the same fork a
+       * feature's `attack-damage` grant already takes.
+       */
+      readonly damageType?: string;
+      /**
+       * SRD Enlarge/Reduce: "The target's attacks with its enlarged **weapons
+       * or Unarmed Strikes**". Every attack roll but a spell's — where SRD
+       * Divine Favor's `weaponOnly` reaches weapons alone and SRD Hunter's Mark
+       * reaches a Fire Bolt too. Read by `grantedAttackRiders` off the one
+       * fact that tells the roads apart: the spell attack says it is one.
+       */
+      readonly weaponOrUnarmedOnly?: true;
       /**
        * SRD's "with an attack roll **or a spell**".
        *
@@ -920,6 +961,18 @@ export type ModifierRider =
        * is read and where the two roads a blow can take are told apart.
        */
       readonly alsoSpells?: true;
+      /**
+       * Whose later blows carry the die.
+       *
+       * Absent is the **caster's**, which is what SRD Hunter's Mark, SRD Hex
+       * and SRD Bestow Curse all print — "whenever **you** hit it" — and the
+       * reason `resolveAttackRiderEffect` has always hung the die on the
+       * caster and marked the target. SRD Enlarge/Reduce prints the other
+       * sentence: "**The target's** attacks … deal an extra 1d4", so the
+       * grant lands on the target and marks nobody. One field, because the
+       * book prints exactly these two subjects.
+       */
+      readonly by?: 'target';
     }
   | {
       readonly kind: 'bonus';
@@ -1024,6 +1077,58 @@ export type ModifierRider =
       readonly lasts?: RiderDuration;
       /** Whose roll it is about, where the sentence narrows it to one creature. */
       readonly counterpart?: CounterpartRole;
+    }
+  /**
+   * An Immunity the same roll grants, and — where the sentence says so — the
+   * silencing of a condition the creature already has.
+   *
+   * SRD Calm Emotions: "The creature has Immunity to the Charmed and
+   * Frightened conditions until the spell ends. If the creature was already
+   * Charmed or Frightened, those conditions are suppressed for the duration."
+   * One Charisma save gates it, so it is a rider like the rest; the
+   * `condition-immunity` effect it grants is the one SRD Mind Blank and SRD
+   * Heroism write with nothing rolled.
+   *
+   * **`suppressesHeld` is the second sentence and is opt-in**, because the
+   * book prints it once: an Immunity refuses a condition that has not landed,
+   * and this says the one that already has goes quiet rather than being ended
+   * — `suppressedConditions` reads the grant exactly as it reads SRD Aura of
+   * Courage's standing one, and the condition is there again the moment the
+   * casting ends, with nobody having to remember to put it back. Heroism's
+   * Immunity prints no such sentence and leaves it off.
+   *
+   * It is `immunity` and not `condition-immunity`, because a rider kind may
+   * never be an effect kind — `checkShape`'s denylist, and the reason `buff`'s
+   * rider is `bonus`. It carries no `lasts`, for `bonus`'s reason.
+   */
+  | {
+      readonly kind: 'immunity';
+      /** The conditions the sentence names, never empty. */
+      readonly conditions: readonly ConditionName[];
+      /** SRD Calm Emotions' "those conditions are suppressed for the duration". */
+      readonly suppressesHeld?: true;
+    }
+  /**
+   * A size the same roll moves by a category.
+   *
+   * SRD Enlarge/Reduce: "The target's size increases by one category — from
+   * Medium to Large, for example" and "decreases by one category". One
+   * Constitution save gates four clauses on each branch, so this is a rider
+   * like the modes and the die beside it, and writing the size as an effect of
+   * its own would roll a second save for one sentence.
+   *
+   * **A step, not a size**, and a sourced grant rather than a write:
+   * `GrantedSize` in `size.ts` is the Mask's twin over the other fact a
+   * creature is, `effectiveSizeOf` reads it over whatever size otherwise
+   * stood, and every door that ends a grant gives the size back. It carries no
+   * `lasts`, for `bonus`'s reason: the one sentence in reach runs for the
+   * casting's duration, and `checkGrantLifetimes` refuses it on an
+   * Instantaneous host rather than offering a deadline nothing asks for.
+   */
+  | {
+      readonly kind: 'size';
+      /** `1` for Enlarge, `-1` for Reduce; the book prints one category either way. */
+      readonly steps: 1 | -1;
     }
   /**
    * A Speed the same roll changes.
@@ -2329,14 +2434,12 @@ export type SpellEffect =
        * because Advantage cancels rather than stacks: a fought target who is
        * also Restrained rolls a normal save, and only a mode can say that.
        *
-       * **One outcome, because the book prints one here.** SRD Enthrall keys
-       * the same fact to an automatic *success* — "Any creature you or your
-       * companions are fighting automatically succeeds on this save" — and
-       * that is a second member with no definition able to write it:
-       * `checks.ts` carries `autoFail` and no `autoSucceed`, and Enthrall is
-       * blocked besides on a penalty narrowed to Wisdom (Perception) checks
-       * and to Passive Perception, which `BonusApplies` cannot name. A member
-       * arrives with its primitive and with the spell that writes it.
+       * **One outcome here, because the book prints one here.** SRD Enthrall
+       * keys the same fact to an automatic *success* — "Any creature you or
+       * your companions are fighting automatically succeeds on this save" —
+       * and that is {@link autoSucceedIf}'s `fought` member: the same stated
+       * fact, read by the same per-target test, overriding the total the way
+       * `autoSucceed` always has rather than moving the die.
        */
       readonly advantageIfFought?: true;
       /**
@@ -2418,6 +2521,21 @@ export type SpellEffect =
              * prints in this position.
              */
             readonly challengeRatingAbove: number;
+          }
+        | {
+            /**
+             * SRD Enthrall's "Any creature you or your companions are fighting
+             * automatically succeeds on this save."
+             *
+             * **The third member, and the third kind of fact**: a defence the
+             * target holds, a rating printed on its block, and now a fact only
+             * the table can declare — the same one {@link advantageIfFought}
+             * reads, stated once on `CastSpellRequest.fought` and refused
+             * unstated by `declaredFacts`, which `statesFoughtFact` widens to
+             * this member. Read per target, because "any creature you are
+             * fighting" is about each of them.
+             */
+            readonly fought: true;
           };
       /**
        * Write the verdict onto the casting, because the sentence says somebody
@@ -3361,6 +3479,18 @@ export type SpellEffect =
   | {
       readonly kind: 'weapon-rider';
       /**
+       * The rider rides the **Unarmed Strike** rather than a weapon.
+       *
+       * SRD Alter Self's Natural Weapons: "When you use your Unarmed Strike to
+       * deal damage with that new growth, it deals 1d6 damage … and you use
+       * your spellcasting ability modifier for the attack and damage rolls
+       * rather than using Strength." A rider is keyed to one weapon's id and a
+       * fist has none, so this says the casting names no weapon — the request
+       * is refused one — and `weaponRidersFor` answers for a swing with no
+       * weapon in it. Refused beside {@link weapons}, which names objects.
+       */
+      readonly unarmed?: true;
+      /**
        * The weapons the spell names, by catalogue id. Absent names any weapon.
        *
        * SRD Shillelagh prints "A **Club or Quarterstaff**", which is two
@@ -3447,6 +3577,29 @@ export type SpellEffect =
        * idea whose spell list the casting came off.
        */
       readonly castingAbility?: true;
+      /**
+       * The ability {@link castingAbility} names is **imposed** rather than
+       * offered.
+       *
+       * SRD Alter Self: "you use your spellcasting ability modifier for the
+       * attack and damage rolls **rather than** using Strength" — where SRD
+       * Shillelagh says "you **can** use". The difference is whether the
+       * attacker may decline, which `AttackOptions.imposedAbility` already
+       * draws for SRD True Strike; this puts a casting's rider on that side of
+       * it. Presupposes {@link castingAbility}.
+       */
+      readonly imposesAbility?: true;
+      /**
+       * A damage type the rider **imposes** on the blow, in place of its own.
+       *
+       * SRD Alter Self: "it deals 1d6 damage of the type in parentheses
+       * instead of dealing the normal damage for your Unarmed Strike" — the
+       * growth's type, chosen at the casting through `damageTypeStated` and
+       * substituted here, so a claw is Slashing on every swing. Refused beside
+       * {@link damageTypes}, which is the offer answered at the swing; one
+       * rider says one of the two.
+       */
+      readonly damageType?: string;
       /**
        * SRD Shillelagh: "If the attack deals damage, it can be **Force damage
        * or the weapon's normal damage type** (your choice)."
@@ -4068,15 +4221,18 @@ export type SpellArea =
       readonly includesOrigin?: true;
       /**
        * SRD Tiny Hut: "A 10-foot Emanation springs into existence around you
-       * and **remains stationary** for the duration."
+       * and **remains stationary** for the duration." SRD Speak with Plants:
+       * "an **immobile** 30-foot Emanation".
        *
        * An Emanation is measured from a creature and moves with them — SRD
-       * Spirit Guardians follows the cleric — and this is the one Emanation in
-       * the book that does not. The casting pins the caster's space at the
-       * cast as the record's `origin`, and `originOfArea` measures from that
-       * point ever after, so the dome stays where it rose when the wizard
-       * steps out of it — which is exactly the step that ends the spell.
-       * Absent is the glossary's reading and every other Emanation.
+       * Spirit Guardians follows the cleric — and these are the two in the
+       * book that do not. The casting pins the caster's square at the cast
+       * as the record's point (`area.at`), and `originOfArea` measures from
+       * it ever after, so the dome stays where it rose when the wizard steps
+       * out of it — which is exactly the step that ends the spell — and the
+       * ground a druid cleared stays cleared when the druid walks off. A
+       * caster nobody has placed has no square to pin and is asked. Absent
+       * is the glossary's reading and every other Emanation.
        */
       readonly stays?: true;
     }
@@ -4134,10 +4290,26 @@ export interface AreaTerrain {
    *
    * The floor is the glossary's own rate and the validator holds the
    * definition to it, because a spell that made the ground *cheaper* is a
-   * sentence the SRD does not print and a number below two would quietly
-   * charge less than open floor.
+   * sentence the SRD does not print — with one exception, which is
+   * {@link clears} and not a smaller number here. One of the two, never both.
    */
-  readonly costPerFoot: number;
+  readonly costPerFoot?: number;
+  /**
+   * SRD Speak with Plants: "turn Difficult Terrain caused by plant growth
+   * (such as thickets and undergrowth) into ordinary terrain that lasts for
+   * the duration."
+   *
+   * **The one sentence in the book that takes Difficult Terrain away**, and it
+   * is not a rate: the lattice takes the dearest rate lying over a space, by
+   * the book's own rule that Difficult Terrain is not cumulative, and a
+   * cheaper patch would simply lose. So this is a patch that **overrides** —
+   * `chargeAt` answers open floor for a space a clearing patch covers, whatever
+   * else lies there, the Mouther's carried ground and a declared thicket alike
+   * — and lapses with its casting as every patch does. That "caused by plant
+   * growth" is what the cleared ground was is the table's, as which ground is
+   * thicket always has been.
+   */
+  readonly clears?: true;
 }
 
 /**
@@ -4745,6 +4917,18 @@ export interface SpellOption {
    */
   readonly areaStanding?: readonly AreaStanding[];
   /**
+   * What this branch does to the ground under the spell's area, in place of
+   * {@link SpellDefinition.areaTerrain}.
+   *
+   * SRD Speak with Plants prints two directions over one Emanation — "turn
+   * Difficult Terrain … into ordinary terrain … Or … turn ordinary terrain …
+   * into Difficult Terrain" — and which is the caster's word, so it is a
+   * branch's field rather than the definition's. Read where the patch is
+   * pinned, off the branch the casting ran; presupposes an `area` exactly as
+   * the definition's field does.
+   */
+  readonly areaTerrain?: AreaTerrain;
+  /**
    * Printed text this branch hands to whoever is running the table — see
    * {@link SpellDefinition.dmDecides}, which is the same field one level up
    * and travels the same way.
@@ -4941,6 +5125,31 @@ export interface SpellDefinition {
    * overgrown, which is what its paragraph says.
    */
   readonly areaTerrain?: AreaTerrain;
+  /**
+   * An effect list a **DM's decision** fires, once, over the spell's area.
+   *
+   * SRD Glyph of Warding: "You decide what triggers the glyph when you cast
+   * the spell … When triggered, the glyph erupts with magical energy in a
+   * 20-foot-radius Sphere centered on the glyph. Each creature in the area
+   * makes a Dexterity saving throw … Once a glyph is triggered, this spell
+   * ends." The trigger is fiction the caster invented — a footfall, a book
+   * opened — and the engine holds nothing it could read it from, so whether it
+   * occurred is a decision the rules leave open: `triggerGlyph`, on the DM's
+   * door alone. Everything after the decision is the engine's.
+   *
+   * **Not an {@link AreaTrigger}**, whose clauses fire on moments the engine
+   * sees — a turn boundary, an entry. And **not a {@link SpellActivation}**,
+   * which the caster takes on a later turn and pays an action for; a glyph
+   * fires for a caster who may be a mile away, and nobody spends anything.
+   *
+   * Pinned onto the record at the casting with the stated damage type
+   * substituted, exactly as `areaTrigger` is, so the door opens no catalogue.
+   * Presupposes an `area` to erupt over and a record to be fired from, and
+   * the casting ends when it fires — "Once a glyph is triggered, this spell
+   * ends" is the one sentence of that shape, and it is the rule rather than a
+   * field.
+   */
+  readonly triggered?: TriggeredEffects;
   /**
    * What the area does to the **light** — see {@link AreaLight}.
    *
@@ -5173,6 +5382,26 @@ export interface SpellDefinition {
    * with no choice in it, written the long way round.
    */
   readonly options?: Readonly<Record<string, SpellOption>>;
+  /**
+   * The branch is chosen **for each creature** rather than once for the
+   * casting.
+   *
+   * SRD Calm Emotions: "must succeed on a Charisma saving throw or be affected
+   * by one of the following effects (**choose for each creature**)". Every
+   * other spell that prints branches chooses once — Command speaks one word,
+   * Enlarge/Reduce does one half — so `CastSpellRequest.option` is a word and
+   * `optionEffects` runs one list for everybody. This says the word is per
+   * creature: the request carries `optionByTarget`, one name per creature the
+   * casting catches, refused where a caught creature is unnamed or a named
+   * creature is uncaught, and each creature runs the common list and then its
+   * own branch. Presupposes {@link options}, and refused without it.
+   *
+   * **A declaration cannot carry it.** A held casting pins one word; a map
+   * keyed by creatures the area has not yet caught is a fact the settlement
+   * would have to ask again, so a casting of this shape is resolved in one
+   * breath or refused — the limit `options` already keeps for a readied one.
+   */
+  readonly optionPerTarget?: true;
   /**
    * How the individual dice of this spell's damage behave — see
    * {@link DieRule}.
@@ -5713,13 +5942,12 @@ export interface SpellDefinition {
  * why there is no `summon-drops-to-0`: SRD Unseen Servant prints it and its
  * stat block is a shape this engine does not have.
  *
- * **`target-attacks` is `attack-made`, which is the Attack action rather than
- * every attack roll.** The only thing that names the roller of an attack that
- * costs nothing — an Opportunity Attack, an attack outside combat — is
- * `roll-recorded`, and that event changes no state by rule, so nothing may
- * hang a consequence on it. What is reachable is recorded in Invisibility's
- * own `unmodelled`; a missed free swing is the whole of the residue, because
- * one that lands deals damage and `target-deals-damage` catches it.
+ * **`target-attacks` is every attack roll**, read off `roll-recorded.attackRoll`
+ * — the one structured fact that event carries, written by the weapon attack
+ * and the spell attack and by nothing else — beside `attack-made` for the
+ * logs written before the mark. An Opportunity Attack that misses, a swing
+ * outside any fight, a readied attack and Spiritual Weapon's later swing all
+ * name their roller there, which is what "makes an attack roll" asks.
  */
 export type CastingEndCause =
   /**
@@ -5973,6 +6201,19 @@ export interface SpellActivation {
    * sentence names.
    */
   readonly redirects?: true;
+  /**
+   * Whether this action **replaces the branch** the casting ran.
+   *
+   * SRD Alter Self: "you can take a Magic action to replace the option you
+   * chose with a different one." The word is named on the activation's
+   * request, refused where it is the one already running or one the spell
+   * does not print; `spell-option-changed` releases everything the casting
+   * hung on its caster and re-pins the word, and the new branch's effects
+   * run off the record's own numbers, on the caster. Presupposes
+   * `SpellDefinition.options`, carries an empty {@link effects} list — the
+   * effects are the branch's — and reaches nobody, so it takes no range.
+   */
+  readonly reoptions?: true;
   /**
    * Whether this action moves what the casting **already granted** onto a new
    * creature.
@@ -7007,6 +7248,43 @@ export function areaStandingFor(
   });
 }
 
+/**
+ * What a DM's decision sets off — see {@link SpellDefinition.triggered}.
+ *
+ * The same two fields an {@link AreaTrigger} carries for what it runs, and
+ * nothing of when: the when is the decision.
+ */
+export interface TriggeredEffects {
+  /** Run through the ordinary spell machinery at the level the casting was made with. */
+  readonly effects: readonly SpellEffect[];
+  /** How the roll reads in the log: "Glyph of Warding (the explosive rune)". */
+  readonly label: string;
+}
+
+/**
+ * The ground this casting changes, off the branch it ran or the definition.
+ *
+ * One reader for the three places that ask — whether a point must be pinned,
+ * where the region is derived and where the patch is written — so a branch's
+ * terrain reaches all three the day it is written. Null for the book's spells
+ * that leave the ground alone, which is nearly all of them.
+ */
+export function areaTerrainOf(
+  definition: SpellDefinition,
+  option: string | undefined,
+): AreaTerrain | null {
+  const branch = option === undefined ? undefined : definition.options?.[option];
+  return branch?.areaTerrain ?? definition.areaTerrain ?? null;
+}
+
+/** Whether any list this definition can run lays ground: the definition's or a branch's. */
+export function laysTerrain(definition: SpellDefinition): boolean {
+  return (
+    definition.areaTerrain !== undefined ||
+    Object.values(definition.options ?? {}).some((branch) => branch.areaTerrain !== undefined)
+  );
+}
+
 export function teleportOf(
   definition: SpellDefinition,
 ): Extract<SpellEffect, { kind: 'teleport' }> | null {
@@ -7472,7 +7750,12 @@ export function numbersRead(definition: SpellDefinition): NumbersRead {
  */
 export function statesFoughtFact(definition: SpellDefinition): boolean {
   return definition.effects.some(
-    (effect) => effect.kind === 'save' && effect.advantageIfFought === true,
+    (effect) =>
+      effect.kind === 'save' &&
+      // Two readers of one stated fact — SRD Charm Person's Advantage and SRD
+      // Enthrall's automatic success — and one question at the door.
+      (effect.advantageIfFought === true ||
+        (effect.autoSucceedIf !== undefined && 'fought' in effect.autoSucceedIf)),
   );
 }
 
@@ -7488,8 +7771,14 @@ export function statesFoughtFact(definition: SpellDefinition): boolean {
  * rather than leaving that to be discovered.
  */
 export function offersAnUnwillingSave(definition: SpellDefinition): boolean {
-  return definition.effects.some(
-    (effect) => effect.kind === 'save' && effect.unlessWilling === true,
+  // **The casting's own list and its branches**, for {@link dropsAnObject}'s
+  // reason: a branch resolves at the casting with the request in hand, and
+  // SRD Enlarge/Reduce prints one consent clause over two branches that each
+  // carry the save it gates. An area trigger's or an activation's list is
+  // still excluded, because those fire later off a record that holds no
+  // such fact.
+  return [definition.effects, ...optionEffectLists(definition)].some((effects) =>
+    effects.some((effect) => effect.kind === 'save' && effect.unlessWilling === true),
   );
 }
 

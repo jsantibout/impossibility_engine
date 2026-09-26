@@ -51,11 +51,14 @@ const LANDED: readonly (readonly [string, ShapeId, string])[] = [
   // the field, and a shape nothing is blocked on is one the guard deletes. So
   // the reading left by being **paid**, which is the one exit from this list
   // that is not a loss.
-  [
-    'enthrall',
-    'a-bonus-narrowed-to-a-skill',
-    'a −10 penalty to Wisdom (Perception) checks and Passive Perception',
-  ],
+  //
+  // **And Enthrall left the same way.** Its marker-less entry carried
+  // `a-bonus-narrowed-to-a-skill` — a −10 that reaches one skill and the
+  // passive score, in words no marker sees — until `autoSucceedIf.fought`
+  // read the fought fact as a success and `passivePerceptionOf` read the
+  // stored bonus at the passive end. The spell is executed, and the id moved
+  // to the item vocabulary for the one half a casting never had: a standing
+  // grant with no narrowing.
   [
     'flesh-to-stone',
     'an-automatic-success-by-creature-type',
@@ -82,11 +85,10 @@ const LANDED: readonly (readonly [string, ShapeId, string])[] = [
  * with it in hand.
  */
 const SINCE: readonly (readonly [string, ShapeId, string])[] = [
-  [
-    'calm-emotions',
-    'a-condition-a-spell-suppresses',
-    'those conditions are suppressed for the duration',
-  ],
+  // **Calm Emotions stood first here and has been paid**: the suppression is
+  // the `immunity` rider's `suppressesHeld`, read by `suppressedConditions`
+  // beside Aura of Courage's, and `a-condition-a-spell-suppresses` retired with
+  // its sole claimant — the exit this list is derived to be able to show.
   [
     'hallow',
     'a-cap-on-how-many-castings-run-at-once',
@@ -161,21 +163,18 @@ describe('a blocker no mechanical marker can see survives the spell being writte
     const retired = Object.keys(MISSING_SHAPES).filter((shape) => !narrowed.has(shape));
     expect(retired.sort()).toEqual(
       [
-        // **`a-bonus-narrowed-to-a-skill` came off this list by gaining a
-        // second claimant and is back on it by that claimant being paid**,
-        // which is the pair of exits this list is derived to be able to show.
-        // SRD Slow's −2 to Dexterity saving throws was the same missing
-        // selector on the same stored bonus and it was a sentence a marker can
-        // see; a `bonus` rider carries a `BonusNarrowing` now, Slow is
-        // executed, and that claim is gone. What is left of the shape is the
-        // *standing* side — `bard:jack-of-all-trades`' "a skill proficiency
-        // you lack" and Enthrall's Passive Perception — and Enthrall's
-        // reading is marker-less, so the counterfactual is once again that
-        // writing Enthrall under the old rule would retire a gap that is
-        // still real.
-        'a-bonus-narrowed-to-a-skill',
+        // **`a-bonus-narrowed-to-a-skill` is not here any more, and it left
+        // by every exit this list can show.** It came off by gaining a second
+        // claimant (SRD Slow), came back when that claimant was paid, and has
+        // now been paid itself: Enthrall is executed, and what is left of the
+        // shape is the standing side, which is an item's gap and lives in the
+        // item vocabulary. A spell shape nothing is blocked on is one the
+        // guard deletes, so there is no longer a shape here to retire.
         'a-cap-on-how-many-castings-run-at-once',
-        'a-condition-a-spell-suppresses',
+        // **`a-condition-a-spell-suppresses` came off this list by being
+        // built**, the same exit Spare the Dying's range took: Calm Emotions
+        // was its only claimant, `suppressesHeld` is the field, and a shape
+        // nothing is blocked on is one the guard deletes.
         // **`a-range-that-scales-with-caster-level` came off this list by being
         // built**, which is the third way an entry leaves and the only one
         // that is a payment rather than a reshuffle: Spare the Dying was its
@@ -214,20 +213,14 @@ describe('a blocker no mechanical marker can see survives the spell being writte
         // marker-less again, because a dispel is not a die.
       ].sort(),
     );
-    // All three the form landed with are in it, which is where it started:
-    // Enthrall's narrowed bonus left for a while by gaining a second claimant
-    // — the one way out of this list that makes a gap *more* claimed rather
-    // than less — and came back when that claimant was **paid**.
+    // What the form landed with is in it, less the one that was paid: Flesh
+    // to Stone's automatic success still holds its shape up, and Enthrall's
+    // narrowed bonus left this list twice — once by gaining a second claimant,
+    // the one way out that makes a gap *more* claimed rather than less, and
+    // finally by being built.
     for (const [, shape] of LANDED) {
       expect(retired, shape).toContain(shape);
     }
-    // Slow was that claimant, and it is gone from the shape entirely: a
-    // `bonus` rider carries a `BonusNarrowing` now, so the −2 reaches
-    // Dexterity saving throws and no others, and the spell has no
-    // adjudication left against this id. What the shape still wants is the
-    // *standing* side, which is Enthrall's marker-less reading and a Bard's
-    // "a skill proficiency you lack".
-    expect(consumersOf('a-bonus-narrowed-to-a-skill').executed).not.toContain('slow');
     expect(retired).not.toContain('a-choice-made-at-the-casting');
     // And the second departure, held down the same way: the shape has residue
     // and it is Sunburst's executed clause that now holds it up.
@@ -478,9 +471,9 @@ describe('the report tells a reading from a marker', () => {
     report.split('\n').find((line) => line.startsWith(`- **${name}** (`)) ?? '';
 
   it.each([
-    ['Enthrall'],
+    // Enthrall and Calm Emotions stood on this list and are executed now: an
+    // executed spell keeps no tracked bullet to mark.
     ['Flesh to Stone'],
-    ['Calm Emotions'],
     ['Hallow'],
   ])('marks %s’s bullet with the readings a marker could not demand', (name) => {
     expect(lineFor(name)).toMatch(/^- \*\*.+\*\* \(.+\) — \d+ noted, \d+ read$/);

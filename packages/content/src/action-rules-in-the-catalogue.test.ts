@@ -476,17 +476,19 @@ describe('Fear narrows a Frightened creature’s Action to the Dash', () => {
     return turnOf([...FIGHTING, ...cast], FOE);
   };
 
-  it('writes the rider the book prints, and keeps the two clauses it does not', () => {
+  it('writes the rider the book prints, and files nothing beside it', () => {
     const fear = defined('fear');
     const save = fear.effects[0];
     expect(save?.kind === 'save' ? save.modifiers : undefined).toEqual([
       { kind: 'action', rule: { kind: 'permits-only', slot: 'action', actions: ['dash'] } },
     ]);
-    expect(fear.unmodelled).toEqual([
-      'a creature that fails drops whatever it is holding',
-      'the Dash away from you by the safest route, and the "unless there is nowhere to move" it stops at, are the DM’s: the engine narrows the Action to the Dash and moves nobody',
-      'the Wisdom save a Frightened creature makes when it ends its turn out of your line of sight, which would end the spell on that creature',
-    ]);
+    // The two clauses this used to keep as debts are paid — the drop is
+    // `drops.all` and the out-of-sight save is a gated repeat — and the route,
+    // which was always the table's, goes out as a handover in the book's words.
+    expect(fear.unmodelled).toBeUndefined();
+    expect(save?.kind === 'save' ? save.drops : undefined).toEqual({ all: true });
+    expect(save?.kind === 'save' ? save.repeats?.onlyIf : undefined).toBe('cannot-see-caster');
+    expect(fear.dmDecides?.some((line) => line.includes('safest route'))).toBe(true);
   });
 
   it('refuses every other Action, naming the spell and the moment it ends', () => {

@@ -2534,6 +2534,17 @@ const CAST_SPELL = tool({
       .describe(
         'The creature types this casting is drawn against, for a spell that prints "choose one or more" of a list — Magic Circle’s Celestials, Elementals, Fey, Fiends, or Undead. One or more of the printed names. Leaving it out for such a spell is refused and comes back listing them; naming any for a spell that prints no such choice is refused too. Not `choice`, which is one value: this is a list.',
       ),
+    optionByTarget: z
+      .array(
+        z.strictObject({
+          target: creatureId,
+          option: z.string().min(1).describe('The branch this creature gets, by its key.'),
+        }),
+      )
+      .optional()
+      .describe(
+        'Which branch each creature runs, for the one spell that prints "(choose for each creature)" — Calm Emotions’ Immunity or indifference, chosen goblin by goblin. One entry per creature the casting catches: a caught creature left out is refused, and so is a creature the area did not reach. Refused on any spell that chooses once, where `option` is the word. Cannot be held: a declaration cannot record a choice for creatures it has not caught yet.',
+      ),
     fought: z
       .array(creatureId)
       .optional()
@@ -2679,6 +2690,16 @@ const CAST_SPELL = tool({
       ...(args.choice === undefined ? {} : { choice: args.choice }),
       ...(args.types === undefined ? {} : { types: args.types }),
       ...(args.option === undefined ? {} : { option: args.option }),
+      // A list of pairs on the wire and a map in the engine, for the reason
+      // `saveModes` is: a schema keyed by creature id could not say what a
+      // key is.
+      ...(args.optionByTarget === undefined
+        ? {}
+        : {
+            optionByTarget: Object.fromEntries(
+              args.optionByTarget.map((one) => [who(one.target), one.option]),
+            ),
+          }),
       // **An empty `fought` is an answer and is never elided.** "We are
       // fighting none of them" is a fact the caster stated; absence is a
       // caller who has not read the spell, and the engine tells the two
@@ -2862,6 +2883,13 @@ const ACTIVATE_SPELL = tool({
       .describe(
         'The 5-foot spaces the area crossed on the way, in order. Send it when an activation came back `route_required`: the same call again with this filled in is the whole of the answer. Each leg is settled where it happens, so a beam walked over three creatures is asked about all three.',
       ),
+    option: z
+      .string()
+      .min(1)
+      .optional()
+      .describe(
+        'The branch to run in place of the one running, for the one spell whose later Magic action replaces its option — Alter Self’s gills, appearance or claws. Refused for the branch already running, for one the spell does not print, and on any spell whose later action does not re-choose.',
+      ),
     altitude: z
       .number()
       .int()
@@ -2902,6 +2930,7 @@ const ACTIVATE_SPELL = tool({
           ...(args.to === undefined ? {} : { to: point(args.to) }),
           ...(args.via === undefined ? {} : { via: args.via.map(point) }),
           ...(args.altitude === undefined ? {} : { altitude: args.altitude }),
+          ...(args.option === undefined ? {} : { option: args.option }),
           ...(towards.value === undefined ? {} : { towards: towards.value }),
           ...identity(context),
         },

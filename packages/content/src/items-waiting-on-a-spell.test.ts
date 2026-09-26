@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { SPELL_DEFINITIONS, SRD_CONTENT } from '@ie/content';
 import { isExecuted } from '../scripts/coverage-data.js';
+import { SPELL_DEFINITIONS, SRD_CONTENT } from '@ie/content';
 import { asCharacterId, isErr, expect as unwrap, type CharacterId } from '@ie/shared';
 import type { CatalogueItem, CharacterSheet, Content } from '@ie/engine';
 import {
@@ -198,7 +198,9 @@ const castFrom = (
  */
 const WRITTEN: Readonly<Record<string, 'tracked' | 'executed'>> = {
   'detect-thoughts': 'tracked',
-  'enlarge-reduce': 'tracked',
+  // Both halves whole now: the size as a sourced grant, the modes, the die and
+  // the penalty, and the save offered to the unwilling alone.
+  'enlarge-reduce': 'executed',
   etherealness: 'tracked',
   'gaseous-form': 'executed',
   gate: 'tracked',
@@ -230,6 +232,10 @@ describe('the spells the eighteen items were waiting for', () => {
       // is the copy `isExecuted`'s own docstring warns about: SRD Tiny Hut has
       // no effect in its list and is executed through what its Emanation does
       // to whoever stands in it.
+      // Through the catalogue's own classifier rather than the common list's
+      // length: SRD Enlarge/Reduce carries every clause in its two branches and
+      // an empty common list, which is the rule `SpellDefinition.options`
+      // states and not a spell that does nothing.
       expect(isExecuted(definition!) ? 'executed' : 'tracked', `${spellId} is ${bucket}`).toBe(
         bucket,
       );
@@ -978,8 +984,11 @@ describe('three potions confer a spell’s effects without casting it', () => {
       ]).creatures[BEARER]?.rollModifiers,
     ).toEqual([]);
 
-    // And the spell itself stays tracked, because neither branch can be written.
+    // And the spell itself is executed now: both branches carry their four
+    // clauses on the save that gates them, so the common list is still empty
+    // — the rule `SpellDefinition.options` states — and the branches are not.
     expect(SRD_CONTENT.spell('enlarge-reduce')?.effects).toEqual([]);
+    expect((SRD_CONTENT.spell('enlarge-reduce')?.options?.['enlarge']?.effects ?? []).length).toBeGreaterThan(0);
   });
 
   /**

@@ -39,6 +39,7 @@ import type {
 } from './attack.js';
 import type { DeniedBenefit, GrantedConditionImmunity } from './conditions.js';
 import type { GrantedCreatureType } from './creature-type.js';
+import type { GrantedSize } from './size.js';
 import type { CreatureHazard, HazardName } from './hazards.js';
 import type { D20TestResult } from './checks.js';
 import type { GrantedDamageReduction } from './damage-reduction.js';
@@ -762,6 +763,22 @@ export type GameEvent =
       readonly type: 'creature-type-masked';
       readonly id: CharacterId;
       readonly mask: GrantedCreatureType;
+      readonly command?: CommandStamp;
+    }
+  /**
+   * A running effect has moved a creature's size by a category.
+   *
+   * SRD Enlarge/Reduce: "The target's size increases by one category — from
+   * Medium to Large, for example." The Mask's twin, one event over: a sourced
+   * grant in the family `grantsOf` enumerates, hung on the creature and given
+   * back through every door the other grants use, rather than a write to the
+   * size the creature was stated with. The step is pinned rather than the size,
+   * because the book prints a step and the fold opens no catalogue.
+   */
+  | {
+      readonly type: 'size-overridden';
+      readonly id: CharacterId;
+      readonly size: GrantedSize;
       readonly command?: CommandStamp;
     }
 
@@ -2043,6 +2060,22 @@ export type GameEvent =
       readonly command?: CommandStamp;
     }
   /**
+   * An ongoing spell now runs a different one of its printed branches.
+   *
+   * SRD Alter Self: "you can take a Magic action to replace the option you
+   * chose with a different one." One event, two things, because the book
+   * prints them as one act: every grant this casting hung on its caster is
+   * released — the claws go — and `OngoingSpell.option` is re-pinned, so a
+   * later use reads the word now spoken. What the new branch hangs is its own
+   * events, written beside this one by `activateSpell`.
+   */
+  | {
+      readonly type: 'spell-option-changed';
+      readonly castingId: string;
+      readonly option: string;
+      readonly command?: CommandStamp;
+    }
+  /**
    * The point an ongoing spell holds is now somewhere else.
    *
    * SRD Spiritual Weapon: "you can move the force up to 20 feet". Resolved
@@ -3216,6 +3249,8 @@ export type GameEvent =
       readonly patch: string;
       readonly region: TerrainRegion;
       readonly costPerFoot: number;
+      /** A patch that makes the ground ordinary — see `DifficultPatch.clears`. Additive; absent everywhere before it. */
+      readonly clears?: true;
       readonly source?: string;
       readonly command?: CommandStamp;
     }
@@ -3337,6 +3372,29 @@ export type GameEvent =
       readonly modes?: readonly ModeSource[];
       /** How it came out, in the caller's own words. */
       readonly outcome?: string;
+      /**
+       * This roll was an **attack roll**: a d20 thrown at an Armour Class.
+       *
+       * SRD Invisibility and SRD Potion of Invisibility end "immediately after
+       * the target makes an attack roll" — the roll, and not the action that
+       * paid for it. `attack-made` is the Attack action and is written only
+       * where one is spent, so an Opportunity Attack, a readied swing and any
+       * attack outside a fight named their roller nowhere but here, and a
+       * free swing that missed left the spell running. This is the structured
+       * fact `fold/endings.ts` reads for `target-attacks`; the label beside
+       * it is prose and is read by nothing.
+       *
+       * **The one consequence this event carries, and it is about the roll
+       * having been made rather than about what it came to.** The rule that
+       * `roll-recorded` changes no state stands for every other reader: a hit
+       * is `attack-landed`, damage is `damage-taken`, and nothing here says
+       * whether the die did anything. Written by the two rollers that throw
+       * one — the weapon attack and the spell attack — and by nothing else,
+       * so a save, a check and an Initiative roll never carry it. **Additive
+       * and absent from every roll written before it**, so the frozen
+       * fixtures fold to the bytes they always did.
+       */
+      readonly attackRoll?: true;
       /**
        * Where the roll came from, when it was not this engine.
        *

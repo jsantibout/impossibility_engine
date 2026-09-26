@@ -997,6 +997,9 @@ const ANSWERS: Readonly<Record<string, Answer>> = {
   // readied casting chooses its creatures at the release rather than at the
   // Ready, so the split is stated there too.
   missing_roll_count: { fields: ['cast_spell.rollsAt', 'release_ready.rollsAt'] },
+  // SRD Calm Emotions' "(choose for each creature)": one branch per caught
+  // creature, answered as a list of pairs on the one door that casts.
+  option_by_target_required: { fields: ['cast_spell.optionByTarget'] },
 
   // — and two that are not a caller's to answer at all —————————————————————
   missing_field: {

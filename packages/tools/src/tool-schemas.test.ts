@@ -168,8 +168,9 @@ describe('toolSchemas', () => {
     // and the pins are the sum of them all.
     // And four more on each for the second-place track, plus two on the DM's
     // alone — see the pin below.
+    // And one more on the DM's alone for the compulsions track, `trigger_glyph`.
     expect(toolSchemas(player())).toHaveLength(91);
-    expect(toolSchemas(dm())).toHaveLength(116);
+    expect(toolSchemas(dm())).toHaveLength(117);
     // Re-pinned 2026-09-24 for the printed-lines track, which opened one door
     // on the DM's surface alone: `teleport_printed_line` takes the teleport a
     // stat block prints, at the distance the block prints, to a space the DM
@@ -270,10 +271,20 @@ describe('toolSchemas', () => {
     // of the creatures it holds is the frog's decision) and
     // `shift_plane_printed_line` (the Phase Spider's jaunt, the Nightmare's
     // stride, the Ghost's Etherealness, out and back by one line).
+    // And again for the compulsions track: `cast_spell.optionByTarget`, the
+    // branch per creature SRD Calm Emotions' "(choose for each creature)"
+    // asks for — one field on a tool both doors publish, so both lengths move
+    // by the same 769 bytes and no tool count moves.
+    // And one door on the DM's surface alone: `trigger_glyph`, the decision
+    // that a glyph's invented trigger has occurred — a caster does not decide
+    // whether the thief stepped on their own rune, so a model playing holds
+    // no such door. One tool on one surface; the model's pins do not move.
+    // And `activate_spell.option`, the word a re-choosing Magic action speaks —
+    // SRD Alter Self — on a tool both doors publish: 340 bytes each.
     expect(toolSchemas(player())).toHaveLength(91);
-    expect(toolSchemas(dm())).toHaveLength(116);
-    expect(JSON.stringify(toolSchemas(player())).length).toBe(137443);
-    expect(JSON.stringify(toolSchemas(dm())).length).toBe(178761);
+    expect(toolSchemas(dm())).toHaveLength(117);
+    expect(JSON.stringify(toolSchemas(player())).length).toBe(138552);
+    expect(JSON.stringify(toolSchemas(dm())).length).toBe(180707);
   });
 });
 

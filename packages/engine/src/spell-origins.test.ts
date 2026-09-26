@@ -1178,6 +1178,9 @@ describe('a definition says where its reach is measured from, once', () => {
         d.activation !== undefined &&
         d.activation.movesArea === undefined &&
         d.activation.redirects !== true &&
+        // A re-choosing action changes its caster and reaches nobody — SRD
+        // Alter Self — so it takes no range, as a mover takes none.
+        d.activation.reoptions !== true &&
         d.origin === undefined &&
         d.activation.range === undefined,
     );

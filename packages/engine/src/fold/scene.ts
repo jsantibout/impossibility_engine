@@ -115,6 +115,7 @@ export function applyScene({ state, next }: Applying, event: SceneEvent): GameSt
             event.region,
             event.costPerFoot,
             event.source,
+            event.clears,
           ),
         ),
       };

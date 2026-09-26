@@ -853,7 +853,9 @@ describe('every member of the change vocabulary has a user or a written reason',
     // SRD Spider Climb, "a Climb Speed equal to its Speed" — the member that
     // exists because the number is the target's own and no definition could
     // print it.
-    expect(usedBy('match-walk')).toEqual(['spider-climb']);
+    // And SRD Alter Self's "a Swim Speed equal to your Speed", the sentence the
+    // member's own docstring named, written the day the spell was.
+    expect(usedBy('match-walk')).toEqual(['alter-self', 'spider-climb']);
     // SRD Spirit Guardians, "Any other creature's Speed is halved in the
     // Emanation" — written as `areaStanding` rather than as an effect, because
     // it is derived from where a creature stands and granted to nobody.

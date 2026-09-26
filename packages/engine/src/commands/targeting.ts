@@ -482,6 +482,17 @@ export interface CastSpellRequest extends CommandIdentity {
    */
   readonly option?: string;
   /**
+   * Which branch each creature runs, for a spell that chooses per creature.
+   *
+   * SRD Calm Emotions' "(choose for each creature)" — see
+   * `SpellDefinition.optionPerTarget`. Keyed by creature id, one branch name
+   * each, over exactly the creatures the casting catches: a caught creature
+   * left out is refused, and so is a name for one the area did not reach,
+   * because a silent default would be the engine choosing. Refused outright
+   * on a spell that chooses once, where {@link option} is the word.
+   */
+  readonly optionByTarget?: Readonly<Record<string, string>>;
+  /**
    * Which creatures the caster or their allies are fighting.
    *
    * SRD Charm Person: "One Humanoid you can see within range makes a Wisdom
@@ -1318,7 +1329,10 @@ export function declaredFacts(
   // list names, one the target actually has — is read off the catalogue, and
   // this function holds no content. `resolveSpell`'s pre-flight is where those
   // are asked, beside the teleport destination's, and for the same reason.
-  if (weaponRiderOf(definition) !== null) {
+  // **A rider on the fist names no weapon** — SRD Alter Self's claws — and
+  // a casting that named one for it is refused as any weaponless spell is.
+  const imbuesAnObject = weaponRiderOf(definition)?.unarmed !== true && weaponRiderOf(definition) !== null;
+  if (imbuesAnObject) {
     if (request.weapon === undefined) {
       return err(
         'weapon_required',
@@ -1390,7 +1404,42 @@ export function declaredFacts(
   // and the engine makes neither — speaking Approach because it is printed
   // first would be the engine answering "Choose the command" for ever.
   const branches = definition.options;
-  if (branches === undefined) {
+  // **And whether the word is one or one per creature.** SRD Calm Emotions
+  // prints "(choose for each creature)", so its request carries a map and no
+  // word; every other spell with branches carries a word and no map. Which
+  // creatures the map must cover is checked where the targets are settled —
+  // `perTargetOptionProblem` — because an area's caught list does not exist
+  // yet here; what this door refuses is the wrong *shape* of answer, and a
+  // branch name the spell does not print.
+  if (definition.optionPerTarget !== true && request.optionByTarget !== undefined) {
+    return err(
+      'no_per_target_option_clause',
+      `${definition.name} chooses its branch once for the whole casting; a branch per creature is not a fact it asks for`,
+    );
+  }
+  if (branches !== undefined && definition.optionPerTarget === true) {
+    if (request.option !== undefined) {
+      return err(
+        'option_per_target',
+        `${definition.name} chooses for each creature, so one word for the whole casting is not how it is asked; name a branch per creature`,
+      );
+    }
+    if (request.optionByTarget === undefined) {
+      return err(
+        'option_by_target_required',
+        `${definition.name} prints ${Object.keys(branches).sort().map((key) => branches[key]!.label).join(', ')} and chooses for each creature; name which each caught creature gets`,
+      );
+    }
+    const names = Object.keys(branches).sort();
+    for (const [who, named] of Object.entries(request.optionByTarget)) {
+      if (!names.includes(named)) {
+        return err(
+          'unknown_option',
+          `${definition.name} prints ${names.join(', ')}, not ${named} (named for ${who})`,
+        );
+      }
+    }
+  } else if (branches === undefined) {
     if (request.option !== undefined) {
       return err(
         'no_option_clause',
@@ -1504,7 +1553,20 @@ export function declaredFacts(
   // the spell and the option print one, the spell's is the narrower question
   // and answers first: a Chromatic Orb already offers its caster the choice and
   // the option has bought nothing it did not have.
-  const types = definition.damageTypeStated ?? bought.restatesDamageType?.among;
+  // **And which branch was named decides whether the type is asked for**, the
+  // rule the choice above already keeps: SRD Alter Self prints its growths
+  // inside Natural Weapons alone — "claws (Slashing), fangs (Piercing) …" — and
+  // a caster choosing gills is asked nothing. The test is the same one the
+  // choice uses: does the list this casting actually runs hold a slot.
+  const typeReaches =
+    definition.damageTypeStated === undefined ||
+    definition.options === undefined ||
+    optionEffects(definition, request.option).some(
+      (effect) => 'damageType' in effect && effect.damageType !== undefined,
+    );
+  const types = typeReaches
+    ? (definition.damageTypeStated ?? bought.restatesDamageType?.among)
+    : bought.restatesDamageType?.among;
   if (types === undefined) {
     if (request.damageType !== undefined) {
       return err(

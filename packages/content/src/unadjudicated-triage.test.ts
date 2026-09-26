@@ -84,7 +84,6 @@ const FILED: Readonly<Record<string, readonly string[]>> = {
   // door is not in state — and the four printed sentences are handed over.
   knock: [],
   nondetection: ['an-effect-that-suppresses-other-magic'],
-  'speak-with-plants': ['difficult-terrain-an-area-creates'],
 };
 
 /**
@@ -242,6 +241,9 @@ const EXECUTES: readonly string[] = [
   // when the spell ends are the `elsewhere` effect, and what is left for the
   // table is the rope and the portal as things.
   'rope-trick',
+  // Both directions of ground are written — `AreaTerrain.clears` and a branch's
+  // own terrain over an immobile Emanation — so the debt this list filed is paid.
+  'speak-with-plants',
 ];
 
 /**

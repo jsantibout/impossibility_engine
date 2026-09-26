@@ -1563,6 +1563,7 @@ function checkSaveCastingRepeat(
   }
 
   checkDamageTrigger(repeats.alsoWhenDamaged, at, found);
+  checkRepeatGate(repeats.onlyIf, at, found);
 
   if (repeats.beforeTheSave !== undefined) {
     found.push({
@@ -1579,6 +1580,82 @@ function checkSaveCastingRepeat(
       code: 'deepening_without_a_condition',
       reason:
         'a failure deepens the condition the first save imposed, and this failure imposes none; SRD writes "on a failed save, the spell continues", which is a repeat with no failure branch',
+    });
+  }
+}
+
+/**
+ * The gate a repeat save may carry — see `SpellRepeatSave.onlyIf`.
+ *
+ * One value, because the book prints one sentence of this shape: SRD Fear's
+ * "doesn't have line of sight to you". Anything else is a gate the fold has
+ * no reader for, and a definition writing one would promise a save no
+ * boundary would ever withhold.
+ */
+function checkRepeatGate(gate: unknown, at: string, found: SpellDefinitionProblem[]): void {
+  if (gate === undefined || gate === 'cannot-see-caster') return;
+  found.push({
+    field: `${at}.onlyIf`,
+    code: 'bad_repeat_gate',
+    reason: `"${String(gate)}" is not a fact a turn boundary can read before owing a save; the one the book prints is "cannot-see-caster"`,
+  });
+}
+
+/**
+ * Ground an area changes, at the definition's path or a branch's.
+ *
+ * One rate or the override, never both and never neither: SRD Speak with
+ * Plants prints the override once, and every other writer prints a rate. The
+ * floor is the pure function's own — see `declareDifficultPatch`, which the
+ * fold calls on the event this definition will write.
+ */
+function checkAreaTerrain(
+  terrain: unknown,
+  path: string,
+  hasArea: boolean,
+  found: SpellDefinitionProblem[],
+): void {
+  if (!hasArea) {
+    found.push({
+      field: path,
+      code: 'terrain_without_area',
+      reason:
+        'ground a spell makes expensive is the ground under its area; a spell with no volume covers no ground',
+    });
+  }
+  if (
+    !readsAsObject(
+      terrain,
+      path,
+      'terrain an area creates is an object naming what a foot of that ground costs, or that it clears',
+      found,
+    )
+  ) {
+    return;
+  }
+  const { costPerFoot: rate, clears } = terrain as { costPerFoot?: unknown; clears?: unknown };
+  if (clears !== undefined) {
+    if (clears !== true) {
+      found.push({
+        field: `${path}.clears`,
+        code: 'malformed_field',
+        reason: 'a patch clears the ground or it does not; the only value is true',
+      });
+    }
+    if (rate !== undefined) {
+      found.push({
+        field: `${path}.costPerFoot`,
+        code: 'terrain_clears_and_charges',
+        reason: 'ground made ordinary has no rate of its own; name the rate or the clearing, not both',
+      });
+    }
+    return;
+  }
+  if (!Number.isInteger(rate) || (rate as number) < DIFFICULT_TERRAIN) {
+    found.push({
+      field: `${path}.costPerFoot`,
+      code: 'bad_terrain_cost',
+      reason: `${String(rate)} feet per foot is not Difficult Terrain; the glossary's rate is ${DIFFICULT_TERRAIN} and a spell that prints its own prints a larger whole number`,
     });
   }
 }
@@ -1644,6 +1721,7 @@ function checkConditionRider(
   }
 
   checkDamageTrigger(rider?.repeats?.alsoWhenDamaged, `${riderPath}.repeats`, found);
+  checkRepeatGate(rider?.repeats?.onlyIf, `${riderPath}.repeats`, found);
 
   // **A check that ends the casting needs one the rider has not disowned**
   // (SRD Ensnaring Strike's "On a success, the spell ends"). `outlivesCasting`
@@ -2331,6 +2409,30 @@ function checkModifierRider(
   path: string,
   found: SpellDefinitionProblem[],
 ): void {
+  // SRD Calm Emotions' Immunity, reached from a settled save: the same list of
+  // glossary names the effect kind is held to, never empty, and the one flag
+  // the second sentence prints.
+  if (rider?.kind === 'immunity') {
+    if (!Array.isArray(rider.conditions) || rider.conditions.length === 0) {
+      found.push({
+        field: `${path}.conditions`,
+        code: 'immunity_to_nothing',
+        reason: 'an Immunity names the conditions it refuses, and this one names none',
+      });
+    } else {
+      rider.conditions.forEach((name, i) =>
+        checkCondition(String(name), `${path}.conditions[${i}]`, found),
+      );
+    }
+    if (rider.suppressesHeld !== undefined && rider.suppressesHeld !== true) {
+      found.push({
+        field: `${path}.suppressesHeld`,
+        code: 'malformed_field',
+        reason: 'a spell either silences the condition already held or does not; the only value is true',
+      });
+    }
+    return;
+  }
   if (rider?.kind === 'bonus') {
     checkBonusGrant(rider.bonus, rider.applies, path, found, rider.only);
     return;
@@ -2351,7 +2453,48 @@ function checkModifierRider(
         reason: `"${String(rider.dice)}" is not dice notation`,
       });
     }
-    checkDamageType(rider.damageType, `${path}.damageType`, found);
+    // Absent is the blow's own type — SRD Enlarge/Reduce prints none — and a
+    // type that is printed is held to the glossary's list as every type is.
+    if (rider.damageType !== undefined) {
+      checkDamageType(rider.damageType, `${path}.damageType`, found);
+    }
+    if (rider.weaponOrUnarmedOnly !== undefined && rider.weaponOrUnarmedOnly !== true) {
+      found.push({
+        field: `${path}.weaponOrUnarmedOnly`,
+        code: 'malformed_field',
+        reason: 'a rider reaches weapons and Unarmed Strikes alone or it does not; the only value is true',
+      });
+    }
+    if (rider.by !== undefined && rider.by !== 'target') {
+      found.push({
+        field: `${path}.by`,
+        code: 'bad_blow_owner',
+        reason: `"${String(rider.by)}" is not a subject the book prints; a later blow is the caster's (absent) or the target's ("target")`,
+      });
+    }
+    // **And a die on the target's own blows that also reaches spells is a
+    // sentence the book does not print**: SRD Bestow Curse's "or a spell" is
+    // about the caster's spells, and a target's Fireball taking an Enlarge die
+    // would be the engine widening a clause on its own.
+    if (rider.by === 'target' && rider.alsoSpells === true) {
+      found.push({
+        field: `${path}.alsoSpells`,
+        code: 'target_blow_reaches_spells',
+        reason: 'a die on the target\'s own blows rides its weapon and Unarmed Strike attacks; no sentence in the book puts one on the target\'s spells',
+      });
+    }
+    return;
+  }
+  // SRD Enlarge/Reduce's one category, either way: the step is the whole of
+  // the rider, and the book prints one.
+  if (rider?.kind === 'size') {
+    if (rider.steps !== 1 && rider.steps !== -1) {
+      found.push({
+        field: `${path}.steps`,
+        code: 'bad_size_step',
+        reason: `a size moves by one category up (1) or down (-1); the book prints no other step, and "${String(rider.steps)}" is not one`,
+      });
+    }
     return;
   }
   if (rider?.kind === 'mode') {
@@ -2476,7 +2619,7 @@ function checkModifierRider(
   found.push({
     field: `${path}.kind`,
     code: 'unknown_modifier_rider',
-    reason: `"${String((rider as { kind?: unknown } | undefined)?.kind)}" is not a grant a rider carries; a rider adds a bonus, takes an amount off the damage its target deals, grants a mode, changes a Speed, changes what a turn permits, changes what healing does, or denies a condition's benefit`,
+    reason: `"${String((rider as { kind?: unknown } | undefined)?.kind)}" is not a grant a rider carries; a rider adds a bonus, takes an amount off the damage its target deals, hangs extra damage on the caster's later blows, grants a mode, changes a Speed, grants an Immunity, moves a size by a category, changes what a turn permits, changes what healing does, or denies a condition's benefit`,
   });
 }
 
@@ -3420,13 +3563,26 @@ function checkEffect(
         const named = (spares as { readonly immuneTo?: unknown })?.immuneTo;
         const rating = (spares as { readonly challengeRatingAbove?: unknown })
           ?.challengeRatingAbove;
-        if (named !== undefined && rating !== undefined) {
+        // **Or SRD Enthrall's fought fact**, the third member: stated at the
+        // casting rather than read off the creature, and `true` is the only
+        // thing it can say — the fact itself lives on the request.
+        const fought = (spares as { readonly fought?: unknown })?.fought;
+        const members = [named, rating, fought].filter((one) => one !== undefined).length;
+        if (members > 1) {
           found.push({
             field: `${path}.autoSucceedIf`,
             code: 'two_reasons_to_spare',
             reason:
-              'a save is spared by a defence the target holds or by what the target is, and the book writes one sentence per spell; name the condition or the Challenge Rating, not both',
+              'a save is spared by a defence the target holds, by what the target is, or by whom the caster is fighting, and the book writes one sentence per spell; name one of the three',
           });
+        } else if (fought !== undefined) {
+          if (fought !== true) {
+            found.push({
+              field: `${path}.autoSucceedIf.fought`,
+              code: 'bad_fought_flag',
+              reason: `"${String(fought)}" is not the flag; the fact is stated on the request, and this says only that the save reads it`,
+            });
+          }
         } else if (rating !== undefined) {
           if (typeof rating !== 'number' || !Number.isFinite(rating) || rating < 0) {
             found.push({
@@ -4401,11 +4557,45 @@ function checkEffect(
     // notation reaches a grant in the log and is rolled a minute later, where
     // a refusal has nowhere to go.
     case 'weapon-rider': {
+      // SRD Alter Self's claws: a rider on the fist names no object, imposes
+      // where Shillelagh offers, and says one thing about the type.
+      if (effect.unarmed !== undefined && effect.unarmed !== true) {
+        found.push({
+          field: `${path}.unarmed`,
+          code: 'malformed_field',
+          reason: 'a rider rides the Unarmed Strike or a weapon; the only value is true',
+        });
+      }
+      if (effect.unarmed === true && effect.weapons !== undefined) {
+        found.push({
+          field: `${path}.weapons`,
+          code: 'unarmed_names_weapons',
+          reason: 'a rider on the Unarmed Strike names no weapon, and this one names some',
+        });
+      }
+      if (effect.imposesAbility !== undefined && effect.castingAbility !== true) {
+        found.push({
+          field: `${path}.imposesAbility`,
+          code: 'imposes_no_ability',
+          reason: 'an ability is imposed only where one is named; set castingAbility beside it',
+        });
+      }
+      if (effect.damageType !== undefined) {
+        checkDamageType(effect.damageType, `${path}.damageType`, found);
+        if (effect.damageTypes !== undefined) {
+          found.push({
+            field: `${path}.damageType`,
+            code: 'two_type_clauses',
+            reason: 'a rider imposes a type or offers a choice of them, never both',
+          });
+        }
+      }
       if (
         effect.bonus === undefined &&
         effect.die === undefined &&
         effect.castingAbility !== true &&
-        effect.damageTypes === undefined
+        effect.damageTypes === undefined &&
+        effect.damageType === undefined
       ) {
         found.push({
           field: path,
@@ -5303,6 +5493,17 @@ function grantCarried(effect: SpellEffect): string | null {
             return 'an amount taken off the damage the target deals';
           case 'later-blow':
             return 'extra damage on the caster’s later blows';
+          // The Mask's twin, and it carries no deadline of its own for the
+          // reason `bonus` carries none: SRD Enlarge/Reduce runs for the
+          // casting's duration, and an Instantaneous casting would leave a
+          // fighter Large with nothing able to shrink them back.
+          case 'size':
+            return 'a size moved by a category';
+          // SRD Calm Emotions' "until the spell ends": the casting's own
+          // duration, and an Instantaneous one would make a creature immune
+          // for ever.
+          case 'immunity':
+            return 'an Immunity';
           case 'mode':
             // The third rider with an escape of its own, and it arrived with
             // SRD Vicious Mockery: a Disadvantage on "the next attack roll it
@@ -5404,6 +5605,10 @@ function grantOnASuccess(effect: SpellEffect): string | null {
           return 'an amount taken off the damage the target deals';
         case 'later-blow':
           return 'extra damage on the caster’s later blows';
+        case 'size':
+          return 'a size moved by a category';
+        case 'immunity':
+          return 'an Immunity';
         case 'mode':
           if (rider.lasts === undefined) return 'a granted Advantage or Disadvantage';
           break;
@@ -5895,35 +6100,85 @@ export function checkSpellDefinition(
   }
 
   if (definition.areaTerrain !== undefined) {
-    if (definition.area === undefined) {
-      found.push({
-        field: 'areaTerrain',
-        code: 'terrain_without_area',
-        reason:
-          'ground a spell makes expensive is the ground under its area; a spell with no volume covers no ground',
-      });
-    }
+    checkAreaTerrain(definition.areaTerrain, 'areaTerrain', definition.area !== undefined, found);
+  }
+  // SRD Glyph of Warding's rune: fired by a decision over the spell's area,
+  // off a record — so it needs both, and a list with a label like an area
+  // trigger's. The effects themselves are walked by `effectLists`.
+  if (definition.triggered !== undefined) {
     if (
       readsAsObject(
-        definition.areaTerrain,
-        'areaTerrain',
-        'terrain an area creates is an object naming what a foot of that ground costs',
+        definition.triggered,
+        'triggered',
+        'what a decision sets off is an object naming the effects it runs and how the roll reads',
         found,
       )
     ) {
-      const rate = definition.areaTerrain.costPerFoot;
-      // **The pure function's own rule, from the same constant.** A second
-      // spelling of the floor here would be a second chance to disagree with
-      // `declareDifficultPatch`, which the fold calls on the event this
-      // definition will write — and a definition it let through would throw
-      // in the reducer rather than be refused at authoring.
-      if (!Number.isInteger(rate) || rate < DIFFICULT_TERRAIN) {
+      if (definition.area === undefined) {
         found.push({
-          field: 'areaTerrain.costPerFoot',
-          code: 'bad_terrain_cost',
-          reason: `${String(rate)} feet per foot is not Difficult Terrain; the glossary's rate is ${DIFFICULT_TERRAIN} and a spell that prints its own prints a larger whole number`,
+          field: 'triggered',
+          code: 'trigger_without_area',
+          reason: 'a rune erupts over the spell’s area, and this spell has none',
         });
       }
+      if (!castingPersists(definition)) {
+        found.push({
+          field: 'triggered',
+          code: 'trigger_without_record',
+          reason: 'a decision fires what a record holds, and an Instantaneous casting leaves none to fire',
+        });
+      }
+      if (!Array.isArray(definition.triggered.effects) || definition.triggered.effects.length === 0) {
+        found.push({
+          field: 'triggered.effects',
+          code: 'trigger_fires_nothing',
+          reason: 'a rune that erupts with nothing is a decision with no consequence; name what it runs',
+        });
+      }
+      if (typeof definition.triggered.label !== 'string' || definition.triggered.label.trim().length === 0) {
+        found.push({
+          field: 'triggered.label',
+          code: 'missing_field',
+          reason: 'the roll reads by a label, as an area trigger’s does',
+        });
+      }
+    }
+  }
+  // **And a branch's ground**, held to the same rules at its own path — SRD
+  // Speak with Plants prints two directions over one Emanation and the branch
+  // says which. The definition's `area` is what both read.
+  for (const key of Object.keys(definition.options ?? {}).sort()) {
+    const branch = definition.options?.[key];
+    if (branch !== undefined && typeof branch === 'object' && branch.areaTerrain !== undefined) {
+      checkAreaTerrain(
+        branch.areaTerrain,
+        `options.${key}.areaTerrain`,
+        definition.area !== undefined,
+        found,
+      );
+    }
+  }
+  // SRD Tiny Hut's "remains stationary" and SRD Speak with Plants' "immobile":
+  // `stays`, a word about an Emanation and nothing else.
+  if (
+    definition.area !== undefined &&
+    definition.area !== null &&
+    typeof definition.area === 'object' &&
+    (definition.area as { readonly stays?: unknown }).stays !== undefined
+  ) {
+    const stays = (definition.area as { readonly stays?: unknown }).stays;
+    if (definition.area.kind !== 'emanation') {
+      found.push({
+        field: 'area.stays',
+        code: 'stays_without_emanation',
+        reason: 'only an Emanation is carried by its creature, so only an Emanation can be pinned still; every other area already sits where it was put',
+      });
+    } else if (stays !== true) {
+      found.push({
+        field: 'area.stays',
+        code: 'malformed_field',
+        reason: 'an Emanation is carried or it is pinned; the only value is true',
+      });
     }
   }
 
@@ -6688,11 +6943,44 @@ export function checkSpellDefinition(
           'a later action measures from the caster or from the point the casting holds, never both',
       });
     }
+    // SRD Alter Self's Magic action re-chooses a form, reaches nobody and
+    // runs a branch's list rather than one of its own: three rules in one.
+    if (activation.reoptions !== undefined && activation.reoptions !== true) {
+      found.push({
+        field: 'activation.reoptions',
+        code: 'malformed_field',
+        reason: 'a later action replaces the branch or it does not; the only value is true',
+      });
+    }
+    if (activation.reoptions === true) {
+      if (definition.options === undefined) {
+        found.push({
+          field: 'activation.reoptions',
+          code: 'reoptions_without_options',
+          reason: 'an action that replaces the branch needs branches to choose between, and this spell prints none',
+        });
+      }
+      if (Array.isArray(activation.effects) && activation.effects.length > 0) {
+        found.push({
+          field: 'activation.effects',
+          code: 'reoptions_with_effects',
+          reason: 'what a re-choosing action runs is the branch it names; a list of its own would be a second place for one sentence to be got wrong',
+        });
+      }
+      if (activation.range !== undefined) {
+        found.push({
+          field: 'activation.range',
+          code: 'reoptions_with_range',
+          reason: 'a re-choosing action changes its caster and reaches nobody, so it takes no range',
+        });
+      }
+    }
     if (
       activation.range === undefined &&
       definition.origin === undefined &&
       activation.movesArea === undefined &&
-      activation.redirects !== true
+      activation.redirects !== true &&
+      activation.reoptions !== true
     ) {
       found.push({
         field: 'activation.range',
@@ -6729,7 +7017,8 @@ export function checkSpellDefinition(
       activation.effects.length === 0 &&
       activation.movesArea === undefined &&
       activation.redirects !== true &&
-      activation.reAims !== true
+      activation.reAims !== true &&
+      activation.reoptions !== true
     ) {
       found.push({
         field: 'activation.effects',
@@ -7158,7 +7447,7 @@ function checkShape(value: unknown): readonly SpellDefinitionProblem[] {
       checkElsewherePlacement(entry.kind, where, at, found);
       checkPreservesPlacement(entry.kind, where, at, found);
       checkChancePlacement(entry.kind, where, at, found);
-      checkBranchPlacement(entry.kind, where, at, found);
+      checkBranchPlacement(entry.kind, where, at, found, effect);
       checkNoNestedEffect(effect, at, found);
     });
   }
@@ -7339,6 +7628,22 @@ function checkOptions(
   found: SpellDefinitionProblem[],
 ): void {
   const options = definition.options;
+  // SRD Calm Emotions' "(choose for each creature)": a flag about how the
+  // branches are chosen, meaningless without branches to choose between.
+  const perTarget = (definition as { readonly optionPerTarget?: unknown }).optionPerTarget;
+  if (perTarget !== undefined && perTarget !== true) {
+    found.push({
+      field: 'optionPerTarget',
+      code: 'malformed_field',
+      reason: 'a spell either chooses its branch for each creature or once; the only value is true',
+    });
+  } else if (perTarget === true && options === undefined) {
+    found.push({
+      field: 'optionPerTarget',
+      code: 'per_target_without_options',
+      reason: 'a branch chosen for each creature needs branches to choose between, and this spell prints none',
+    });
+  }
   if (options === undefined) return;
   if (
     !readsAsObject(
@@ -7448,7 +7753,8 @@ function checkOptions(
       effects.length === 0 &&
       handsOver.length === 0 &&
       notes.length === 0 &&
-      standing.length === 0
+      standing.length === 0 &&
+      branch.areaTerrain === undefined
     ) {
       found.push({
         field: `options.${key}`,
@@ -7520,9 +7826,15 @@ function checkBranchPlacement(
   where: string,
   path: string,
   found: SpellDefinitionProblem[],
+  /** The effect itself, for the one exemption that reads a field of it. */
+  effect: unknown = undefined,
 ): void {
   if (!isBranchList(where)) return;
   if (!PRESETTLED_EFFECT_KINDS.has(String(kind))) return;
+  // A rider on the fist has nothing for the pre-flight to settle — no weapon
+  // to demand, no reach to measure — so a branch may carry it: SRD Alter
+  // Self's Natural Weapons.
+  if (kind === 'weapon-rider' && (effect as { readonly unarmed?: unknown }).unarmed === true) return;
   found.push({
     field: `${path}.kind`,
     code: 'option_effect_settled_early',
@@ -7562,12 +7874,18 @@ function checkUnwillingSave(
   const stated = (effect as { unlessWilling?: unknown }).unlessWilling;
   if (stated === undefined) return;
 
-  if (where !== 'effects') {
+  // **The casting's own list, or one of its branches.** A branch resolves at
+  // the casting with the request in hand — SRD Enlarge/Reduce prints one
+  // consent clause over two branches that each carry the save it gates — and
+  // `offersAnUnwillingSave` reads the branches for the same reason. An area
+  // trigger's list and an activation's fire later, off a record that holds no
+  // such fact, and are still refused.
+  if (where !== 'effects' && !(where.startsWith('options.') && where.endsWith('.effects'))) {
     found.push({
       field: `${path}.unlessWilling`,
       code: 'consent_outside_the_casting',
       reason:
-        'the caster states who consents at the casting, so only the casting’s own saving throw can read it',
+        'the caster states who consents at the casting, so only the casting’s own saving throw — in its list or in one of its branches — can read it',
     });
     return;
   }
@@ -8814,6 +9132,7 @@ function effectLists(d: Record<string, unknown>): (readonly [string, readonly un
       ? ([['effects', d['effects']]] as (readonly [string, readonly unknown[]])[])
       : []),
     ...nested('areaTrigger'),
+    ...nested('triggered'),
     ...nested('activation'),
     ...branches(),
   ];
@@ -8976,6 +9295,8 @@ export const RIDER_KINDS: ReadonlySet<string> = new Set([
   'damage-penalty',
   'later-blow',
   'mode',
+  'immunity',
+  'size',
   'speed-change',
   'action',
   'healing',
