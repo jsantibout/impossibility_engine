@@ -242,6 +242,35 @@ export interface RollSelector {
    */
   readonly purpose?: CheckPurpose;
   /**
+   * The creature types this **saving throw's source** must be one of.
+   *
+   * SRD Protection from Evil and Good: "If the target is already possessed,
+   * Charmed, or Frightened by such a creature, the target has Advantage on any
+   * new saving throw against the relevant effect."
+   *
+   * **{@link attackerType}'s sibling on the axis a save has instead of an
+   * attacker.** That one reads the creature *making* the roll and is confined to
+   * `against-holder` for the reason `against-holder` exists: an attack is the one
+   * D20 Test with a second participant. A saving throw has no second
+   * participant — and it does have a **cause**, which is what this reads: the
+   * creature whose effect forced it. `GrantedConditionImmunity.fromTypes` is the
+   * same question asked one layer along, on the condition rather than on the
+   * save, and the answer is read the same way: through `typeMagicSees`, because
+   * a ward is a spell and SRD says spells read a type through the Mask.
+   *
+   * **A cause nobody named does not bite**, which is the direction every
+   * unsettled fact in this engine takes and the reading `fromTypes` already has:
+   * the site that rolls the save says who forced it, and a DM's bare ruling, a
+   * trap or a hazard says nobody. One site answers today — the turn boundary
+   * repeating a save, which reads the casting the timer names and the caster on
+   * its record.
+   *
+   * **Only on a saving throw.** An ability check has no cause outside itself and
+   * an attack roll's second creature is the one `attackerType` and `counterpart`
+   * already reach, so a list here on either would pick out nothing for ever.
+   */
+  readonly againstSourceType?: readonly string[];
+  /**
    * The other participant, pinned — so the selector picks out rolls involving
    * one named creature rather than anybody.
    *
@@ -659,6 +688,12 @@ export function rollModifierKey(source: string, selector: RollSelector): string 
     // anything would be two statements, and a key that could not tell them
     // apart would evict the first.
     ...(selector.purpose === undefined ? [] : [`purpose:${selector.purpose}`]),
+    // **And the types whatever forced a save must be one of**, appended for the
+    // same two reasons and carrying its own name and colon so it cannot be read
+    // as any of the tails above it. Sorted, because a list is a set here.
+    ...(selector.againstSourceType === undefined
+      ? []
+      : [`source-type:${[...selector.againstSourceType].sort().join(',')}`]),
   ].join('|');
 }
 
@@ -852,6 +887,32 @@ export interface RollQuery {
    * a miss.
    */
   readonly findingMarked?: boolean;
+  /**
+   * The creature whose effect **forced this saving throw**, where the site that
+   * rolls it knows one.
+   *
+   * SRD Protection from Evil and Good's "already … Frightened **by such a
+   * creature**": a save knows its DC and not who set it, which `CLAUDE.md` has
+   * recorded as a gap since Countercharm. This is that gap closed from the one
+   * end where the answer really is in the log: a repeat save is raised by a
+   * timer, the timer names the source that hung the condition, and a casting's
+   * record names its caster.
+   *
+   * Absent is "nobody said", which a type-keyed selector reads as a miss — a DM's
+   * bare ruling, a trap, a hazard. See {@link RollSelector.againstSourceType}.
+   */
+  readonly forcedBy?: CharacterId;
+  /**
+   * What {@link forcedBy} **is**, as a spell or other magical effect sees it —
+   * what {@link RollSelector.againstSourceType} matches.
+   *
+   * **Filled in by the gatherer rather than by the site that throws the die**,
+   * which is the reading {@link rollerType} takes and for its reason: the type is
+   * read off `CreatureState` through `typeMagicSees`, which `rollModesFor` has
+   * the state for and a caller would only be repeating. So the roller of a save
+   * says *who* forced it and never *what they are*.
+   */
+  readonly forcedByType?: string | null;
 }
 
 /**
@@ -921,6 +982,19 @@ export function selectorMatches(
   if (
     selector.attackerType !== undefined &&
     (query.rollerType == null || !selector.attackerType.includes(query.rollerType))
+  ) {
+    return false;
+  }
+
+  // SRD Protection from Evil and Good: "already … Frightened **by such a
+  // creature** … has Advantage on any new saving throw against the relevant
+  // effect." The type read is neither participant's — a save has one — but the
+  // *cause's*, and a save nobody said the cause of is a miss, which is the
+  // reading `GrantedConditionImmunity.fromTypes` already takes of an unnamed
+  // causer.
+  if (
+    selector.againstSourceType !== undefined &&
+    (query.forcedByType == null || !selector.againstSourceType.includes(query.forcedByType))
   ) {
     return false;
   }
@@ -1193,6 +1267,44 @@ export function rollSelectorProblems(
         code: 'condition_off_a_saving_throw',
         reason: `a saving throw and the ability check that ends an effect say what they are about; a ${selector.roll} does not, so naming a condition on one would pick out nothing for ever`,
       });
+    }
+  }
+
+  // The type of whatever **forced** a save, held to the one family that has a
+  // cause. The three refusals `attackerType` makes on its own axis, with the
+  // family check turned round: an ability check has no cause outside itself, and
+  // an attack roll's second creature is the one `attackerType` already reaches.
+  if (selector.againstSourceType !== undefined) {
+    // The shape before the vocabulary, for the sense clause's reason: this
+    // validator meets homebrew, and a bare string walked with `for…of` would
+    // report one problem per letter.
+    if (!Array.isArray(selector.againstSourceType)) {
+      found.push({
+        code: 'source_type_is_not_a_list',
+        reason:
+          'a filter on what forced a save is a list of creature types — the six SRD Protection from Evil and Good names',
+      });
+    } else {
+      if (
+        selector.againstSourceType.some((type) => typeof type !== 'string' || type.length === 0)
+      ) {
+        found.push({
+          code: 'bad_creature_type',
+          reason: 'a creature type is a non-empty name, as the table and the stat blocks write it',
+        });
+      }
+      if (selector.againstSourceType.length === 0) {
+        found.push({
+          code: 'type_filters_nothing',
+          reason: 'a filter that names no creature type reaches nobody; leave the field off instead',
+        });
+      }
+      if (selector.roll !== 'saving-throw') {
+        found.push({
+          code: 'source_type_off_a_saving_throw',
+          reason: `a saving throw is the one D20 Test with a cause outside itself, so a filter on what forced it cannot pick out a ${selector.roll}`,
+        });
+      }
     }
   }
 

@@ -1857,6 +1857,20 @@ export function resolvePendingSaves(
         // format and not a branch on a name, which is why the answer is
         // derived here rather than carried on the debt.
         castingIdOf(pending.source) !== null,
+        undefined,
+        // **And who forced it**, which SRD Protection from Evil and Good reads:
+        // "already … Frightened **by such a creature** … has Advantage on any
+        // new saving throw against the relevant effect." A save knows its DC and
+        // not who set it, and this is the one end where the answer is in the
+        // log — the debt names the source that hung the condition and a
+        // casting's record names its caster. Derived here rather than carried on
+        // the debt, which is the rule the two answers above it follow. What the
+        // causer *is* is the gatherer's to read; this says who.
+        (() => {
+          const from = castingIdOf(pending.source);
+          const caster = from === null ? undefined : state.ongoing[from]?.caster;
+          return caster === undefined ? undefined : (caster as CharacterId);
+        })(),
       );
       // The sheet as it stands: a save the boundary repeats is a save, and an
       // item that sets the ability it is made with is worn or it is not at the

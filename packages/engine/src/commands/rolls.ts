@@ -737,6 +737,17 @@ export function savingSupport(
    * Advantage on every one of them.
    */
   concentration?: boolean,
+  /**
+   * The creature whose effect **forced** this save, where the caller knows one.
+   *
+   * SRD Protection from Evil and Good's "already … Frightened by such a
+   * creature": a save knows its DC and not who set it, and this is the one end
+   * where the answer is in the log — a repeat save is raised by a timer, the
+   * timer names the source that hung the condition, and a casting's record names
+   * its caster. Silence is "nobody said", which a type-keyed selector reads as a
+   * miss, for the reason the three answers above take silence that way.
+   */
+  forcedBy?: CharacterId,
 ): {
   readonly bonuses: readonly Bonus[];
   readonly modes: readonly (RollMode | ModeSource)[];
@@ -786,6 +797,10 @@ export function savingSupport(
         // yes — the Concentration save a blow forces — and every other save
         // says nothing, which a Concentration-keyed selector reads as a miss.
         ...(concentration === undefined ? {} : { concentration }),
+        // And **who** forced it, passed through the same way. What they *are*
+        // is the gatherer's to read — see `RollQuery.forcedByType` — so a caller
+        // names a creature and never a type.
+        ...(forcedBy === undefined ? {} : { forcedBy }),
       }).modes,
       supply.modes ?? [],
     ),

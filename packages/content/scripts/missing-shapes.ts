@@ -1146,9 +1146,9 @@ export const ADJUDICATED: Readonly<Record<string, readonly Adjudication[]>> = {
   ],
   'protection-from-evil-and-good': [
     {
-      clause: 'Advantage on any new saving throw against the relevant effect',
+      clause: 'a repeat save a casting raised and not one a printed line raised',
       why: 'a-mode-on-the-save-a-spell-forces',
-      note: 'nothing records what a save was against, so "the relevant effect" cannot be selected for. The same sentence that blocks Countercharm, arriving on the save rather than on the attack — and the one benefit of the three this spell prints that its two new axes did not reach: the Disadvantage is a roll mode narrowed by the attacker’s creature type, and the Charmed and Frightened Immunity is a grant narrowed by the type of whatever is causing them.',
+      note: '**The sentence is granted and this is the road it does not reach.** `RollSelector.againstSourceType` is the axis the fourth audit said this id had left — a save remembering its provenance — and `RollQuery.forcedBy` is the fact the roller of the save supplies: the turn boundary reads the casting its timer names and the caster on that casting’s record, so a cleric Frightened by an Undead’s Fear rolls the repeat with Advantage and one Frightened by a bandit rolls it plainly. What carries no such name is the **printed** road: `settlePrintedSave` rolls a stat block’s own save — a Fiend’s Frightful Presence, an aura caught at the start of a turn — and asks the gatherer nothing about what forced it, although `PrintedSaveDebt.by` is sitting on the debt. One argument, in a file this track does not own.',
     },
   ],
   revivify: [

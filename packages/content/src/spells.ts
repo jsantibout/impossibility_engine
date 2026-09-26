@@ -11516,11 +11516,30 @@ export const PROTECTION_FROM_EVIL_AND_GOOD: SpellDefinition = {
       conditions: ['charmed', 'frightened'],
       fromTypes: WARDED_AGAINST,
     },
+    // "If the target is already possessed, Charmed, or Frightened by such a
+    // creature, the target has Advantage on any new saving throw against the
+    // relevant effect." Two of the three: the Immunity above refuses a *new*
+    // Charm or Fright from those types, and this is the sentence about one the
+    // target already had when the ward went up — the repeat save that would
+    // shake it off, narrowed by the condition it is about and by what forced
+    // it. One grant per condition, because a selector names one.
+    ...(['charmed', 'frightened'] as const).map((condition) => ({
+      kind: 'roll-mode' as const,
+      modifier: {
+        mode: 'advantage' as const,
+        selector: {
+          roll: 'saving-throw' as const,
+          relation: 'roller' as const,
+          condition,
+          againstSourceType: WARDED_AGAINST,
+        },
+      },
+    })),
   ],
   durationSeconds: 600,
   unmodelled: [
-    'the target does not gain Advantage on any new saving throw against the relevant effect: nothing records what a save was against, so the mode could not find the saves it belongs to',
     'the clause that the target can’t be possessed by such a creature is not applied: possession is not a state the engine holds, so there is nothing for the protection to refuse',
+    'the Advantage reaches a repeat save a casting raised and not one a printed line raised: a save knows what forced it where the timer names a casting and the casting’s record names its caster, and a stat block’s own save — a Fiend’s Frightful Presence — is settled by a road that carries no such name yet',
   ],
 };
 
