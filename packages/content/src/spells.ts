@@ -7090,15 +7090,24 @@ export const MENDING: SpellDefinition = {
   castingTime: 'long',
   castingSeconds: 60,
   concentration: false,
-  // "Range: Touch" — the object mended, which is never a creature.
+  // "Range: Touch" — the object mended, and the creature holding it is what
+  // the touch is measured to. One target and it may be the caster: a smith
+  // mends their own mail.
   range: { kind: 'touch' },
-  targets: { count: 0 },
-  effects: [],
+  targets: { count: 1, self: true },
+  // **The one clause the engine can carry out**, and it was written because
+  // three bestiary lines end with the sentence that asks for it: SRD Rust
+  // Monster's Antennae, SRD Black Pudding's Dissolving Pseudopod and SRD Gray
+  // Ooze's Pseudopod each print "The penalty can be removed by casting the
+  // _Mending_ spell on the armor or weapon." The penalty is a record the engine
+  // keeps on the copy; this lifts it, and `CastSpellRequest.object` says which
+  // copy — Heat Metal's own field.
+  effects: [{ kind: 'repairs', clears: 'printed-penalty' }],
   // "Duration: Instantaneous."
-  // **Handed over whole.** Which break was mended and the foot it may not
-  // exceed are facts about an object's *condition*, and the engine tracks what
-  // a creature owns and wears and nothing about the state of it; the ban on
-  // restoring magic forbids undoing something it never did.
+  // **The rest is handed over whole.** Which break was mended and the foot it
+  // may not exceed are facts about an object's *condition*, and the engine
+  // tracks what a creature owns and wears and nothing about the state of it;
+  // the ban on restoring magic forbids undoing something it never did.
   dmDecides: [
     'This spell repairs a single break or tear in an object you touch, such as a broken chain link, two halves of a broken key, a torn cloak, or a leaking wineskin.',
     'As long as the break or tear is no larger than 1 foot in any dimension, you mend it, leaving no trace of the former damage.',

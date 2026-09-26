@@ -786,6 +786,16 @@ const UNCOVERED_EVENT_TYPES: readonly string[] = [
   // labelled only while it lies there, the pile out of reach, the pile two of
   // one kind make ambiguous, and the floor a new room clears.
   'item-dropped',
+  // And a penalty lifted off a copy — SRD Mending, the one sentence in the
+  // book that undoes acid or rust. Neither log was written when anything could
+  // remove one: Mending's definition ran no effect at all, and both fixtures
+  // fold to exactly the states they always folded to with the field absent on
+  // every equipped record. `mending.test.ts` casts the minute through the
+  // public API and drives it end to end: the point off the sword and out of
+  // the swing's contributions, the three points off the mail and back into the
+  // Armour Class, the object the casting will not guess at, and the copy with
+  // nothing of the engine's to lift.
+  'item-penalty-cleared',
   'item-taken-up',
   'item-transferred',
   // The jump SRD Jump buys a creature, and the turn it was spent on. Neither

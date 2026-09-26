@@ -3,7 +3,7 @@ import { SPELL_DEFINITIONS, SRD_CONTENT } from '@ie/content';
 import { asCharacterId, expect as unwrap, type CharacterId } from '@ie/shared';
 import type { CharacterSheet } from '@ie/engine';
 import type { CreatureSize } from '@ie/srd/schemas';
-import { advanceTime, createRng, createRollIssuer, declaredCasting, dmDecisionsIn, fold, optionEffects, pendingCastingsOf, remaining, resolveDeclaredCast, resolveSpell, spellSlotKey, type GameEvent, type Rng } from '@ie/engine';
+import { advanceTime, createRng, createRollIssuer, declaredCasting, dmDecisionsIn, fold, optionEffects, pendingCastingsOf, remaining, repairsAnObject, resolveDeclaredCast, resolveSpell, spellSlotKey, type GameEvent, type Rng } from '@ie/engine';
 import {
   BLOCKED_ON,
   TRACKED_ADJUDICATED,
@@ -131,6 +131,9 @@ const SLEEPER = id('sleeper');
 const RAVEN = id('raven');
 const CORPSE = id('corpse');
 
+/** The thing SRD Mending is aimed at, in the cleric's own hand. (W7-B11) */
+const MENDED = 'quarterstaff';
+
 const sheet = (): CharacterSheet => ({
   level: 13,
   abilities: { str: 10, dex: 12, con: 14, int: 18, wis: 18, cha: 10 },
@@ -239,6 +242,14 @@ const SETUP: readonly GameEvent[] = [
       prepared: SPELL_DEFINITIONS.filter((d) => d.level > 0).map((d) => d.id),
     }),
   },
+  // **And a staff in the cleric's hand**, because SRD Mending names an object
+  // out of what its target is wearing or holding and the penalty it lifts lives
+  // on the equipped record. The refusal for an object nobody holds is the
+  // behaviour rather than an obstacle, so the fixture puts one there instead of
+  // excusing the spell. Written straight into the log: what is under test is
+  // the handover, not `equipItem`. (W7-B11)
+  { type: 'items-gained', id: CLERIC, items: [{ id: MENDED, quantity: 1 }], source: 'the fixture' },
+  { type: 'item-equipped', id: CLERIC, item: MENDED, armor: null },
 ];
 
 /**
@@ -351,6 +362,10 @@ const aimedAt = (definition: (typeof SPELL_DEFINITIONS)[number]) => {
     // The ninth stated fact: a target rule that gates on consent asks about
     // everybody nobody has spoken for.
     ...(definition.targets.willing === true ? { willing: targets } : {}),
+    // And the object, where the spell names one: SRD Mending is the one in this
+    // population that does. The staff the cleric is holding, which is what the
+    // pre-flight insists on. (W7-B11)
+    ...(repairsAnObject(definition) ? { object: MENDED } : {}),
   };
 };
 

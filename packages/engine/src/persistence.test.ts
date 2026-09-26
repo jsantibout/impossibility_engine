@@ -281,6 +281,7 @@ const KNOWN_EVENT_TYPES: readonly string[] = [
   'initiative-swapped',
   'item-dropped',
   'item-equipped',
+  'item-penalty-cleared',
   'item-taken-up',
   'item-transferred',
   'item-unequipped',

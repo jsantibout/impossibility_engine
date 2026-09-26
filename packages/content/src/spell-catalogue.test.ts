@@ -26,6 +26,7 @@ import {
   teleportOf,
   breaksAttunement,
   dropsAnObject,
+  repairsAnObject,
   optionEffects,
   weaponRiderOf,
   castingTimeOf,
@@ -265,7 +266,10 @@ const logFor = (spellId: string): readonly GameEvent[] => {
   // is already carrying into a hand rather than the spell being excused the
   // rule. Written straight into the log for the attunement's reason — what is
   // under test is the casting and not `equipItem`.
-  const heats = dropsAnObject(definition!);
+  // Mending is the third spell that names one, and it wants the same fixture:
+  // a penalty lives on the equipped record, so the copy has to be in a hand.
+  // (W7-B11)
+  const heats = dropsAnObject(definition!) || repairsAnObject(definition!);
   const withTheObject: readonly GameEvent[] = heats
     ? [
         ...withTheAttunement,
@@ -488,7 +492,7 @@ const castAt = (
     // runtime's own reader, for the reason the four above are.
     ...(breaksAttunement(definition)
       ? { object: ATTUNED }
-      : dropsAnObject(definition)
+      : dropsAnObject(definition) || repairsAnObject(definition)
         ? { object: HEATED }
         : {}),
     // The tenth, and the same shape a ninth time: a spell that prints

@@ -3276,7 +3276,13 @@ describe('the shape that was built three tranches before its entries were re-rea
         id,
       ).toBe(1);
     }
-    for (const id of ['alarm', 'clairvoyance', 'identify', 'mending']) {
+    // **Mending has left this list by being paid**, the way Magic Mouth's
+    // second entry did: its marker-less entry said the engine tracks nothing
+    // about an object's condition, and the one fact it *does* track — a printed
+    // penalty on a copy — is now lifted by a `repairs` effect. So the spell is
+    // executed-partial, out of the tracked population this map adjudicates, and
+    // what is still the table's is on its own `dmDecides`. (W7-B11)
+    for (const id of ['alarm', 'clairvoyance', 'identify']) {
       const entries = TRACKED_ADJUDICATED[id] ?? [];
       expect(entries.length, id).toBeGreaterThan(0);
       expect(

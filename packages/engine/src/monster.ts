@@ -3641,6 +3641,28 @@ const PRINTED_ARMOR_PENALTY =
 const ARMOR_DESTROYED_AT_TEN = /^The armor is destroyed if the penalty reduces its AC to 10\.$/;
 
 /**
+ * The sentence after that one — SRD Black Pudding's Dissolving Pseudopod and
+ * SRD Gray Ooze's Pseudopod: "The penalty can be removed by casting the
+ * _Mending_ spell on the armor."
+ *
+ * **Consumed for {@link ARMOR_DESTROYED_AT_TEN}'s reason, now that something
+ * removes it.** SRD Mending carries a `repairs` effect that clears the recorded
+ * penalty from the copy the caster names, so the sentence states a rule the
+ * engine keeps rather than a promise it cannot honour — and, like the ceiling
+ * above it, the rule belongs to the *penalty* rather than to any one line, so
+ * there is nothing on the rider to store. A clause with no penalty in front of
+ * it is a rule about nothing and goes back to the table, which is the reading
+ * the ceiling already takes.
+ *
+ * The object word is the line's: the two hits say "the armor" where the Rust
+ * Monster's save says "the armor or weapon", and the two Corrosive Forms say
+ * "the weapon". All three are the same rule, so all three are matched here and
+ * whichever reader holds the penalty consumes it. (W7-B11)
+ */
+const MENDING_LIFTS_PENALTY =
+  /^The penalty can be removed by casting the _Mending_ spell on the (?:armor|weapon|armor or weapon)\.$/;
+
+/**
  * SRD Shadow's Draining Swipe: "and the target's Strength score decreases by
  * 1d4."
  *
@@ -4244,7 +4266,9 @@ function readClause(text: string): ClauseRead | null {
   const corroded = PRINTED_ARMOR_PENALTY.exec(text);
   if (corroded !== null) return one({ kind: 'armor-penalty', points: Number(corroded[1]) });
 
-  if (ARMOR_DESTROYED_AT_TEN.test(text)) return { kind: 'armor-detail' };
+  if (ARMOR_DESTROYED_AT_TEN.test(text) || MENDING_LIFTS_PENALTY.test(text)) {
+    return { kind: 'armor-detail' };
+  }
 
   // SRD Shadow: the drain, and the sentence about it that states the rule the
   // swing keeps.
@@ -4590,9 +4614,11 @@ export function readPrintedRiders(text: string): PrintedRidersRead {
 
     if (read.kind === 'armor-detail') {
       const host = riders.at(-1);
-      // The ceiling belongs to the penalty before it, and the swing already
-      // keeps it. Nothing is stored; a clause with no penalty in front of it
-      // names a rule about nothing, and it goes back to the table.
+      // The ceiling and the Mending that lifts it both belong to the penalty
+      // before them: the swing already keeps the one and SRD Mending's
+      // `repairs` effect keeps the other. Nothing is stored; a clause with no
+      // penalty in front of it names a rule about nothing, and it goes back to
+      // the table.
       if (host === undefined || host.kind !== 'armor-penalty') handedOver.push(clause);
       continue;
     }

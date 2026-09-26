@@ -178,10 +178,10 @@ describe('the rust monster answers a hit by using its own line', () => {
       expect(taken.missed).toBe(false);
       expect(world.pendingAttack).not.toBeNull();
       expect(world.combat!.budgets[RUST]!.reaction).toBe(false);
-      // What is left in `unverified` is the line's own handover — the Mending
-      // sentence — and no longer a whole response handed back by name.
-      expect(taken.unverified.join(' ')).toContain('Mending');
-      expect(taken.unverified.join(' ')).not.toContain('does not perform');
+      // And nothing is handed back: the Antennae's every sentence is a rule the
+      // engine keeps now, the Mending among them, so a response that used to
+      // come back as a heading comes back as a rolled save.
+      expect(taken.unverified).toEqual([]);
       return;
     }
     throw new Error('no seed failed the save');

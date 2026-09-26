@@ -341,6 +341,24 @@ const OBJECT_PENALTY =
 const OBJECT_DESTROYED_RULE =
   /^Armor is destroyed if the penalty reduces its AC to 10, and a weapon is destroyed if its penalty reaches [-−]5$/;
 
+/**
+ * SRD's third sentence about the same penalty: "The penalty can be removed by
+ * casting the _Mending_ spell on the armor or weapon."
+ *
+ * **Read and consumed for {@link OBJECT_DESTROYED_RULE}'s reason, now that
+ * something removes it.** SRD Mending's definition carries a `repairs` effect
+ * that clears the recorded penalty from the copy the caster names, so the
+ * sentence is a rule the engine keeps rather than a promise it cannot honour —
+ * and, exactly as the two ceilings are, it belongs to the *penalty* rather than
+ * to any one line. Three lines print it: this one, and the two Pseudopods,
+ * whose reader consumes it on the hit side.
+ *
+ * A sentence with no penalty above it is a rule about nothing and goes back to
+ * the table, which is the reading the ceilings already take. (W7-B11)
+ */
+const MENDING_LIFTS_PENALTY =
+  /^The penalty can be removed by casting the _Mending_ spell on the armor or weapon$/;
+
 /** SRD Sea Hag: "… and can see the hag's true form", the tail of a targeting clause. */
 const AURA_SIGHT = /^(.*) and can see the [a-z' -]+'s true form$/;
 
@@ -1533,9 +1551,10 @@ function readClause(clause: string, into: Scratch, where: Reading): boolean {
     into.effects.push({ kind: 'object-penalty', points: Number(corroded[1]) });
     return true;
   }
-  if (OBJECT_DESTROYED_RULE.test(words)) {
-    // A rule about the penalty above it; with none there it is a rule about
-    // nothing, and goes back to the table.
+  if (OBJECT_DESTROYED_RULE.test(words) || MENDING_LIFTS_PENALTY.test(words)) {
+    // Two rules about the penalty above it — the ceilings, and the spell that
+    // lifts it. With no penalty there each is a rule about nothing and goes
+    // back to the table.
     return into.effects.some((effect) => effect.kind === 'object-penalty');
   }
 

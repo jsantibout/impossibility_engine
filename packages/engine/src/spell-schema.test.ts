@@ -4168,6 +4168,14 @@ describe('every branch judges untyped input rather than throwing on it', () => {
       fields: { sense: required(STRING_JUNK), feet: required(NUMBER_JUNK) },
     },
     {
+      // SRD Mending, on the one fact the engine records about an object's
+      // condition. The word is the whole of the effect, and there is exactly
+      // one of it: anything else names a harm the engine never wrote down.
+      kind: 'repairs',
+      base: { kind: 'repairs', clears: 'printed-penalty' },
+      fields: { clears: required(STRING_JUNK) },
+    },
+    {
       // SRD Jump: "can jump up to 30 feet by spending 10 feet of movement."
       // Both fields are required and both are distances on the 5-foot
       // lattice: a jump of nothing is not a jump, and one that costs nothing

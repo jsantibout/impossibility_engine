@@ -156,9 +156,12 @@ const penaltyOn = (state: GameState, item: string): number | undefined =>
   state.creatures[BREN]!.equipped.find((held) => held.id === item)?.penalty;
 
 describe('the line as the parser reads it', () => {
-  it('reads the object the prelude names, the penalty, the two ceilings, and hands the Mending over', () => {
+  it('reads the object the prelude names, the penalty, and the two rules about it', () => {
     const block = SRD_CONTENT.monsters.find((m) => m.id === 'rust-monster')!;
     const line = block.actions.find((one) => one.name === LINE)!;
+    // Nothing is handed over: the ceilings are the executor's rule and the
+    // Mending is SRD Mending's `repairs` effect, so both sentences after the
+    // penalty are consumed. (W7-B11)
     expect(line.save).toEqual({
       ability: 'dex',
       dc: 11,
@@ -166,7 +169,6 @@ describe('the line as the parser reads it', () => {
       targetsObject: true,
       onSuccess: 'none',
       onFailure: [{ kind: 'object-penalty', points: 1 }],
-      handedOver: ['The penalty can be removed by casting the _Mending_ spell on the armor or weapon.'],
     });
   });
 });
@@ -180,8 +182,9 @@ describe('a failed save with the antennae on the mail', () => {
     expect(penaltyOn(state, 'chain-mail')).toBe(1);
     expect(armorClassOf(state, BREN)).toBe(was - 1);
     expect(out.outcomes[0]!.object).toEqual({ item: 'chain-mail', penalty: 1, destroyed: false });
-    // Only the Mending sentence and the reach are the table's.
-    expect(out.unverified.some((line) => line.includes('Mending'))).toBe(true);
+    // Only the reach is the table's now: the Mending sentence is a rule the
+    // engine keeps, so nothing about it comes back. (W7-B11)
+    expect(out.unverified.some((line) => line.includes('Mending'))).toBe(false);
   });
 
   it('destroys the mail when the penalty would take what it offers to 10', () => {

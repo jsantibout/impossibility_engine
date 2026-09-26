@@ -44,7 +44,13 @@ import {
   itemSource,
 } from '../catalogue.js';
 import { featureSource } from '../progression.js';
-import { conjuredHands, conjuredLine, freeHands, quantityOf } from './inventory.js';
+import {
+  clearPrintedPenalty,
+  conjuredHands,
+  conjuredLine,
+  freeHands,
+  quantityOf,
+} from './inventory.js';
 import { spendAction, spendBonusAction, spendReaction } from '../combat.js';
 import { type CommandIdentity, commandOutcome, once } from '../idempotency.js';
 import {
@@ -85,6 +91,7 @@ import {
   castOnAHit,
   concentrationAt,
   dropsAnObject,
+  repairsAnObject,
   outcomeRidersOf,
   creatureTypesRead,
   delayedDuration,
@@ -1551,7 +1558,7 @@ export function castOrRelease(
     // the holding fact the engine keeps. A caster who named a mace in the
     // knight's pack rather than the breastplate on his back has aimed at
     // nothing, and must hear so before the slot is gone.
-    if (request.object !== undefined && dropsAnObject(definition)) {
+    if (request.object !== undefined && (dropsAnObject(definition) || repairsAnObject(definition))) {
       for (const target of targets) {
         const touching = objectHeldProblem(
           state,
@@ -3168,6 +3175,40 @@ function negatedBy(world: GameState, target: CharacterId, origin: EffectOrigin):
 }
 
 /**
+ * SRD *Mending*, on the one fact the engine holds about an object's condition.
+ *
+ * Here rather than beside its neighbours in `spell-effect-*.ts` because it is
+ * three lines and the whole of it is a delegation: `clearPrintedPenalty` owns
+ * the record, the refusal and the sentence handed back, exactly as the two
+ * events that put the penalty there are owned by the inventory seam.
+ *
+ * **The object is the casting's, not the effect's.** `ctx.object` is what the
+ * caster named and the pre-flight has already refused one the target is not
+ * wearing or holding, so what is left here is a copy the engine can reach; a
+ * casting that reached this with no object at all is a definition the validator
+ * would have refused, and it is reported rather than assumed. (W7-B11)
+ */
+function resolveRepairsEffect(
+  ctx: EffectContext,
+  target: CharacterId,
+  world: GameState,
+): Result<GameState> {
+  const { events, outcomes, unverified, name } = ctx;
+  const named = ctx.object;
+  if (named === undefined) {
+    unverified.push(`${name} repairs an object and nobody named one; nothing was mended`);
+    outcomes.push({ target, affected: false });
+    return ok(world);
+  }
+  const mended = clearPrintedPenalty(world, target, named);
+  if (!mended.ok) return mended;
+  events.push(...mended.value.events);
+  unverified.push(...mended.value.unverified);
+  outcomes.push({ target, affected: mended.value.events.length > 0 });
+  return ok(mended.value.events.reduce(applyEvent, world));
+}
+
+/**
  * Which rule resolves this effect.
  *
  * The whole of the branching, in one place, over a union the compiler closes:
@@ -3222,6 +3263,8 @@ function resolveOneEffect(
       return resolveLightEffect(ctx, effect, target, world);
     case 'sense':
       return resolveSenseEffect(ctx, effect, target, world);
+    case 'repairs':
+      return resolveRepairsEffect(ctx, target, world);
     case 'fall-ward':
       return resolveFallWardEffect(ctx, target, world);
     case 'jump-allowance':

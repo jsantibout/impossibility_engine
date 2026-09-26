@@ -228,12 +228,16 @@ describe('armour a hit wears down', () => {
 
   /**
    * "The penalty can be removed by casting the _Mending_ spell on the armor" is
-   * the spells side's, so it goes back to the table with the line's own words.
+   * a rule about the penalty above it, exactly as the ceiling beside it is — and
+   * the engine keeps it now: SRD Mending carries a `repairs` effect that clears
+   * the recorded penalty from the copy the caster names. So the sentence is
+   * consumed rather than carried, and the hit reports nothing about it.
+   * `mending.test.ts` is where the other half is driven. (W7-B11)
    */
-  it('hands the Mending sentence back', () => {
+  it('keeps the Mending sentence rather than handing it back', () => {
     const table = field('black-pudding');
     const out = swing(table, 'Dissolving Pseudopod');
 
-    expect(out.unverified.join(' ')).toContain('Mending');
+    expect(out.unverified.join(' ')).not.toContain('Mending');
   });
 });

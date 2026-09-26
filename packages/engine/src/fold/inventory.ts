@@ -41,6 +41,7 @@ export const INVENTORY_EVENTS = [
   'item-unequipped',
   'armor-penalised',
   'weapon-penalised',
+  'item-penalty-cleared',
   'attuned',
   'attunement-ended',
 ] as const;
@@ -591,6 +592,31 @@ export function applyInventory({ state, next, legacy }: Applying, event: Invento
       // The sheet is untouched: what armour *offers* is the catalogue's and
       // what has been eaten out of this suit is the record's, and
       // `armorClassOf` is where the two meet. See `EquippedItem.penalty`.
+      return withCreature(next, event.id, { equipped }, creature);
+    }
+
+    // And the two undone — SRD Mending on the armour or the weapon. The same
+    // arithmetic with the sign turned round, and the field goes entirely at
+    // zero so a mended copy is indistinguishable from one nothing ever ate:
+    // that is what "the penalty can be removed" says, and it is what keeps
+    // every log written before a spell could lift one folding unchanged.
+    case 'item-penalty-cleared': {
+      const creature = creatureOf(state, event, event.id);
+      const worn = creature.equipped.find((held) => held.id === event.item);
+      if (worn === undefined) {
+        throw new CorruptLogError(event, `${event.item} is not equipped`);
+      }
+      const equipped = creature.equipped.map((held) => {
+        if (held !== worn) return held;
+        const left = (held.penalty ?? 0) - event.points;
+        if (left > 0) return { ...held, penalty: left };
+        // The **field** goes, not a zero in it, so a mended copy and a copy
+        // nothing ever ate are the same record — which is what keeps both
+        // frozen fixtures folding to the states they always folded to.
+        const mended = { ...held };
+        delete (mended as { penalty?: number }).penalty;
+        return mended;
+      });
       return withCreature(next, event.id, { equipped }, creature);
     }
 

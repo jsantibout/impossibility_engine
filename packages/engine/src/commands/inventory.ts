@@ -1812,3 +1812,52 @@ export function endAttunement(
   });
 }
 
+
+/**
+ * Take the penalty off a copy somebody is wearing or holding — SRD *Mending*,
+ * and the only sentence in the book that lifts one.
+ *
+ * "The penalty can be removed by casting the _Mending_ spell on the armor or
+ * weapon" is printed three times — SRD Rust Monster's Antennae, SRD Black
+ * Pudding's Dissolving Pseudopod, SRD Gray Ooze's Pseudopod — and until a
+ * casting could reach an item's record it was the one clause of those lines
+ * nothing could honour.
+ *
+ * **Not a command with a door of its own**, and not on the barrel either.
+ * Nobody takes an action to do this: it happens because a casting resolved, so
+ * this is the event-builder the `repairs` effect calls and its refusals are the
+ * casting's. `resolveRepairsEffect` imports it as a sibling, which is what an
+ * export is for where a door is not. A copy that is not
+ * equipped is refused rather than reported, because a penalty lives on the
+ * equipped record — the thing the caster named has no record for one to have
+ * landed on, and saying "mended" of it would be the engine claiming to have
+ * held something it never held. A copy with no penalty is *not* refused: the
+ * spell still mends the tear the table is imagining, and the engine says only
+ * that there was nothing of its own to lift. (W7-B11)
+ */
+export function clearPrintedPenalty(
+  state: GameState,
+  id: CharacterId,
+  item: string,
+): Result<{ readonly events: readonly GameEvent[]; readonly unverified: readonly string[] }> {
+  const creature = creatureOf(state, id);
+  if (creature === null) return unknownCreature(id);
+  const record = creature.equipped.find((held) => held.id === item);
+  if (record === undefined) {
+    return err(
+      'object_not_held',
+      `${id} is not wearing or holding ${item}, and a penalty is a fact about the copy in hand or on the back`,
+    );
+  }
+  const eaten = record.penalty ?? 0;
+  if (eaten <= 0) {
+    return ok({
+      events: [],
+      unverified: [`${item} carries no penalty the engine put there, so there was none to lift`],
+    });
+  }
+  return ok({
+    events: [{ type: 'item-penalty-cleared', id, item, points: eaten }],
+    unverified: [],
+  });
+}

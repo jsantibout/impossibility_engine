@@ -3302,14 +3302,15 @@ export const TRACKED_ADJUDICATED: Readonly<Record<string, readonly TrackedAdjudi
       note: 'the hand is not a thing in the world: manipulating an object, the 30 feet it moves, the 10-pound limit and the ban on attacking or activating magic items are all about a hand with no position. **The recast is the exception and it is executed** — `replacesPriorCasting` is on the definition, which is why no clause here names it. **P3-S6 read this spell to the end**: every printed sentence is the table’s or the engine’s, so what the table is left with is in the definition’s `dmDecides` rather than in `unmodelled` — handed over whole, and no clause of it is expressible with the kinds the engine has today.',
     },
   ],
-  mending: [
-    {
-      marker: null,
-      clause: 'This spell repairs a single break or tear in an object you touch',
-      why: 'table',
-      note: 'which break was mended and the 1 foot it may not exceed are facts about an object’s condition, and the engine tracks what a creature owns and wears and nothing about the state of it; the ban on restoring magic forbids undoing something it never did. **P3-S6 read this spell to the end**: every printed sentence is the table’s or the engine’s, so what the table is left with is in the definition’s `dmDecides` rather than in `unmodelled` — handed over whole, and no clause of it is expressible with the kinds the engine has today.',
-    },
-  ],
+  // **Mending's entry is gone, and this is where it was.** W7-B11 gave the
+  // spell the one clause the engine can carry out — `repairs`, which lifts the
+  // penalty SRD Rust Monster's Antennae and both Pseudopods say a Mending
+  // removes — so it is executed-partial and no longer in the tracked
+  // population this map adjudicates. What is still the table's is on the
+  // definition's own `dmDecides`, where it always was: which break was mended,
+  // the foot it may not exceed, and the ban on restoring magic to a magic item.
+  // Written down rather than deleted, because an entry that leaves a report is
+  // a claim somebody may want to check.
   message: [
     {
       marker: null,
