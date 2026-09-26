@@ -38,6 +38,11 @@ export default defineConfig({
       'tools/*/src/**/*.test.ts',
     ],
     environment: 'node',
+    // The sweeps read whole source files and fold whole catalogues: alone they
+    // take a second or three, and beside four worktrees' suites on one machine
+    // they passed the 5 s default and failed for no reason of their own. A
+    // test that genuinely hangs still fails, at 30 s.
+    testTimeout: 30_000,
     coverage: {
       provider: 'v8',
       include: ['packages/*/src/**/*.ts'],

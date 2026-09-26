@@ -3177,3 +3177,17 @@ Appended 2026-09-26, wave seven on Opus:
   Potion of Animal Friendship — `itemRoute` casts only from an equipped item
   and potions are not equippable, so it needs a casting route that reaches a
   potion in the pack. Opus review, two defects, fixed.
+- **A monster's Opportunity Attack through the door** (W8-T2, found by the
+  app's monster-turn track). `take_opportunity_attack` sent an omitted weapon
+  as `null`, which `reactionSwing` reads as an Unarmed Strike asked for, so
+  the owner's ruling of 2026-09-20 (the best printed melee attack) was
+  unreachable and every monster punched. The door now passes `weapon` only
+  when sent, publishes `action` (a printed line), and takes `weapon: null`
+  for an Unarmed Strike on purpose; the probe's own door had the same line.
+  Pins: player 96 / 158126, DM 123 / 206820. **Found beside it, not fixed:**
+  `take_damage_response` says "Omit for an Unarmed Strike" (false for a
+  monster) and publishes no `action`; **`order_summons_attack`'s `attack`
+  field is never read** (`SummonsAttackCommand.attack` in
+  `commands/features.ts`; `reactionSwing` reads `.action`), so a familiar
+  always swings its default line; `reactionSwing`'s docstring claims it
+  considers what a creature holds. Opus review: PASS.
