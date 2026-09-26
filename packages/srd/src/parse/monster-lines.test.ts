@@ -5,9 +5,11 @@ import {
   parseAcAddendLine,
   parseCastLine,
   parseMonsters,
+  parsePlaneShiftLine,
   parsePullLine,
   parseReactionUseLine,
   parseRollAddendLine,
+  parseSwallowLine,
   parseTeleportLine,
 } from './monsters.js';
 import type { Monster } from '../schemas.js';
@@ -236,6 +238,67 @@ describe('a line that casts', () => {
     expect(
       parseCastLine(
         'The imp casts _Invisibility_ on another creature, requiring no spell components and using Charisma as the spellcasting ability.',
+      ),
+    ).toBeNull();
+  });
+});
+
+describe('a line that swallows', () => {
+  const FROG =
+    "The frog swallows a Small or smaller target it is grappling. While swallowed, the target isn't Grappled but has the Blinded and Restrained conditions, and it has Total Cover against attacks and other effects outside the frog. While swallowing the target, the frog can't use Bite, and if the frog dies, the swallowed target is no longer Restrained and can escape from the corpse using 5 feet of movement, exiting with the Prone condition. <br>\n&emsp;At the end of the frog's next turn, the swallowed target takes 5 (2d4) Acid damage. If that damage doesn't kill it, the frog disgorges it, causing it to exit Prone.";
+  const TOAD =
+    "The toad swallows a Medium or smaller target it is grappling. While swallowed, the target isn't Grappled but has the Blinded and Restrained conditions, and it has Total Cover against attacks and other effects outside the toad. In addition, the target takes 10 (3d6) Acid damage at the end of each of the toad's turns. The <br>\n&emsp;toad can have only one target swallowed at a time, and it can't use Bite while it has a swallowed target. If the toad dies, a swallowed creature is no longer Restrained and can escape from the corpse using 5 feet of movement, exiting with the Prone condition.";
+
+  it('reads the frog’s one hit and its disgorging', () => {
+    expect(parseSwallowLine(FROG)).toEqual({
+      maxSize: 'small',
+      conditions: ['blinded', 'restrained'],
+      damage: { dice: '2d4', type: 'Acid', of: 'next', disgorges: true },
+      handedOver: ["While swallowing the target, the frog can't use Bite"],
+    });
+  });
+
+  it('reads the toad’s hit at every one of its turns', () => {
+    expect(parseSwallowLine(TOAD)).toEqual({
+      maxSize: 'medium',
+      conditions: ['blinded', 'restrained'],
+      damage: { dice: '3d6', type: 'Acid', of: 'each', disgorges: false },
+      handedOver: ["it can't use Bite while it has a swallowed target"],
+    });
+  });
+
+  it('refuses a swallow that says anything else', () => {
+    expect(parseSwallowLine(FROG.replace('exiting with the Prone condition', 'exiting'))).toBeNull();
+    expect(parseSwallowLine('The frog swallows a Small or smaller target it is grappling.')).toBeNull();
+    expect(parseSwallowLine(TOAD.replace('Acid damage', 'Acid damage and is Poisoned'))).toBeNull();
+  });
+});
+
+describe('a line that steps onto another plane', () => {
+  it('reads the three sentences the book prints', () => {
+    expect(
+      parsePlaneShiftLine('The spider teleports from the Material Plane to the Ethereal Plane or vice versa.'),
+    ).toEqual({ plane: 'ethereal' });
+    expect(
+      parsePlaneShiftLine(
+        'The nightmare and up to three willing creatures within 5 feet of it teleport to the Ethereal Plane from the Material Plane or vice versa.',
+      ),
+    ).toEqual({ plane: 'ethereal', companions: { count: 3, within: 5 } });
+    expect(
+      parsePlaneShiftLine(
+        "The ghost casts the _Etherealness_ spell, requiring no spell components and using Charisma as the spellcasting ability. The ghost is visible on the Material Plane while on the Border Ethereal and vice versa, but it can't affect or be affected by anything on the other plane.",
+      ),
+    ).toEqual({ plane: 'ethereal' });
+  });
+
+  it('refuses a step to any other plane, and a teleport on this one', () => {
+    expect(
+      parsePlaneShiftLine('The spider teleports from the Material Plane to the Shadowfell or vice versa.'),
+    ).toBeNull();
+    expect(parsePlaneShiftLine('The dog teleports up to 40 feet to an unoccupied space it can see.')).toBeNull();
+    expect(
+      parsePlaneShiftLine(
+        'The ghost casts the _Etherealness_ spell, requiring no spell components and using Charisma as the spellcasting ability.',
       ),
     ).toBeNull();
   });

@@ -214,8 +214,10 @@ describe('the adapter carries the forms a block prints', () => {
       }
     };
     walk(here);
-    // `forms.ts` declares it; the two hand-over doors and the swing ask it.
-    expect([...asking].sort()).toEqual(['actions.ts', 'attacks.ts', 'forms.ts']);
+    // `forms.ts` declares it; the two hand-over doors and the swing ask it,
+    // and so do the two roads into the second place a stat block prints
+    // (`commands/elsewhere.ts`), which spend a printed line like the rest.
+    expect([...asking].sort()).toEqual(['actions.ts', 'attacks.ts', 'elsewhere.ts', 'forms.ts']);
   });
 
   /**

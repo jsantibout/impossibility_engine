@@ -1221,6 +1221,10 @@ export interface StatBlockLine {
   readonly forms?: unknown;
   /** What a line drags toward its creature — SRD Roper's Reel. */
   readonly pulls?: unknown;
+  /** Whom a line takes inside its creature — SRD Giant Frog's Swallow. */
+  readonly swallows?: unknown;
+  /** The plane a line steps to and back from — SRD Phase Spider's Ethereal Jaunt. */
+  readonly shiftsPlane?: unknown;
   /** The flat addend a Reaction line puts on somebody's D20 Test. */
   readonly addsToRoll?: { readonly tests: readonly string[] } | undefined;
   /** What a Reaction line adds to its own Armour Class against one attack. */
@@ -1256,6 +1260,8 @@ export const isReadLine = (line: StatBlockLine): boolean =>
   line.teleports !== undefined ||
   line.forms !== undefined ||
   line.pulls !== undefined ||
+  line.swallows !== undefined ||
+  line.shiftsPlane !== undefined ||
   line.addsToRoll !== undefined ||
   line.addsToAc !== undefined ||
   line.usesLine !== undefined;
@@ -1681,6 +1687,16 @@ export const isExecutedLine = (line: StatBlockLine): boolean =>
   // the Roper is holding toward it, through the primitive a Merrow's rider
   // already goes through, at the heading's price.
   line.pulls !== undefined ||
+  // **A line that swallows is spent** — `takePrintedSwallow` ends the grapple,
+  // takes the target inside, hangs the conditions the line prints, and the
+  // host's turn boundary rolls the damage; the exit is a return checked
+  // against the corpse. The one clause about another line is handed over,
+  // and the row below counts it.
+  line.swallows !== undefined ||
+  // **A line that steps onto another plane is spent** — `takePrintedPlaneShift`
+  // takes the creature (and the Nightmare's companions) out of the scene and
+  // brings them back to the spot they left, by the same line.
+  line.shiftsPlane !== undefined ||
   // **SRD Parry, executed at the window SRD *Shield* already answered.** The
   // number goes onto the Armour Class the held attack was measured against and
   // the hit is re-decided, which is the whole of what the sentence says — so
@@ -1775,7 +1791,7 @@ export const MONSTER_LINE_SHAPES: readonly (readonly [
    * | Lines | The kind, and the seam |
    * |---|---|
    * | Bulette's Deadly Leap, Centaur Trooper's Trampling Charge | a move **through** other creatures' spaces with a save per creature entered — the same seam Amorphous, Compression and Ooze Cube wait on, which is a creature's space entered and stopped in |
-   * | Gelatinous Cube's Engulf, Shambling Mound's Engulf | `a-second-place-to-put-a-creature`: a creature inside another one, which is a position the lattice has no word for |
+   * | Gelatinous Cube's Engulf, Shambling Mound's Engulf | a creature inside another one — a position the lattice has a word for now, `inside`, which the Giant Frog's and Giant Toad's Swallow are executed on. What these two wait on is the **save reader**: each is a saving throw whose failure puts the target inside, the cube's per space entered during a move and the mound's under a grapple, and the printed-save reader has no arm that hands its failure to the second place |
    * | Ghost's Possession, Harpy's Luring Song | `a-creature-somebody-else-is-playing`. A body somebody else drives and a compulsion that walks a creature toward a cliff are the same want, and the doctrine puts both at the table |
    * | Gold Dragon Wyrmling's Weakening Breath | **neither half is missing any more**, and that is worth writing down: "Disadvantage on Strength-based D20 Tests" is the `d20-test` roll family with an ability on it and "subtracts 2 (1d4) from its damage rolls" is `damagePenaltyOf`, both built for SRD Ray of Enfeeblement. What this waits on is the printed-save reader growing an arm that writes them, not a shape |
    * | Rust Monster's Antennae | the same sentence Black Pudding's Pseudopod prints, on a **save** rather than on a hit. `EquippedItem.penalty` is the record and the hit side executes it; the save reader has no arm for it, and the line's "armor or a weapon" half needs a penalty a weapon can hold as well |
@@ -1861,12 +1877,10 @@ export const LINE_RESIDUE_SEAMS: Readonly<Record<string, string>> = {
     'nothing, and that is the answer. "The troll moves up to half its Speed straight toward an enemy it can see" is a move the DM makes with the move command, and the engine already refuses one that is too far or blocked; what the line adds over `move_creature` is a *restriction* on the DM rather than a rule the engine owes. The Xorn\'s and the Sahuagin\'s Aquatic Charge are the same sentence over a different Speed.',
   'seahorse/Bubble Dash':
     'a move that provokes nothing. "While underwater, the seahorse moves up to its Swim Speed without provoking Opportunity Attacks" — one field on a move, and `provokedBy` already reads the mover\'s mode for SRD Flyby and SRD Agile. What it waits on is a *declared* exemption on one move rather than a standing one on a creature, which is a field `MoveCommand` does not have. The Giant Seahorse prints it too.',
-  'giant-frog/Swallow':
-    'a-second-place-to-put-a-creature: a creature inside another one, with its own escape, its own damage at the swallower\'s turn boundary, and a way out when the swallower dies. The Giant Toad, the Gelatinous Cube\'s Engulf and the Shambling Mound\'s are the same want.',
   'roper/Tentacle':
     'the same second place, reached the other way: the tendril the Reel pulls on is an object with its own Armour Class and Hit Points that a creature may attack, which is `declareObject` given to a creature as part of its body.',
-  'ghost/Etherealness':
-    'a second **plane**, which the scene has no address for. The Nightmare\'s Ethereal Stride and the Phase Spider\'s Ethereal Jaunt are the same sentence, and the Dryad\'s Tree Stride is its cousin with a tree in place of a plane. Filed together under `a-second-place-to-put-a-creature` because what they need is one thing: somewhere a creature can be that is not a space on this map.',
+  'dryad/Tree Stride':
+    'a teleport between two trees the scene does not hold. The second place is built now — the Ghost\'s Etherealness, the Nightmare\'s Ethereal Stride and the Phase Spider\'s Ethereal Jaunt are executed on it — and this is its cousin with a tree in place of a plane: "within 5 feet of a Large or bigger tree … within 5 feet of a second Large or bigger tree that is within 60 feet" is a teleport whose two ends are objects, and the lattice holds no trees.',
   'sea-hag/Illusory Appearance':
     'fiction. "The hag covers herself and anything she is wearing or carrying with a magical illusion" — what somebody looks like is the table\'s, and the Investigation check to see through it is one a DM calls for.',
   'unicorn/Shimmering Shield':

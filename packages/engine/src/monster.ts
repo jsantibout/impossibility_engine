@@ -2197,6 +2197,11 @@ export function adaptMonster(monster: Monster, id: CharacterId): AdaptedMonster 
       ...(line.forms === undefined ? {} : { forms: line.forms }),
       // And what it pulls, which the Roper prints and no other block does.
       ...(line.pulls === undefined ? {} : { pulls: line.pulls }),
+      // And whom it swallows and which plane it steps to, the two roads into
+      // the second place a stat block prints: SRD Giant Frog's Swallow, SRD
+      // Ghost's Etherealness. Each arrives with the door that spends it.
+      ...(line.swallows === undefined ? {} : { swallows: line.swallows }),
+      ...(line.shiftsPlane === undefined ? {} : { shiftsPlane: line.shiftsPlane }),
       // And the forms the heading gates the line to, where it names any.
       ...(line.onlyInForms === undefined ? {} : { onlyInForms: [...line.onlyInForms] }),
     }));
@@ -2235,6 +2240,10 @@ export function adaptMonster(monster: Monster, id: CharacterId): AdaptedMonster 
     // And what it pulls, on both sections because a heading says what a use
     // costs rather than what it does.
     ...(line.pulls === undefined ? {} : { pulls: line.pulls }),
+    // And the two roads into the second place, on both sections for the same
+    // reason: SRD Phase Spider prints Ethereal Jaunt under this heading.
+    ...(line.swallows === undefined ? {} : { swallows: line.swallows }),
+    ...(line.shiftsPlane === undefined ? {} : { shiftsPlane: line.shiftsPlane }),
     // And the forms the heading gates it to: SRD Weretiger's Prowl is the one
     // Bonus Action in the book that prints the clause.
     ...(line.onlyInForms === undefined ? {} : { onlyInForms: [...line.onlyInForms] }),

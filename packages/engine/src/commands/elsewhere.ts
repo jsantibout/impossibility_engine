@@ -33,6 +33,7 @@ import {
   describeElsewhere,
   heldInside,
   keptElsewhereSource,
+  printedElsewhereSource,
   returnAnchor,
   returnCandidates,
   type ElsewhereDamage,
@@ -50,10 +51,23 @@ import {
 import { castingIdOf, castingSource } from '../spells.js';
 import { canSee } from '../standing.js';
 import { effectiveSizeOf } from '../size.js';
-import { isDue, timeView, type TurnMoment } from '../time.js';
+import { endOfNextTurn, isDue, resolveDuration, timeView, type TurnMoment } from '../time.js';
 import { rollRecorded } from '../rolls.js';
-import { anchorNeeded, creatureOf, sceneFor, spendFor, unknownCreature } from './command.js';
+import type { CharacterSheet, StatedAction, StatedBonusAction } from '../character.js';
+import { wrongFormFor } from '../forms.js';
+import { describePerDay, describeRecharge, perDayTallyKey, statedActionOf, statedBonusActionOf } from '../monster.js';
+import { tallied } from '../resources.js';
+import {
+  anchorNeeded,
+  creatureOf,
+  reachedBy,
+  sceneFor,
+  spendFor,
+  turnContextFor,
+  unknownCreature,
+} from './command.js';
 import { mayAct } from './holds.js';
+import { grappleSource, grapplesOn } from './unarmed.js';
 import type { Supply } from './casting.js';
 import { rollSpellDice } from './rolls.js';
 import { dealSpellDamage } from './damage.js';
@@ -791,6 +805,380 @@ export function enterElsewhere(
 
 const SIZE_ORDER: readonly CreatureSize[] = ['tiny', 'small', 'medium', 'large', 'huge', 'gargantuan'];
 const sizeRank = (size: CreatureSize): number => SIZE_ORDER.indexOf(size);
+
+// — the two roads a stat block prints ——————————————————————————————————————————
+
+/** The heading and the slot it costs, found on a sheet. */
+function printedLineNamed(
+  sheet: CharacterSheet,
+  name: string,
+): { readonly line: StatedAction | StatedBonusAction; readonly slot: 'action' | 'bonus-action' } | null {
+  const action = statedActionOf(sheet, name);
+  if (action !== null) return { line: action, slot: 'action' };
+  const bonus = statedBonusActionOf(sheet, name);
+  return bonus === null ? null : { line: bonus, slot: 'bonus-action' };
+}
+
+/**
+ * The economy every printed-line door spends, in the order they all spend it:
+ * the form gate, the recharge, the day's uses, then the slot the heading names
+ * — so a refusal leaves no footprint, and the same events reach the log
+ * because the same line was taken.
+ */
+function spendPrintedLine(
+  state: GameState,
+  id: CharacterId,
+  found: { readonly line: StatedAction | StatedBonusAction; readonly slot: 'action' | 'bonus-action' },
+  stamp: CommandStamp | null,
+): Result<GameEvent[]> {
+  const creature = creatureOf(state, id);
+  if (creature === null) return unknownCreature(id);
+  const combat = state.combat;
+  if (combat === null) {
+    return err('not_in_combat', 'there is no turn to spend a printed line from outside combat');
+  }
+  const { line, slot } = found;
+  const wrongForm = wrongFormFor(creature, line);
+  if (wrongForm !== null) return err('wrong_form', wrongForm);
+  const recharge = line.recharge ?? null;
+  if (creature.expendedLines.includes(line.name)) {
+    return err(
+      'line_expended',
+      `${id} has used ${line.name} and not got it back${recharge === null ? '' : `: ${describeRecharge(recharge)}`}`,
+    );
+  }
+  const perDay = line.perDay ?? null;
+  const usedToday = tallied(creature.resources, perDayTallyKey(line.name));
+  if (perDay !== null && usedToday >= perDay) {
+    return err('daily_limit_reached', `${id} has used ${line.name} ${usedToday} times today: ${describePerDay(perDay)}`);
+  }
+  const spent = spendFor(state, id, slot);
+  if (!spent.ok) return spent;
+  return ok([
+    spent.value,
+    ...(recharge === null ? [] : [{ type: 'printed-line-expended' as const, id, line: line.name }]),
+    ...(perDay === null
+      ? []
+      : [{ type: 'resource-spent' as const, id, key: perDayTallyKey(line.name), amount: 1, tally: 'dawn' as const }]),
+    slot === 'action'
+      ? { type: 'stated-action-taken' as const, id, line: line.name, ...(stamp === null ? {} : { command: stamp }) }
+      : {
+          type: 'stated-bonus-action-taken' as const,
+          id,
+          line: line.name,
+          turn: combat.turnsTaken,
+          ...(stamp === null ? {} : { command: stamp }),
+        },
+  ]);
+}
+
+export interface PrintedSwallowCommand extends CommandIdentity {
+  readonly line: string;
+  /** Whom to swallow, out of the creatures this one is grappling. */
+  readonly target?: CharacterId;
+}
+
+export interface PrintedSwallowOutcome {
+  readonly events: readonly GameEvent[];
+  readonly swallowed: CharacterId | null;
+  readonly unverified: readonly string[];
+  readonly duplicate: boolean;
+}
+
+/**
+ * SRD Giant Frog, Swallow: "The frog swallows a Small or smaller target it is
+ * grappling. While swallowed, the target isn't Grappled but has the Blinded
+ * and Restrained conditions, and it has Total Cover against attacks and other
+ * effects outside the frog … At the end of the frog's next turn, the swallowed
+ * target takes 5 (2d4) Acid damage. If that damage doesn't kill it, the frog
+ * disgorges it, causing it to exit Prone."
+ *
+ * The seventh door on a printed line, and every clause is the second place's:
+ * the grapple ends, the record hangs the two conditions under the line's
+ * source, the Total Cover is what `inside` means, the damage is pinned for the
+ * host's boundary, and the exit — on the frog's disgorging, or from the corpse
+ * — is a return checked against five feet of the host and landing Prone. One
+ * creature inside at a time, which the toad prints and the frog's singular
+ * says.
+ */
+export function takePrintedSwallow(
+  state: GameState,
+  id: CharacterId,
+  command: PrintedSwallowCommand,
+): Result<PrintedSwallowOutcome> {
+  return once(
+    state,
+    `printed-swallow:${id}`,
+    command,
+    () => ({ events: [], swallowed: null, unverified: [], duplicate: true }),
+    (stamp) => {
+      if (state.pendingAttack !== null) {
+        return err('attack_pending', 'a hit is waiting for its damage; settle it first');
+      }
+      const owedHere = mayAct(state, id);
+      if (owedHere !== null) return owedHere;
+      const creature = creatureOf(state, id);
+      if (creature === null) return unknownCreature(id, 'has no record here yet; add it first');
+      if (state.combat === null) {
+        return err('not_in_combat', 'there is no turn to spend a printed line from outside combat');
+      }
+      const found = printedLineNamed(creature.sheet, command.line);
+      if (found === null) {
+        return err(
+          'no_such_line',
+          `no line called ${command.line} is printed under this creature's Actions or Bonus Actions; a printed attack is taken by the command that swings it, and a heading printed under another section by the command that owns that one`,
+        );
+      }
+      const printed = found.line.swallows;
+      if (printed === undefined) {
+        return err(
+          'line_swallows_nothing',
+          `${found.line.name} states no swallow this engine could read; take it with the door that hands the sentence over, and a DM applies what it says`,
+        );
+      }
+
+      // Whom, out of the creatures this one holds. Asked for rather than
+      // refused when nobody said, because a missing fact is not a wrong one.
+      const held = (Object.keys(state.creatures) as CharacterId[])
+        .sort()
+        .filter((who) => grapplesOn(state, who).some((grapple) => grapple.grappler === id));
+      const target = command.target;
+      // Bare, as `undeclared_targets` is on a casting: whom a swallower picks
+      // out of the creatures it holds is a choice with no declaration behind
+      // it, and the answer is this same command with the target named.
+      if (target === undefined) {
+        return needsContext(
+          'undeclared_swallow_target',
+          `${found.line.name} swallows a target ${id} is grappling, and nobody has said which${held.length === 0 ? '; it is grappling nobody' : ` of ${held.join(', ')}`}`,
+        );
+      }
+      if (!held.includes(target)) {
+        return err('not_grappling_target', `${found.line.name} swallows a target ${id} is grappling, and ${id} is not grappling ${target}`);
+      }
+      const size = effectiveSizeOf(state, target) ?? state.scene?.sizes[target] ?? 'medium';
+      if (sizeRank(size) > sizeRank(printed.maxSize)) {
+        return err('too_large_to_swallow', `${found.line.name} swallows a ${printed.maxSize} or smaller target, and ${target} is ${size}`);
+      }
+      if (heldInside(state, id).length > 0) {
+        return err('already_holding_one', `${id} can have only one target swallowed at a time, and ${heldInside(state, id).join(', ')} is inside it`);
+      }
+
+      // "At the end of the frog's next turn" — pinned as the deadline it is,
+      // resolved now against the order, before anything is spent; "each of
+      // the toad's turns" — a moment the boundary compares against.
+      let damage: ElsewhereDamage;
+      if (printed.damage.of === 'each') {
+        damage = { dice: printed.damage.dice, damageType: printed.damage.type, each: 'end-of-turn' };
+      } else {
+        const lasts = endOfNextTurn(id);
+        const pinned = resolveDuration(timeView(state), lasts);
+        if (!pinned.ok) return turnContextFor(pinned, lasts, id);
+        damage = { dice: printed.damage.dice, damageType: printed.damage.type, once: pinned.value, disgorges: true };
+      }
+
+      const spent = spendPrintedLine(state, id, found, stamp);
+      if (!spent.ok) return spent;
+
+      const source = printedElsewhereSource(id, found.line.name);
+      const events: GameEvent[] = [
+        ...spent.value,
+        // "the target isn't Grappled": the hold this creature has on it ends,
+        // and the fold takes the escape's timer with the instance.
+        { type: 'condition-removed', id: target, condition: 'grappled', source: grappleSource(id) },
+      ];
+      const sent = sendingEvents(
+        events.reduce(applyEvent, state),
+        target,
+        {
+          kind: 'inside',
+          host: id,
+          source,
+          returns: { within: 5, near: id, prone: true },
+          damage,
+          conditions: printed.conditions as readonly ConditionName[],
+        },
+        null,
+      );
+      if (!sent.ok) return sent;
+      return ok({
+        events: [...events, ...sent.value],
+        swallowed: target,
+        unverified: printed.handedOver.map(
+          (clause) => `${found.line.name}: "${clause}" is a rule about another line, and the engine does not apply it; a DM does`,
+        ),
+        duplicate: false,
+      });
+    },
+  );
+}
+
+export interface PrintedPlaneShiftCommand extends CommandIdentity {
+  readonly line: string;
+  /**
+   * SRD Nightmare: "up to three willing creatures within 5 feet of it". The
+   * creatures the table names; naming one is stating it is willing.
+   */
+  readonly companions?: readonly CharacterId[];
+  /** On the way back: where the creature stands. Absent is asked about where several qualify. */
+  readonly to?: Placement;
+  /** On the way back: where each companion stands. */
+  readonly returns?: readonly StatedReturn[];
+}
+
+export interface PrintedPlaneShiftOutcome {
+  readonly events: readonly GameEvent[];
+  /** Which way the line went this time. */
+  readonly direction: 'out' | 'back';
+  readonly moved: readonly CharacterId[];
+  readonly unverified: readonly string[];
+  readonly duplicate: boolean;
+}
+
+/**
+ * SRD Phase Spider, Ethereal Jaunt: "The spider teleports from the Material
+ * Plane to the Ethereal Plane or vice versa." SRD Nightmare's Ethereal Stride
+ * takes "up to three willing creatures within 5 feet of it"; SRD Ghost's
+ * Etherealness casts the spell and says what being there means.
+ *
+ * **One line, two directions, read off the world**: a creature standing in
+ * the scene goes out; one that is elsewhere under this very line comes back,
+ * to the spot it left or the nearest unoccupied space — the Etherealness
+ * spell's own return rule, which is what `returns: { within: 0 }` pins. The
+ * companions go out with the creature and come back with it, each to a space
+ * the caller names or the one that qualifies.
+ */
+export function takePrintedPlaneShift(
+  state: GameState,
+  id: CharacterId,
+  command: PrintedPlaneShiftCommand,
+): Result<PrintedPlaneShiftOutcome> {
+  return once(
+    state,
+    `printed-plane-shift:${id}`,
+    command,
+    () => ({ events: [], direction: 'out', moved: [], unverified: [], duplicate: true }),
+    (stamp) => {
+      if (state.pendingMove !== null) {
+        return err('move_pending', `${state.pendingMove.mover} is already mid-move; settle it first`);
+      }
+      if (state.pendingAttack !== null) {
+        return err('attack_pending', 'a hit is waiting for its damage; settle it first');
+      }
+      const owedHere = mayAct(state, id);
+      if (owedHere !== null) return owedHere;
+      const creature = creatureOf(state, id);
+      if (creature === null) return unknownCreature(id, 'has no record here yet; add it first');
+      if (state.combat === null) {
+        return err('not_in_combat', 'there is no turn to spend a printed line from outside combat');
+      }
+      const found = printedLineNamed(creature.sheet, command.line);
+      if (found === null) {
+        return err(
+          'no_such_line',
+          `no line called ${command.line} is printed under this creature's Actions or Bonus Actions; a printed attack is taken by the command that swings it, and a heading printed under another section by the command that owns that one`,
+        );
+      }
+      const printed = found.line.shiftsPlane;
+      if (printed === undefined) {
+        return err(
+          'line_shifts_no_plane',
+          `${found.line.name} states no step to another plane this engine could read; take it with the door that hands the sentence over, and a DM applies what it says`,
+        );
+      }
+      const source = printedElsewhereSource(id, found.line.name);
+      const companions = command.companions ?? [];
+      const unverified: string[] = [];
+
+      // **Back**, where the creature is away under this line.
+      if (creature.elsewhere !== null) {
+        if (creature.elsewhere.source !== source) {
+          return err(
+            'no_way_back',
+            `${id} is ${describeElsewhere(creature.elsewhere)} by ${creature.elsewhere.source}, and ${found.line.name} brings back only what it sent`,
+          );
+        }
+        const back: { readonly who: CharacterId; readonly at: Point }[] = [];
+        let world = state;
+        const party = [
+          id,
+          ...(Object.keys(state.creatures) as CharacterId[])
+            .sort()
+            .filter((who) => who !== id && state.creatures[who]?.elsewhere?.source === source),
+        ];
+        // Every space before anything is spent: a refusal about where costs nothing.
+        for (const who of party) {
+          const settled = settleReturn(world, who, who === id ? command.to : command.returns?.find((entry) => entry.who === who)?.to, (count, within, near) =>
+            needsContext(
+              'return_space_required',
+              `${who} comes back to an unoccupied space within ${within} feet of ${near}, and ${count} qualify; nobody has said which`,
+              [
+                {
+                  kind: 'position',
+                  subject: who,
+                  need: `the space ${who} comes back to`,
+                  because: 'the book offers a choice of unoccupied spaces and the engine makes none of them',
+                  satisfyWith: `takePrintedPlaneShift again with \`to\` (or \`returns\` for a companion) naming the space ${who} comes back to`,
+                },
+              ],
+            ),
+          );
+          if (!settled.ok) return settled;
+          unverified.push(...settled.value.unverified);
+          back.push({ who, at: settled.value.at });
+          world = returnEvents(world, who, settled.value.at, null).reduce(applyEvent, world);
+        }
+        const spent = spendPrintedLine(state, id, found, stamp);
+        if (!spent.ok) return spent;
+        const events: GameEvent[] = [...spent.value];
+        let current = spent.value.reduce(applyEvent, state);
+        for (const { who, at } of back) {
+          const returned = returnEvents(current, who, at, null);
+          events.push(...returned);
+          current = returned.reduce(applyEvent, current);
+        }
+        return ok({ events, direction: 'back', moved: party, unverified, duplicate: false });
+      }
+
+      // **Out.** The companions the line allows, within its reach.
+      if (companions.length > 0) {
+        if (printed.companions === undefined) {
+          return err('no_companions', `${found.line.name} takes ${id} alone; the line names nobody else`);
+        }
+        if (companions.length > printed.companions.count) {
+          return err(
+            'too_many_companions',
+            `${found.line.name} takes up to ${printed.companions.count} willing creatures, and ${companions.length} were named`,
+          );
+        }
+        const scene = sceneFor(state, id, `${id} to step from`);
+        if (!scene.ok) return scene;
+        for (const who of companions) {
+          if (creatureOf(state, who) === null) return unknownCreature(who);
+          const apart = reachedBy(state, id, who, `${found.line.name}`, printed.companions.within);
+          if (apart !== null) {
+            return apart.code === 'out_of_reach'
+              ? err('companion_too_far', `${found.line.name} takes willing creatures within ${printed.companions.within} feet of ${id}, and ${who} is farther`)
+              : apart;
+          }
+        }
+        unverified.push(
+          `${found.line.name}: that ${companions.join(', ')} ${companions.length === 1 ? 'is' : 'are'} willing is stated by naming them, and the engine records it as stated`,
+        );
+      }
+      const spent = spendPrintedLine(state, id, found, stamp);
+      if (!spent.ok) return spent;
+      const events: GameEvent[] = [...spent.value];
+      let current = spent.value.reduce(applyEvent, state);
+      for (const who of [id, ...companions]) {
+        const sent = sendingEvents(current, who, { kind: printed.plane, source, returns: { within: 0 } }, null);
+        if (!sent.ok) return sent;
+        events.push(...sent.value);
+        current = sent.value.reduce(applyEvent, current);
+      }
+      return ok({ events, direction: 'out', moved: [id, ...companions], unverified, duplicate: false });
+    },
+  );
+}
 
 // — the effect ————————————————————————————————————————————————————————————————
 

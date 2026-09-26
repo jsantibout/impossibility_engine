@@ -147,6 +147,8 @@ import {
   enterElsewhere,
   recallKeptSummons,
   returnFromElsewhere,
+  takePrintedPlaneShift,
+  takePrintedSwallow,
   takeStatedAction,
   takeStatedBonusAction,
   takeTestReaction,
@@ -516,6 +518,27 @@ const TELEPORTING_LINE = {
   teleports: { feet: 30, mustSee: true as const },
 } as const;
 
+/** The same invented line with the book's plane-shift template read off it. */
+const STEPPING_LINE = { ...PRINTED_LINE, shiftsPlane: { plane: 'ethereal' as const } } as const;
+
+/** And with the book's swallow template read off it, over B, whom A already holds. */
+const SWALLOWING_LINE: StatedAction = {
+  ...PRINTED_LINE,
+  swallows: {
+    maxSize: 'medium',
+    conditions: ['blinded', 'restrained'],
+    damage: { dice: '2d4', type: 'Acid', of: 'each', disgorges: false },
+    handedOver: [],
+  },
+};
+
+/** A with the stepping line under Actions. */
+const STEPPING: readonly GameEvent[] = SETUP.map((event) =>
+  event.type === 'creature-added' && event.id === A
+    ? { ...event, sheet: sheet({ stated: { unreadActions: [STEPPING_LINE] } }) }
+    : event,
+);
+
 /** The same world again, with that line under Actions. */
 const BLINKING: readonly GameEvent[] = SETUP.map((event) =>
   event.type === 'creature-added' && event.id === A
@@ -858,6 +881,14 @@ const HELD: readonly GameEvent[] = [
   },
   { type: 'turn-advanced' },
 ];
+
+/** A holding B, with the swallowing line under Actions, on A's turn. */
+const SWALLOWING: readonly GameEvent[] = HELD.filter((event) => event.type !== 'turn-advanced').map(
+  (event) =>
+    event.type === 'creature-added' && event.id === A
+      ? { ...event, sheet: sheet({ stated: { unreadActions: [SWALLOWING_LINE] } }) }
+      : event,
+);
 
 /**
  * A stirge fixed to B, so the two detach doors have something to let go of.
@@ -2210,6 +2241,21 @@ const GUARDED: readonly Guarded[] = [
    * twice — the second time refused by the fold as a return from nowhere —
    * and the two doors on a kept summons would spend a second Action.
    */
+  /**
+   * The two roads a stat block prints into the second place. A retry that was
+   * not guarded would spend a second Action; on the swallow it would also be
+   * refused by the fold as a creature leaving the scene twice.
+   */
+  {
+    name: 'takePrintedSwallow',
+    log: SWALLOWING,
+    run: (s, commandId) => takePrintedSwallow(s, A, { line: SWALLOWING_LINE.name, target: B, commandId }),
+  },
+  {
+    name: 'takePrintedPlaneShift',
+    log: STEPPING,
+    run: (s, commandId) => takePrintedPlaneShift(s, A, { line: STEPPING_LINE.name, commandId }),
+  },
   {
     name: 'returnFromElsewhere',
     log: AWAY,
@@ -3719,6 +3765,9 @@ const SPENDERS: readonly Spender[] = [
   // it does.
   { name: 'dismissKeptSummons', run: (s) => dismissKeptSummons(s, B, { who: A }) },
   { name: 'recallKeptSummons', run: (s) => recallKeptSummons(s, B, { who: A }) },
+  // And the two printed roads, refused for the debt before the line is read.
+  { name: 'takePrintedSwallow', run: (s) => takePrintedSwallow(s, B, { line: 'A Printed Line', target: A }) },
+  { name: 'takePrintedPlaneShift', run: (s) => takePrintedPlaneShift(s, B, { line: 'A Printed Line' }) },
   { name: 'takeDisengage', run: (s) => takeDisengage(s, B, {}) },
   { name: 'takeDodge', run: (s) => takeDodge(s, B, {}) },
   // The debt is checked before the target is looked at, so a shake aimed at a

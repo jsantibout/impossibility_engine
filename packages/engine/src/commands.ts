@@ -221,12 +221,18 @@ export {
   enterElsewhere,
   recallKeptSummons,
   returnFromElsewhere,
+  takePrintedPlaneShift,
+  takePrintedSwallow,
 } from './commands/elsewhere.js';
 export type {
   EnterCommand,
   EnterOutcome,
   KeptSummonsCommand,
   KeptSummonsOutcome,
+  PrintedPlaneShiftCommand,
+  PrintedPlaneShiftOutcome,
+  PrintedSwallowCommand,
+  PrintedSwallowOutcome,
   RecallCommand,
   ReturnCommand,
   ReturnOutcome,

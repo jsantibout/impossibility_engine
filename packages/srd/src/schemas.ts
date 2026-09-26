@@ -1425,6 +1425,82 @@ export const MonsterPullSchema = z.object({
 export type MonsterPull = z.infer<typeof MonsterPullSchema>;
 
 /**
+ * One line that takes a creature it is grappling **inside** itself.
+ *
+ * SRD Giant Frog: "The frog swallows a Small or smaller target it is
+ * grappling. While swallowed, the target isn't Grappled but has the Blinded
+ * and Restrained conditions, and it has Total Cover against attacks and other
+ * effects outside the frog. While swallowing the target, the frog can't use
+ * Bite, and if the frog dies, the swallowed target is no longer Restrained and
+ * can escape from the corpse using 5 feet of movement, exiting with the Prone
+ * condition. At the end of the frog's next turn, the swallowed target takes
+ * 5 (2d4) Acid damage. If that damage doesn't kill it, the frog disgorges it,
+ * causing it to exit Prone." SRD Giant Toad prints the same template with a
+ * hit at the end of **each** of its turns and no disgorging.
+ *
+ * **Every clause but one is a rule the engine's second place holds**: the
+ * grapple ended, the two conditions the record hangs, the Total Cover (which
+ * is what being elsewhere means), the damage at the host's boundary, the
+ * escape from the corpse and the Prone on the way out. The one it does not is
+ * "can't use Bite", a rule about another line, and it is carried in
+ * `handedOver` so the door hands it to the table rather than dropping it.
+ *
+ * **Read whole or not at all**, as every reader here is: a swallow that said
+ * something else — a regurgitation on damage taken, a different exit — would
+ * be prose.
+ */
+export const MonsterSwallowSchema = z.object({
+  /** "a Small or smaller target": the largest the line takes in. */
+  maxSize: CreatureSizeSchema,
+  /** "has the Blinded and Restrained conditions", lowercased into the engine's names. */
+  conditions: z.array(z.string().regex(/^[a-z]+$/)).min(1),
+  /** What the stay costs, at the end of the swallower's turn. */
+  damage: z.object({
+    dice: z.string().regex(/^\d+d\d+$/),
+    type: z.string().min(1),
+    /**
+     * `each`: "at the end of each of the toad's turns", for as long as the
+     * creature is inside. `next`: "At the end of the frog's next turn", once,
+     * after which `disgorges` says what happens.
+     */
+    of: z.enum(['each', 'next']),
+    /** "If that damage doesn't kill it, the frog disgorges it". */
+    disgorges: z.boolean(),
+  }),
+  /** The clause about another line, quoted for the table. */
+  handedOver: z.array(z.string().min(1)),
+});
+export type MonsterSwallow = z.infer<typeof MonsterSwallowSchema>;
+
+/**
+ * One line that steps its creature between this plane and another, and back.
+ *
+ * SRD Phase Spider, Ethereal Jaunt: "The spider teleports from the Material
+ * Plane to the Ethereal Plane or vice versa." SRD Nightmare, Ethereal Stride:
+ * "The nightmare and up to three willing creatures within 5 feet of it
+ * teleport to the Ethereal Plane from the Material Plane or vice versa." SRD
+ * Ghost, Etherealness: a cast of the spell of that name, whose second sentence
+ * — "can't affect or be affected by anything on the other plane" — is what
+ * being elsewhere means, so the line is read as the same shape.
+ *
+ * "Vice versa" is the way back, and it is the same line: a creature that is
+ * on the other plane under this line's source comes back to the spot it left,
+ * or the nearest unoccupied space.
+ */
+export const MonsterPlaneShiftSchema = z.object({
+  /** The plane. One member, and the field exists to keep it one until the book prints another. */
+  plane: z.literal('ethereal'),
+  /** SRD Nightmare's "up to three willing creatures within 5 feet of it". */
+  companions: z
+    .object({
+      count: z.number().int().min(1),
+      within: z.number().int().min(5),
+    })
+    .optional(),
+});
+export type MonsterPlaneShift = z.infer<typeof MonsterPlaneShiftSchema>;
+
+/**
  * One Reaction line that adds a flat number to somebody's D20 Test.
  *
  * SRD Sphinx of Wonder, Burst of Ingenuity (2/Day): "_Trigger:_ The sphinx or
@@ -2450,6 +2526,18 @@ export const FeatureSchema = z.object({
    * that reaches this shape under Actions.
    */
   pulls: MonsterPullSchema.optional(),
+  /**
+   * Whom this line swallows — see {@link MonsterSwallowSchema}. Read on every
+   * section like everything else here; SRD prints both under Actions.
+   */
+  swallows: MonsterSwallowSchema.optional(),
+  /**
+   * The plane this line steps to and back from — see
+   * {@link MonsterPlaneShiftSchema}. SRD prints two under Actions and the
+   * Phase Spider's under Bonus Actions, which is a heading saying what the
+   * use costs.
+   */
+  shiftsPlane: MonsterPlaneShiftSchema.optional(),
   /**
    * The forms this line may be used in, where its **heading** says so.
    *
