@@ -684,7 +684,7 @@ is where a figure like that belongs.
 
 | Parsed | Transcribed | Instances | of which complete | of which partial |
 |---|---|---|---|---|
-| 258 | 79 | 236 | 181 | 55 |
+| 258 | 86 | 247 | 190 | 57 |
 
 An entry with **no** record is one whose whole text is beyond the grant
 vocabulary. `packages/content/src/items.ts` states the three rules that
@@ -701,15 +701,15 @@ inventing a column that nothing checks.
 
 | Category | Parsed | Transcribed | Instances | Complete | Partial |
 |---|---|---|---|---|---|
-| Armor | 19 | 10 | 54 | 48 | 6 |
-| Potions | 24 | 7 | 7 | 2 | 5 |
+| Armor | 19 | 10 | 55 | 48 | 7 |
+| Potions | 24 | 11 | 14 | 9 | 5 |
 | Rings | 22 | 5 | 5 | 4 | 1 |
 | Rods | 7 | 1 | 1 | 0 | 1 |
 | Scrolls | 1 | 0 | 0 | 0 | 0 |
 | Staffs | 12 | 1 | 1 | 0 | 1 |
 | Wands | 13 | 8 | 8 | 1 | 7 |
 | Weapons | 33 | 15 | 128 | 115 | 13 |
-| Wondrous Items | 127 | 32 | 32 | 11 | 21 |
+| Wondrous Items | 127 | 35 | 35 | 13 | 22 |
 
 ### Entries transcribed
 
@@ -739,6 +739,7 @@ how many of those still carry a clause the engine does not say.
 - **Dragon Slayer** (Weapons) — 1 recorded, 1 partial
 - **Dust of Disappearance** (Wondrous Items) — 1 recorded, 1 partial
 - **Dwarven Plate** (Armor) — 1 recorded, 1 partial
+- **Elixir of Health** (Potions) — 1 recorded, complete
 - **Elven Chain** (Armor) — 1 recorded, 1 partial
 - **Eyes of Charming** (Wondrous Items) — 1 recorded, 1 partial
 - **Frost Brand** (Weapons) — 1 recorded, 1 partial
@@ -754,17 +755,21 @@ how many of those still carry a clause the engine does not say.
 - **Mace of Smiting** (Weapons) — 1 recorded, 1 partial
 - **Medallion of Thoughts** (Wondrous Items) — 1 recorded, complete
 - **Mithral Armor** (Armor) — 8 recorded, complete
+- **Necklace of Adaptation** (Wondrous Items) — 1 recorded, complete
 - **Nine Lives Stealer** (Weapons) — 1 recorded, 1 partial
-- **Periapt of Health** (Wondrous Items) — 1 recorded, 1 partial
+- **Periapt of Health** (Wondrous Items) — 1 recorded, complete
 - **Periapt of Proof against Poison** (Wondrous Items) — 1 recorded, 1 partial
-- **Plate Armor of Etherealness** (Armor) — 1 recorded, 1 partial
+- **Plate Armor of Etherealness** (Armor) — 2 recorded, 2 partial
+- **Potion of Climbing** (Potions) — 1 recorded, 1 partial
 - **Potion of Diminution** (Potions) — 1 recorded, 1 partial
+- **Potion of Flying** (Potions) — 1 recorded, 1 partial
 - **Potion of Gaseous Form** (Potions) — 1 recorded, 1 partial
 - **Potion of Growth** (Potions) — 1 recorded, 1 partial
 - **Potion of Heroism** (Potions) — 1 recorded, complete
 - **Potion of Invisibility** (Potions) — 1 recorded, complete
-- **Potion of Speed** (Potions) — 1 recorded, 1 partial
-- **Potions of Healing** (Potions) — 1 recorded, 1 partial
+- **Potion of Invulnerability** (Potions) — 1 recorded, complete
+- **Potion of Speed** (Potions) — 1 recorded, complete
+- **Potions of Healing** (Potions) — 4 recorded, complete
 - **Quarterstaff of the Acrobat** (Weapons) — 1 recorded, 1 partial
 - **Ring of Animal Influence** (Rings) — 1 recorded, 1 partial
 - **Ring of Jumping** (Rings) — 1 recorded, complete
@@ -772,6 +777,7 @@ how many of those still carry a clause the engine does not say.
 - **Ring of Telekinesis** (Rings) — 1 recorded, complete
 - **Ring of Water Walking** (Rings) — 1 recorded, complete
 - **Robe of Stars** (Wondrous Items) — 1 recorded, 1 partial
+- **Robe of the Archmagi** (Wondrous Items) — 1 recorded, 1 partial
 - **Rod of Resurrection** (Rods) — 1 recorded, 1 partial
 - **Scimitar of Speed** (Weapons) — 1 recorded, 1 partial
 - **Sentinel Shield** (Armor) — 1 recorded, complete
@@ -795,6 +801,7 @@ how many of those still carry a clause the engine does not say.
 - **Weapon of Warning** (Weapons) — 1 recorded, 1 partial
 - **Weapon, +1, +2, or +3** (Weapons) — 114 recorded, complete
 - **Wind Fan** (Wondrous Items) — 1 recorded, 1 partial
+- **Winged Boots** (Wondrous Items) — 1 recorded, 1 partial
 
 ### What blocks the rest
 
@@ -818,7 +825,7 @@ entry of "Magic Items A–Z" is in exactly one of them.
 
 | Parsed | Transcribed | Blocked | Ready | Fiction | Unread |
 |---|---|---|---|---|---|
-| 258 | 79 | 169 | 2 | 4 | 4 |
+| 258 | 86 | 165 | 0 | 4 | 3 |
 
 **Unread is the honest default**, not a backlog nobody got to. An entry
 whose blocker cannot be named from something this repository has already
@@ -833,8 +840,6 @@ Blocked by nothing. Each has been read sentence by sentence, and each has
 at least one clause the grant vocabulary can already say — which is the
 difference between this list and the fiction pile.
 
-- **Elixir of Health** (Potions) — every clause is the table’s or expressible
-- **Potion of Invulnerability** (Potions) — every clause is the table’s or expressible
 
 #### The shapes that block the rest
 
@@ -871,10 +876,10 @@ the next tranche makes false.
 | `an-object-with-statistics-of-its-own` | 18 | 0 | 3 |
 | `a-benefit-an-item-switches-on-and-off` | 14 | 0 | 3 |
 | `a-fact-only-the-table-can-declare` | 12 | 0 | 3 |
-| `a-speed-an-item-grants` | 14 | 0 | 2 |
 | `an-item-instance-with-a-state-of-its-own` | 12 | 0 | 2 |
+| `a-speed-an-item-grants` | 11 | 0 | 2 |
 | `a-reaction-an-item-grants` | 8 | 0 | 2 |
-| `a-mode-on-the-save-a-spell-forces` | 6 | 1 | 1 |
+| `a-mode-on-the-save-a-spell-forces` | 5 | 1 | 1 |
 | `a-casting-an-item-stores-or-gives-back` | 4 | 0 | 2 |
 | `a-target-rule-the-format-cannot-state` | 2 | 1 | 1 |
 | `an-area-an-item-creates` | 22 | 0 | 1 |
@@ -884,7 +889,7 @@ the next tranche makes false.
 | `a-range-an-item-names` | 9 | 0 | 1 |
 | `damage-with-neither-an-attack-roll-nor-a-save` | 8 | 0 | 1 |
 | `senses-beyond-declared-sight` | 8 | 0 | 1 |
-| `a-bonus-narrowed-to-a-skill` | 7 | 1 | 0 |
+| `a-bonus-narrowed-to-a-skill` | 6 | 1 | 0 |
 | `a-language-or-a-proficiency-an-item-grants` | 5 | 0 | 1 |
 | `healing-modified-by-an-effect` | 5 | 0 | 1 |
 | `what-ends-attunement-besides-a-command` | 4 | 0 | 1 |
@@ -892,10 +897,10 @@ the next tranche makes false.
 | `a-casting-ended-by-a-trigger` | 1 | 0 | 1 |
 | `a-critical-hit-an-effect-downgrades` | 1 | 0 | 1 |
 | `a-reduction-an-effect-applies-to-damage` | 1 | 0 | 1 |
-| `movement-modes` | 13 | 0 | 0 |
 | `a-save-an-item-forces` | 11 | 0 | 0 |
 | `a-condition-an-item-imposes` | 10 | 0 | 0 |
-| `a-bonus-to-spell-attack-rolls` | 7 | 0 | 0 |
+| `movement-modes` | 10 | 0 | 0 |
+| `a-bonus-to-spell-attack-rolls` | 6 | 0 | 0 |
 | `an-exhaustion-level-a-spell-changes` | 4 | 0 | 0 |
 | `a-concentration-with-no-casting-behind-it` | 3 | 0 | 0 |
 | `a-random-outcome-that-is-not-a-d20` | 3 | 0 | 0 |
@@ -908,7 +913,6 @@ the next tranche makes false.
 | `difficult-terrain-an-area-creates` | 2 | 0 | 0 |
 | `a-deadline-anchored-to-a-rest` | 1 | 0 | 0 |
 | `a-hit-point-maximum-a-spell-moves` | 1 | 0 | 0 |
-| `a-speed-an-effect-multiplies` | 1 | 0 | 0 |
 | `an-automatic-success-by-creature-type` | 1 | 0 | 0 |
 | `an-effect-that-suppresses-other-magic` | 1 | 0 | 0 |
 | `an-outcome-that-breaks-concentration` | 1 | 0 | 0 |

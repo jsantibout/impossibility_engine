@@ -2954,3 +2954,21 @@ Appended 2026-09-26, wave seven on Opus:
   caster's own position (a borrowed Blindsight would reach the caster's attack
   rolls), where the SRD ties them to seeing through the familiar's eyes.
   One Opus review, five defects, fixed.
+- **Treasure T-A: potions, boots and robes** (content only; the owner's
+  treasure ruling of 2026-09-26 — magic items that fit a shape get built even
+  though the level-5 ledger does not count them). Complete now: Periapt of
+  Health, Potion of Speed (Haste's double Speed and one-attack action), the
+  greater, superior and supreme Potions of Healing, Elixir of Health, Potion
+  of Invulnerability, Necklace of Adaptation. Partial with honest notes:
+  Potion of Flying, Climbing, Gaseous Form, Growth, Diminution, Winged Boots,
+  Robe of the Archmagi, Half Plate of Etherealness. Magic items transcribed
+  79 → 86, complete entries 24 → 30. **Boots of Speed left out under
+  `items.ts` rule 3**: a `confers` grant outlives the doffing, so the boots
+  would be better than the book — moved to T-B3 with the ending it needs, and
+  with a second ending (a conferral that ends at 0 Hit Points, Gaseous Form's).
+  **Engine gaps the review named, unbriefed:** `speedOf` adds mode-named `add`
+  grants, so Winged Boots under SRD Fly give 90 feet (a granted Speed should
+  be a floor, not an addend — Fly itself has the same fault); a Potion of
+  Speed beside a Haste mints two extra actions (Combining Magical Effects is
+  not expressed between a spell and an item that confers it). One Opus review,
+  one defect, fixed.
