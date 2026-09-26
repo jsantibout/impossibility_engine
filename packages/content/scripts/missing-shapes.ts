@@ -4763,7 +4763,6 @@ export const ITEM_BLOCKED_ON: Readonly<Record<string, ItemEntry>> = {
   ],
   'carpet-of-flying': ['movement-modes', 'a-version-of-an-item-the-book-leaves-to-the-gm'],
   'censer-of-controlling-air-elementals': ['a-stat-block-created-mid-fight'],
-  'cloak-of-arachnida': ['movement-modes', 'a-speed-an-item-grants'],
   'cloak-of-displacement': ['a-benefit-an-item-suspends-on-a-trigger'],
   // Polymorph is defined and tracked, and "on yourself" is `targetsSelfOnly`,
   // so the casting the cloak prints is writable and the per-dawn limit is a
@@ -5162,7 +5161,7 @@ export const ITEM_BLOCKED_ON: Readonly<Record<string, ItemEntry>> = {
   'portable-hole': ['a-container-with-a-space-of-its-own'],
   'potion-of-animal-friendship': {
     unread:
-      'read, and the blocker cannot be named without inventing a shape. "you can cast the level 3 version of the _Animal Friendship_ spell (save DC 13)" is a **consumable whose one use is a casting**, and neither door fits: a `confers` grant is refused the `save` kind that spell is written in, while a `casts` grant is the shape Cape of the Mountebank already uses and `checkContent` accepts it here — a one-charge pool and the spell, DC and level the line prints. What it accepts is not the potion, because that pool recovers at dawn and nothing spends the flask itself: `useItem` is the only command that uses an item **up** as part of using it, and it refuses anything whose grant is not a conferral. Filing it under the condition weld would name a blocker the engine does not give; naming the missing one would be an architecture decision smuggled in as a note.',
+      'read, and since the wand door the record is sayable and still unreachable, which is a blocker nobody can name without inventing a shape. "you can cast the level 3 version of the _Animal Friendship_ spell (save DC 13)" is a **consumable whose one use is a casting**: `countedUses` with one use and a pool whose `onLastCharge` is `{ destroyed: \'always\' }` spends the flask with its casting, and `checkContent` accepts the spell, DC and level the line prints. What stops it is the route. packages/engine/src/commands/item-casting.ts casts from an item only where it is in `creature.equipped` — the refusal says it "is used while holding it" — and `EQUIPPABLE` in packages/engine/src/commands/inventory.ts leaves a potion out because it is "consumed rather than worn". So every use of the record would be refused, which is rule 1 of packages/content/src/items.ts, and what the potion waits on is a casting route that reaches a potion in the pack, as `useItem` already drinks one: an engine decision rather than a note.',
   },
   'potion-of-clairvoyance': [
     {
@@ -5260,13 +5259,6 @@ export const ITEM_BLOCKED_ON: Readonly<Record<string, ItemEntry>> = {
   ],
   'ring-of-regeneration': ['healing-modified-by-an-effect'],
   'ring-of-resistance': ['a-version-of-an-item-the-book-leaves-to-the-gm'],
-  // Dancing Lights, Light and Faerie Fire are all defined and tracked, so the
-  // three castings and the ring's 1d6 dawn are writable. The lightning
-  // spheres are what is left.
-  'ring-of-shooting-stars': [
-    'an-area-an-item-creates',
-    'a-concentration-with-no-casting-behind-it',
-  ],
   'ring-of-spell-storing': ['a-casting-an-item-stores-or-gives-back'],
   'ring-of-spell-turning': ['a-mode-on-the-save-a-spell-forces', 'a-reaction-an-item-grants'],
   'ring-of-swimming': ['a-speed-an-item-grants', 'movement-modes'],
@@ -5314,12 +5306,6 @@ export const ITEM_BLOCKED_ON: Readonly<Record<string, ItemEntry>> = {
     'an-item-instance-with-a-state-of-its-own',
   ],
   'rod-of-absorption': ['a-casting-an-item-stores-or-gives-back', 'a-reaction-an-item-grants'],
-  // Its four spells are all defined, so the spell shape never belonged here;
-  // and what its `_Spells._` property had no way to say — "While holding the
-  // rod, you can cast the following spells from it", naming no charge and no
-  // dawn — is now `atWill`. What is left is the aura it plants and the
-  // Advantage on Initiative it hands whoever is near it.
-  'rod-of-alertness': ['an-area-an-item-creates', 'senses-beyond-declared-sight'],
   // Re-pointed off the condition shape. Both conditions the rod imposes are
   // built — Paralyzed for a minute on a hit, Frightened for a minute on a
   // Magic action, each with a repeat that ends on its own target. What is
@@ -5380,64 +5366,10 @@ export const ITEM_BLOCKED_ON: Readonly<Record<string, ItemEntry>> = {
     'an-object-with-statistics-of-its-own',
     'damage-with-neither-an-attack-roll-nor-a-save',
   ],
-  // Charm Person executes and Command and Comprehend Languages are tracked,
-  // so all three of the staff's castings are writable. The Reaction that
-  // reflects an Enchantment and the failed save it turns into a success are
-  // what is left.
-  // The charge shape is kept, and for the surviving residue rather than the
-  // price: the staff's second charge buys a Reaction — "you can take a
-  // Reaction to expend 1 charge from the staff and turn the spell back on its
-  // caster" — which is not a conferral and not a casting either.
-  'staff-of-charming': [
-    'a-reaction-an-item-grants',
-    'a-charge-spent-on-something-other-than-a-casting',
-    'a-rider-on-the-face-the-die-showed',
-  ],
-  'staff-of-frost': [
-    'a-spell-an-item-casts-that-nothing-executes',
-    'a-rider-on-the-face-the-die-showed',
-  ],
-  // The charge shape is kept, for the one way a **casting's** price can be
-  // unsayable: "1 charge per spell level (maximum 4 for a level 4 spell)" is
-  // a cost that reads the slot, and `ItemCastsGrant.charges` is one number.
-  // Cure Wounds, Lesser Restoration and Mass Cure Wounds are all defined.
-  'staff-of-healing': [
-    'a-charge-spent-on-something-other-than-a-casting',
-    'a-rider-on-the-face-the-die-showed',
-  ],
-  'staff-of-power': [
-    'a-spell-an-item-casts-that-nothing-executes',
-    'a-bonus-to-spell-attack-rolls',
-    'a-rider-on-the-face-the-die-showed',
-    'an-area-an-item-creates',
-    'damage-with-neither-an-attack-roll-nor-a-save',
-  ],
   'staff-of-striking': ['a-charge-spent-on-something-other-than-a-casting'],
-  // The charge shape is kept: an Emanation of insects that obscures an area
-  // for ten minutes is a charge spent on something no grant kind executes at
-  // all, which is the residue the shape's description names.
-  'staff-of-swarming-insects': [
-    'a-spell-an-item-casts-that-nothing-executes',
-    'an-area-an-item-creates',
-    'a-charge-spent-on-something-other-than-a-casting',
-    'a-rider-on-the-face-the-die-showed',
-  ],
-  'staff-of-the-magi': [
-    'a-spell-an-item-casts-that-nothing-executes',
-    'a-bonus-to-spell-attack-rolls',
-    'a-casting-an-item-stores-or-gives-back',
-    'an-area-an-item-creates',
-    'damage-with-neither-an-attack-roll-nor-a-save',
-  ],
   'staff-of-the-python': [
     'a-stat-block-created-mid-fight',
     'an-object-with-statistics-of-its-own',
-  ],
-  'staff-of-the-woodlands': [
-    'a-spell-an-item-casts-that-nothing-executes',
-    'a-bonus-to-spell-attack-rolls',
-    'an-object-with-statistics-of-its-own',
-    'a-rider-on-the-face-the-die-showed',
   ],
   // The condition shape is kept, and this staff has two of the three
   // residues at once: _Thunder_ hangs its Stunned "until the end of your next
@@ -5525,10 +5457,6 @@ export const ITEM_BLOCKED_ON: Readonly<Record<string, ItemEntry>> = {
   // `CONFERRED_EFFECT_KINDS` has no member for one.
   'wand-of-enemy-detection': [
     'senses-beyond-declared-sight',
-    'a-rider-on-the-face-the-die-showed',
-  ],
-  'wand-of-magic-missiles': [
-    'a-spell-an-item-casts-that-nothing-executes',
     'a-rider-on-the-face-the-die-showed',
   ],
   // **What `a-rider-on-the-face-the-die-showed` blocks and what it merely

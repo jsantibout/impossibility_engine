@@ -191,10 +191,57 @@ const paladin = (name: string): Record<string, unknown> => ({
   dmGrants: { items: [], goldPieces: 0, magicItems: [], note: 'standard package only' },
 });
 
+/**
+ * For an item whose bracket names neither a Wizard nor a Paladin — SRD Staff of
+ * the Woodlands ("by a Druid") and Staff of Healing ("by a Bard, Cleric, or
+ * Druid").
+ */
+const druid = (name: string): Record<string, unknown> => ({
+  name,
+  classId: 'druid',
+  level: 5,
+  speciesId: 'human',
+  // Not the Sage: its Magic Initiate would hand the druid a second
+  // spellcasting ability, and a staff "using your spell save DC" would then ask
+  // which — a question for a caller, not for a sweep of the door.
+  backgroundId: 'criminal',
+  abilities: {
+    method: 'standard-array',
+    assignment: { str: 10, dex: 13, con: 14, int: 8, wis: 15, cha: 12 },
+  },
+  abilityIncreases: { con: 2, dex: 1 },
+  classSkills: ['nature', 'survival'],
+  languages: ['Elvish', 'Dwarvish'],
+  alignment: 'Neutral Good',
+  subclassId: 'circle-of-the-land',
+  cantrips: ['poison-spray', 'guidance', 'produce-flame'],
+  spellbook: [],
+  preparedSpells: ['cure-wounds', 'healing-word', 'thunderwave', 'hold-person', 'faerie-fire', 'entangle', 'moonbeam', 'goodberry', 'flame-blade'],
+  classEquipment: 'A',
+  backgroundEquipment: 'A',
+  equipped: [],
+  hitPoints: { method: 'fixed' },
+  featureChoices: {
+    'human:skillful': ['perception'],
+    'druid:primal-order': ['Magician'],
+    'druid:primal-order:cantrip': ['mending'],
+  },
+  feats: {
+    'criminal:alert': { featId: 'alert' },
+    'human:versatile': { featId: 'savage-attacker' },
+    'druid:ability-score-improvement': {
+      featId: 'ability-score-improvement',
+      abilities: ['wis', 'wis'],
+    },
+  },
+  dmGrants: { items: [], goldPieces: 0, magicItems: [], note: 'standard package only' },
+});
+
 const BUILDERS: Readonly<Record<string, (name: string) => Record<string, unknown>>> = {
   wizard,
   fighter,
   paladin,
+  druid,
 };
 
 /**
@@ -209,7 +256,12 @@ function wielderFor(itemId: string): Record<string, unknown> {
   const item = SRD_CONTENT.item(itemId)!;
   const named = item.attunement?.byClass ?? [];
   const preferred = item.armor !== null ? 'fighter' : 'wizard';
-  const classId = named.length === 0 || named.includes(preferred) ? preferred : named[0]!;
+  // The first class the bracket names that this file builds: "by a Bard,
+  // Cleric, or Druid" is answered by any one of them.
+  const classId =
+    named.length === 0 || named.includes(preferred)
+      ? preferred
+      : (named.find((one) => BUILDERS[one] !== undefined) ?? named[0]!);
   const build = BUILDERS[classId];
   if (build === undefined) throw new Error(`${itemId} wants a ${classId}, and this file builds none`);
   return build('Mira');
@@ -370,6 +422,19 @@ const STATED: Readonly<
   // SRD Command's five words; the engine will not pick one. Its word lands on
   // "the target's next turn", so there have to be turns.
   command: { setup: (t) => fight(t, WIELDER), args: { option: 'halt' } },
+  // SRD Awaken is a touch, so its target stands at the caster's elbow.
+  awaken: { setup: companion, args: { targets: ['pip'] } },
+  // SRD Lesser Restoration ends one of four conditions, and which is the
+  // caster's to name.
+  'lesser-restoration': { args: { choice: 'poisoned' } },
+  // SRD Mass Cure Wounds: "a 30-foot-radius Sphere centered on a point within
+  // range", and the point is the caster's to name.
+  'mass-cure-wounds': { args: { at: BANDIT_AT } },
+  // SRD Enlarge/Reduce prints both and the engine will not choose.
+  'enlarge-reduce': { args: { option: 'enlarge' } },
+  // SRD Ray of Enfeeblement lasts "until the start of your next turn", so there
+  // have to be turns for it to last until.
+  'ray-of-enfeeblement': { setup: (t) => fight(t, WIELDER) },
   // A teleport's destination is the caster's to name.
   'dimension-door': {
     args: { teleportTo: { fromLandmark: 'the hall', feet: 60, bearing: 180 } },
@@ -378,6 +443,8 @@ const STATED: Readonly<
   // companion within reach is the one named.
   'plane-shift': { setup: companion, args: { targets: ['pip'] } },
   teleport: { setup: companion, args: { targets: ['pip'] } },
+  // SRD Speak with Plants' two terrain options; the engine will not choose.
+  'speak-with-plants': { args: { option: 'clear' } },
   // A corpse within reach, which the DM's door can make.
   resurrection: {
     setup: (t) => {
