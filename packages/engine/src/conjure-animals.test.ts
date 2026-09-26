@@ -245,6 +245,20 @@ describe('Conjure Animals', () => {
     expect(isErr(next)).toBe(false);
   });
 
+  it('forgets the turn it was carried on when the fight ends', () => {
+    const { out, log, castingId } = walked(ONWARD);
+    const moved = must(out, 'the move');
+    // The stamp is counted in this fight's turns, and `turnsTaken` restarts at
+    // zero with the next one — so a pack carried on turn 0 of one fight must not
+    // be refused on turn 0 of the next. SRD Conjure Animals runs ten minutes.
+    const fought = [...log, ...moved.events];
+    expect((fold('seed', fought) as GameState).ongoing[castingId]!.movedOnTurn).toBe(0);
+
+    const over = [...fought, { type: 'combat-ended' } satisfies GameEvent];
+    const after = fold('seed', over) as GameState;
+    expect(after.ongoing[castingId]!.movedOnTurn).toBeUndefined();
+  });
+
   it('refuses a pack walked further than thirty feet', () => {
     const { out } = walked({ x: 200, y: 100, z: 0 });
     expect(isErr(out) && out.code).toBe('pack_too_far');

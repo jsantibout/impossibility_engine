@@ -2069,12 +2069,14 @@ export const PHANTASMAL_FORCE: SpellDefinition = {
   },
   durationSeconds: 60,
   dmDecides: [
-    'On a failed save, you create a phantasmal object, creature, or other phenomenon that is no larger than a 10-foot Cube and that is perceivable only to the target for the duration.',
     'The phantasm includes sound, temperature, and other stimuli.',
     'While affected by the spell, the target treats the phantasm as if it were real and rationalizes any illogical outcomes from interacting with it.',
     'For example, if the target steps through a phantasmal bridge and survives the fall, it believes the bridge exists and something else caused it to fall.',
     'An affected target can even take damage from the illusion if the phantasm represents a dangerous creature or hazard.',
     'The target perceives the damage as a type appropriate to the illusion.',
+  ],
+  unmodelled: [
+    'where the phantasm stands is not the caster’s to choose: the engine puts it in the space of the creature whose mind it is in, because a casting fills a place or names a creature and never both, so a wolf conjured beside its target rather than on it is a casting this engine refuses — which of two answers is right is a ruling nobody has taken',
   ],
 };
 
@@ -14166,7 +14168,8 @@ export const CALL_LIGHTNING: SpellDefinition = {
     label: 'Call Lightning (another bolt)',
     // "targeting the same point or a different one", where a point is one the
     // caster "can see under the cloud" — the 60-foot radius the cloud prints,
-    // measured from the point this casting laid its first bolt at.
+    // measured from the cloud, which rose above the caster's own square and stays
+    // there however far off the bolts fall.
     redrawsArea: 60,
     effects: [],
   },

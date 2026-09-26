@@ -225,13 +225,16 @@ export function applyOngoing({ state, next, legacy }: Applying, event: OngoingEv
       // other consequence in this file is derived: nobody *decides* that a
       // beam swept over somebody, and a replay reconstructs it because the
       // fold does.
-      // **And the turn it moved on**, for the one rule that has to count moves
-      // rather than actions: SRD Conjure Animals' pack rides the caster's own
-      // movement, and a creature may break one move into six commands. Stamped for
-      // every moved point, because an action is its own cap and a stamp on
-      // Moonbeam's beam changes nothing; absent outside a fight, where there is no
-      // turn to count. See `OngoingSpell.movedOnTurn`.
-      const turn = state.combat?.turnsTaken;
+      // **And the turn a carry happened on**, for the one rule that has to count
+      // moves rather than actions: SRD Conjure Animals' pack rides the caster's
+      // own movement, and a creature may break one move into six commands.
+      //
+      // **Only a carry, which is what the event says.** An action is its own cap —
+      // Moonbeam's walk *is* the Magic action — so a beam walked by an activation
+      // writes no flag and this writes no stamp, and every log written before the
+      // field folds to exactly the state it always folded to. Absent outside a
+      // fight too, where there is no turn to count. See `OngoingSpell.movedOnTurn`.
+      const turn = event.carried === true ? state.combat?.turnsTaken : undefined;
       const moved: GameState = {
         ...next,
         ongoing: {

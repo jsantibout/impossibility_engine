@@ -563,7 +563,9 @@ export function carryAreaWithMover(
     );
   }
 
-  return ok({ type: 'spell-origin-moved', castingId: record.castingId, to });
+  // `carried` is what tells this apart from a beam an activation walked, and it is
+  // what the turn stamp is read off — see `spell-origin-moved.carried`.
+  return ok({ type: 'spell-origin-moved', castingId: record.castingId, to, carried: true });
 }
 
 /**

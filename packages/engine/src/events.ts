@@ -2124,6 +2124,23 @@ export type GameEvent =
       readonly type: 'spell-origin-moved';
       readonly castingId: string;
       readonly to: Point;
+      /**
+       * That the caster carried the point along **with their own movement** —
+       * SRD Conjure Animals' "when you move on your turn, you can also move the
+       * pack up to 30 feet".
+       *
+       * **How it moved and not merely that it did**, because the cap is about the
+       * how: an action is its own cap — a creature has one Magic action a turn and
+       * Moonbeam's walk *is* that action — while a move may be broken into six
+       * commands of five feet, and a rider on one command is once per command. So
+       * the turn is stamped for a carry and for nothing else, which is also what
+       * keeps every log written before this field folding to exactly the state it
+       * always folded to: a beam an activation walked writes no flag and the
+       * reducer writes no stamp.
+       *
+       * See `OngoingSpell.movedOnTurn`, which is what it sets.
+       */
+      readonly carried?: true;
     }
   /**
    * The directional area an ongoing spell blows from its caster now points

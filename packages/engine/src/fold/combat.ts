@@ -56,6 +56,7 @@ import {
 } from './common.js';
 import {
   failUnsustainedCastings,
+  forgetCarriedTurns,
   forgetSustainedTurns,
   raiseTurnEnd,
   raiseTurnSaves,
@@ -144,7 +145,9 @@ export function applyCombat({ state, next }: Applying, event: CombatEvent): Game
       // The rites go on running; what goes is which *turn* last sustained one,
       // because turn numbers restart with the next fight.
       combatOf(state, event);
-      return forgetSustainedTurns({ ...next, combat: null });
+      // Both stamps are counted in this fight's turns, and both go with it — see
+      // `forgetSustainedTurns` and `forgetCarriedTurns`.
+      return forgetCarriedTurns(forgetSustainedTurns({ ...next, combat: null }));
     }
 
     case 'turn-advanced': {

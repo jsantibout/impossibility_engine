@@ -24,7 +24,7 @@ import { isIncapacitated, sourceOfInstance } from '../conditions.js';
 import { printedLineSource, triggeredSavesOf } from '../monster.js';
 import { creaturesInArea, distanceBetween } from '../positioning.js';
 import { canSee } from '../standing.js';
-import { castingIdOf, castingSource } from '../spells.js';
+import { castingIdOf, castingSource, type OngoingSpell } from '../spells.js';
 import { isDue } from '../time.js';
 import { pendingSaveKey, printedSaveKey, type PendingSave } from '../timers.js';
 import { type CombatState } from '../combat.js';
@@ -347,6 +347,39 @@ export function failUnsustainedCastings(state: GameState, before: CombatState): 
     current = releaseCasting(current, pending.caster, castingId);
   }
   return current;
+}
+
+/**
+ * Forget the turn a casting's point was last **carried** on, because the numbering
+ * has gone.
+ *
+ * {@link forgetSustainedTurns}' twin, one region of state over and for exactly its
+ * reason: `turnsTaken` restarts at zero with each fight, so a pack carried on turn
+ * 3 of one fight would be refused `pack_already_carried` on turn 3 of the next —
+ * and SRD Conjure Animals runs ten minutes, which outlives a good many fights. The
+ * pack itself is untouched: a fight ending is not a Concentration broken, and
+ * outside combat the carry is not capped at all.
+ *
+ * **A stamp does not survive a boundary on its own**, which is the correction this
+ * pair now records twice: nothing resets a counter, so the reducer that takes the
+ * counter away takes what was counted against it.
+ */
+export function forgetCarriedTurns(state: GameState): GameState {
+  const keys = Object.keys(state.ongoing);
+  if (!keys.some((key) => state.ongoing[key]?.movedOnTurn !== undefined)) return state;
+
+  const ongoing: Record<string, OngoingSpell> = {};
+  for (const key of keys) {
+    const casting = state.ongoing[key]!;
+    if (casting.movedOnTurn === undefined) {
+      ongoing[key] = casting;
+      continue;
+    }
+    const without: OngoingSpell & { movedOnTurn?: number } = { ...casting };
+    delete without.movedOnTurn;
+    ongoing[key] = without;
+  }
+  return { ...state, ongoing };
 }
 
 /**

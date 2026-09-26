@@ -6418,10 +6418,15 @@ export interface SpellActivation {
    *
    * **The number is how far from the point the casting keeps the fresh template
    * may be centred**, in feet — "a point you can see **under the cloud**", where
-   * the cloud is the 60-foot radius the spell's first sentence prints. Measured
-   * from `OngoingSpell.origin`, which for an area spell is where the template
-   * was laid, and refused beyond it (`outside_the_kept_point`) before the action
-   * is charged.
+   * the cloud is the 60-foot radius the spell's first sentence prints.
+   *
+   * **And the point a re-drawing casting keeps is its caster's own square**, not
+   * where the last template was laid: "A storm cloud appears at a point within
+   * range that you can see **above yourself**", so the cloud is above the druid
+   * and every bolt falls under it rather than under the last strike. `ongoingWith`
+   * pins it and `underTheKeptPoint` is the one reader, asked of the cast's point
+   * and of every later one, refusing `outside_the_kept_point` before the action is
+   * charged.
    *
    * A number rather than a flag for {@link movesArea}'s reason: the allowance is
    * the printed one, the engine owns the geometry, and a boolean would have had
