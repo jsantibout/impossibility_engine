@@ -2675,3 +2675,31 @@ Appended after wave seven's first spells track (2026-09-24):
   Restoration" is in none of the four blocks. Re-briefed as B14.
   `a-clock-that-runs-for-days` stays. The reviewer ran on Fable. Main
   re-ingested.
+- **A bond that lapses while the creature stays, and a steed's own numbers.**
+  `SummonBond.controlled { spell, until }` is the third bond kind: a raised
+  Zombie at 0 is a corpse the book leaves lying (`strandedSummons` skips it),
+  a dead summoner leaves it standing, and the fold's derived pass
+  `lapseExpiredControl` ends the bond — not the creature — when the day
+  passes (eventless, on `expireEffects`' precedent; a recast renews it through
+  `summons-control-renewed`). The `raise` effect runs once per casting:
+  a named corpse leaves the roster and its block arrives at its point, each
+  stated pile of bones (`cast_spell.bonesAt`) raises a Skeleton within range;
+  `TargetRule.mustBeSize` takes a list and `orControlled` admits a live
+  creature the caster controls through this spell. **Reading taken:** the
+  count's two arms — a casting that animates anything reaches the target
+  rule's count (1 at level 3, +2 a level); a pure reassertion reaches
+  `reassertsUpTo` (4) plus the same +2 — each from its own base; the book
+  does not say. **For the owner's eye:** raising a player character's corpse
+  deletes that character's record irreversibly ("The target becomes an Undead
+  creature"). Find Steed: the parser's damage entry carries
+  `flatFromSlotLevel` and `typeFromChoice` (a record of the book's
+  parenthesised map, not a flag), the attack `bonusFromSummoner`, the save
+  `dcFromSummoner`; `resolveSummonerMarks` writes the casting's numbers over
+  the marks before `adaptMonster`, and a steed added by hand carries the line
+  as prose with a caveat. Fell Glare stays unread (its span is on the
+  summoner's turn — a bestiary seam recorded in `UNREAD_SAVE_SEAMS`). The
+  bestiary's books gain the steed's four prose lines. Both spells enter
+  `VERIFIED_SPELLS` at the merge. `a-stat-block-created-mid-fight` loses its
+  last level-5 claimants; `a-target-rule-the-format-cannot-state` keeps
+  Thaumaturgy. Builder on Fable, two reviews on Opus. Main need not
+  re-ingest.

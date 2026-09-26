@@ -70,7 +70,7 @@ homebrew.
   a neighbour's check, a spell's attack may leap to creatures the caster names,
   a spell may print its own stat block, a casting may leave something behind
   when it ends or be dismissed by its target, a slot may change what kind of ending a casting
-  has, a Speed may be replaced, and a repeat save may be raised by a blow; a casting may choose a branch per creature, suppress a held condition, move a body a size step, re-choose its branch, pin an Emanation in place, and erupt on a DM's decision; a tracked spell read to
+  has, a Speed may be replaced, and a repeat save may be raised by a blow; a casting may choose a branch per creature, suppress a held condition, move a body a size step, re-choose its branch, pin an Emanation in place, and erupt on a DM's decision. A summons may be **controlled**: Animate Dead's undead stand under a bond that lapses after a day while the creature stays, and Find Steed's slam carries the paladin's own numbers; a tracked spell read to
   the end carries its text in `dmDecides` and the ledger counts it apart.
 - **Characters** — twelve SRD classes with their subclass, nine species,
   backgrounds, feats, multiclassing, creation and advancement.
@@ -101,15 +101,13 @@ homebrew.
   second Fighting Style at level 7 still is. Every pool buys something.
 - **A Druid's known forms are the ones it was made with**; no rest replaces
   one yet, and the block's senses are not carried.
-- **A summons still carries one debt**: a printed line whose numbers are the summoner's (the Otherworldly Steed's).
+
 - **Jumping is half**; Slow Fall is elected on the landing.
 - **A printed hit is read clause by clause**, what nothing read handed back. A repeat save may deepen its condition
   and stop asking; Resistance's d4 comes off the total before defences.
 - **Nothing brings a jumper down** from a High Jump.
-- No ammunition spent. **An object cannot make an ability check**, and nothing stops a
-  caller putting an object in the turn order.
-- A conferral refuses by name what it cannot do: spell attack bonuses,
-  ability scores an item sets, curses, Speed from an item.
+- No ammunition spent. **An object cannot make an ability check**, and may be put in the turn order.
+- A conferral refuses by name what it cannot do: attack bonuses, set ability scores, curses, item Speed.
 - **Two corpus migrations are owed**: a weapon mastery is a ceiling, not a
   quota; a size nobody chooses defaults rather than refusing.
 - Homebrew may add beside printed content, never override an id.
