@@ -60,6 +60,7 @@ import {
   applyConditionTo,
   applySpellEffect,
   liftConditionFrom,
+  standUp,
   damageCreature,
   declareCreatureType,
   declareDamageType,
@@ -2496,6 +2497,17 @@ const GUARDED: readonly Guarded[] = [
     run: (s, commandId) => liftConditionFrom(s, B, 'frightened', 'a dragon', { commandId }),
   },
   {
+    /**
+     * Getting up: one `movement-spent` and one `condition-removed`. A retry
+     * that got past the guard would charge the fifteen feet twice and then
+     * refuse `not_prone` about the world its own first run made, which is the
+     * confusion command ids exist to prevent.
+     */
+    name: 'standUp',
+    log: [...SETUP, { type: 'condition-applied', id: A, condition: 'prone', source: 'a shove' }],
+    run: (s, commandId) => standUp(s, A, { commandId }),
+  },
+  {
     name: 'endConcentration',
     log: concentrating(),
     run: (s, commandId) => endConcentration(s, A, 'voluntary', { commandId }),
@@ -3674,6 +3686,10 @@ const SPENDERS: readonly Spender[] = [
     run: (s) => takeLegendaryAction(s, B, { line: SHIELD_LINE.name }, supply()),
   },
   { name: 'takeDisengage', run: (s) => takeDisengage(s, B, {}) },
+  // Movement rather than a slot, and guarded all the same: the debt is asked
+  // before the Prone is, so a creature standing on its feet is still refused
+  // for the debt rather than told there is nothing to get up from.
+  { name: 'standUp', run: (s) => standUp(s, B, {}) },
   { name: 'takeDodge', run: (s) => takeDodge(s, B, {}) },
   // The debt is checked before the target is looked at, so a shake aimed at a
   // creature holding nothing wakeable is still refused for the debt — which

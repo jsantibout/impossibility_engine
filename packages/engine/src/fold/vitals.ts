@@ -373,6 +373,9 @@ function reduceVitals({ state, next }: Applying, event: VitalsEvent): GameState 
           ...(event.endsOnDamage === undefined ? {} : { onDamage: event.endsOnDamage }),
           ...(event.endsWhenWoken === undefined ? {} : { whenWoken: event.endsWhenWoken }),
         },
+        // SRD Hideous Laughter's "it can't end the Prone condition on itself",
+        // pinned for the same reason and read by `standUp` off the instance.
+        event.forbidsStandingUp === true,
       );
       // **And nothing else.** This case used to also put the creature into the
       // casting's list of who it was on, by hand — a growth pass called

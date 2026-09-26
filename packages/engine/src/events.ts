@@ -1369,6 +1369,23 @@ export type GameEvent =
        */
       readonly endsOnDamage?: readonly ConditionName[];
       readonly endsWhenWoken?: readonly ConditionName[];
+      /**
+       * This application forbids the creature to right itself.
+       *
+       * SRD Hideous Laughter: "it can't end the Prone condition on itself."
+       * Pinned for `implies`' reason — the fold opens no catalogue, and a
+       * replay that had to look the spell up to know whether its victim may
+       * stand would be a fold reading a book.
+       *
+       * A flag rather than a list of names, where the two above are lists:
+       * the clause is about the one condition a creature ends on itself by
+       * spending movement, `checkSpellDefinition` refuses it on any other, and
+       * so the condition this event names is the one it marks.
+       *
+       * Absent on every log written before this existed, which folds exactly
+       * as it always did.
+       */
+      readonly forbidsStandingUp?: true;
       readonly command?: CommandStamp;
     }
   /**

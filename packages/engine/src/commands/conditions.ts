@@ -114,6 +114,20 @@ export function applyConditionTo(
    * more than the book says.
    */
   from?: CharacterId,
+  /**
+   * This application forbids the creature to right itself.
+   *
+   * SRD Hideous Laughter: "it can't end the Prone condition on itself."
+   * Thirteenth, appended for the ninth's reason — no existing call site passes
+   * one, and the options object the whole signature wants is a change to a
+   * DM-facing command that would move every one of them.
+   *
+   * **Not on this command's own door.** A DM who wants a creature held down
+   * rules it so and lifts it so; what this carries is the *spell's* clause,
+   * arriving from `applySpellEffect` with a casting behind it, so the mark
+   * ends when the casting does. Nothing else in the engine passes it.
+   */
+  forbidsStandingUp?: true,
 ): Result<GameEvent[]> {
   // "You are Frightened" is the state change a narrating layer reaches for
   // most, and a retried one was a second Frightened from the same source —
@@ -128,6 +142,7 @@ export function applyConditionTo(
     ...(check === undefined ? {} : { check }),
     ...(implies === undefined || implies.length === 0 ? {} : { implies }),
     ...(endsEarly === undefined ? {} : { endsEarly }),
+    ...(forbidsStandingUp === undefined ? {} : { forbidsStandingUp }),
   }, () => [], (stamp) => {
     if (creatureOf(state, id) === null) {
       return unknownCreature(id);
@@ -188,6 +203,7 @@ export function applyConditionTo(
         ...(implied.length === 0 ? {} : { implies: implied }),
         ...(onDamage.length === 0 ? {} : { endsOnDamage: onDamage }),
         ...(whenWoken.length === 0 ? {} : { endsWhenWoken: whenWoken }),
+        ...(forbidsStandingUp === undefined ? {} : { forbidsStandingUp }),
         ...(stamp === null ? {} : { command: stamp }),
       },
     ];

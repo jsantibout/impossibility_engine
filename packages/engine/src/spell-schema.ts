@@ -1645,6 +1645,31 @@ function checkConditionRider(
 
   checkDamageTrigger(rider?.repeats?.alsoWhenDamaged, `${riderPath}.repeats`, found);
 
+  // **SRD Hideous Laughter's "it can't end the Prone condition on itself",
+  // and only about a Prone.** The clause names the one condition a creature
+  // ends on itself by spending movement; on any other it would forbid
+  // something nothing charges for, and `standUp` would refuse a creature that
+  // was never on the floor. `true` and nothing else, the rule every clause of
+  // this shape follows.
+  const forbids = (rider as { readonly forbidsStandingUp?: unknown } | undefined)
+    ?.forbidsStandingUp;
+  if (forbids !== undefined) {
+    if (forbids !== true) {
+      found.push({
+        field: `${riderPath}.forbidsStandingUp`,
+        code: 'malformed_field',
+        reason:
+          'a spell either forbids the creature to right itself or it does not; the only value is true',
+      });
+    } else if (rider?.name !== 'prone') {
+      found.push({
+        field: `${riderPath}.forbidsStandingUp`,
+        code: 'forbids_standing_without_prone',
+        reason: `SRD writes "it can't end the Prone condition on itself" about a Prone, and this rider imposes ${String(rider?.name)}`,
+      });
+    }
+  }
+
   // **A check that ends the casting needs one the rider has not disowned**
   // (SRD Ensnaring Strike's "On a success, the spell ends"). `outlivesCasting`
   // records the condition under the spell's bare name, so the fold would meet

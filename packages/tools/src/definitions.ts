@@ -214,6 +214,7 @@ import {
   settleDamage,
   speedOf,
   stabiliseCreature,
+  standUp,
   strandedSummons,
   summonCreature,
   swapInitiativeBetween,
@@ -1181,6 +1182,35 @@ const EXTINGUISH_FIRE = tool({
       extinguishFire(context.campaign.state(), who(args.who), identity(context)),
       { extinguished: args.who },
     ),
+});
+
+/**
+ * SRD Prone: "spend an amount of movement equal to half your Speed (round
+ * down) to right yourself and thereby end the condition."
+ *
+ * **On the player's door, and therefore on both**, for the reason
+ * `extinguish_fire` above is: it is a creature's own movement, and the whole
+ * of the call is who is getting up. The price, the Speed it is half of, the
+ * refusal at a Speed of 0 and the spell that forbids it are all the engine's,
+ * and there is no number anywhere in it.
+ *
+ * Before this the only way off the floor was `apply_condition`'s opposite
+ * number — a DM ruling the Prone over — which charges nothing and is not the
+ * creature's own act. So a table that used it gave the movement away, and a
+ * table that did not left a shoved fighter prone for the rest of the fight.
+ */
+const STAND_UP = tool({
+  name: 'stand_up',
+  description:
+    'Get up off the floor, ending the Prone condition. SRD charges half the creature’s Speed, rounded down — fifteen feet of a thirty-foot Speed — out of the same movement a walk comes out of, and no Action. A creature that is not Prone is refused, so is one with less than half its Speed left this turn, so is one whose Speed is 0, and so is one a spell forbids to right itself (SRD Hideous Laughter). Outside a fight there is no movement to spend and the creature simply stands. `look` reports who is Prone and how much movement they have left.',
+  mutates: true,
+  input: z.object({
+    who: creatureId.describe('The creature getting up. Its own movement, never another’s.'),
+  }),
+  run: (context, args) =>
+    settleEvents(context, standUp(context.campaign.state(), who(args.who), identity(context)), {
+      stood: args.who,
+    }),
 });
 
 /**
@@ -5568,6 +5598,7 @@ export const TOOLS: readonly ToolDefinition[] = [
   SETTLE_DAMAGE,
   SHEET,
   STABILISE_CREATURE,
+  STAND_UP,
   // The four rooms the engine had finished and nothing could reach, opened as
   // one block. The list is sorted at run time, so where they sit here is only
   // where they were written.

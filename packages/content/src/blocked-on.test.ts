@@ -1980,6 +1980,10 @@ const BUILT_CLAUSES: readonly (readonly [string, string])[] = [
   ['dominate-beast', 'the save has Advantage'],
   ['dominate-monster', 'the save has Advantage'],
   ['dominate-person', 'the save has Advantage'],
+  // The self-cure, built from both ends: `standUp` is the command that stands
+  // a creature up for half its Speed, and `ConditionRider.forbidsStandingUp`
+  // is the mark on the instance that refuses it. The shape id is gone with it.
+  ['hideous-laughter', 'unable to end the Prone condition on itself'],
 ];
 
 /**

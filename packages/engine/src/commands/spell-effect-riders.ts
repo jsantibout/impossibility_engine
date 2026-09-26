@@ -237,6 +237,10 @@ export function riderOptions(
     ...(escape === undefined ? {} : { check: escape }),
     ...(duration === undefined ? {} : { duration }),
     ...(repeats === undefined ? {} : { repeatSave: repeats }),
+    // SRD Hideous Laughter's "it can't end the Prone condition on itself": a
+    // mark on the instance this rider is about to create, carried through the
+    // one translation so it works wherever the rider does.
+    ...(rider.forbidsStandingUp === true ? { forbidsStandingUp: true as const } : {}),
   };
 }
 

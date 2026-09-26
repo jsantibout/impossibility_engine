@@ -2102,6 +2102,10 @@ export const HIDEOUS_LAUGHTER: SpellDefinition = {
       kind: 'save',
       ability: 'wis',
       condition: 'prone',
+      // "During that time … **it can't end the Prone condition on itself**."
+      // A mark on the instance the failure creates, so it lifts when the
+      // Laughter does and `standUp` refuses while it stands.
+      forbidsStandingUp: true,
       conditions: [{ name: 'incapacitated' }],
       // "At the end of each of its turns **and each time it takes damage**, it
       // makes another Wisdom saving throw. The target has Advantage on the
@@ -2117,7 +2121,6 @@ export const HIDEOUS_LAUGHTER: SpellDefinition = {
   ],
   durationSeconds: 60,
   unmodelled: [
-    'the target being unable to end the Prone condition on itself, so it may stand up while the spell runs',
     'laughing uncontrollably, and whether the creature is capable of laughter at all',
   ],
 };

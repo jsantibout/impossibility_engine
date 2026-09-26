@@ -214,6 +214,7 @@ export type {
   MoveResolution,
   OpportunityCommand,
 } from './commands/movement.js';
+export { standingCost, standUp } from './commands/stand.js';
 export { relocateCreature } from './commands/teleport.js';
 export type { RelocateCommand, RelocateOutcome } from './commands/teleport.js';
 export {
