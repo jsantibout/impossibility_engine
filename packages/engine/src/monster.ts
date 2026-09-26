@@ -2727,10 +2727,6 @@ export function adaptMonster(printed: Monster, id: CharacterId): AdaptedMonster 
       // and hands the casting to the pipeline through the route the adapter
       // compiled above.
       ...(line.casts === undefined ? {} : { casts: line.casts }),
-      // And the whole line filed as the table's — W7-B13, SRD Rust Monster's
-      // Destroy Metal — which the two doors that spend it report under the
-      // handover mark rather than as a sentence owed.
-      ...(line.forTheTable === undefined ? {} : { forTheTable: line.forTheTable }),
       // And the forms it offers, which the Imp and the Quasit print under this
       // heading and eleven other blocks print under Bonus Actions. It arrives
       // for the reason the teleport did: the line is one no attack could be
@@ -2795,9 +2791,6 @@ export function adaptMonster(printed: Monster, id: CharacterId): AdaptedMonster 
     // nine of the book's fourteen cast lines are printed under this heading,
     // which is the whole reason a route may state a casting time.
     ...(line.casts === undefined ? {} : { casts: line.casts }),
-    // And the whole line filed as the table's, on both sections for the reason
-    // everything here is — W7-B13.
-    ...(line.forTheTable === undefined ? {} : { forTheTable: line.forTheTable }),
     // And the forms it offers — eleven of the book's thirteen Shape-Shift
     // lines are printed here, which is a heading saying what the use costs.
     ...(line.forms === undefined ? {} : { forms: line.forms }),

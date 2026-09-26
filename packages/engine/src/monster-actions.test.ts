@@ -1586,8 +1586,8 @@ describe('an Actions line the parser read nothing out of', () => {
    */
   it('refuses a second line in the same turn', () => {
     // The Rust Monster's Destroy Metal — the Harpy's Luring Song stood here
-    // until W7-B13 read its save. A line filed whole for the table is still a
-    // line this door spends.
+    // until W7-B13 read its save, and Destroy Metal is a line nothing is read
+    // beneath.
     const RUST = id('rust');
     const table = inTheWoods('rust-monster', RUST);
     const line = 'Destroy Metal';

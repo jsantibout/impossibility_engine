@@ -859,9 +859,8 @@ describe('the mark is written only from a filed field', () => {
         .map(([file, calls]) => [file, calls.length]),
     );
     expect(callers).toEqual({
-      // `forcePrintedSave`'s moment of use, and the two doors that spend a
-      // line filed whole — each a save's or a line's `forTheTable`.
-      'commands/actions.ts': 3,
+      // `forcePrintedSave`'s moment of use — a save's `forTheTable`.
+      'commands/actions.ts': 1,
       // `forcePrintedSaveOn`'s failure and success, and the row a d8 lands on.
       'commands/printed-save-clauses.ts': 2,
       // `settlePrintedSave`'s moment of use.

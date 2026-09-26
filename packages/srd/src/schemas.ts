@@ -411,8 +411,6 @@ export type MonsterMultiattack = z.infer<typeof MonsterMultiattackSchema>;
  * - `a-corpse-that-rises-later` — a stat block made from a corpse hours after
  *   the fight.
  * - `a-body-absorbed` — what a corpse looks like afterwards.
- * - `a-cube-of-an-object-destroyed` — a cubic foot of a thing the scene holds no
- *   shape of.
  */
 export const PrintedHandoverKindSchema = z.enum([
   'a-compulsion-the-table-plays',
@@ -421,7 +419,6 @@ export const PrintedHandoverKindSchema = z.enum([
   'a-weapon-that-returns-to-the-hand',
   'a-corpse-that-rises-later',
   'a-body-absorbed',
-  'a-cube-of-an-object-destroyed',
   'enters-a-creature-space-and-a-one-inch-gap',
   'moves-through-a-one-inch-gap',
 ]);
@@ -3500,19 +3497,6 @@ export const featureSchema = z.object({
    * is what the use costs, which is why it is not carried here.
    */
   casts: MonsterCastLineSchema.optional(),
-  /**
-   * The whole line, **filed** as the table's — W7-B13; see
-   * {@link PrintedHandoverSchema}.
-   *
-   * SRD Rust Monster's Destroy Metal: "The rust monster touches a nonmagical
-   * metal object within 5 feet of itself that isn't being worn or carried. The
-   * touch destroys a 1-foot Cube of the object." A cubic foot of a door is a
-   * shape no record in the scene has, and nothing reads what is missing from
-   * the room afterwards. The line is still a use — the door that spends it
-   * spends the Action — and what it does is reported under the handover mark
-   * rather than as a sentence the engine owes.
-   */
-  forTheTable: ForTheTableSchema.optional(),
   /** Where this line teleports its creature — see {@link MonsterTeleportSchema}. */
   teleports: MonsterTeleportSchema.optional(),
   /**

@@ -2141,32 +2141,6 @@ export function parseCastLine(text: string): MonsterCastLine | null {
 }
 
 /**
- * SRD Rust Monster's Destroy Metal — W7-B13: "The rust monster touches a
- * nonmagical metal object within 5 feet of itself that isn't being worn or
- * carried. The touch destroys a 1-foot Cube of the object."
- *
- * **A whole line that is the table's.** A declared object holds a substance, a
- * size and Hit Points, and a cubic foot of a door is a shape none of them has;
- * what is missing from the room afterwards is narration nothing reads. So both
- * sentences are filed, and the door that spends the line spends the Action and
- * reports them under the handover mark rather than as a sentence it owes.
- */
-const DESTROYS_A_CUBE = new RegExp(
-  `^(The ${SUBJECT} touches a nonmagical metal object within \\d+ feet of itself that isn['’]t being worn or carried\\.) ` +
-    `(The touch destroys a 1-foot Cube of the object\\.)$`,
-);
-
-/** The whole line filed as the table's, or null for every other line. */
-export function parseFiledLine(text: string): readonly PrintedHandover[] | null {
-  const matched = DESTROYS_A_CUBE.exec(oneLine(text));
-  if (matched === null) return null;
-  return [
-    { kind: 'a-cube-of-an-object-destroyed', sentence: matched[1]! },
-    { kind: 'a-cube-of-an-object-destroyed', sentence: matched[2]! },
-  ];
-}
-
-/**
  * SRD Blink Dog: "The dog teleports up to 40 feet to an unoccupied space it
  * can see." SRD Marilith and SRD Nalfeshnee print it at 120.
  *
@@ -3464,10 +3438,6 @@ function parseFeatures(
       // economy's answer, which `printed-line-expended` and `line_expended`
       // already give correctly for every line in the book.
       const casts = parseCastLine(text);
-      // And a whole line that is the table's for good — W7-B13. Read off the
-      // sentence on every section like the rest, and filed rather than left
-      // prose, because prose is what the ledger counts as owed.
-      const forTheTable = parseFiledLine(text);
       const teleports = parseTeleportLine(text);
       // The book's fifth opening — a line that puts its creature into a form —
       // read off the sentence for the reason the four above are, and the
@@ -3519,7 +3489,6 @@ function parseFeatures(
         ...(perDay === null ? {} : { perDay }),
         ...(spellcasting === null ? {} : { spellcasting }),
         ...(casts === null ? {} : { casts }),
-        ...(forTheTable === null ? {} : { forTheTable: [...forTheTable] }),
         ...(teleports === null ? {} : { teleports }),
         ...(forms === null ? {} : { forms }),
         ...(onlyInForms === null ? {} : { onlyInForms: [...onlyInForms] }),

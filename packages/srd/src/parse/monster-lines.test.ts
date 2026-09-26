@@ -1447,18 +1447,16 @@ describe('the honesty pass: compulsions and fiction filed apart from the residue
     }
   });
 
-  it("files the rust monster's Destroy Metal whole: a touch, and a cube nothing in the scene has", () => {
-    expect(lineOf('rust-monster', 'Destroy Metal').forTheTable).toEqual([
-      {
-        kind: 'a-cube-of-an-object-destroyed',
-        sentence:
-          "The rust monster touches a nonmagical metal object within 5 feet of itself that isn't being worn or carried.",
-      },
-      {
-        kind: 'a-cube-of-an-object-destroyed',
-        sentence: 'The touch destroys a 1-foot Cube of the object.',
-      },
-    ]);
+  /**
+   * **Not filed, and that is the reading** — W7-B13, after review. The cube the
+   * touch destroys is fiction, but the touch is legality — a reach, a thing
+   * that is nonmagical metal, a thing nobody is wearing — and a line filed
+   * whole would pass that as fiction too. It stays prose and owed, with its
+   * seam in `LINE_RESIDUE_SEAMS`.
+   */
+  it("leaves the rust monster's Destroy Metal prose, because its touch is legality", () => {
+    const line = lineOf('rust-monster', 'Destroy Metal') as Record<string, unknown>;
+    expect(Object.keys(line).sort()).toEqual(['name', 'text']);
   });
 
   it('files only the book’s own words, and never a sentence it also carries as owed', () => {
@@ -1479,7 +1477,6 @@ describe('the honesty pass: compulsions and fiction filed apart from the residue
           ...(trait?.handedOver ?? []),
         ];
         const sentences = [
-          ...(line.forTheTable ?? []),
           ...(line.save?.forTheTable ?? []),
           ...(line.attack?.forTheTable ?? []),
           ...(line.attack?.riderSave?.forTheTable ?? []),

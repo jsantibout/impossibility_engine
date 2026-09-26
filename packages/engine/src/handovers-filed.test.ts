@@ -237,19 +237,21 @@ describe('a filed sentence goes out under the handover mark, and never as owed',
     expect(owed(out.unverified).join(' ')).not.toContain(sentence);
   });
 
-  it("files the rust monster's Destroy Metal whole, taken through the door that spends a line", () => {
+  /**
+   * **And a line whose legality is the engine's stays owed, however fictional
+   * its effect.** SRD Rust Monster's Destroy Metal destroys a cubic foot of an
+   * object, which is narration; but the touch is a reach, a nonmagical metal
+   * thing and a thing nobody is wearing, and filing the line whole would pass
+   * that as fiction. It is handed over whole and unmarked — a debt.
+   */
+  it("hands the rust monster's Destroy Metal over whole and unmarked, because its touch is legality", () => {
     const out = unwrap(
-      takeStatedAction(aRoom('rust-monster').state, MONSTER, {
-        line: 'Destroy Metal',
-      }),
+      takeStatedAction(aRoom('rust-monster').state, MONSTER, { line: 'Destroy Metal' }),
       'Destroy Metal',
     );
     expect(out.events.some((event) => event.type === 'action-spent')).toBe(true);
-    expect(marked(out.unverified)).toEqual([
-      "The rust monster touches a nonmagical metal object within 5 feet of itself that isn't being worn or carried.",
-      'The touch destroys a 1-foot Cube of the object.',
-    ]);
-    expect(owed(out.unverified)).toEqual([]);
+    expect(marked(out.unverified)).toEqual([]);
+    expect(owed(out.unverified).join(' ')).toContain('The touch destroys a 1-foot Cube of the object.');
   });
 
   it("says nothing of a swarm's two space clauses at its arrival, which are filed kinds", () => {

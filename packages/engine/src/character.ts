@@ -42,7 +42,6 @@ import type {
   MonsterSave,
   MonsterTeleport,
   MonsterTrait,
-  PrintedHandover,
   WeaponMastery,
 } from '@ie/srd';
 
@@ -283,8 +282,6 @@ export interface StatedBonusAction {
    * time is an Action is the whole reason a route may state a casting time.
    */
   readonly casts?: MonsterCastLine;
-  /** The whole line filed as the table's — see {@link StatedAction.forTheTable}. (W7-B13) */
-  readonly forTheTable?: readonly PrintedHandover[];
 }
 
 /**
@@ -392,13 +389,6 @@ export interface StatedAction {
    * and done nothing.
    */
   readonly casts?: MonsterCastLine;
-  /**
-   * The whole line **filed** as the table's — W7-B13, SRD Rust Monster's
-   * Destroy Metal. The two doors that spend a line with nothing else read
-   * beneath it report these under the engine's handover mark rather than the
-   * sentence as owed; see `PrintedHandover` in `@ie/srd`.
-   */
-  readonly forTheTable?: readonly PrintedHandover[];
   /**
    * The forms this line offers, where its sentence is the book's Shape-Shift
    * template — see `MonsterFormsSchema`.

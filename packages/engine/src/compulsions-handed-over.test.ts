@@ -26,6 +26,7 @@ import {
   addSceneLandmark,
   beginCombat,
   declareCreatureSide,
+  declareSightBetween,
   forcePrintedSave,
   placeCreatureInScene,
   resolveAttack,
@@ -278,6 +279,23 @@ describe("the ghost's Possession: the save and the day's grace are the engine's,
     // Nothing spent: the recharge is still there to use.
     expect(table.state.creatures[MONSTER]!.expendedLines).toEqual([]);
   });
+
+  it('refuses a Humanoid the ghost cannot see, and says so where nobody has declared it', () => {
+    // "one Humanoid **the ghost can see**": where the engine's answer is no,
+    // the line is refused before anything is spent — the casting door's
+    // reading — and where nobody has said, it is rolled and the sight reported.
+    const table = haunted();
+    table.do('the ghost cannot see the tough', (s) => declareSightBetween(s, MONSTER, TOUGH, false));
+    const unseen = forcePrintedSave(table.state, MONSTER, { line: LINE, targets: [TOUGH] }, supply('a'));
+    expect(isErr(unseen) && unseen.code).toBe('cannot_see_target');
+    expect(table.state.creatures[MONSTER]!.expendedLines).toEqual([]);
+
+    const undeclared = unwrap(
+      forcePrintedSave(haunted().state, MONSTER, { line: LINE, targets: [TOUGH] }, supply('a')),
+      'possession',
+    );
+    expect(owedIn(undeclared.unverified).join(' ')).toContain('nobody has said whether it can see tough');
+  });
 });
 
 // — the harpy ——————————————————————————————————————————————————————————————————
@@ -521,6 +539,11 @@ describe("a werewolf's Bite: a save a Humanoid makes, a curse on the record, a d
       expect(handedOverIn(done.unverified)).toEqual([
         "If the cursed target drops to 0 Hit Points, it instead becomes a **Werewolf** under the GM's control and has 10 Hit Points.",
       ]);
+      // **Read as a Humanoid, not rolled for want of knowing** — the type is
+      // the creature's own record (the tough's block, the halfling's species),
+      // so no "nobody has said what it is" note rides with the save.
+      expect(state.creatures[who]!.creatureType).toBe('Humanoid');
+      expect(done.unverified.join(' ')).not.toContain('nobody has said what');
     },
   );
 

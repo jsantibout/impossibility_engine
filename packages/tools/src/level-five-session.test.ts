@@ -343,18 +343,23 @@ interface Table {
  * is what the session *does*, and the seed is only which way the dice fell
  * while it did it.
  *
- * **Re-chosen again for W7-B13 Part 4**, from `-13` to `-194`, and for the
+ * **Re-chosen again for W7-B13 Part 4**, from `-13` to `-21`, and for the
  * same kind of reason: the Wight's Life Drain went through the door that rolls
  * it rather than the one that hands it over, so the engine throws a
  * Constitution save and the damage where it threw nothing, and the stream
  * moves from round 2 on. On `-13` the fight no longer reached Turn Undead,
- * which one assertion below is about. `-194` is the first seed from `-13` up
- * that plays a run with every moment this file asserts — Turn Undead taken,
- * the Life Drain rolled and failed (so its filed zombie reaches the handover
- * list), one call the session could not complete — and no debt at all.
- * Nothing about the script changed and nothing it asserts was weakened.
+ * which one assertion below is about. `-21` is the first seed from `-13` up
+ * that plays every moment this file asserts — Turn Undead taken, the Life
+ * Drain rolled and **failed**, so its filed zombie is on the handover list the
+ * forging guard reads, and a call the session could not complete.
+ *
+ * **Chosen on the fight's shape and on nothing the census counts.** A seed
+ * picked because its run met no debt would be the count choosing itself: on
+ * `-21` the Wizard casts Web, and the two sentences Web still files in
+ * `unmodelled` are debts the report prints. Nothing about the script changed
+ * and nothing it asserts was weakened.
  */
-const SESSION_SEED = 'a-level-five-session-194';
+const SESSION_SEED = 'a-level-five-session-21';
 
 /**
  * One campaign, two surfaces over it, and a transcript of every call.

@@ -1417,12 +1417,6 @@ export interface StatBlockLine {
   readonly responsePerformed?: boolean;
   /** What a legendary action line does — SRD Unicorn's Charging Horn and Shimmering Shield. */
   readonly legendary?: unknown;
-  /**
-   * The whole line filed as the table's — W7-B13, SRD Rust Monster's Destroy
-   * Metal. Read (the parser matched the sentence) and finished (every sentence
-   * is fiction nothing reads); see {@link HANDOVER_LINE_KINDS}.
-   */
-  readonly forTheTable?: unknown;
 }
 
 /**
@@ -1485,11 +1479,7 @@ export const isReadLine = (line: StatBlockLine): boolean =>
   line.addsToRoll !== undefined ||
   line.addsToAc !== undefined ||
   line.usesLine !== undefined ||
-  line.legendary !== undefined ||
-  // And a whole line the parser matched and filed as the table's — W7-B13.
-  // Read, because the sentence was recognised; finished, because what it
-  // recognised is fiction. `hasFiledHandover` is what the ledger counts it by.
-  line.forTheTable !== undefined;
+  line.legendary !== undefined;
 
 /**
  * A read attack line whose printed rider nothing applies.
@@ -1895,8 +1885,6 @@ export const HANDOVER_LINE_KINDS: Readonly<Record<string, string>> = {
     'SRD Wight ("rises 24 hours later as a Zombie under the wight\'s control"; "no more than twelve zombies") and SRD Shadow ("a Shadow rises from the corpse 1d4 hours later"). A stat block made from a corpse hours after the fight, under the control of a creature the table is playing, which the doctrine puts at the table; the cap counts creatures nothing here raised. The death that precedes it is the engine\'s and is executed.',
   'a-body-absorbed':
     'SRD Gibbering Mouther\'s Bite: "Its body is then absorbed into the mouther, leaving only equipment behind." The death is executed; what the corpse looks like afterwards is narration, in the family of SRD Cone of Cold\'s frozen statue. A revival that needs the body is the table\'s to refuse, as it is for every body destroyed off the page — the engine keeps no body apart from the creature\'s record.',
-  'a-cube-of-an-object-destroyed':
-    'SRD Rust Monster\'s Destroy Metal: "touches a nonmagical metal object within 5 feet of itself that isn\'t being worn or carried. The touch destroys a 1-foot Cube of the object." A declared object has a substance, a size and Hit Points and no shape, so a cubic foot of a door is nothing a record holds, and what is missing from the room afterwards is narration nothing reads. The line is still spent — the Action goes — and its two sentences go out under the handover mark.',
 };
 
 /**
@@ -1934,7 +1922,6 @@ export const filedHandoversOf = (
   type Filed = { readonly forTheTable?: readonly { readonly kind: string; readonly sentence: string }[] };
   const attack = line.attack as (Filed & { readonly riderSave?: Filed }) | undefined;
   return [
-    ...((line as Filed).forTheTable ?? []),
     ...((line.save as Filed | undefined)?.forTheTable ?? []),
     ...(attack?.forTheTable ?? []),
     ...(attack?.riderSave?.forTheTable ?? []),
@@ -2337,6 +2324,8 @@ export const MONSTER_LINE_SHAPES: readonly (readonly [
  * answered for twice in two places that could come to disagree.
  */
 export const LINE_RESIDUE_SEAMS: Readonly<Record<string, string>> = {
+  'rust-monster/Destroy Metal':
+    'a touch whose **legality** is a record the engine does not keep, around an effect that is fiction. "The rust monster touches a nonmagical metal object within 5 feet of itself that isn\'t being worn or carried. The touch destroys a 1-foot Cube of the object." The cube is narration — a declared object has no shape a cubic foot could be taken from — but the touch names a reach, a thing that is nonmagical metal and a thing nobody is wearing, and the hand-over door has no field to name the object, nor any record whether a substance is metal or a thing magical. Filed whole it would pass that legality as fiction (W7-B13\'s review), so the line stays owed: the day the door can name a declared object and the object says what it is made of, the touch is checked and the cube is filed.',
   'will-o-wisp/Vanish':
     'Concentration on something that is not a casting. "The wisp and its light have the Invisible condition until the wisp\'s Concentration ends on this effect, which ends early immediately after the wisp makes an attack roll or uses Consume Life." Every clause but the first is machinery the engine holds — the condition, the trigger that ends it, the light — and all of it hangs off `CreatureState.concentration`, which only a casting may occupy.',
   'succubus/Charm':

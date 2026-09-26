@@ -952,15 +952,11 @@ export function takeStatedBonusAction(
           ...granted.value.events,
         ],
         // A line whose sentence the engine applied says only what it did not;
-        // a line somebody filed whole as the table's goes out under the
-        // handover mark (W7-B13); every other line is handed over whole, as it
-        // always was, and owed.
+        // every other line is handed over whole, as it always was.
         unverified: [
           ...(granted.value.applied
             ? granted.value.unverified
-            : line.forTheTable !== undefined
-              ? reportFiled(`${id}'s ${line.name}`, filedFor(line.forTheTable, 'use'))
-              : [`${id}'s block prints "${line.name}: ${line.text}" — the engine does not apply that; a DM does`]),
+            : [`${id}'s block prints "${line.name}: ${line.text}" — the engine does not apply that; a DM does`]),
           // And the clause the heading printed that the engine could not gate
           // on — W7-B11. Said rather than enforced, because enforcing it would
           // refuse a printed line for ever.
@@ -1176,13 +1172,9 @@ export function takeStatedAction(
           ...granted.value.events,
         ],
         unverified: [
-          // SRD Rust Monster's Destroy Metal is filed whole as the table's —
-          // W7-B13 — and goes out under the handover mark rather than owed.
           ...(granted.value.applied
             ? granted.value.unverified
-            : line.forTheTable !== undefined
-              ? reportFiled(`${id}'s ${line.name}`, filedFor(line.forTheTable, 'use'))
-              : [`${id}'s block prints "${line.name}: ${line.text}" — the engine does not apply that; a DM does`]),
+            : [`${id}'s block prints "${line.name}: ${line.text}" — the engine does not apply that; a DM does`]),
           // And the clause the heading printed that the engine could not gate
           // on — W7-B11. Said rather than enforced, because enforcing it would
           // refuse a printed line for ever.
@@ -1453,6 +1445,16 @@ export function forcePrintedSave(
         for (const target of targets) {
           const beyond = reachedBy(state, id, target, line.name, reach.feet);
           if (beyond !== null) return beyond;
+          // "one creature **the ghost can see**": refused where the engine's
+          // answer is no — a Blinded ghost, a sight line declared shut — which
+          // is the casting door's reading; reported below where nobody has
+          // said, because unknown is not no.
+          if (reach.seen === true && canSee(state, id, target) === false) {
+            return err(
+              'cannot_see_target',
+              `${line.name} reaches a creature ${id} can see, and ${id} cannot see ${target}`,
+            );
+          }
         }
       }
       const types = printed.onlyIfTargetType;

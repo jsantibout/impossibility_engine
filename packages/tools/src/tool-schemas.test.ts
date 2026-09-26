@@ -331,11 +331,11 @@ describe('toolSchemas', () => {
     // and `take_printed_bonus_action` say so, the four printed-line doors that
     // pointed at them as "the other door for this line" stop doing so, and
     // `force_printed_save` says it measures a one-creature reach and marks
-    // what a line files for the table. The DM's door alone; +978 bytes.
+    // what a line files for the table. The DM's door alone; +887 bytes.
     expect(toolSchemas(player())).toHaveLength(95);
     expect(toolSchemas(dm())).toHaveLength(122);
     expect(JSON.stringify(toolSchemas(player())).length).toBe(152545);
-    expect(JSON.stringify(toolSchemas(dm())).length).toBe(200672);
+    expect(JSON.stringify(toolSchemas(dm())).length).toBe(200581);
   });
 });
 
