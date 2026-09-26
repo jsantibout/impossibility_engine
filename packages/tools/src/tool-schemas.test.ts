@@ -361,10 +361,17 @@ describe('toolSchemas', () => {
     // `force_printed_save` gains the same five aim fields and a description
     // saying a caller gives the aim or the head count, never both. 123 → 124
     // tools; +3,774 bytes. The player's surface is unchanged.
+    // Re-pinned for W8-T3: `take_damage_response` takes W8-T2's three asks —
+    // `action` (a line the stat block the reactor wears prints, which
+    // `DamageResponseCommand` has carried since the 2026-09-20 ruling and no
+    // tool declared), `weapon` accepting null for an Unarmed Strike on
+    // purpose, and a description that no longer says omitting the weapon is
+    // an Unarmed Strike, which was false for a creature wearing a block. One
+    // tool both doors publish: 600 bytes on each, and no tool added.
     expect(toolSchemas(player())).toHaveLength(96);
     expect(toolSchemas(dm())).toHaveLength(124);
-    expect(JSON.stringify(toolSchemas(player())).length).toBe(158126);
-    expect(JSON.stringify(toolSchemas(dm())).length).toBe(210594);
+    expect(JSON.stringify(toolSchemas(player())).length).toBe(158726);
+    expect(JSON.stringify(toolSchemas(dm())).length).toBe(211194);
   });
 });
 

@@ -30,6 +30,7 @@ import type {
   MovementMode,
   StatedAction,
   StatedAttack,
+  Vitals,
 } from '@ie/engine';
 import {
   armorClassOf,
@@ -366,6 +367,46 @@ export interface ObservedBlock {
   readonly expendedLines: readonly string[];
 }
 
+/**
+ * Where a creature at 0 Hit Points stands with death — W8-T3.
+ *
+ * SRD: "Whenever you start your turn with 0 Hit Points, you must make a Death
+ * Saving Throw ... On your third success, you become Stable. On your third
+ * failure, you die." `death-save-recorded` carries the die and nothing else,
+ * so a table that shows the count had to tally faces itself — a second copy
+ * of the rule, in the app. This is the engine's own count, read off
+ * `Vitals.deathSaveSuccesses` and `Vitals.deathSaveFailures`.
+ *
+ * **The counts are reported only while they are running.** Once a creature is
+ * Stable or dead the engine's two numbers stop meaning anything a table would
+ * show — Stable resets both, and death resets the failures and leaves the
+ * successes where they stood — so what is reported then is the outcome alone,
+ * rather than a "two successes" beside a corpse. A massive-damage death that
+ * never rolled reads the same as a third failure: `{ outcome: 'dead' }`.
+ */
+export type ObservedDeathSaves =
+  | {
+      readonly outcome: 'dying';
+      /** 0 to 2: the third makes the creature Stable. */
+      readonly successes: number;
+      /** 0 to 2: the third kills. */
+      readonly failures: number;
+    }
+  | { readonly outcome: 'stable' }
+  | { readonly outcome: 'dead' };
+
+/** The tally for a creature at 0 Hit Points or dead; null for anybody else. */
+export function deathSavesOf(vitals: Vitals): ObservedDeathSaves | null {
+  if (vitals.dead) return { outcome: 'dead' };
+  if (vitals.hp > 0) return null;
+  if (vitals.stable) return { outcome: 'stable' };
+  return {
+    outcome: 'dying',
+    successes: vitals.deathSaveSuccesses,
+    failures: vitals.deathSaveFailures,
+  };
+}
+
 export interface ObservedCreature {
   readonly id: string;
   readonly name: string;
@@ -384,6 +425,11 @@ export interface ObservedCreature {
    * 0 hit points looks exactly the same from here.
    */
   readonly stable: boolean;
+  /**
+   * The death-save count and how it stands, or null while the creature has
+   * Hit Points — see {@link ObservedDeathSaves}.
+   */
+  readonly deathSaves: ObservedDeathSaves | null;
   readonly armorClass: number;
   /** The walking Speed, `speedOf`'s default. */
   readonly speed: number;
@@ -885,6 +931,7 @@ export function observe(state: GameState): Observation {
       temporaryHp: c.vitals.temporaryHp,
       dead: c.vitals.dead,
       stable: c.vitals.stable,
+      deathSaves: deathSavesOf(c.vitals),
       armorClass: armorClassOf(state, c.id),
       speed: speedOf(state, c.id),
       speeds: byMode((mode) => speedOf(state, c.id, mode)),
