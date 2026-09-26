@@ -291,13 +291,17 @@ describe('every transcribed item agrees with the entry it was read from', () => 
         );
         // SRD Rod of Resurrection prints its number in the singular — "regains
         // 1 expended charge daily at dawn" — and every other entry in the
-        // plural, which is the same clause and not a second rule.
+        // plural, which is the same clause and not a second rule. And SRD
+        // Winged Boots print the verb for a plural subject — "These boots have
+        // 4 charges and regain 1d4 expended charges daily at dawn" — which is
+        // the same clause again, agreeing with a pair of boots.
         const regain =
           pool.regainsAtDawn === undefined
             ? ['regain all expended charges daily at dawn']
             : [
                 `regains ${pool.regainsAtDawn} expended charges daily at dawn`,
                 `regains ${pool.regainsAtDawn} expended charge daily at dawn`,
+                `regain ${pool.regainsAtDawn} expended charges daily at dawn`,
               ];
         expect(
           regain.some((printed) => contains(entry.description, printed)),

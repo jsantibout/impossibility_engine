@@ -42,10 +42,11 @@ import {
  * | Dust of Disappearance | a **condition** whose span the item rolls — "for 2d4 minutes" — ending early on the three causes the book prints |
  * | Periapt of Health | a conferral **priced in a charge**, out of a per-day pool of one on a worn item, recovering at a declared dawn |
  *
- * Both are partial transcriptions and say so in `unmodelled`: the dust's
- * Emanation catches companions a conferral has no second target for, and the
- * pendant's Advantage on saves against one named condition is
- * `a-save-keyed-to-a-condition`. What is driven here is what the records
+ * The dust is a partial transcription and says so in `unmodelled`: its
+ * Emanation catches companions a conferral has no second target for. The
+ * pendant is complete now — its Advantage on saves against the Poisoned
+ * condition is a standing grant on the condition-keyed save axis, driven in
+ * `items-that-already-fit.test.ts`. What is driven here is what the records
  * claim, which is the only thing a transcription may be believed about.
  */
 

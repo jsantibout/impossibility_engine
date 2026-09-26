@@ -2155,11 +2155,12 @@ const NAMED_ITEMS: readonly CatalogueItem[] = [
        * no slot, takes the Magic action the entry asks for, and starts the
        * eight-hour clock the spell prints.
        *
-       * The entry is two suits of armour and the record is one. The book names
-       * both in its type line rather than leaving the GM to choose, so this is
-       * not the "GM chooses the version" shape — it is one entry that would
-       * need two ids, and the Half Plate version is the note below rather than
-       * a second record invented here.
+       * The entry is two suits of armour, and so is the catalogue. The book
+       * names both in its type line rather than leaving the GM to choose, so
+       * this is not the "GM chooses the version" shape: it is one entry over
+       * two rows of the Armor table, exactly as a +1 Longsword and a +1
+       * Rapier are one entry over two rows of the Weapons table. The Half
+       * Plate version is the record below, with its own id and its own row.
        */
       attunement: {},
       grants: [
@@ -2167,7 +2168,32 @@ const NAMED_ITEMS: readonly CatalogueItem[] = [
         castsSpell('etherealness', 1),
       ],
       unmodelled: [
-        'the Half Plate version: the book files this entry under Half Plate Armor or Plate Armor, and this record is the Plate one — a catalogue holds a suit of armour rather than a template, so the second suit would need an id of its own',
+        'what ends the casting early: "The spell ends immediately if you remove the armor or take a Magic action to repeat the command word" — taking an item off is not one of the causes a casting can end on, and the command word is a dismissal by the caster that the book charges a Magic action for where `endOngoingSpell` charges nothing',
+      ],
+    },
+  ),
+  magicArmor(
+    {
+      id: 'half-plate-armor-of-etherealness',
+      name: 'Half Plate Armor of Etherealness',
+      row: 'half-plate-armor',
+    },
+    {
+      /**
+       * SRD Plate Armor of Etherealness, the other suit its type line names:
+       * "Armor (Half Plate Armor or Plate Armor)".
+       *
+       * The record above on the Half Plate row — the same pool of one, the
+       * same casting and the same note about what the book says ends it —
+       * and so the Armor Class, weight and Stealth of Half Plate Armor, which
+       * is all that differs between the two suits.
+       */
+      attunement: {},
+      grants: [
+        charges('half-plate-armor-of-etherealness', 'Half Plate Armor of Etherealness', 1),
+        castsSpell('etherealness', 1),
+      ],
+      unmodelled: [
         'what ends the casting early: "The spell ends immediately if you remove the armor or take a Magic action to repeat the command word" — taking an item off is not one of the causes a casting can end on, and the command word is a dismissal by the caster that the book charges a Magic action for where `endOngoingSpell` charges nothing',
       ],
     },
@@ -2401,6 +2427,12 @@ const NAMED_ITEMS: readonly CatalogueItem[] = [
        * are in the bottle: `addSpellcastingModifier: false`, because a
        * conferral has no spellcasting ability modifier to add and
        * `checkContent` refuses an item that says otherwise.
+       *
+       * **And the second paragraph is a standing grant.** "Advantage on
+       * saving throws to avoid or end the Poisoned condition" is a saving
+       * throw selected by what it is *about* — `RollSelector.condition`, the
+       * axis SRD Fey Ancestry and Dwarven Resilience are written on — held
+       * while the pendant is worn and attuned, so the whole entry is here.
        */
       attunement: {},
       grants: [
@@ -2413,9 +2445,139 @@ const NAMED_ITEMS: readonly CatalogueItem[] = [
             { kind: 'heal', healing: { dice: '2d4', flat: 2 }, addSpellcastingModifier: false },
           ],
         },
+        {
+          kind: 'standing',
+          reach: 'self',
+          effects: [
+            {
+              kind: 'roll-mode',
+              modifier: {
+                mode: 'advantage',
+                selector: { roll: 'saving-throw', relation: 'roller', condition: 'poisoned' },
+              },
+            },
+          ],
+          requires: WORN_AND_ATTUNED,
+        },
+      ],
+    },
+  ),
+  wornItem(
+    { id: 'necklace-of-adaptation', name: 'Necklace of Adaptation', kind: 'wondrous' },
+    {
+      /**
+       * SRD Necklace of Adaptation: "Wondrous Item, Uncommon (Requires
+       * Attunement). While wearing this necklace, you can breathe normally in
+       * any environment, and you have Advantage on saving throws made to
+       * avoid or end the Poisoned condition."
+       *
+       * The Periapt of Health's second paragraph, worn alone. The breathing
+       * is fiction, as SRD Water Breathing's is: the engine holds no air and
+       * no drowning, so nothing a rule reads is missing and there is no note
+       * to write.
+       */
+      attunement: {},
+      grants: [
+        {
+          kind: 'standing',
+          reach: 'self',
+          effects: [
+            {
+              kind: 'roll-mode',
+              modifier: {
+                mode: 'advantage',
+                selector: { roll: 'saving-throw', relation: 'roller', condition: 'poisoned' },
+              },
+            },
+          ],
+          requires: WORN_AND_ATTUNED,
+        },
+      ],
+    },
+  ),
+  wornItem(
+    { id: 'winged-boots', name: 'Winged Boots', kind: 'wondrous' },
+    {
+      /**
+       * SRD Winged Boots: "Wondrous Item, Uncommon (Requires Attunement).
+       * These boots have 4 charges and regain 1d4 expended charges daily at
+       * dawn. While wearing the boots, you can take a Magic action to expend
+       * 1 charge, gaining a Fly Speed of 30 feet for 1 hour. If you are
+       * flying when the duration expires, you descend at a rate of 30 feet
+       * per round until you land."
+       *
+       * **The Periapt's shape with a Speed where its healing is**: a pool the
+       * dawn partly refills, and a conferral priced at one charge out of it,
+       * which `useItem` spends only from a wearer who has attuned. What the
+       * charge buys is SRD Fly's own grant at half the feet and without the
+       * hovering the spell prints — "a Fly Speed of 30 feet" and nothing
+       * after it — for the boots' hour.
+       *
+       * The hour is the conferral's and is not tied to the boots staying on,
+       * because the book does not tie it: "while wearing the boots" governs
+       * the Magic action, and what the action gains lasts "for 1 hour".
+       */
+      attunement: {},
+      grants: [
+        charges('winged-boots', 'Winged Boots', 4, '1d4'),
+        {
+          kind: 'confers',
+          action: 'action',
+          charges: 1,
+          durationSeconds: 3600,
+          effects: [{ kind: 'speed', change: 'add', feet: 30, mode: 'fly' }],
+        },
       ],
       unmodelled: [
-        '"you have Advantage on saving throws to avoid or end the Poisoned condition while you wear this pendant": a `roll-mode` reaches a saving throw by its ability and not by what the save is *against*, so a mode narrowed to one named condition has no selector — the shape the blocked map calls `a-save-keyed-to-a-condition`, and the Periapt of Proof against Poison is blocked on its neighbour',
+        '"If you are flying when the duration expires, you descend at a rate of 30 feet per round until you land": nothing fires when a conferral\'s hour runs out, so a wearer still aloft is the table\'s to bring down — the fall SRD Fly leaves to the DM, and here a gentler one',
+      ],
+    },
+  ),
+  wornItem(
+    { id: 'robe-of-the-archmagi', name: 'Robe of the Archmagi', kind: 'wondrous' },
+    {
+      /**
+       * SRD Robe of the Archmagi: "Wondrous Item, Legendary (Requires
+       * Attunement by a Sorcerer, Warlock, or Wizard). ... You gain these
+       * benefits while wearing the robe. _Armor._ If you aren't wearing
+       * armor, your base Armor Class is 15 plus your Dexterity modifier.
+       * _Magic Resistance._ You have Advantage on saving throws against
+       * spells and other magical effects. _War Mage._ Your spell save DC and
+       * spell attack bonus each increase by 2."
+       *
+       * Two of the three benefits, and each is a sentence the vocabulary
+       * already writes word for word: Magic Resistance is `againstMagic` —
+       * "spells and other magical effects" is that selector's own reading —
+       * and the first half of War Mage is `spell-save-dc-bonus` with no class
+       * narrowing, which is the reading its own docstring gives an item. Both
+       * wait on the robe being worn and on the attunement the bracket asks
+       * for, and the bracket's three classes are the attunement's.
+       *
+       * What is left out is benefit withheld rather than limit dropped, so
+       * this is rule 2: the robe below is a weaker robe than the book's, never
+       * a stronger one.
+       */
+      attunement: { byClass: ['sorcerer', 'warlock', 'wizard'] },
+      grants: [
+        {
+          kind: 'standing',
+          reach: 'self',
+          effects: [
+            {
+              kind: 'roll-mode',
+              modifier: {
+                mode: 'advantage',
+                selector: { roll: 'saving-throw', relation: 'roller', againstMagic: true },
+              },
+            },
+            { kind: 'spell-save-dc-bonus', flat: 2 },
+          ],
+          requires: WORN_AND_ATTUNED,
+        },
+      ],
+      unmodelled: [
+        '"If you aren\'t wearing armor, your base Armor Class is 15 plus your Dexterity modifier": a worn item grants a flat bonus to Armor Class and has no grant that replaces the base formula, so the wearer keeps whatever base they had',
+        '"Your spell save DC and spell attack bonus each increase by 2" is honoured for the DC and not for the attack bonus: nothing a worn item grants reaches a spell attack roll, which is the shape the blocked map calls `a-bonus-to-spell-attack-rolls`',
       ],
     },
   ),
@@ -2473,9 +2635,10 @@ const POTIONS: readonly CatalogueItem[] = [
      * so the modifier a healing *spell* adds is not added here.
      *
      * The greater, superior and supreme rows of the same table are the same
-     * grant with different dice and are not transcribed, because the SRD files
-     * all four under one entry with one id and item instance identity is what
-     * would tell four potions apart on one line of an inventory.
+     * grant with different dice, and each is a record of its own below under
+     * the name its row prints: four potions are four things an inventory can
+     * hold side by side, so four ids tell them apart without a copy needing
+     * a record of its own.
      */
     id: 'potion-of-healing',
     name: 'Potion of Healing',
@@ -2493,9 +2656,6 @@ const POTIONS: readonly CatalogueItem[] = [
           { kind: 'heal', healing: { dice: '2d4', flat: 2 }, addSpellcastingModifier: false },
         ],
       },
-    ],
-    unmodelled: [
-      'the three other rows of the Potions of Healing table — "Potion of Healing (greater)" 4d4 + 4, "(superior)" 8d4 + 8, "(supreme)" 10d4 + 20 — which the SRD files under one entry and which would need four ids, or an item instance record, to sit on one inventory line',
     ],
   },
   {
@@ -2640,8 +2800,8 @@ const POTIONS: readonly CatalogueItem[] = [
       },
     ],
     unmodelled: [
-      'the size category the reduce branch takes away — one step down, Medium to Small — is not applied: size is a fact the engine holds authoritatively and reads for sharing a space, passing through and what a template catches, and nothing may write over one for a duration (see the Enlarge/Reduce definition, whose notes this repeats because a conferral carries an effect list rather than a spell id)',
-      'the 1d4 taken off the drinker\'s later attacks with reduced weapons or Unarmed Strikes is not hung: it is a penalty on a damage roll, and nothing in the grant vocabulary reduces one — the same half of the same sentence the Potion of Growth leaves out from the other end',
+      'the size category the reduce branch takes away — one step down, Medium to Small — is not applied: the Enlarge/Reduce definition writes it as a `size` rider on its save, and a conferral may not hang riders — `modifiers` is one of the fields `checkContent` refuses on a conferred effect, because the road a rider reaches the world by is the casting arm of the save resolver and a bottle has no casting',
+      'the 1d4 taken off the drinker\'s later attacks with reduced weapons or Unarmed Strikes is not hung: the spell writes it as a `damage-penalty` rider beside the size, and it is refused on a conferral for the same reason — the same half of the same sentence the Potion of Growth leaves out from the other end',
       'the gear changing size with the drinker, and a thrown weapon returning to normal after it hits or misses, are the DM\'s',
     ],
   },
@@ -2692,8 +2852,8 @@ const POTIONS: readonly CatalogueItem[] = [
       },
     ],
     unmodelled: [
-      'the size category the enlarge branch grants — one step up, Medium to Large — is not applied: size is a fact the engine holds authoritatively and reads for sharing a space, passing through and what a template catches, and nothing may write over one for a duration (see the Enlarge/Reduce definition, whose notes this repeats because a conferral carries an effect list rather than a spell id)',
-      'the extra 1d4 on the drinker\'s later attacks with enlarged weapons or Unarmed Strikes is not hung: the damage has no type printed and so is the weapon\'s own, which no rider says',
+      'the size category the enlarge branch grants — one step up, Medium to Large — is not applied: the Enlarge/Reduce definition writes it as a `size` rider on its save, and a conferral may not hang riders — `modifiers` is one of the fields `checkContent` refuses on a conferred effect, because the road a rider reaches the world by is the casting arm of the save resolver and a bottle has no casting',
+      'the extra 1d4 on the drinker\'s later attacks with enlarged weapons or Unarmed Strikes is not hung: the spell writes it as a `later-blow` rider beside the size, and it is refused on a conferral for the same reason',
       'the gear changing size with the drinker, and a thrown weapon returning to normal after it hits or misses, are the DM\'s',
     ],
   },
@@ -2704,15 +2864,20 @@ const POTIONS: readonly CatalogueItem[] = [
      * required) without suffering the wave of lethargy that typically occurs
      * when the effect ends."
      *
-     * Haste's two writable benefits, out of a bottle: the +2 to Armour Class
-     * and the Advantage on Dexterity saving throws, for the potion's minute.
-     * What the spell cannot say the potion cannot either, and the note says
-     * which halves those are.
+     * Haste's four benefits, out of a bottle, copied from the Haste
+     * definition effect for effect: the doubled Speed, the +2 to Armour Class,
+     * the Advantage on Dexterity saving throws, and the additional action on
+     * each of the drinker's turns — minted at each turn's start, spendable
+     * only on the five actions the spell names, and holding one attack where
+     * the drinker's own Attack action may hold more.
      *
-     * **The lethargy clause is the one that needs care.** It *removes* a
-     * drawback, and the engine never applies that drawback — so the sentence
-     * is honoured by accident rather than by rule, and saying so is the
-     * difference between a transcription and a coincidence.
+     * **The lethargy clause is honoured by construction, and it is worth
+     * saying which construction.** Haste lays its wave of lethargy through
+     * the definition's `onEnd`, which fires when a *casting* ends. A
+     * conferral has no casting and no `onEnd` field to write one in: when the
+     * minute runs out its timer takes the four grants off and lays nothing.
+     * So "without suffering the wave of lethargy" is what this record does
+     * because of the shape it is written in, not because a rule was skipped.
      */
     id: 'potion-of-speed',
     name: 'Potion of Speed',
@@ -2730,18 +2895,27 @@ const POTIONS: readonly CatalogueItem[] = [
         // Concentration for up to the same minute.
         durationSeconds: 60,
         effects: [
+          // "the target's Speed is doubled"
+          { kind: 'speed', change: 'double' },
           { kind: 'buff', bonus: { source: 'Potion of Speed', flat: 2 }, applies: ['ac'], direction: 'add' },
           {
             kind: 'roll-mode',
             modifier: { mode: 'advantage', selector: { roll: 'saving-throw', relation: 'roller', ability: 'dex' } },
           },
+          // "it gains an additional action on each of its turns. That action
+          // can be used to take only the Attack (one attack only), Dash,
+          // Disengage, Hide, or Utilize action."
+          {
+            kind: 'action-rule',
+            rule: {
+              kind: 'grants',
+              at: 'each-turn',
+              only: ['attack', 'dash', 'disengage', 'hide', 'utilize'],
+              attacksCap: 1,
+            },
+          },
         ],
       },
-    ],
-    unmodelled: [
-      'the doubled Speed Haste grants is not applied: a Speed is composed from a halving, which is presence rather than count, and a zero, which is last and wins, and there is no operation that multiplies one',
-      'the additional action Haste grants on each of the target\'s turns, and the five actions it may be spent on, are not granted: the action economy counts what a turn holds and nothing an effect writes adds to that count',
-      '"without suffering the wave of lethargy that typically occurs when the effect ends": the lethargy is Haste\'s own clause and the engine does not apply it either, because nothing fires when a duration runs out — so this potion is no better than the spell here, and the sentence is honoured by an absence rather than by a rule',
     ],
   },
   {
@@ -2750,12 +2924,15 @@ const POTIONS: readonly CatalogueItem[] = [
      * you gain the effect of the _Gaseous Form_ spell for 1 hour (no
      * Concentration required) or until you end the effect as a Bonus Action."
      *
-     * Five effects out of one sentence of the spell: the Resistance to three
-     * physical damage types, Immunity to the Prone condition, and Advantage
-     * on saving throws with each of three abilities. Everything else about
-     * being a cloud is the spell's note, and the ones a drinker would notice
-     * are repeated here because a conferral hands nothing over from a
-     * definition — it carries its own list, so it carries its own gaps too.
+     * The Gaseous Form definition's seven effects, copied effect for effect:
+     * the Resistance to three physical damage types, Immunity to the Prone
+     * condition, Advantage on saving throws with each of three abilities, a
+     * Fly Speed of 10 feet that hovers as the drinker's **only** way to move,
+     * and the rule that refuses an Attack, a casting and every hand put on a
+     * thing. What the spell leaves undone the potion leaves undone too, and
+     * those gaps are repeated here in the spell's own terms because a
+     * conferral hands nothing over from a definition — it carries its own
+     * list, so it carries its own gaps too.
      *
      * **The Immunity was the fifth and was refused by a name collision.**
      * `CONFERRED_EFFECT_KINDS` admitted `condition-immunity` and `RIDER_FIELDS`
@@ -2794,14 +2971,228 @@ const POTIONS: readonly CatalogueItem[] = [
             kind: 'roll-mode',
             modifier: { mode: 'advantage', selector: { roll: 'saving-throw', relation: 'roller', ability: 'con' } },
           },
+          // The spell's "only method of movement is a Fly Speed of 10 feet,
+          // and it can hover": one operation, so a Longstrider on the same
+          // drinker puts no walking back into a cloud.
+          { kind: 'speed', change: 'only', mode: 'fly', feet: 10, hover: true },
+          // The spell's "can't attack or cast spells" and "can't ... manipulate
+          // objects": the Attack action, a casting from any slot, and every
+          // command that puts a hand on a thing.
+          {
+            kind: 'action-rule',
+            rule: { kind: 'forbids', actions: ['attack'], casting: true, objects: true },
+          },
         ],
       },
     ],
     unmodelled: [
       '"or until you end the effect as a Bonus Action": a conferral is a moment with a lifetime the item states and there is no casting for a dismissal to address, so the hour runs to the end',
-      'the movement Gaseous Form prescribes — a Fly Speed of 10 feet and hovering, and no other method — is not applied: the engine tracks one Speed and no movement modes, so the drinker keeps the Speed they had',
-      'what Gaseous Form forbids is not forbidden: talking, manipulating objects, letting go of anything held, attacking and casting are an action economy rider and a fact about what is in a creature\'s hands, and the engine has neither',
-      'passing through narrow openings, treating liquids as solid surfaces, and occupying another creature\'s space are the DM\'s',
+      'one of the four things the cloud cannot do is not forbidden: talking, which the Gaseous Form definition leaves undone for its own reason — it is not an action anything spends, and it sits in the same printed sentence as the object clauses this record does forbid',
+      'occupying another creature\'s space is not allowed: occupancy is a rule the engine owns outright, and nothing lets an effect tell that rule to believe something different about one creature — the Gaseous Form definition\'s own note',
+      'passing through narrow openings and treating liquids as solid surfaces are the DM\'s, as they are for the spell: the cloud itself is fiction',
+      'the spell ends on a target that drops to 0 Hit Points, and this conferral does not: its lifetime is the hour, because what may cut a conferral short is `endsEarly`, which ends a conferred condition rather than a grant and names no fall to 0',
+    ],
+  },
+  {
+    /**
+     * SRD Potions of Healing, the second row: "Potion of Healing (greater)",
+     * 4d4 + 4, Uncommon. The Potion of Healing's grant with the row's dice.
+     */
+    id: 'potion-of-healing-greater',
+    name: 'Potion of Healing (greater)',
+    kind: 'potion',
+    weightLb: 0.5,
+    costCp: null,
+    armor: null,
+    weapon: null,
+    contents: [],
+    grants: [
+      {
+        kind: 'confers',
+        action: 'bonus-action',
+        effects: [
+          { kind: 'heal', healing: { dice: '4d4', flat: 4 }, addSpellcastingModifier: false },
+        ],
+      },
+    ],
+  },
+  {
+    /** SRD Potions of Healing, the third row: "Potion of Healing (superior)", 8d4 + 8, Rare. */
+    id: 'potion-of-healing-superior',
+    name: 'Potion of Healing (superior)',
+    kind: 'potion',
+    weightLb: 0.5,
+    costCp: null,
+    armor: null,
+    weapon: null,
+    contents: [],
+    grants: [
+      {
+        kind: 'confers',
+        action: 'bonus-action',
+        effects: [
+          { kind: 'heal', healing: { dice: '8d4', flat: 8 }, addSpellcastingModifier: false },
+        ],
+      },
+    ],
+  },
+  {
+    /** SRD Potions of Healing, the last row: "Potion of Healing (supreme)", 10d4 + 20, Very Rare. */
+    id: 'potion-of-healing-supreme',
+    name: 'Potion of Healing (supreme)',
+    kind: 'potion',
+    weightLb: 0.5,
+    costCp: null,
+    armor: null,
+    weapon: null,
+    contents: [],
+    grants: [
+      {
+        kind: 'confers',
+        action: 'bonus-action',
+        effects: [
+          { kind: 'heal', healing: { dice: '10d4', flat: 20 }, addSpellcastingModifier: false },
+        ],
+      },
+    ],
+  },
+  {
+    /**
+     * SRD Elixir of Health: "Potion, Rare. When you drink this potion, you are
+     * cured of all magical contagions. In addition, the following conditions
+     * end on you: Blinded, Deafened, Paralyzed, and Poisoned."
+     *
+     * The four conditions are SRD Greater Restoration's `end-condition` with
+     * the page's own list, in the page's own order; it hangs nothing, so the
+     * conferral states no lifetime. A contagion is not a state the engine
+     * holds, so curing one is the table's and there is nothing to write down.
+     */
+    id: 'elixir-of-health',
+    name: 'Elixir of Health',
+    kind: 'potion',
+    weightLb: 0.5,
+    costCp: null,
+    armor: null,
+    weapon: null,
+    contents: [],
+    grants: [
+      {
+        kind: 'confers',
+        action: 'bonus-action',
+        effects: [
+          { kind: 'end-condition', conditions: ['blinded', 'deafened', 'paralyzed', 'poisoned'] },
+        ],
+      },
+    ],
+  },
+  {
+    /**
+     * SRD Potion of Invulnerability: "Potion, Rare. For 1 minute after you
+     * drink this potion, you have Resistance to all damage."
+     *
+     * "All damage" written out as the thirteen types, the way SRD Protection
+     * from Energy writes its list, and the minute as the conferral's own
+     * lifetime.
+     */
+    id: 'potion-of-invulnerability',
+    name: 'Potion of Invulnerability',
+    kind: 'potion',
+    weightLb: 0.5,
+    costCp: null,
+    armor: null,
+    weapon: null,
+    contents: [],
+    grants: [
+      {
+        kind: 'confers',
+        action: 'bonus-action',
+        durationSeconds: 60,
+        effects: [
+          {
+            kind: 'damage-defense',
+            // "all damage": the thirteen types, in the order the SRD's
+            // Damage Types table prints them.
+            damageTypes: [
+              'acid',
+              'bludgeoning',
+              'cold',
+              'fire',
+              'force',
+              'lightning',
+              'necrotic',
+              'piercing',
+              'poison',
+              'psychic',
+              'radiant',
+              'slashing',
+              'thunder',
+            ],
+            defense: 'resistant',
+          },
+        ],
+      },
+    ],
+  },
+  {
+    /**
+     * SRD Potion of Flying: "Potion, Very Rare. When you drink this potion, you
+     * gain a Fly Speed equal to your Speed for 1 hour and can hover. If you're
+     * in the air when the potion wears off, you fall unless you have some
+     * other means of staying aloft."
+     *
+     * "Equal to your Speed" is `match-walk`, the sentence SRD Spider Climb
+     * prints of a Climb Speed, and "can hover" is the flag SRD Fly hands over
+     * beside its own Fly Speed.
+     */
+    id: 'potion-of-flying',
+    name: 'Potion of Flying',
+    kind: 'potion',
+    weightLb: 0.5,
+    costCp: null,
+    armor: null,
+    weapon: null,
+    contents: [],
+    grants: [
+      {
+        kind: 'confers',
+        action: 'bonus-action',
+        durationSeconds: 3600,
+        effects: [{ kind: 'speed', change: 'match-walk', mode: 'fly', hover: true }],
+      },
+    ],
+    unmodelled: [
+      'the fall when the potion wears off on a drinker still aloft is the DM’s: "If you\'re in the air when the potion wears off, you fall unless you have some other means of staying aloft" — nothing fires when a conferral\'s hour runs out, the note SRD Fly carries for its own ending',
+    ],
+  },
+  {
+    /**
+     * SRD Potion of Climbing: "Potion, Common. When you drink this potion, you
+     * gain a Climb Speed equal to your Speed for 1 hour. During this time, you
+     * have Advantage on Strength (Athletics) checks to climb."
+     *
+     * The Climb Speed is SRD Spider Climb's `match-walk`, for the potion's
+     * hour. The Advantage is left out rather than widened: a mode on every
+     * Strength (Athletics) check would reach a Grapple and a Shove as well as
+     * a climb, which is a better potion than the book prints.
+     */
+    id: 'potion-of-climbing',
+    name: 'Potion of Climbing',
+    kind: 'potion',
+    weightLb: 0.5,
+    costCp: null,
+    armor: null,
+    weapon: null,
+    contents: [],
+    grants: [
+      {
+        kind: 'confers',
+        action: 'bonus-action',
+        durationSeconds: 3600,
+        effects: [{ kind: 'speed', change: 'match-walk', mode: 'climb' }],
+      },
+    ],
+    unmodelled: [
+      '"you have Advantage on Strength (Athletics) checks to climb" is not granted: a mode may be narrowed to a skill but not to what the check is for, and the same mode on every Athletics check would reach a Grapple or a Shove the potion says nothing about',
     ],
   },
 ];

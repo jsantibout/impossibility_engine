@@ -4448,8 +4448,13 @@ export const ITEM_SHAPES = {
     'a distance the item’s own line prints between its user and whatever its use lands on. **A conferral reaches its user, or one creature within five feet.** SRD’s sentence about administering a potion is the whole of that reach — "administer it to another creature within 5 feet of yourself" — and `useItem` asks it through `reachedBy(state, id, target, item.name)` at that function’s own default of five; the grant has no field for a range, and `UseItemCommand` has one target and no second. So a wand whose ray streaks 60 feet, a rope that darts 20 and a talisman that opens a fissure at 120 each have a condition, a saving throw, a DC and a span the vocabulary can write down, and nowhere at all to write down how far any of it goes. **This is the blocker the re-derivation found underneath the two it was sent to check.** Entry after entry named `a-condition-an-item-imposes` for a condition that had been sayable for two batches, and what was actually in the way was the thirty feet between the pipes and the creature that hears them. **Sized here, so that a brief need not re-derive it — and it is two fields rather than one.** All but one of the entries below point at exactly *one creature* the user can see, at a distance their own line prints: a rope at 20 feet; a gem’s beam, a wand’s ray, a ring’s spectral head, an iron sphere and a compelled Elemental at 60; either talisman at 120. That is a reach on a `confers` grant, and **whether more than one creature is caught is a separate gap already filed apart** — an item whose line catches several at once names `an-area-an-item-creates`, which the 2024 rules’ Emanation covers — so a single distance beside the conferral closes that half whole. The **other** half is a `casts` grant, and SRD Necklace of Fireballs is the whole of it: "detach a bead and throw it up to 60 feet away" *narrows* Fireball’s printed Range of 150 at a **point** rather than a creature, and `resolveTargets` enforces the spell’s own Range. So an item may neither reach further than five feet under its own power nor reach less far than the spell it casts, and a brief that sized only the first would leave the necklace exactly where it is. What such a field would *finish* is derived into the report rather than asserted here, and it is the column to read before the blocking one: an entry this shape is the only blocker for is a record somebody writes the day the field lands. The first entry transcribed under this reach writes the same thing down as a note, in packages/content/src/items.ts: "a conferral reaches its user or one creature within 5 feet and has no field for an area".',
   'a-reduction-an-effect-applies-to-damage':
     'a rolled amount a worn item takes off a hit before the defences meet it — SRD Ring of Warmth: "If you take Cold damage while wearing this ring, the ring reduces the damage you take by 2d8." **The spell half of this shape is built and the id moved here with what was left**, which is the rule this vocabulary states: what lives over here is only what is true of an **item** and false of a casting. A casting hangs one through the `damage-reduction` effect and SRD Resistance walks through it; an item has no such door. docs/design/content.md is where the refusal is written — an item that confers an effect without casting one is "refused an effect kind a conferral cannot resolve" — and this is one of those kinds: the ring is not concentrating, has no casting to be released with, and its 2d8 is the same arithmetic under a source nothing would ever end.',
-  'a-speed-an-effect-multiplies':
-    'a Speed **doubled** by an item. **The spell half of this shape is built and the id moved here with what was left**, which is the rule this vocabulary states: what lives over here is only what is true of an item and false of a casting. `SpeedChange` carries `double` now and `combineSpeed` carries the order the SRD does not print — base, plus the flat changes, doubled once, halved once, then zeroed, so SRD Slow cast over SRD Haste brings a creature back to the Speed it walked at — and SRD Haste is executed off it. SRD Boots of Speed print the same operation through a door that does not exist: an item confers effects without casting anything, and `ITEM_EFFECT_KINDS` omits `speed` for the reason its neighbour below records, so the boots have nothing to hang a doubling on whatever the vocabulary can now express. `docs/design/spell-definitions.md` is where the composition rule is fixed: "Halving is presence rather than count — the reading Resistance and Advantage already take. Zero is last and **wins**".',
+  // **`a-speed-an-effect-multiplies` was here and is retired**, because a
+  // shape nothing is blocked on is one the honesty guard deletes. Its item
+  // half said a conferral had nothing to hang a doubling on, and that stopped
+  // being true: `CONFERRED_EFFECT_KINDS` admits `speed`, `SpeedChange`
+  // carries `double`, and SRD Potion of Speed doubles its drinker's Speed
+  // through `useItem`. Its one claimant, SRD Boots of Speed, is blocked on
+  // what the doubling is *hung on* rather than on the doubling itself.
   'a-speed-an-item-grants':
     'a Speed a worn item gives its wearer. `ITEM_EFFECT_KINDS` omits `speed` on purpose and packages/engine/src/content.ts records the omission as a gap rather than as a decision — "An item granting a Swim Speed is a real SRD item and a real gap; refusing it by name is how the gap stays visible instead of becoming a transcribed item whose benefit silently never applies." Boots, gloves, rings, horseshoes and slippers all print one.',
   'a-reaction-an-item-grants':
@@ -4463,9 +4468,9 @@ export const ITEM_SHAPES = {
   'a-language-or-a-proficiency-an-item-grants':
     'training an item confers — a language you know while you wear it, a weapon you are suddenly proficient with. **Half of it is a `FeatureGrant` kind now and an item still cannot carry it**: `weapon-and-armor-training` was built for SRD Divine Order and Primal Order, which grant Martial weapons and Heavy or Medium armour on a class feature, and an item reaches none of it — packages/engine/src/content.ts, "only a standing grant, a charge pool, a spell it casts and the effects it confers are read from one". A language is not a grant kind at all: a language is a `ClassDefinition` field, so there is no member to read from an item and none to refuse. One shape rather than two, because one line of the reader admits both and each entry’s own note says which the item wanted.',
   'an-item-instance-with-a-state-of-its-own':
-    'a fact about **this** copy of an item rather than about the catalogue row — and **the line that decides an entry has moved twice**, so it is drawn here rather than left to a reader’s sense of it. The identity exists (docs/design/characters-and-equipment.md: "An item copy **has** an identity now"), and so does the one kind of per-copy state the engine holds: a **charge pool keyed to the copy**, whose maximum the book may roll at the copy’s birth (`CatalogueItem.chargesRolled`, thrown by `awardItems`), which travels whole when the copy is handed over, and which `recovers: \'special\'` leaves exactly where it lands. So a per-copy fact that is a **spendable count** is no longer a gap: a bag with 3d4 beans in it, a prism with fifty charges, a manual a reader has used up, a talisman spent to nothing. What is left under this name is every *other* fact a copy carries, and each of the entries below says which of its own: **which kind** this one is out of several (a necklace’s beads, a robe’s patches, a scroll’s spell), **which parts** are left rather than how many (a deck’s thirty-four cards, a helm’s four counts of gems against one pool), **how long it has burned** (a candle’s minutes, a timer the clock moves and no command spends), **what was rolled for it once** (an efreeti bottle’s course), **what is inside it** (an iron flask’s prisoner), **which other copy it is paired with** (a sending stone), and **a change it makes to another item** (an oil that turns a sword into a +3 Weapon). And the one the shape was first written for: an arrow that stops being magical the moment it hits, which is a state a use changes and not a use it spends. packages/content/src/items.ts carries the same distinction on the potion that forced it — the other rows of the healing table "would need four ids, or an item instance record, to sit on one inventory line", which is *which kind*, the first entry in the list above.',
+    'a fact about **this** copy of an item rather than about the catalogue row — and **the line that decides an entry has moved twice**, so it is drawn here rather than left to a reader’s sense of it. The identity exists (docs/design/characters-and-equipment.md: "An item copy **has** an identity now"), and so does the one kind of per-copy state the engine holds: a **charge pool keyed to the copy**, whose maximum the book may roll at the copy’s birth (`CatalogueItem.chargesRolled`, thrown by `awardItems`), which travels whole when the copy is handed over, and which `recovers: \'special\'` leaves exactly where it lands. So a per-copy fact that is a **spendable count** is no longer a gap: a bag with 3d4 beans in it, a prism with fifty charges, a manual a reader has used up, a talisman spent to nothing. What is left under this name is every *other* fact a copy carries, and each of the entries below says which of its own: **which kind** this one is out of several (a necklace’s beads, a robe’s patches, a scroll’s spell), **which parts** are left rather than how many (a deck’s thirty-four cards, a helm’s four counts of gems against one pool), **how long it has burned** (a candle’s minutes, a timer the clock moves and no command spends), **what was rolled for it once** (an efreeti bottle’s course), **what is inside it** (an iron flask’s prisoner), **which other copy it is paired with** (a sending stone), and **a change it makes to another item** (an oil that turns a sword into a +3 Weapon). And the one the shape was first written for: an arrow that stops being magical the moment it hits, which is a state a use changes and not a use it spends. The potion that forced the distinction has since gone the other way, and the difference is the one this list turns on: the healing table names each of its four rows and rates them one by one, so each is a catalogue record under its own id, and *which kind* stays a gap only where the book leaves the kind to a roll or to the GM.',
   'a-version-of-an-item-the-book-leaves-to-the-gm':
-    'one printed entry that is several items, where **the GM chooses which**. Not the `+1, +2, or +3` template, whose versions the book names and rates one by one and which the catalogue expands into records; this is "The GM chooses the type or determines it randomly by rolling on the following table", printed over damage types, giants, dragons, planes and elementals. packages/content/src/items.ts says what it would cost on the entry that already forced the question — the other healing potions "would need four ids, or an item instance record, to sit on one inventory line" — and a record that picked one version for everybody would be a catalogue asserting what the book leaves open.',
+    'one printed entry that is several items, where **the GM chooses which**. Not the `+1, +2, or +3` template, whose versions the book names and rates one by one and which the catalogue expands into records; this is "The GM chooses the type or determines it randomly by rolling on the following table", printed over damage types, giants, dragons, planes and elementals. The healing potions are not this shape, though they first raised it: their table names four potions and rates each, so packages/content/src/items.ts holds every row under its own id and nothing is chosen for anybody. A record that picked one version for everybody would be a catalogue asserting what the book leaves open.',
   'a-container-with-a-space-of-its-own':
     'an item that holds other items. docs/archive/design/characters-and-equipment.md states the absence outright — "No containers." and "Items are a flat list per creature" — so a bag whose capacity, weight and contents are the whole of its rules has nothing to be written against. Several of the book’s wondrous items are containers and nothing else.',
   'an-object-with-statistics-of-its-own':
@@ -4746,8 +4751,15 @@ export const ITEM_BLOCKED_ON: Readonly<Record<string, ItemEntry>> = {
     'what-ends-attunement-besides-a-command',
     'a-save-an-item-forces',
   ],
+  // Re-read against the conferral that doubles a Speed, and one id lighter:
+  // the doubling is writable now, and the Potion of Speed carries it. What
+  // keeps the boots out is what it would be hung on. "If you do, the boots
+  // double your Speed" is the boots' own effect, and "If you click your heels
+  // together again, you end the effect" is a switch, where a conferral is a
+  // moment with a lifetime the item states — one that would run its ten
+  // minutes on after the boots came off, which is a better pair than the book
+  // prints. The ten minutes "for a total" and the Long Rest are the rest.
   'boots-of-speed': [
-    'a-speed-an-effect-multiplies',
     'a-benefit-an-item-switches-on-and-off',
     'a-deadline-anchored-to-a-rest',
   ],
@@ -4882,18 +4894,6 @@ export const ITEM_BLOCKED_ON: Readonly<Record<string, ItemEntry>> = {
   'elemental-gem': [
     'a-stat-block-created-mid-fight',
     'a-version-of-an-item-the-book-leaves-to-the-gm',
-  ],
-  'elixir-of-health': [
-    {
-      clause: 'you are cured of all magical contagions',
-      why: 'table',
-      note: 'a disease is not a condition the engine names and not a state it holds, so there is nothing here for a conferral to end. The table decides what a contagion was and that it is gone.',
-    },
-    {
-      clause: 'the following conditions end on you: Blinded, Deafened, Paralyzed, and Poisoned',
-      why: 'expressible',
-      note: 'an `end-condition` effect on a `confers` grant, which is exactly the kind packages/engine/src/content.ts admits for an item: it needs no casting id, no D20 Test and no save DC, and it outlasts nothing so the grant states no lifetime. Four condition names, printed in the book’s own order.',
-    },
   ],
   // **The bow names no spell at all**, which is the plainest stale entry in
   // this map: the shape was recorded against a line the paragraph does not
@@ -5101,11 +5101,6 @@ export const ITEM_BLOCKED_ON: Readonly<Record<string, ItemEntry>> = {
     'a-stat-block-created-mid-fight',
     'a-selector-for-every-d20-test',
   ],
-  // **Back to unread, which is the honest pile rather than a demotion.**
-  'necklace-of-adaptation': {
-    unread:
-      'its one grandfathered blocker was the condition-keyed save, and that axis is built: "Advantage on saving throws made to avoid or end the Poisoned condition" is now a standing roll mode an item grant can carry, on the same axis Fey Ancestry and Protection from Poison took. So nothing mechanical stands between this paragraph and a record — and a bare list of ids was never the reading that would say so. What is left is the other half of the sentence, "you can breathe normally in any environment", which somebody has to weigh against rule 1 in packages/content/src/items.ts before this becomes a record or a piece of fiction. Unread is the honest pile for that, and it is where an entry goes by default rather than by decision.',
-  },
   // **Placed, by the shape the re-derivation had to name anyway** — and then
   // read to the end of the paragraph, which is where the second blocker was.
   // The last reading left this unread because "the blocker it named is gone
@@ -5202,22 +5197,9 @@ export const ITEM_BLOCKED_ON: Readonly<Record<string, ItemEntry>> = {
       note: 'read, and it keeps the shape for the second reason that shape names: a potion confers rather than casts, so what it needs is a definition whose `SpellEffect[]` it can copy — and Clairvoyance is defined and **tracked**, with an empty list. "An item that confers an empty list confers nothing." Unlike Enlarge/Reduce, nothing here waits on a choice a bottle could make: a sensor in a place you know, seen or heard through, is fiction all the way down, so this entry is waiting on a mechanic rather than on an afternoon.',
     },
   ],
-  'potion-of-climbing': [
-    'a-speed-an-item-grants',
-    'movement-modes',
-    'a-bonus-narrowed-to-a-skill',
-  ],
-  'potion-of-flying': ['a-speed-an-item-grants', 'movement-modes'],
   'potion-of-giant-strength': [
     'an-ability-score-a-spell-changes',
     'a-version-of-an-item-the-book-leaves-to-the-gm',
-  ],
-  'potion-of-invulnerability': [
-    {
-      clause: 'you have Resistance to all damage',
-      why: 'expressible',
-      note: 'a `damage-defense` effect on a `confers` grant, with the minute the sentence prints as the grant’s `durationSeconds` — which packages/engine/src/content.ts requires of exactly this kind, because a conferral hangs a sourced grant and there is no casting for `releaseCasting` to end. SRD’s "all damage" is the type list written out, the way Protection from Energy already writes one.',
-    },
   ],
   'potion-of-longevity': [
     {
@@ -5349,7 +5331,6 @@ export const ITEM_BLOCKED_ON: Readonly<Record<string, ItemEntry>> = {
     'a-condition-an-item-imposes',
     'an-area-an-item-creates',
   ],
-  'robe-of-the-archmagi': ['a-bonus-to-spell-attack-rolls', 'a-mode-on-the-save-a-spell-forces'],
   // The instance shape stays: "the robe has 4d4 other patches", each of a
   // kind rolled on a table and each removable once. A copy carries a list of
   // kinds, and a pool counts.
@@ -5632,12 +5613,6 @@ export const ITEM_BLOCKED_ON: Readonly<Record<string, ItemEntry>> = {
   // tally — a pool with no size, which is what let the sixth use roll at a
   // hundred instead of being refused — and the die is a `1d100` the engine
   // throws before the spell is cast at all.
-  // Re-pointed off the charge shape: "expend 1 charge, gaining a Fly Speed of
-  // 30 feet for 1 hour" is a priced conferral with a printed span, and
-  // `CONFERRED_EFFECT_KINDS` even admits `speed`. What it does not admit is a
-  // *mode*: `SpeedChange` adds, halves or zeroes the one Speed the engine
-  // holds, so a Fly Speed has nowhere to land.
-  'winged-boots': ['a-speed-an-item-grants', 'movement-modes'],
   'wings-of-flying': [
     'a-speed-an-item-grants',
     'movement-modes',
