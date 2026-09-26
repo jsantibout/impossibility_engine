@@ -270,6 +270,8 @@ describe('a condition applied with no saving throw', () => {
     expect(INVISIBILITY.endsEarly?.every((t) => t.ends === 'casting')).toBe(true);
     expect(GREATER_INVISIBILITY.endsEarly).toBeUndefined();
     expect(GREATER_INVISIBILITY.unmodelled ?? []).toEqual([]);
-    expect(INVISIBILITY.unmodelled?.join(' ')).toMatch(/costs no Attack action/i);
+    // The residue this used to keep — a free swing that misses — is paid: the
+    // roll's own record says it was an attack roll, and the ending seam reads it.
+    expect(INVISIBILITY.unmodelled).toBeUndefined();
   });
 });

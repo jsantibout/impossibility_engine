@@ -403,7 +403,13 @@ describe('the clause is transcribed, spell by spell', () => {
     (spellId, definition) => {
       const printed = (PROSE.get(spellId) ?? '')
         .split(/(?<=\.)\s+/)
-        .some((sentence) => /\bAdvantage\b/i.test(sentence) && /\bfighting\b/i.test(sentence));
+        // Two readings of one fact: SRD Charm Person's "with Advantage if you or
+        // your allies are fighting it" and SRD Enthrall's "Any creature you or
+        // your companions are fighting automatically succeeds".
+        .some(
+          (sentence) =>
+            /\b(Advantage|automatically succeeds)\b/i.test(sentence) && /\bfighting\b/i.test(sentence),
+        );
       expect(statesFoughtFact(definition)).toBe(printed);
     },
   );
@@ -420,6 +426,9 @@ describe('the clause is transcribed, spell by spell', () => {
       'dominate-beast',
       'dominate-monster',
       'dominate-person',
+      // The sixth, and the one that reads the fact as a success rather than
+      // as Advantage — `autoSucceedIf: { fought: true }`.
+      'enthrall',
     ]);
   });
 
