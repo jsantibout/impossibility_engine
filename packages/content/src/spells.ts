@@ -11784,9 +11784,6 @@ export const SILENCE: SpellDefinition = {
   dmDecides: [
     'For the duration, no sound can be created within or pass through a 20-foot-radius Sphere centered on a point you choose within range.',
   ],
-  unmodelled: [
-    'an *object* entirely inside the Sphere is immune to Thunder damage too, and a declared object has no position on the lattice for the Sphere to catch it by',
-  ],
 };
 
 /**

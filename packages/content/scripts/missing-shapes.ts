@@ -1224,13 +1224,6 @@ export const ADJUDICATED: Readonly<Record<string, readonly Adjudication[]>> = {
   // Pass without Trace is the other and carries no entry at all: what is left
   // of it prints no mechanic, so its `unmodelled` line names nothing for an
   // adjudication to be written about.
-  silence: [
-    {
-      clause: 'a declared object has no position on the lattice',
-      why: 'an-object-with-statistics-of-its-own',
-      note: 'the creature half is executed — a defence derived from the spaces a creature occupies, and the Deafened beside it — and the object half is the shape this spell shares with the tower and the boat: a declared object has no position on the lattice, so the Sphere has nothing to measure it against and cannot tell whether it is entirely inside.',
-    },
-  ],
   sleep: [
     {
       clause: 'such as elves',
