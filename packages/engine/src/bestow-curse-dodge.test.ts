@@ -31,6 +31,8 @@ import { fold, type GameEvent, type GameState } from './events.js';
 import { spellSlotKey } from './resources.js';
 import { declaredCasting } from './spellcasting.js';
 import { resolveAttack, resolveSpell, resolveTurn, takeDodge } from './commands.js';
+import { checkSpellDefinition } from './spell-schema.js';
+import type { SpellDefinition, SpellEffect } from './spell-definitions.js';
 
 const id = (s: string) => asCharacterId(s);
 const WARLOCK = id('warlock');
@@ -200,6 +202,69 @@ describe('SRD Bestow Curse: a save at the start of every turn, or the Dodge', ()
     const next = table.boundary(40);
     expect(next.success).toBe(true);
     expect(table.swing()).toBeNull();
+  });
+
+  /**
+   * **The key the rule is hung on is free by rule rather than by luck.** A
+   * `grants` timer keyed by the casting's source and the creature is *the*
+   * per-creature key a casting has, and two other things can be standing there:
+   * the hook of a repeat whose success ends the spell on one target, and the
+   * grants a `modifiers` rider on the same failure hung. Either way two deadlines
+   * would stand over one key and release each other's work — silently, which is
+   * what the validator is for.
+   */
+  it('refuses the rule arm where something else is already on that key', () => {
+    const curse = SRD_CONTENT.spell('bestow-curse')!;
+    const dodge = curse.options!.dodge!.effects![0] as Extract<SpellEffect, { kind: 'save' }>;
+
+    const withRepeat = (over: Record<string, unknown>): SpellDefinition => ({
+      ...curse,
+      options: {
+        ...curse.options,
+        dodge: {
+          ...curse.options!.dodge!,
+          effects: [{ ...dodge, ...over }],
+        },
+      },
+    });
+
+    // The real spell is clean.
+    expect(checkSpellDefinition(curse)).toEqual([]);
+
+    // A success that ends the spell on one target puts its own hook under that
+    // key, so the rule would replace it and the boundary would never ask again.
+    expect(
+      checkSpellDefinition(
+        withRepeat({ repeats: { ...dodge.repeats, onSuccess: 'end-on-target' } }),
+      ).map((one) => one.code),
+    ).toContain('rule_on_a_shared_key');
+
+    // And a failure that hangs a mode on the target files it under the same key,
+    // so the rule's deadline at the end of the turn would release it.
+    expect(
+      checkSpellDefinition(
+        withRepeat({
+          modifiers: [
+            {
+              kind: 'mode',
+              modifier: {
+                mode: 'disadvantage',
+                selector: { roll: 'ability-check', relation: 'roller', ability: 'str' },
+              },
+            },
+          ],
+        }),
+      ).map((one) => one.code),
+    ).toContain('rule_on_a_shared_key');
+
+    // And the span is the one the sentence prints and no other.
+    expect(
+      checkSpellDefinition(
+        withRepeat({
+          repeats: { ...dodge.repeats, onFailure: { ...dodge.repeats!.onFailure, lasts: { seconds: 60 } } },
+        }),
+      ).map((one) => one.code),
+    ).toContain('bad_repeat_rule_span');
   });
 
   it('names the spell and the turn in the refusal', () => {

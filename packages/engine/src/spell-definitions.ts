@@ -7439,14 +7439,6 @@ export interface TriggeredEffects {
 }
 
 /**
- * The ground this casting changes, off the branch it ran or the definition.
- *
- * One reader for the three places that ask — whether a point must be pinned,
- * where the region is derived and where the patch is written — so a branch's
- * terrain reaches all three the day it is written. Null for the book's spells
- * that leave the ground alone, which is nearly all of them.
- */
-/**
  * How long a casting of this spell takes, for the branch spoken.
  *
  * **The one reader of the printed time**, so `castingOf` — which layers a route's
@@ -7472,6 +7464,14 @@ export function castingTimeOf(
   };
 }
 
+/**
+ * The ground this casting changes, off the branch it ran or the definition.
+ *
+ * One reader for the three places that ask — whether a point must be pinned,
+ * where the region is derived and where the patch is written — so a branch's
+ * terrain reaches all three the day it is written. Null for the book's spells
+ * that leave the ground alone, which is nearly all of them.
+ */
 export function areaTerrainOf(
   definition: SpellDefinition,
   option: string | undefined,

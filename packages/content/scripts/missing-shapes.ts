@@ -643,13 +643,6 @@ export const ADJUDICATED: Readonly<Record<string, readonly Adjudication[]>> = {
       note: 'A repeat save is raised by a turn boundary. This one runs on elapsed time, which `Deadline` can express and `RepeatSave` cannot, and the Greater Restoration that ends it sooner is the same missing hook from the other side.',
     },
   ],
-  'bestow-curse': [
-    {
-      clause: 'the sentence opens "In combat"',
-      why: 'table',
-      note: 'SRD: "In combat, the target must succeed on a Wisdom saving throw at the start of each of its turns or be forced to take the Dodge action on that turn." The save is raised and the failure narrows the turn — a repeat whose success ends nothing, and a failure that hangs `permits-only` on the Action slot with the Dodge the only member. What the two words in front of it mean is the residue: the engine reads them as the turn order it needs, because a turn is the only thing a start-of-turn boundary can be raised at, and whether a scuffle in a corridor is *combat* while nobody has rolled Initiative is the table’s to say. Nothing is silently skipped — outside a fight there are no turns at all — and the ruling is recorded rather than inferred.',
-    },
-  ],
   'black-tentacles': [
     {
       clause: 'the area is Difficult Terrain',

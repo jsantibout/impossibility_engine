@@ -14092,9 +14092,6 @@ export const BESTOW_CURSE: SpellDefinition = {
           },
         },
       ],
-      unmodelled: [
-        'the sentence opens "In combat" and the engine reads that as the turn order it needs rather than as a fact about the fiction: outside a fight there are no turns for the save to be raised at the start of, so a cursed creature walking down a corridor is asked nothing',
-      ],
     },
     'extra-damage': {
       label: 'An extra 1d8 Necrotic when you damage it',

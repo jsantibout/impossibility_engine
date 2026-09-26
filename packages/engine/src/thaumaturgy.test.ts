@@ -7,6 +7,8 @@ import { createRollIssuer } from './rolls.js';
 import { fold, type GameEvent, type GameState } from './events.js';
 import { declaredCasting } from './spellcasting.js';
 import { rollModesFor } from './standing.js';
+import { checkSpellDefinition } from './spell-schema.js';
+import type { SpellDefinition } from './spell-definitions.js';
 import { eligibleTargets, resolveSpell } from './commands.js';
 
 /**
@@ -125,6 +127,28 @@ describe('SRD Thaumaturgy: the caster and nobody else', () => {
     expect(shortlist.eligible).toEqual([CLERIC]);
     expect(shortlist.excluded.map((one) => one.target)).toEqual([ALLY]);
     expect(shortlist.excluded[0]?.reason).toContain('nobody else');
+  });
+
+  /**
+   * The three things the clause can be wrong about, each one silent without a
+   * refusal: a value this validator read as absent would leave the spell castable
+   * at anybody, a spell that does not admit the caster would refuse *everybody*,
+   * and a count above one promises a creature the clause forbids.
+   */
+  it('holds the clause to the two things it can mean', () => {
+    const cantrip = SRD_CONTENT.spell('thaumaturgy')!;
+    const withTargets = (targets: unknown): SpellDefinition =>
+      ({ ...cantrip, targets } as SpellDefinition);
+    const codes = (targets: unknown): readonly string[] =>
+      checkSpellDefinition(withTargets(targets)).map((one) => one.code);
+
+    expect(checkSpellDefinition(cantrip)).toEqual([]);
+    expect(codes({ count: 1, self: true, casterOnly: 'yes' })).toContain('malformed_field');
+    expect(codes({ count: 1, casterOnly: true })).toContain('caster_only_without_self');
+    expect(codes({ count: 2, self: true, casterOnly: true })).toContain('caster_only_count');
+    expect(codes({ count: 0, unlimited: true, self: true, casterOnly: true })).toContain(
+      'caster_only_unlimited',
+    );
   });
 
   it('lets go of the mode when the minute is up', () => {

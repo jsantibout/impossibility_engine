@@ -31,6 +31,9 @@ import { fold, type GameEvent, type GameState } from './events.js';
 import { spellSlotKey } from './resources.js';
 import { declaredCasting } from './spellcasting.js';
 import { endConcentration, resolveSpell, resolveTest } from './commands.js';
+import { rollSelectorProblems } from './roll-modifiers.js';
+import { checkSpellDefinition } from './spell-schema.js';
+import { SKILL_ABILITY } from '@ie/shared';
 
 const id = (s: string) => asCharacterId(s);
 const RANGER = id('ranger');
@@ -155,6 +158,43 @@ describe('SRD Hunter’s Mark: a check made to find the quarry', () => {
 
   it('grants nothing to a ranger who has marked nobody', () => {
     expect(check(SETUP, 'perception', QUARRY)).toBe('normal');
+  });
+
+  /**
+   * A purpose is a fact about an **attempt**, and only an ability check is made
+   * *to* something a caller states: an attack roll has its target and a saving
+   * throw has what it is about, both already selectable. So a purpose on either
+   * would pick out nothing for ever, and the mode's own host is held to
+   * `true`-or-absent for the reason every other printed-or-not clause is.
+   */
+  it('holds the purpose and the host to the one place each belongs', () => {
+    const problems = (roll: 'ability-check' | 'attack' | 'saving-throw') =>
+      rollSelectorProblems(
+        { roll, relation: 'roller', ability: 'wis', purpose: 'find-marked' },
+        (skill) => SKILL_ABILITY[skill],
+      ).map((one) => one.code);
+
+    expect(problems('ability-check')).toEqual([]);
+    expect(problems('attack')).toContain('purpose_off_ability_check');
+    expect(problems('saving-throw')).toContain('purpose_off_ability_check');
+    expect(
+      rollSelectorProblems(
+        { roll: 'ability-check', relation: 'roller', purpose: 'find-the-exit' } as never,
+        (skill) => SKILL_ABILITY[skill],
+      ).map((one) => one.code),
+    ).toContain('bad_check_purpose');
+
+    // And the mark's own spell is clean, host and all.
+    const mark = SRD_CONTENT.spell('hunters-mark')!;
+    expect(checkSpellDefinition(mark)).toEqual([]);
+    expect(
+      checkSpellDefinition({
+        ...mark,
+        effects: mark.effects.map((effect) =>
+          effect.kind === 'roll-mode' ? { ...effect, onCaster: 'yes' as never } : effect,
+        ),
+      }).map((one) => one.code),
+    ).toContain('malformed_field');
   });
 
   it('lets go of the mode when the Concentration does', () => {

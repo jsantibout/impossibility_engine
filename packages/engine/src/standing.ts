@@ -3613,6 +3613,31 @@ function rollerCreatureType(state: GameState, query: RollQuery): RollQuery {
 }
 
 /**
+ * The query with the **cause's** creature type worked out, where the site that
+ * rolled the save named a cause.
+ *
+ * SRD Protection from Evil and Good: "If the target is already possessed,
+ * Charmed, or Frightened **by such a creature**, the target has Advantage on any
+ * new saving throw against the relevant effect." The roller of the save says who
+ * forced it and the type is read here, beside {@link rollerCreatureType} and for
+ * the same reason — one predicate decides every mode, and no site that throws a
+ * die has to remember a field.
+ *
+ * **Through `typeMagicSees`**, because the sentence that reads it is a spell's,
+ * exactly as the neighbouring gatherer and `conditionImmunitiesOf` read it. A
+ * cause nobody named, or one this state does not hold, is left alone rather than
+ * answered null: absent and null read the same way to the predicate, and writing
+ * one would claim the engine had looked.
+ */
+function forcedByCreatureType(state: GameState, query: RollQuery): RollQuery {
+  const forcedBy = query.forcedBy ?? null;
+  if (forcedBy === null) return query;
+  const causer = state.creatures[forcedBy];
+  if (causer === undefined) return query;
+  return { ...query, forcedByType: typeMagicSees(causer) };
+}
+
+/**
  * The query with SRD Hunter's Mark's other fact worked out: whether the creature
  * this check is being made to find is one the roller has **marked**.
  *
@@ -3638,31 +3663,6 @@ function rollerCreatureType(state: GameState, query: RollQuery): RollQuery {
  * because absent and false read the same way to the predicate and writing one
  * would claim the engine had looked.
  */
-/**
- * The query with the **cause's** creature type worked out, where the site that
- * rolled the save named a cause.
- *
- * SRD Protection from Evil and Good: "If the target is already possessed,
- * Charmed, or Frightened **by such a creature**, the target has Advantage on any
- * new saving throw against the relevant effect." The roller of the save says who
- * forced it and the type is read here, beside {@link rollerCreatureType} and for
- * the same reason — one predicate decides every mode, and no site that throws a
- * die has to remember a field.
- *
- * **Through `typeMagicSees`**, because the sentence that reads it is a spell's,
- * exactly as the neighbouring gatherer and `conditionImmunitiesOf` read it. A
- * cause nobody named, or one this state does not hold, is left alone rather than
- * answered null: absent and null read the same way to the predicate, and writing
- * one would claim the engine had looked.
- */
-function forcedByCreatureType(state: GameState, query: RollQuery): RollQuery {
-  const forcedBy = query.forcedBy ?? null;
-  if (forcedBy === null) return query;
-  const causer = state.creatures[forcedBy];
-  if (causer === undefined) return query;
-  return { ...query, forcedByType: typeMagicSees(causer) };
-}
-
 function findingMarked(state: GameState, query: RollQuery): RollQuery {
   const finding = query.finding ?? null;
   if (finding === null) return query;

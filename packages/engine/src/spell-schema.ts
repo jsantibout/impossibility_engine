@@ -1534,6 +1534,15 @@ function checkSaveCastingRepeat(
   repeats: SpellRepeatSave,
   path: string,
   found: SpellDefinitionProblem[],
+  /**
+   * Whether the failure that hangs this hook also hangs **grants on the target**.
+   *
+   * The one input the rule arm below needs and the repeat cannot see: a
+   * `modifiers` rider files its grants under `grants|<target>|<casting source>`,
+   * and so would a rule a failed repeat hung there — one key, two writers, and
+   * the deadline of whichever wrote last releasing what the other one granted.
+   */
+  ridersOnTheTarget = false,
 ): void {
   const at = `${path}.repeats`;
   if (!readsAsObject(repeats, at, 'a repeat save is an object naming when it fires', found)) {
@@ -1596,6 +1605,40 @@ function checkSaveCastingRepeat(
   // failure branch is a union rather than one object.
   if (repeats.onFailure?.rule !== undefined) {
     checkActionRule(repeats.onFailure.rule, `${at}.onFailure.rule`, found);
+    /*
+     * **The key the rule is hung on has to be free, and two things can be
+     * standing there.** `deepenedBy` schedules the rule under
+     * `grants|<target>|<casting source>` with a deadline at the end of the turn
+     * it governs, and that key is *the* per-creature key a casting has:
+     *
+     * - a repeat whose success ends the spell **on one target** rides on it, so
+     *   the first failure would replace the hook with the rule and the boundary
+     *   would never ask again;
+     * - a `modifiers` rider that the same failure hung is filed under it, so the
+     *   rule's deadline would release the rider at the end of the turn.
+     *
+     * Both are silent, which is why they are refused here rather than argued
+     * about in a comment. What is left — a success that ends nothing, and a
+     * failure whose whole content is the rule — is SRD Bestow Curse's Dodge, and
+     * for that one the key really is free: the hook rides the casting's own
+     * timer and nothing else is hung on the creature.
+     */
+    if (repeats.onSuccess !== 'nothing') {
+      found.push({
+        field: `${at}.onFailure.rule`,
+        code: 'rule_on_a_shared_key',
+        reason:
+          'the rule a failed repeat hangs is filed under this casting’s grants on that creature, and a repeat whose success ends the spell on one target is filed there too; a success that ends nothing ("nothing") is what leaves the key free',
+      });
+    }
+    if (ridersOnTheTarget) {
+      found.push({
+        field: `${at}.onFailure.rule`,
+        code: 'rule_on_a_shared_key',
+        reason:
+          'this failure hangs grants on the target as well, filed under the same key the rule would be — so the rule’s deadline at the end of the turn would release them; a failure that hangs a rule hangs nothing else on the creature',
+      });
+    }
     if (repeats.onFailure.lasts !== 'this-turn') {
       found.push({
         field: `${at}.onFailure.lasts`,
@@ -2051,7 +2094,11 @@ function checkSaveWithoutCondition(
     });
   }
 
-  if (effect.repeats !== undefined) checkSaveCastingRepeat(effect.repeats, path, found);
+  if (effect.repeats !== undefined) {
+    // The riders this failure hangs on the target, which the rule arm's own key
+    // rule reads — see `checkSaveCastingRepeat`.
+    checkSaveCastingRepeat(effect.repeats, path, found, (effect.modifiers ?? []).length > 0);
+  }
 
   for (const field of ['lasts', 'check', 'outlivesCasting'] as const) {
     if (effect[field] === undefined) continue;
@@ -4142,6 +4189,22 @@ function checkEffect(
 
     case 'roll-mode':
       checkRollModifier(effect.modifier, `${path}.modifier`, found);
+      // **Whose mode it is, held to `true`-or-absent** like every other
+      // printed-or-not clause in this format. SRD Hunter's Mark hangs its mode
+      // on the caster while the casting is aimed at the quarry, and a value
+      // this validator read as absent would land the mode on the wrong
+      // creature — silently, which is the whole defect this file refuses.
+      if (
+        (effect as { readonly onCaster?: unknown }).onCaster !== undefined &&
+        (effect as { readonly onCaster?: unknown }).onCaster !== true
+      ) {
+        found.push({
+          field: `${path}.onCaster`,
+          code: MALFORMED,
+          reason:
+            'a mode is hung on the caster or on the creature the casting named; `onCaster` is `true` or absent',
+        });
+      }
       return;
 
     // A Speed change names an operation and, for one of the three, a number.
@@ -6032,6 +6095,23 @@ export function checkSpellDefinition(
    * uncastable. And one is the only count "you and nobody else" can have: a
    * second target would have to be somebody else, which the clause forbids.
    */
+  /*
+   * `true`-or-absent, for the reason every other clause of this shape is: a
+   * value this validator read as absent would leave the spell castable at
+   * anybody, which is the opposite of what the clause says and the kind of
+   * silence the two rules below could not catch.
+   */
+  if (
+    definition.targets.casterOnly !== undefined &&
+    definition.targets.casterOnly !== true
+  ) {
+    found.push({
+      field: 'targets.casterOnly',
+      code: MALFORMED,
+      reason: 'a spell either names the caster alone or does not; `casterOnly` is `true` or absent',
+    });
+  }
+
   if (definition.targets.casterOnly === true) {
     if (definition.targets.self !== true) {
       found.push({

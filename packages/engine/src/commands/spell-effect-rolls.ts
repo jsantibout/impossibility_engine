@@ -1287,9 +1287,15 @@ function castingHostedRepeat(
   // **`end-on-target` is the one spelling that needs a key per creature**, and
   // the other two share the casting's own timer: `end-casting` ends the spell
   // outright, and `nothing` ends nothing at all, so neither has anything standing
-  // on one target for a success to lift. That also leaves the per-creature key
-  // free for a failure that hangs a rule there — SRD Bestow Curse's Dodge — which
-  // is what `deepenedBy` schedules it under.
+  // on one target for a success to lift.
+  //
+  // That is also what lets a failure hang a rule under the per-creature key —
+  // SRD Bestow Curse's Dodge, scheduled there by `deepenedBy` with a deadline at
+  // the end of the turn it governs. **The key being free is a rule rather than a
+  // coincidence**: `checkSaveCastingRepeat` refuses `onFailure.rule` beside any
+  // success but `nothing`, and beside a failure that hangs `modifiers` on the
+  // target, because either of those files something under that same key and the
+  // two deadlines would release each other's work.
   const on: EffectTarget =
     repeats.onSuccess === 'end-on-target'
       ? { kind: 'grants', on: target, source: ctx.source }

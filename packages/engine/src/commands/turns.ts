@@ -1454,6 +1454,12 @@ function deepenedBy(state: GameState, pending: PendingSave): Result<readonly Gam
   // casting's own timer rather than on a per-creature key. So the rule's deadline
   // is its own, the casting's ending still lifts it through `releaseOnTarget`,
   // and a second failure next turn replaces it rather than stacking.
+  //
+  // **The key is free by rule, not by luck**: `checkSaveCastingRepeat` refuses
+  // this arm beside a success that ends the spell on one target (whose hook lives
+  // under that key) and beside a failure that hangs `modifiers` there, because
+  // either way two deadlines would stand over one key and release each other's
+  // work.
   if (deeper.rule !== undefined) {
     const lifted = resolveDuration(timeView(state), endOfCurrentTurn);
     // No turn to govern, so no rule: the clause opens "**In combat**", and
