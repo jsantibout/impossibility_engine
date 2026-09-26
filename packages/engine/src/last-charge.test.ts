@@ -379,6 +379,100 @@ describe('a use hands over what the item leaves to the table', () => {
   });
 });
 
+// — a thing that becomes another thing ————————————————————————————————————
+
+/**
+ * SRD Staff of the Woodlands: "If you expend the last charge, roll 1d20. On a
+ * 1, the staff loses its properties and becomes a nonmagical Quarterstaff."
+ * SRD Staff of Power: "On a 1, the staff retains its +2 bonus to attack rolls
+ * and damage rolls but loses all other properties."
+ *
+ * The third answer a pool gives about its last charge, beside a crumble and a
+ * talisman's always: the copy leaves by the destroy road and one copy of the
+ * named item takes its place, in the hand if the staff was in the hand.
+ */
+describe('a last charge that leaves another item behind', () => {
+  const WOODLANDS = 'staff-of-the-woodlands';
+  const POWER = 'staff-of-power';
+
+  const castFrom = (log: readonly GameEvent[], item: string, spellId: string, targets: readonly CharacterId[], rng: Rng) =>
+    resolveSpell(
+      fold('seed', log),
+      WIELDER,
+      { spellId, targets, item },
+      supply(fold('seed', log), rng),
+    );
+
+  it('on a 1, the Staff of the Woodlands is a Quarterstaff in the same hand', () => {
+    const log = holding(WOODLANDS, 1);
+    const out = unwrap(castFrom(log, WOODLANDS, 'speak-with-animals', [], scripted([1])), 'the last charge');
+    expect(lastChargeRolls(out.events, 'Staff of the Woodlands')[0]?.natural).toBe(1);
+    expect(out.events.some((event) => event.type === 'spell-cast')).toBe(true);
+
+    const after = [...log, ...out.events];
+    expect(owns(after, WOODLANDS)).toBe(false);
+    expect(holds(after, WOODLANDS)).toBe(false);
+    expect(owns(after, 'quarterstaff')).toBe(true);
+    expect(holds(after, 'quarterstaff')).toBe(true);
+    // The attunement goes with the staff, by the pass that ends one for a thief.
+    expect(fold('seed', after).creatures[WIELDER]!.attuned).toEqual([]);
+
+    // The destroy road first, then the gain and the equip, in that order.
+    const types = out.events
+      .map((event) => event.type)
+      .filter((type) => ['item-unequipped', 'items-lost', 'items-gained', 'item-equipped'].includes(type));
+    expect(types).toEqual(['item-unequipped', 'items-lost', 'items-gained', 'item-equipped']);
+    expect(out.events.find((event) => event.type === 'items-gained')).toMatchObject({
+      items: [{ id: 'quarterstaff', quantity: 1 }],
+    });
+  });
+
+  it('on a 2, the staff holds at no charges', () => {
+    const log = holding(WOODLANDS, 1);
+    const out = unwrap(castFrom(log, WOODLANDS, 'speak-with-animals', [], scripted([2])), 'the last charge');
+    const after = [...log, ...out.events];
+    expect(holds(after, WOODLANDS)).toBe(true);
+    expect(owns(after, 'quarterstaff')).toBe(false);
+  });
+
+  it('on a 1, the Staff of Power is a +2 Quarterstaff, and the +2 still swings with it', () => {
+    const log = holding(POWER, 1);
+    const out = unwrap(castFrom(log, POWER, 'magic-missile', [GOBLIN], scripted([1])), 'the last charge');
+    expect(lastChargeRolls(out.events, 'Staff of Power')[0]?.natural).toBe(1);
+
+    const after = [...log, ...out.events];
+    expect(owns(after, POWER)).toBe(false);
+    expect(holds(after, 'quarterstaff-plus-2')).toBe(true);
+    // What the new copy grants was pinned on its equip, as any equip pins it.
+    const worn = fold('seed', after).creatures[WIELDER]!.equipped.find(
+      (held) => held.id === 'quarterstaff-plus-2',
+    );
+    expect(worn?.grants).toEqual([
+      expect.objectContaining({
+        feature: 'quarterstaff-plus-2',
+        grant: expect.objectContaining({ kind: 'flat-bonus', flat: 2, onlyWithItem: true }),
+      }),
+    ]);
+  });
+
+  it('lands in the pack, not the hand, when a copy of it is already in hand', () => {
+    const log = holding(WOODLANDS, 1);
+    const withStick = [
+      ...log,
+      { type: 'items-gained' as const, id: WIELDER, items: [{ id: 'quarterstaff', quantity: 1 }], source: 'a stick' },
+      { type: 'item-equipped' as const, id: WIELDER, item: 'quarterstaff', armor: null },
+    ];
+    const out = unwrap(
+      castFrom(withStick, WOODLANDS, 'speak-with-animals', [], scripted([1])),
+      'the last charge',
+    );
+    expect(out.events.some((event) => event.type === 'item-equipped')).toBe(false);
+    const after = fold('seed', [...withStick, ...out.events]).creatures[WIELDER]!;
+    expect(after.inventory.find((line) => line.id === 'quarterstaff')?.quantity).toBe(2);
+    expect(after.equipped.filter((held) => held.id === 'quarterstaff')).toHaveLength(1);
+  });
+});
+
 // — what the validator refuses ————————————————————————————————————————————
 
 describe('what a last charge may say', () => {
@@ -418,6 +512,71 @@ describe('what a last charge may say', () => {
     expect(codesOf(withLast({ destroyed: true }))).toContain(
       'bad_last_charge_die @ items[trial-rod].grants[0].onLastCharge.onD20AtOrBelow',
     );
+  });
+
+  /**
+   * The third form names the item left behind, and the name must reach
+   * something: a staff that "becomes" an id nobody holds is a staff that
+   * vanishes, on the same rule a pack's contents keep.
+   */
+  describe('a last charge that becomes another item', () => {
+    const STICK: CatalogueItem = {
+      id: 'stick',
+      name: 'Stick',
+      kind: 'gear',
+      weightLb: 1,
+      costCp: null,
+      armor: null,
+      weapon: null,
+      contents: [],
+    };
+    const codesWith = (onLastCharge: unknown, beside: readonly CatalogueItem[] = [STICK]) =>
+      checkContent({
+        items: [
+          ...beside,
+          { ...ASHEN_ROD, id: 'trial-rod', grants: withLast(onLastCharge) } as unknown as CatalogueItem,
+        ],
+      }).map((problem) => `${problem.code} @ ${problem.field}`);
+
+    it('admits a die and an item the catalogue holds', () => {
+      expect(codesWith({ becomes: 'stick', onD20AtOrBelow: 1 })).toEqual([]);
+    });
+
+    it('refuses an item the catalogue does not hold', () => {
+      expect(codesWith({ becomes: 'stick', onD20AtOrBelow: 1 }, [])).toContain(
+        'last_charge_becomes_nothing @ items[trial-rod].grants[0].onLastCharge.becomes',
+      );
+    });
+
+    it.each([[''], [7], [null]])('refuses a becomes of %s', (becomes) => {
+      expect(codesWith({ becomes, onD20AtOrBelow: 1 })).toContain(
+        'last_charge_becomes_nothing @ items[trial-rod].grants[0].onLastCharge.becomes',
+      );
+    });
+
+    it.each([[0], [20], [undefined]])('refuses a d20 face of %s', (face) => {
+      expect(codesWith({ becomes: 'stick', onD20AtOrBelow: face })).toContain(
+        'bad_last_charge_die @ items[trial-rod].grants[0].onLastCharge.onD20AtOrBelow',
+      );
+    });
+
+    it('refuses becoming and being destroyed at once', () => {
+      expect(codesWith({ becomes: 'stick', destroyed: true, onD20AtOrBelow: 1 })).toContain(
+        'last_charge_said_twice @ items[trial-rod].grants[0].onLastCharge.destroyed',
+      );
+    });
+
+    /**
+     * A copy with charges of its own is born labelled, with its pool declared
+     * at the door it arrives through — and a last charge is not one of those
+     * doors. Becoming itself is the sharp case: a staff that turns into a full
+     * staff.
+     */
+    it('refuses becoming an item that keeps charges, itself included', () => {
+      expect(codesWith({ becomes: 'trial-rod', onD20AtOrBelow: 1 })).toContain(
+        'last_charge_becomes_a_charged_item @ items[trial-rod].grants[0].onLastCharge.becomes',
+      );
+    });
   });
 
   it('refuses it written anywhere but the pool', () => {

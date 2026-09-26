@@ -749,8 +749,10 @@ describe('what an item does not do is data, and quotes the page', () => {
       if (last === undefined) continue;
       checked += 1;
       const entry = entryFor(item);
+      // A die — the crumble, or another item left behind — is the page's
+      // "roll 1d20. On a N,"; the talisman's always is its "last charge".
       const says =
-        last.destroyed === true
+        'onD20AtOrBelow' in last
           ? contains(entry.description, 'last charge, roll 1d20') &&
             contains(entry.description, `On a ${last.onD20AtOrBelow},`)
           : contains(entry.description, 'last charge');
@@ -758,6 +760,47 @@ describe('what an item does not do is data, and quotes the page', () => {
     }
     expect(unprinted).toEqual([]);
     expect(checked).toBeGreaterThan(5);
+  });
+
+  /**
+   * **And what a last charge leaves behind is what the page leaves**, never
+   * more: a staff that "becomes a nonmagical Quarterstaff" leaves one with no
+   * grant at all, and one that "retains its +2 bonus to attack rolls and
+   * damage rolls but loses all other properties" leaves the Quarterstaff
+   * whose one grant is that +2. Both are the staff's own weapon row, so the
+   * stick in the hand swings as the staff swung.
+   */
+  it('leaves behind on a last charge only what the entry leaves', () => {
+    const printed: Readonly<Record<string, { readonly becomes: string; readonly says: string }>> = {
+      'staff-of-the-woodlands': { becomes: 'quarterstaff', says: 'becomes a nonmagical Quarterstaff' },
+      'staff-of-power': {
+        becomes: 'quarterstaff-plus-2',
+        says: 'retains its +2 bonus to attack rolls and damage rolls but loses all other properties',
+      },
+    };
+    const becoming = SRD_MAGIC_ITEMS.flatMap((item) => {
+      const pool = (item.grants ?? []).find((grant) => grant.kind === 'pool');
+      const last = pool !== undefined && 'onLastCharge' in pool ? pool.onLastCharge : undefined;
+      return last !== undefined && 'becomes' in last ? [{ item, becomes: last.becomes }] : [];
+    });
+    expect(Object.fromEntries(becoming.map(({ item, becomes }) => [item.id, becomes]))).toEqual(
+      Object.fromEntries(Object.entries(printed).map(([id, { becomes }]) => [id, becomes])),
+    );
+    for (const { item, becomes } of becoming) {
+      expect(contains(entryFor(item).description, printed[item.id]!.says), item.id).toBe(true);
+      const left = SRD_CONTENT_INPUT.items!.find((other) => other.id === becomes)!;
+      expect(left.weapon?.id, item.id).toBe(item.weapon?.id);
+    }
+    // Nothing magic left of the Woodlands, and nothing but the +2 of Power.
+    const grantsOf = (id: string) => SRD_CONTENT_INPUT.items!.find((other) => other.id === id)!.grants;
+    expect(grantsOf('quarterstaff')).toBeUndefined();
+    expect(grantsOf('quarterstaff-plus-2')).toEqual([
+      {
+        kind: 'standing',
+        reach: 'self',
+        effects: [{ kind: 'flat-bonus', applies: ['attack', 'damage'], flat: 2, onlyWithItem: true }],
+      },
+    ]);
   });
 
   /**

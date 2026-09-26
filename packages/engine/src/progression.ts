@@ -1261,7 +1261,7 @@ export interface ImbuedWeapon {
 /**
  * What spending an item's last charge does to the item.
  *
- * Two shapes, and the SRD prints both:
+ * Three shapes, and the SRD prints all three:
  *
  * - **A die.** "If you expend the wand's last charge, roll 1d20. On a 1, the
  *   wand crumbles into ashes and is destroyed" — nine wands and staffs, and
@@ -1270,19 +1270,31 @@ export interface ImbuedWeapon {
  *   face at or below {@link onD20AtOrBelow} destroys the copy.
  * - **Always.** A talisman's "When you expend the last charge, the talisman
  *   ... is destroyed", and the Chime of Opening's tenth strike. No die.
+ * - **A die, and another item left behind.** SRD Staff of the Woodlands: "On
+ *   a 1, the staff loses its properties and becomes a nonmagical
+ *   Quarterstaff"; SRD Staff of Power: "On a 1, the staff retains its +2
+ *   bonus to attack rolls and damage rolls but loses all other properties".
+ *   The copy leaves exactly as a destroyed one does and one copy of the
+ *   catalogue item {@link becomes} names takes its place — in the hand if the
+ *   staff was in the hand, in the pack if it was not or if a copy of that
+ *   item is already in hand (`equipped` holds one of a kind).
  *
  * **`destroyed` is stated rather than assumed**, which is the Wind Fan's
  * `failsCumulatively.destroyed` rule one clause along: a last charge that says
  * nothing about what it costs is a better item than the book prints, so
- * `checkContent` refuses anything but `true` or `'always'`.
+ * `checkContent` refuses anything but `true` or `'always'` — or, for the third
+ * form, a `becomes` that names an item the catalogue holds and that keeps no
+ * charges of its own (a copy with charges is labelled and its pool declared at
+ * the door it arrives through, and a spend is not one of those doors).
  *
- * What is *not* here is the other things the book does on a last charge —
- * Staff of Power "loses all other properties" and regains charges on a 20, a
- * staff that "becomes a nonmagical Quarterstaff" — which are not the copy
- * leaving the inventory, and stay notes on their records.
+ * What is *not* here is the good face — Staff of Power's and Staff of the
+ * Magi's "On a 20, the staff regains … charges" — which is a benefit, and
+ * stays a note on those records.
  *
  * A destroyed copy leaves by the Wind Fan's road: `item-unequipped`, then
- * `items-lost` naming the copy, beside the recorded die.
+ * `items-lost` naming the copy, beside the recorded die; one that becomes
+ * another item then writes `items-gained` and, where it was held,
+ * `item-equipped` with what the new item is pinned as any equip pins it.
  */
 export type LastCharge =
   | {
@@ -1290,7 +1302,13 @@ export type LastCharge =
       /** The highest d20 face that destroys it: SRD's "On a 1" is 1. */
       readonly onD20AtOrBelow: number;
     }
-  | { readonly destroyed: 'always' };
+  | { readonly destroyed: 'always' }
+  | {
+      /** The catalogue id of what is left: SRD's "becomes a nonmagical Quarterstaff". */
+      readonly becomes: string;
+      /** The highest d20 face that turns it: SRD's "On a 1" is 1. */
+      readonly onD20AtOrBelow: number;
+    };
 
 /**
  * The mechanical shapes a feature's choice can take.

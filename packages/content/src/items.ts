@@ -2425,18 +2425,17 @@ const NAMED_ITEMS: readonly CatalogueItem[] = [
        * expend the last charge, roll 1d20. On a 1, the staff loses its
        * properties and becomes a nonmagical Quarterstaff."
        *
-       * **The d20 is written, and written harsher than the page.** On a 1 the
-       * book leaves a Quarterstaff in the druid's hand; the engine's last
-       * charge takes the copy, because the only thing a last charge can do to
-       * an item is remove it. Leaving the field off instead would be a staff
-       * whose magic never fails, which is rule 3 of this file run the wrong
-       * way — so the record loses a two-silver-piece stick more than the book
-       * does, and says so.
+       * **The d20 is written as the page writes it**: on a 1 the staff leaves
+       * by the road a crumbled wand leaves by, and a mundane `quarterstaff`
+       * takes its place — in the druid's hand if the staff was there.
        */
       attunement: { byClass: ['druid'] },
       grants: [
         madeWithThisWeapon(2, true),
-        charges('staff-of-the-woodlands', 'Staff of the Woodlands', 6, '1d6', CRUMBLES_ON_A_1),
+        charges('staff-of-the-woodlands', 'Staff of the Woodlands', 6, '1d6', {
+          becomes: 'quarterstaff',
+          onD20AtOrBelow: 1,
+        }),
         castsSpell('animal-friendship', 1),
         castsSpell('awaken', 5),
         castsSpell('barkskin', 2),
@@ -2449,7 +2448,6 @@ const NAMED_ITEMS: readonly CatalogueItem[] = [
       unmodelled: [
         '"While holding it, you have a +2 bonus to spell attack rolls": no standing effect raises a spell attack roll, so the staff\'s castings and its holder\'s own are made without it',
         '"_Tree Form._ You can take a Magic action to plant one end of the staff in earth in an unoccupied space and expend 1 charge to transform the staff into a healthy tree": a 60-foot tree is an object standing in the scene, which nothing the engine keeps can be',
-        '"On a 1, the staff loses its properties and becomes a nonmagical Quarterstaff": the last charge destroys the copy outright, so the table hands the druid the `quarterstaff` the book leaves behind',
       ],
     },
   ),
@@ -2470,11 +2468,11 @@ const NAMED_ITEMS: readonly CatalogueItem[] = [
        *
        * **Two of the three +2s**, because an Armour Class and a saving throw
        * are numbers the engine holds and a spell attack roll's bonus is not;
-       * and **the 1 written harsher than the page**, for the Staff of the
-       * Woodlands' reason: the book leaves a +2 Quarterstaff behind and the
-       * engine's last charge can only take the copy, while no field at all
-       * would be a staff that never fails. The 20 is a benefit and is left
-       * out.
+       * and **the 1 as the page writes it**: what "retains its +2 bonus to
+       * attack rolls and damage rolls but loses all other properties" leaves
+       * is a `quarterstaff-plus-2` — a Quarterstaff whose one property is
+       * that +2 — which takes the staff's place in the hand. The 20 is a
+       * benefit and is left out.
        *
        * "(level 5 version)" is `level: 5` on a price of 5: five charges buy
        * the level 5 casting and nothing buys more.
@@ -2488,7 +2486,10 @@ const NAMED_ITEMS: readonly CatalogueItem[] = [
           effects: [{ kind: 'flat-bonus', applies: ['ac', 'save'], flat: 2 }],
           requires: WORN_AND_ATTUNED,
         },
-        charges('staff-of-power', 'Staff of Power', 20, '2d8 + 4', CRUMBLES_ON_A_1),
+        charges('staff-of-power', 'Staff of Power', 20, '2d8 + 4', {
+          becomes: 'quarterstaff-plus-2',
+          onD20AtOrBelow: 1,
+        }),
         castsSpell('cone-of-cold', 5),
         castsSpell('fireball', 5, { level: 5 }),
         castsSpell('globe-of-invulnerability', 6),
@@ -2501,7 +2502,7 @@ const NAMED_ITEMS: readonly CatalogueItem[] = [
       ],
       unmodelled: [
         '"While holding it, you gain a +2 bonus to Armor Class, saving throws, and spell attack rolls": the third of the three is not granted, because no standing effect raises a spell attack roll',
-        '"On a 1, the staff retains its +2 bonus to attack rolls and damage rolls but loses all other properties. On a 20, the staff regains 1d8 + 2 charges": the last charge destroys the copy outright on a 1, so the table hands back the `quarterstaff-plus-2` the book leaves behind; and the 20 throws nothing',
+        '"On a 20, the staff regains 1d8 + 2 charges": the last charge’s d20 is thrown for the 1, and a 20 on it pays nothing',
         '"_Retributive Strike._ You can take a Magic action to break the staff over your knee or against a solid surface": an explosion sized by the charges left in the staff, a 50 percent trip to a random plane, and damage its breaker takes with neither an attack roll nor a save',
       ],
     },
