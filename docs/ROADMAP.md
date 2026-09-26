@@ -1083,8 +1083,13 @@ roadmap covers the whole road.
   (every property required, no additional properties) and post-process if
   so. The probe's `drivers.ts` already builds the wire shape and is the
   reference.
-- `[ ]` **I-E3 Packaging.** *Owner, 2026-09-26: separate repositories, so
-  the `file:` road; I-A0 does not run.* Decide once: Infinite Realms as an `apps/*`
+- `[x]` **I-E3 Packaging.** *Owner, 2026-09-26: separate repositories, so
+  the `file:` road; I-A0 does not run.* **Merged in the app 2026-09-26 (T0,
+  app `c8cfdef`, docs `9860127`):** `turbopack.root` on `QuestBarrel` was
+  needed (`serverExternalPackages` alone did not resolve the links; the engine
+  is bundled into the server chunk either way), Vitest externalises the
+  engine's `dist`, `engine:check` runs before test, typecheck, dev and build;
+  the app's tests 1,056 → 1,071. Decide once: Infinite Realms as an `apps/*`
   workspace in this repo (already declared in `package.json`), or a `file:`
   dependency with a `prepare` script that builds `dist`. Fix the `./dm`
   subpath the docs promise or correct the docs.
