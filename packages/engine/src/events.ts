@@ -2645,6 +2645,13 @@ export type GameEvent =
       readonly id: CharacterId;
       readonly unarmed?: boolean;
       /**
+       * What the swing was and whom it was at, where the turn held a granted
+       * attack narrowed to a line and a creature — W7-B10, SRD Allosaurus's
+       * "one Bite attack against it". Only the command knew, and the fold
+       * spends the grant by the same rule; absent on every other swing.
+       */
+      readonly swing?: { readonly line: string; readonly against: CharacterId };
+      /**
        * The catalogue id of the **Light** weapon this swing used, where it
        * used one.
        *
@@ -2803,8 +2810,17 @@ export type GameEvent =
          */
         readonly attacksCap?: number;
       };
-      /** SRD Flurry of Blows: "two Unarmed Strikes". */
-      readonly attacks?: { readonly remaining: number; readonly unarmedOnly: boolean };
+      /**
+       * SRD Flurry of Blows: "two Unarmed Strikes". And — W7-B10 — SRD
+       * Allosaurus's "one Bite attack against it": a grant narrowed to one
+       * printed line at one creature, which `GrantedAttacks` carries.
+       */
+      readonly attacks?: {
+        readonly remaining: number;
+        readonly unarmedOnly: boolean;
+        readonly line?: string;
+        readonly against?: CharacterId;
+      };
       /**
        * Which purchase sold them, as `budgetPurchaseSlot`'s `<feature>/<id>`.
        *

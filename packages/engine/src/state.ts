@@ -400,6 +400,19 @@ export interface Attachment {
    * of a number the book does print.
    */
   readonly detachDc?: number;
+  /**
+   * What the line says the attached creature may and may not do while it
+   * holds on — W7-B10. SRD Darkmantle: "can attack only the target", "can't
+   * benefit from any bonus to its Speed", "moves with the target"; SRD Stirge:
+   * "can't make Proboscis attacks". Pinned here from the hit that made the
+   * attach, so the swing and the move read the record and open no book.
+   */
+  readonly whileAttached?: {
+    readonly attacksOnly?: true;
+    readonly forbidsLine?: string;
+    readonly movesWithTarget?: true;
+    readonly noSpeedBonus?: true;
+  };
 }
 
 /**

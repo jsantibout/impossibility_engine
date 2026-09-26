@@ -170,6 +170,7 @@ import {
 } from './hit-riders.js';
 import { applyRiders } from './spell-effect-riders.js';
 import { grapplesOn } from './unarmed.js';
+import { roomInside } from '../elsewhere.js';
 import { effectiveSizeOf } from '../size.js';
 import { typeMagicSees } from '../creature-type.js';
 import { type RollElection } from '../rolls.js';
@@ -843,6 +844,7 @@ function printedRiderOnASwing(
   let penalisesArmor: number | undefined;
   let lowersAbility: HitAbilityDrain | undefined;
   let onDroppingToZero: HitDropToZero | undefined;
+  let grantsAttack: { readonly line: string } | undefined;
   let saveDc: number | undefined;
   let span: { readonly lasts: TurnAnchor; readonly lastsOn: HitRiderAnchor } | undefined;
 
@@ -942,7 +944,26 @@ function printedRiderOnASwing(
           ...(rider.whileHeld === undefined ? {} : { whileHeld: rider.whileHeld }),
           ...(rider.insteadOfDamage === undefined ? {} : { insteadOfDamage: rider.insteadOfDamage }),
           ...(rider.payout === undefined ? {} : { payout: paymentOf(rider.payout) }),
+          // The four sentences about a hold the reader hands to the hit since
+          // W7-B10: an immunity to one of the holder's lines, a harder escape,
+          // a cap, and what binds the holder while it holds.
+          ...(rider.immuneToLine === undefined ? {} : { immuneToLine: rider.immuneToLine }),
+          ...(rider.escapeMode === undefined ? {} : { escapeMode: rider.escapeMode }),
+          ...(rider.capacity === undefined ? {} : { capacity: rider.capacity }),
+          ...(rider.whileHolding === undefined ? {} : { whileHolding: rider.whileHolding }),
         };
+        break;
+      }
+
+      // SRD Allosaurus's Claws — W7-B10: a swing the hit buys, behind the same
+      // charge gate the Prone beside it is behind, and evaluated the same way.
+      case 'grants-attack': {
+        if (rider.when !== undefined) {
+          const charged = chargeRun(state, attacker, target, rider.when.feet);
+          if (charged.unverified !== null) unverified.push(charged.unverified);
+          if (!charged.met) break;
+        }
+        grantsAttack = { line: rider.line };
         break;
       }
 
@@ -959,6 +980,13 @@ function printedRiderOnASwing(
           ...(rider.holderSpeedBecomesZero === undefined
             ? {}
             : { holderSpeedBecomesZero: rider.holderSpeedBecomesZero }),
+          // What the attached creature may then do — W7-B10 — pinned on the
+          // attachment record by the hit and read where each fact is asked.
+          ...(rider.attacksOnlyTarget === undefined ? {} : { attacksOnly: true as const }),
+          ...(rider.advantageAgainstTarget === undefined ? {} : { advantageAgainstTarget: true as const }),
+          ...(rider.forbidsLine === undefined ? {} : { forbidsLine: rider.forbidsLine }),
+          ...(rider.movesWithTarget === undefined ? {} : { movesWithTarget: true as const }),
+          ...(rider.noSpeedBonus === undefined ? {} : { noSpeedBonus: true as const }),
           ...(covers === undefined
             ? {}
             : {
@@ -1189,6 +1217,7 @@ function printedRiderOnASwing(
       ...(span === undefined ? {} : { lasts: span.lasts, lastsOn: span.lastsOn }),
       ...(grapples === undefined ? {} : { grapples }),
       ...(attaches === undefined ? {} : { attaches }),
+      ...(grantsAttack === undefined ? {} : { grantsAttack }),
       ...(forcedMove === undefined ? {} : { forcedMove }),
       ...(lowersHitPointMaximum === undefined ? {} : { lowersHitPointMaximum }),
       ...(onDroppingToZero === undefined ? {} : { onDroppingToZero }),
@@ -2042,6 +2071,41 @@ export function resolveAttack(
       return err('total_cover', `${command.target} is behind Total Cover`);
     }
 
+    // — what a hold says about who this swing may be at — W7-B10 ————————————
+    //
+    // Three refusals off records a hit pinned, each before anything is spent.
+    // SRD Giant Crocodile: "While Grappled, the target … can't be targeted by
+    // the crocodile's Tail" — the printed-save vocabulary's `line-immunity`
+    // on the attack path, hung under the grapple's own instance so it lifts
+    // with the hold. SRD Darkmantle: "While attached to a target, the
+    // darkmantle can attack only the target." SRD Stirge: "While attached, the
+    // stirge can't make Proboscis attacks."
+    const sameLine = (heading: string): boolean => heading.toLowerCase() === attackName.toLowerCase();
+    if (victim.lineImmunities.some((held) => held.by === id && sameLine(held.line))) {
+      return err(
+        'immune_to_line',
+        `${command.target} can't be targeted by ${id}'s ${attackName} while ${id} holds it`,
+      );
+    }
+    const clinging = attacker.attachments.find(
+      (held) => held.whileAttached?.attacksOnly === true && held.to !== command.target,
+    );
+    if (clinging !== undefined) {
+      return err(
+        'attached_to_another',
+        `${id} is attached to ${clinging.to} and can attack only ${clinging.to} while it holds on`,
+      );
+    }
+    const barred = attacker.attachments.find(
+      (held) => held.whileAttached?.forbidsLine !== undefined && sameLine(held.whileAttached.forbidsLine),
+    );
+    if (barred !== undefined) {
+      return err(
+        'line_forbidden_while_attached',
+        `${id} can't make ${attackName} attacks while it is attached to ${barred.to}`,
+      );
+    }
+
 
     // A damage type a feature does not offer is refused here, before the action
     // is spent and before a die is thrown — the same validate-before-rolling
@@ -2095,9 +2159,10 @@ export function resolveAttack(
     // the action is spent and before a die is thrown, where the line makes
     // none. SRD writes "can" on exactly one bestiary hit and the caller is who
     // answers it.
-    const offersAHold = readPrintedRiders(printed?.rider ?? '').riders.some(
-      (read) => read.kind === 'grapple' && read.insteadOfDamage === true,
+    const printedGrapple = readPrintedRiders(printed?.rider ?? '').riders.find(
+      (read): read is Extract<typeof read, { kind: 'grapple' }> => read.kind === 'grapple',
     );
+    const offersAHold = printedGrapple?.insteadOfDamage === true;
     if (command.holdInsteadOfDamage === true && !offersAHold) {
       return err(
         'no_hold_offered',
@@ -2105,6 +2170,40 @@ export function resolveAttack(
       );
     }
     const takingTheHold = command.holdInsteadOfDamage === true;
+
+    // — what a hold says about the holder — W7-B10 ————————————————————————
+    //
+    // SRD Animated Rug of Smothering: "While grappling the target, the rug
+    // can't take this action" and "The rug can smother only one creature at a
+    // time"; SRD Water Elemental prints the cap on a save and the door refuses
+    // it there. Both are asked here of the swing that would make the hold,
+    // before anything is spent: a line barred while the hold stands is
+    // refused whoever it is aimed at, and a hold with no room for this target
+    // is refused where the hold is what the swing is for.
+    if (printedGrapple !== undefined && (takingTheHold || printedGrapple.insteadOfDamage !== true)) {
+      const holding = (Object.keys(state.creatures) as CharacterId[])
+        .sort()
+        .filter((who) => grapplesOn(state, who).some((grapple) => grapple.grappler === id));
+      if (printedGrapple.whileHolding?.forbidsThisLine === true && holding.length > 0) {
+        return err(
+          'line_forbidden_while_holding',
+          `${id} can't take ${attackName} while it is grappling ${holding.join(', ')}`,
+        );
+      }
+      if (
+        printedGrapple.capacity !== undefined &&
+        !roomInside(
+          printedGrapple.capacity,
+          holding.map((who) => effectiveSizeOf(state, who) ?? 'medium'),
+          effectiveSizeOf(state, command.target) ?? 'medium',
+        )
+      ) {
+        return err(
+          'holding_enough',
+          `${id} already holds as many creatures as ${attackName} allows (${holding.join(', ')}), and could not hold ${command.target}`,
+        );
+      }
+    }
 
     const fromTheBlock = printedRiderOnASwing(state, id, command.target, printed, takingTheHold);
     // **One rider, and the one somebody paid for wins.** The field a hold pins
@@ -2407,12 +2506,23 @@ export function resolveAttack(
         // A block's printed Claw is neither: it is the creature's own line,
         // named by `command.action`, and no Unarmed Strike at all.
         unarmedStrike,
+        null,
+        // And what this swing is and whom it is at, for a granted attack
+        // narrowed to one line at one creature — W7-B10.
+        { name: attackName, target: command.target },
       );
       if (!spent.ok) return spent;
+      // Pinned onto the event only where the budget holds a narrowed grant,
+      // so every swing written before the field reads as it always did and
+      // the fold spends the same grant this command did.
+      const narrowed = state.combat.budgets[id]?.grantedAttacks;
+      const narrowedGrant =
+        narrowed !== null && narrowed !== undefined && (narrowed.line !== undefined || narrowed.against !== undefined);
       events.push({
         type: 'attack-made',
         id,
         ...(unarmedStrike ? { unarmed: true } : {}),
+        ...(narrowedGrant ? { swing: { line: attackName, against: command.target } } : {}),
         // SRD Light, recorded where the Attack action is paid for: the budget
         // is what the extra attack reads, and only this command knew which
         // weapon the swing used. Never the extra attack's own weapon — that

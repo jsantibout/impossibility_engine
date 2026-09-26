@@ -3110,7 +3110,8 @@ export type PrintedRider =
   | PrintedAttachRider
   | PrintedHazardRider
   | PrintedArmorPenaltyRider
-  | PrintedAbilityDrainRider;
+  | PrintedAbilityDrainRider
+  | PrintedGrantsAttackRider;
 
 /**
  * A clause about the **damage roll** rather than about an effect the hit buys.
@@ -3542,6 +3543,54 @@ export interface PrintedGrappleRider {
    * only thing that differs is whose turn the boundary belongs to.
    */
   readonly payout?: PrintedHoldPayout;
+  /**
+   * SRD Giant Crocodile: "While Grappled, the target … can't be targeted by
+   * the crocodile's Tail." — W7-B10. The heading of one of the holder's own
+   * lines, which the held creature is immune to while the hold stands: the
+   * attack path refuses `immune_to_line`, the twin of the printed-save
+   * vocabulary's `line-immunity` clause.
+   */
+  readonly immuneToLine?: string;
+  /**
+   * SRD Mimic's Pseudopod: "Ability checks made to escape this grapple have
+   * Disadvantage." — W7-B10. A mode on the escape, which is an ability check
+   * about the Grappled condition — the axis `RollSelector.condition` already
+   * has, granted under the grapple's own instance so it lifts with the hold.
+   */
+  readonly escapeMode?: 'disadvantage';
+  /**
+   * SRD Animated Rug of Smothering: "The rug can smother only one creature at
+   * a time." — W7-B10. How many creatures the hold may have at once, refused
+   * `holding_enough` at the swing that would take a hold past it.
+   */
+  readonly capacity?: PrintedHoldCapacity;
+  /**
+   * SRD Animated Rug of Smothering: "While grappling the target, the rug can't
+   * take this action, the rug halves the damage it takes (round down), and the
+   * target takes the same amount of damage." — W7-B10. What the **holder** is
+   * bound by while the hold stands; see {@link PrintedWhileHolding}.
+   */
+  readonly whileHolding?: PrintedWhileHolding;
+}
+
+/**
+ * What a creature is bound by while it holds somebody with a printed grapple —
+ * W7-B10.
+ *
+ * Three flags for the one sentence in the book that prints them, and every
+ * one read where the fact is asked: the line is refused at the swing while
+ * the hold stands, the halving is a defence `defensesOf` reads, and the
+ * sharing is the seam every unheld blow lands through. Derived off the sheet
+ * and the standing hold rather than pinned, because a grapple is a condition
+ * instance and a timer and has no record of its own to carry a clause.
+ */
+export interface PrintedWhileHolding {
+  /** "the rug can't take this action". */
+  readonly forbidsThisLine?: true;
+  /** "the rug halves the damage it takes (round down)". */
+  readonly halvesDamageTaken?: true;
+  /** "and the target takes the same amount of damage". */
+  readonly sharesDamageWithHeld?: true;
 }
 
 /**
@@ -3580,6 +3629,37 @@ export interface PrintedAttachRider {
   readonly covers?: PrintedAttachCover;
   /** SRD Stirge's 2 (2d4) Necrotic at the start of each of its own turns. */
   readonly payout?: PrintedHoldPayout;
+  /**
+   * SRD Darkmantle: "While attached to a target, the darkmantle can attack
+   * only the target but has Advantage on its attack rolls." — W7-B10. The
+   * restriction is read at the swing off the attachment record, and the
+   * Advantage is a granted modifier pinned to the target as its counterpart,
+   * filed under the attach so a detach lifts it.
+   */
+  readonly attacksOnlyTarget?: true;
+  readonly advantageAgainstTarget?: true;
+  /** SRD Stirge: "While attached, the stirge can't make Proboscis attacks." — W7-B10. */
+  readonly forbidsLine?: string;
+  /** SRD Darkmantle: "it moves with the target" — the mount's relation the other way round. — W7-B10. */
+  readonly movesWithTarget?: true;
+  /** SRD Darkmantle: "it can't benefit from any bonus to its Speed". — W7-B10. */
+  readonly noSpeedBonus?: true;
+}
+
+/**
+ * SRD Allosaurus's Claws: "…the target has the Prone condition, and the
+ * allosaurus can make one Bite attack against it." — W7-B10.
+ *
+ * A swing the hit buys: one printed line, at the creature just struck, this
+ * turn. `GrantedAttacks` is the record — attacks bought outside an Attack
+ * action — narrowed to a line and a target for the first time.
+ */
+export interface PrintedGrantsAttackRider {
+  readonly kind: 'grants-attack';
+  /** The heading of the line the swing may be — SRD's "Bite". */
+  readonly line: string;
+  /** The charge the sentence rides on, evaluated at the swing as the Prone's is. */
+  readonly when?: PrintedChargeGate;
 }
 
 /**
@@ -3932,6 +4012,40 @@ const PRINTED_MODE_AGAINST_TARGET = new RegExp(
  * targeted by the crocodile's Tail", which is handed back.
  */
 const WHILE_GRAPPLED = /^While Grappled, the target has the ([A-Za-z]+) condition(?: and (.+?))?\.$/;
+
+// — what a hold says about the holder, and about the holder's other lines — W7-B10
+
+/** SRD Giant Crocodile: "…and can't be targeted by the crocodile's Tail." The tail of {@link WHILE_GRAPPLED}. */
+const IMMUNE_TO_HOLDERS_LINE = new RegExp(
+  `^can${APOSTROPHE}t be targeted by the [a-z' -]+${APOSTROPHE}s ([A-Z][A-Za-z' -]+)$`,
+);
+/** SRD Mimic's Pseudopod: "Ability checks made to escape this grapple have Disadvantage." */
+const ESCAPE_AT_DISADVANTAGE = /^Ability checks made to escape this grapple have Disadvantage\.$/;
+/** SRD Animated Rug of Smothering: "The rug can smother only one creature at a time." */
+const HOLDS_ONE_AT_A_TIME = /^The [a-z' -]+ can (?:smother|grapple|hold) only one creature at a time\.$/;
+/**
+ * SRD Animated Rug of Smothering: "While grappling the target, the rug can't
+ * take this action, the rug halves the damage it takes (round down), and the
+ * target takes the same amount of damage." Three rules about the holder, read
+ * as three flags; the noun is back-referenced so the sentence is about one
+ * creature.
+ */
+const WHILE_HOLDING = new RegExp(
+  `^While grappling the target, the ([a-z' -]+) can${APOSTROPHE}t take this action, the \\1 halves the damage it takes \\(round down\\), and the target takes the same amount of damage\\.$`,
+);
+/** SRD Allosaurus's Claws: "…and the allosaurus can make one Bite attack against it." The tail of {@link CHARGED_HIT}. */
+const GRANTS_ONE_ATTACK = /^the [a-z' -]+ can make one ([A-Z][A-Za-z' -]+) attack against it$/;
+/** SRD Darkmantle: "While attached to a target, the darkmantle can attack only the target but has Advantage on its attack rolls." */
+const ATTACKS_ONLY_ITS_TARGET =
+  /^While attached to a target, the [a-z' -]+ can attack only the target but has Advantage on its attack rolls\.$/;
+/** SRD Darkmantle: "it can't benefit from any bonus to its Speed, and it moves with the target". The tail of {@link ATTACHED_SPEED_ZERO}. */
+const NO_SPEED_BONUS_MOVES_WITH = new RegExp(
+  `^it can${APOSTROPHE}t benefit from any bonus to its Speed, and it moves with the target$`,
+);
+/** SRD Stirge: "the stirge can't make Proboscis attacks". The middle of {@link WHILE_ATTACHED_PAYS}. */
+const FORBIDS_LINE_WHILE_ATTACHED = new RegExp(
+  `^the [a-z' -]+ can${APOSTROPHE}t make ([A-Z][A-Za-z' -]+) attacks$`,
+);
 
 /**
  * SRD Stirge and SRD Darkmantle: "and the stirge attaches to the target."
@@ -4323,7 +4437,19 @@ type ClauseRead =
       readonly conditions: readonly ConditionName[];
       /** SRD's "and takes 10 (2d6 + 3) Bludgeoning damage at the start of each of its turns". */
       readonly payout?: PrintedHoldPayout;
+      /** SRD Giant Crocodile's "can't be targeted by the crocodile's Tail" — W7-B10. */
+      readonly immuneToLine?: string;
       readonly handedOver?: string;
+    }
+  /**
+   * One more sentence about the grapple before it — W7-B10: the Mimic's
+   * Disadvantage on the escape, the Rug's cap and what binds it while it
+   * holds. `attach-detail`'s twin on the other hold, and read the same way:
+   * standing alone it names a hold that is not there.
+   */
+  | {
+      readonly kind: 'grapple-detail';
+      readonly detail: Partial<Omit<PrintedGrappleRider, 'kind'>>;
     }
   /**
    * "While Poisoned, the target also has the Paralyzed condition" — the same
@@ -4453,14 +4579,36 @@ function readClause(text: string): ClauseRead | null {
       });
     }
     riders.push({ kind: 'condition', conditions, ifNoLargerThan: size, when });
+    // SRD Allosaurus: "and the allosaurus can make one Bite attack against
+    // it." — W7-B10: a swing the hit buys, granted to the turn and narrowed
+    // to that line at that creature. A tail saying anything else is handed
+    // back rather than dropped along with the charge it rides on.
+    const buys = charged[7] === undefined ? null : GRANTS_ONE_ATTACK.exec(charged[7]);
+    if (buys !== null) riders.push({ kind: 'grants-attack', line: buys[1]!, when });
     return {
       kind: 'riders',
       riders,
-      // SRD Allosaurus: "and the allosaurus can make one Bite attack against
-      // it." An attack the engine does not grant, handed back rather than
-      // dropped along with the charge it rides on.
-      ...(charged[7] === undefined ? {} : { handedOver: charged[7] }),
+      ...(charged[7] === undefined || buys !== null ? {} : { handedOver: charged[7] }),
     };
+  }
+
+  // — what a hold says about the holder — W7-B10 ————————————————————————————
+  if (ESCAPE_AT_DISADVANTAGE.test(text)) {
+    return { kind: 'grapple-detail', detail: { escapeMode: 'disadvantage' } };
+  }
+  if (HOLDS_ONE_AT_A_TIME.test(text)) {
+    return { kind: 'grapple-detail', detail: { capacity: { creatures: 1 } } };
+  }
+  if (WHILE_HOLDING.test(text)) {
+    return {
+      kind: 'grapple-detail',
+      detail: {
+        whileHolding: { forbidsThisLine: true, halvesDamageTaken: true, sharesDamageWithHeld: true },
+      },
+    };
+  }
+  if (ATTACKS_ONLY_ITS_TARGET.test(text)) {
+    return { kind: 'attach-detail', detail: { attacksOnlyTarget: true, advantageAgainstTarget: true } };
   }
 
   const shove = PRINTED_SHOVE.exec(text);
@@ -4543,10 +4691,13 @@ function readClause(text: string): ClauseRead | null {
   if (drinks !== null) {
     const payout = payoutOf(drinks.slice(2));
     if (payout === null) return null;
+    // SRD Stirge's "the stirge can't make Proboscis attacks" — W7-B10: one of
+    // the holder's own lines barred while it is attached, read by the swing.
+    const barred = drinks[1] === undefined ? null : FORBIDS_LINE_WHILE_ATTACHED.exec(drinks[1]);
     return {
       kind: 'attach-detail',
-      detail: { payout },
-      ...(drinks[1] === undefined ? {} : { handedOver: drinks[1] }),
+      detail: { payout, ...(barred === null ? {} : { forbidsLine: barred[1]! }) },
+      ...(drinks[1] === undefined || barred !== null ? {} : { handedOver: drinks[1] }),
     };
   }
 
@@ -4568,13 +4719,19 @@ function readClause(text: string): ClauseRead | null {
 
   const pinned = ATTACHED_SPEED_ZERO.exec(text);
   if (pinned !== null) {
+    // "it can't benefit from any bonus to its Speed, and it moves with the
+    // target" — W7-B10: a floor under the Speed the attach already sets to 0,
+    // and a position that follows the target's, the mount's relation the other
+    // way round. Read where the sentence is the book's; any other tail is the
+    // table's.
+    const follows = pinned[1] === undefined ? null : NO_SPEED_BONUS_MOVES_WITH.exec(pinned[1]);
     return {
       kind: 'attach-detail',
-      detail: { holderSpeedBecomesZero: true },
-      // "it can't benefit from any bonus to its Speed, and it moves with the
-      // target": a floor under a Speed the engine has no way to state, and a
-      // position that follows another creature's. Both the table's.
-      ...(pinned[1] === undefined ? {} : { handedOver: pinned[1] }),
+      detail: {
+        holderSpeedBecomesZero: true,
+        ...(follows === null ? {} : { noSpeedBonus: true, movesWithTarget: true }),
+      },
+      ...(pinned[1] === undefined || follows !== null ? {} : { handedOver: pinned[1] }),
     };
   }
 
@@ -4618,10 +4775,15 @@ function readClause(text: string): ClauseRead | null {
     const lowered = held[1]!.toLowerCase();
     const condition = CONDITIONS.find((name) => name === lowered);
     if (condition === undefined) return null;
+    // SRD Giant Crocodile's "and can't be targeted by the crocodile's Tail" —
+    // W7-B10: an immunity to one of the holder's own lines while the hold
+    // stands. Any other tail is handed back as it always was.
+    const immune = held[2] === undefined ? null : IMMUNE_TO_HOLDERS_LINE.exec(held[2]);
     return {
       kind: 'while-held',
       conditions: [condition],
-      ...(held[2] === undefined ? {} : { handedOver: held[2] }),
+      ...(immune === null ? {} : { immuneToLine: immune[1]! }),
+      ...(held[2] === undefined || immune !== null ? {} : { handedOver: held[2] }),
     };
   }
 
@@ -4799,8 +4961,21 @@ export function readPrintedRiders(text: string): PrintedRidersRead {
         ...host,
         whileHeld: read.conditions,
         ...(read.payout === undefined ? {} : { payout: read.payout }),
+        ...(read.immuneToLine === undefined ? {} : { immuneToLine: read.immuneToLine }),
       };
       if (read.handedOver !== undefined) handedOver.push(read.handedOver);
+      continue;
+    }
+
+    if (read.kind === 'grapple-detail') {
+      const host = riders.at(-1);
+      // A grapple detail with no grapple in front of it names a hold that is
+      // not there — `attach-detail`'s rule, on the other hold. — W7-B10
+      if (host === undefined || host.kind !== 'grapple') {
+        handedOver.push(clause);
+        continue;
+      }
+      riders[riders.length - 1] = { ...host, ...read.detail };
       continue;
     }
 

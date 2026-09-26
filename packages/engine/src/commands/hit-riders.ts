@@ -578,6 +578,35 @@ export function applyHitRider(
   if (!fixed.ok) return fixed;
   events.push(...fixed.value);
 
+  // **The swing the hit buys** — W7-B10. SRD Allosaurus's Claws: "the
+  // allosaurus can make one Bite attack against it." A `GrantedAttacks` entry
+  // narrowed to that line at that creature, spent by the next swing that
+  // matches. Only on the holder's own turn, for the reason `handsMove` below
+  // gives: a grant belongs to a turn budget, and a swing on somebody else's
+  // turn has none to hand it to. A budget already holding attacks under a
+  // different rule about what may be swung is left alone and said so, because
+  // the fold would refuse the grant and a `CorruptLogError` is nobody's answer.
+  if (option.grantsAttack !== undefined) {
+    const theirs = state.combat !== null && currentCombatant(state.combat).id === hit.attacker;
+    const standing = state.combat?.budgets[hit.attacker]?.grantedAttacks ?? null;
+    if (!theirs) {
+      unverified.push(
+        `${option.name} buys ${hit.attacker} one ${option.grantsAttack.line} attack against ${hit.target}, and it is not their turn, so there is no turn budget to hand it to`,
+      );
+    } else if (standing !== null && standing.remaining > 0 && standing.unarmedOnly) {
+      unverified.push(
+        `${option.name} buys ${hit.attacker} one ${option.grantsAttack.line} attack against ${hit.target}, and their turn already holds attacks under another rule; the swing is the table's`,
+      );
+    } else {
+      events.push({
+        type: 'turn-budget-granted',
+        id: hit.attacker,
+        source: option.name,
+        attacks: { remaining: 1, unarmedOnly: false, line: option.grantsAttack.line, against: hit.target },
+      });
+    }
+  }
+
   const held = [...grabbed.value, ...fixed.value].reduce(applyEvent, resolved.value.state);
 
   // **The shove, after the grapple**, because the order is the engine's to fix
@@ -863,6 +892,35 @@ function makeTheGrapple(
     );
     return ok([]);
   }
+  // **Filed under the grapple's own instance** — W7-B10 — so both lift the
+  // moment the hold ends, through `releaseInstanceGrants`, whichever of the
+  // hold's endings arrives. SRD Giant Crocodile: "can't be targeted by the
+  // crocodile's Tail" is an immunity to one of the holder's lines; SRD Mimic:
+  // "Ability checks made to escape this grapple have Disadvantage" is a mode
+  // on the one check the escape rolls, keyed to the condition it would end,
+  // which is the axis `escapeGrapple` and `resolveEffectCheck` both report.
+  const instance = conditionInstanceId('grappled', grappleSource(hit.attacker));
+  const bound: GameEvent[] = [];
+  if (grapple.immuneToLine !== undefined) {
+    bound.push({
+      type: 'printed-line-immunity-granted',
+      id: hit.target,
+      immunity: { source: instance, by: hit.attacker, line: grapple.immuneToLine },
+    });
+  }
+  if (grapple.escapeMode !== undefined) {
+    bound.push({
+      type: 'roll-modifier-granted',
+      id: hit.target,
+      modifier: {
+        source: instance,
+        modifier: {
+          mode: grapple.escapeMode,
+          selector: { roll: 'ability-check', relation: 'roller', condition: 'grappled' },
+        },
+      },
+    });
+  }
   return ok([
     ...landed.value.events,
     // SRD Animated Rug of Smothering: "takes 10 (2d6 + 3) Bludgeoning damage
@@ -870,6 +928,7 @@ function makeTheGrapple(
     // filed under the hold's own source so the boundary can read it and
     // `holdStillStands` can stop reading it the moment the escape succeeds.
     ...payoutEvents(grapple.payout, grappleSource(hit.attacker), hit),
+    ...bound,
   ]);
 }
 
@@ -897,6 +956,17 @@ function makeTheAttach(
   if (attach === undefined) return ok([]);
 
   const source = attachSource(hit.target);
+  // What the attached creature may then do — W7-B10 — pinned on the record
+  // so the swing and the move read it and open no book. `noSpeedBonus` is
+  // carried for the record's sake and needs no reader of its own: the Speed
+  // the attach sets to 0 is zeroed after every bonus is summed
+  // (`combineSpeed`), so nothing added ever reaches it.
+  const whileAttached = {
+    ...(attach.attacksOnly === undefined ? {} : { attacksOnly: true as const }),
+    ...(attach.forbidsLine === undefined ? {} : { forbidsLine: attach.forbidsLine }),
+    ...(attach.movesWithTarget === undefined ? {} : { movesWithTarget: true as const }),
+    ...(attach.noSpeedBonus === undefined ? {} : { noSpeedBonus: true as const }),
+  };
   const events: GameEvent[] = [
     {
       type: 'creature-attached',
@@ -905,9 +975,28 @@ function makeTheAttach(
         to: hit.target,
         name: option.name,
         ...(attach.detachDc === undefined ? {} : { detachDc: attach.detachDc }),
+        ...(Object.keys(whileAttached).length === 0 ? {} : { whileAttached }),
       },
     },
   ];
+
+  // SRD Darkmantle: "but has Advantage on its attack rolls" — against the
+  // creature it is attached to, which is the only creature it may attack.
+  // `RollSelector.counterpart` is the "against this one creature" axis, and
+  // the grant is filed under the attach so `creature-detached` lifts it.
+  if (attach.advantageAgainstTarget === true) {
+    events.push({
+      type: 'roll-modifier-granted',
+      id: hit.attacker,
+      modifier: {
+        source,
+        modifier: {
+          mode: 'advantage',
+          selector: { roll: 'attack', relation: 'roller', counterpart: hit.target },
+        },
+      },
+    });
+  }
 
   // SRD Darkmantle: "Its Speed becomes 0." The grant the engine already writes
   // for Hypnotic Pattern's own sentence, filed under the attach so it comes

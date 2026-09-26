@@ -45,8 +45,8 @@ import { spendAction, spendAttack, spendMovement } from '../combat.js';
 import { conditionInstanceId, isIncapacitated } from '../conditions.js';
 import { applyEvent, type CommandStamp, type GameEvent, type GameState } from '../events.js';
 import { type CommandIdentity, once } from '../idempotency.js';
-import { attacksInAction, statedBonusActionsUsed } from '../monster.js';
-import { attachSource, type CreatureState } from '../state.js';
+import { attacksInAction, readPrintedRiders, statedBonusActionsUsed, type PrintedWhileHolding } from '../monster.js';
+import { attachSource, type Attachment, type CreatureState } from '../state.js';
 import {
   apartFrom,
   bearingBetween,
@@ -864,6 +864,8 @@ export interface HeldAttachment {
   readonly name: string;
   /** SRD Darkmantle's "DC 13 Strength (Athletics) check", where the line prints one. */
   readonly detachDc?: number;
+  /** What the line says the holder may and may not do while it holds on — W7-B10. */
+  readonly whileAttached?: Attachment['whileAttached'];
 }
 
 /** Everything this creature is attached to. */
@@ -874,7 +876,41 @@ export function attachmentsOf(state: GameState, holder: CharacterId): readonly H
     source: attachSource(held.to),
     name: held.name,
     ...(held.detachDc === undefined ? {} : { detachDc: held.detachDc }),
+    ...(held.whileAttached === undefined ? {} : { whileAttached: held.whileAttached }),
   }));
+}
+
+/**
+ * What binds a creature **while it holds somebody** with a printed grapple —
+ * W7-B10. SRD Animated Rug of Smothering: "While grappling the target, the rug
+ * … halves the damage it takes (round down), and the target takes the same
+ * amount of damage."
+ *
+ * Derived rather than pinned, because a grapple is a condition instance and a
+ * timer and has no record of its own to carry a clause: the holder's own block
+ * says what its hold binds it with, and `grapplesOn` says whether it holds
+ * anybody. Null where it holds nobody or its block prints no such clause, which
+ * is every creature in the book but one.
+ */
+export function holdBindsOn(
+  state: GameState,
+  holder: CharacterId,
+): { readonly binds: PrintedWhileHolding; readonly held: readonly CharacterId[] } | null {
+  const sheet = state.creatures[holder]?.sheet;
+  if (sheet === undefined) return null;
+  const held = (Object.keys(state.creatures) as CharacterId[])
+    .sort()
+    .filter((who) => grapplesOn(state, who).some((grapple) => grapple.grappler === holder));
+  if (held.length === 0) return null;
+  for (const attack of sheet.stated?.attacks ?? []) {
+    if (attack.rider === null) continue;
+    for (const rider of readPrintedRiders(attack.rider).riders) {
+      if (rider.kind === 'grapple' && rider.whileHolding !== undefined) {
+        return { binds: rider.whileHolding, held };
+      }
+    }
+  }
+  return null;
 }
 
 /**
