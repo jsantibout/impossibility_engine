@@ -4431,6 +4431,18 @@ export interface AreaTerrain {
    * ground made ordinary deals nothing.
    */
   readonly damagePerFeet?: TerrainDamage;
+  /**
+   * SRD Gust of Wind: "Any creature in the Line must spend 2 feet of movement
+   * for every 1 foot it moves **when moving closer to you**."
+   *
+   * The rate above, narrowed to a step of the stated route that ends nearer
+   * the caster than it began — read per step against where the caster stands
+   * now, which for a Line that blows from the caster is the region's own
+   * origin creature. A move inside such ground with no route stated is asked
+   * for one, because the number depends on which way each step went. Only
+   * beside `costPerFoot`, and never beside {@link clears}.
+   */
+  readonly onlyTowards?: 'caster';
 }
 
 /**

@@ -1648,7 +1648,22 @@ function checkAreaTerrain(
     costPerFoot: rate,
     clears,
     damagePerFeet,
-  } = terrain as { costPerFoot?: unknown; clears?: unknown; damagePerFeet?: unknown };
+    onlyTowards,
+  } = terrain as {
+    costPerFoot?: unknown;
+    clears?: unknown;
+    damagePerFeet?: unknown;
+    onlyTowards?: unknown;
+  };
+  // SRD Gust of Wind's "when moving closer to you" is the one narrowing a rate
+  // takes, and the caster is the only creature the sentence can name.
+  if (onlyTowards !== undefined && onlyTowards !== 'caster') {
+    found.push({
+      field: `${path}.onlyTowards`,
+      code: 'malformed_field',
+      reason: `a rate is narrowed to steps towards the caster or not at all; the only value is 'caster', not ${String(onlyTowards)}`,
+    });
+  }
   if (clears !== undefined) {
     if (clears !== true) {
       found.push({
@@ -1670,6 +1685,14 @@ function checkAreaTerrain(
         field: `${path}.damagePerFeet`,
         code: 'terrain_clears_and_charges',
         reason: 'ground made ordinary cuts nobody; name the damage or the clearing, not both',
+      });
+    }
+    // And has no rate to narrow.
+    if (onlyTowards !== undefined) {
+      found.push({
+        field: `${path}.onlyTowards`,
+        code: 'terrain_clears_and_charges',
+        reason: 'ground made ordinary has no rate to narrow to a direction; name the rate or the clearing, not both',
       });
     }
     return;

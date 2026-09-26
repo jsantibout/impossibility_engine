@@ -1456,6 +1456,9 @@ export function terrainPatchOf(
       // And what the ground cuts for — SRD Spike Growth's dice per five feet
       // — pinned beside the rate for the same reason the rate is.
       ...(terrain.damagePerFeet === undefined ? {} : { damagePerFeet: terrain.damagePerFeet }),
+      // And SRD Gust of Wind's "when moving closer to you", the one rate that
+      // reads the step rather than the square — pinned the same way.
+      ...(terrain.onlyTowards === undefined ? {} : { onlyTowards: terrain.onlyTowards }),
       ...(lastsWithTheCasting ? { source: castingId } : {}),
     },
   ];

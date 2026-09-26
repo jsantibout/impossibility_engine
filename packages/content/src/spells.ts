@@ -8773,6 +8773,12 @@ export const GUST_OF_WIND: SpellDefinition = {
   range: { kind: 'self' },
   targets: { count: 0 },
   area: { kind: 'line', length: 60, width: 10, origin: 'self' },
+  // "Any creature in the Line must spend 2 feet of movement for every 1 foot
+  // it moves when moving closer to you." Difficult Terrain by another name,
+  // narrowed to the step: the patch lies on the Line the caster blows and
+  // charges a step of a stated route only when it ends nearer the caster than
+  // it began, read against where the caster stands now.
+  areaTerrain: { costPerFoot: 2, onlyTowards: 'caster' },
   effects: [
     {
       kind: 'save',
@@ -8813,7 +8819,6 @@ export const GUST_OF_WIND: SpellDefinition = {
   },
   durationSeconds: 60,
   unmodelled: [
-    'the doubled cost of walking into the wind — "must spend 2 feet of movement for every 1 foot it moves when moving closer to you" — is not charged: a casting may make ground expensive now, and a patch is a property of the **square**, charging whoever crosses it at the rate it holds. Nothing on one can say "only while moving closer to you", which is a fact about the mover rather than about the ground, so `areaTerrain` cannot carry it',
     'the gas dispersed, the unprotected candles snuffed and the protected flames dancing are the DM’s, and so is the "50 percent chance to extinguish them", which is a random outcome that is not a d20',
   ],
 };

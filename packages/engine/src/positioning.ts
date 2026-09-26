@@ -2280,6 +2280,22 @@ export interface DifficultPatch extends LatticePatch {
    */
   readonly damagePerFeet?: TerrainDamage;
   /**
+   * SRD Gust of Wind: "Any creature in the Line must spend 2 feet of movement
+   * for every 1 foot it moves **when moving closer to you**."
+   *
+   * A rate that applies to a *step* rather than to a space: the patch charges
+   * only a step of a stated route that ends nearer the region's origin
+   * creature — the caster the Line blows from — than it began, read against
+   * where that creature stands at the moment of the step. A patch whose region
+   * is anchored to a point reads the caster of the casting it names instead.
+   * Because the number depends on which way each step went, a move with no
+   * route stated that could have entered such a patch is asked for one
+   * (`uniformTerrainBetween` answers null), and a single-space read
+   * (`terrainAt`) reports the patch as lying there without judging a step it
+   * was not given.
+   */
+  readonly onlyTowards?: 'caster';
+  /**
    * This patch makes the ground under it **ordinary**, whatever else lies there.
    *
    * SRD Speak with Plants: "turn Difficult Terrain caused by plant growth …
@@ -2307,9 +2323,10 @@ export function declareDifficultPatch(
   costPerFoot: number,
   source?: string,
   clears?: true,
-  /** The damage the ground deals per distance travelled — see {@link TerrainDamage}. */
-  damagePerFeet?: TerrainDamage,
+  /** The two narrowings a casting's ground may carry — see {@link DifficultPatch}. */
+  extras: { readonly damagePerFeet?: TerrainDamage; readonly onlyTowards?: 'caster' } = {},
 ): Result<PositionState> {
+  const { damagePerFeet, onlyTowards } = extras;
   if (patch.trim().length === 0) {
     return err('bad_patch', 'a patch of ground needs a name, so a refusal can say what it was');
   }
@@ -2345,6 +2362,7 @@ export function declareDifficultPatch(
         costPerFoot,
         ...(source === undefined ? {} : { source }),
         ...(damagePerFeet === undefined ? {} : { damagePerFeet }),
+        ...(onlyTowards === undefined ? {} : { onlyTowards }),
       },
     },
   });
@@ -3240,18 +3258,72 @@ export interface RouteCharge {
  * left, and SRD charges the extra foot for movement **in** a space, which a
  * creature entering the next one is no longer doing in the last.
  */
-export function costOfRoute(state: GameState, spaces: readonly Point[]): RouteCharge {
+export function costOfRoute(
+  state: GameState,
+  spaces: readonly Point[],
+  /**
+   * The space the route is walked from, for a patch whose rate reads the
+   * direction of each step — see {@link DifficultPatch.onlyTowards}. Absent,
+   * the first step has no direction and such a patch does not charge it.
+   */
+  from?: Point,
+): RouteCharge {
   const scene = state.scene;
   const live = scene === null ? [] : livePatches(state);
 
   let cost = 0;
   const patches = new Set<string>();
+  let previous = from === undefined ? null : snapPoint(from);
   for (const space of spaces) {
-    const here = scene === null ? OPEN_FLOOR : chargeAt(scene, live, space);
+    const here =
+      scene === null
+        ? OPEN_FLOOR
+        : chargeAt(
+            scene,
+            live.filter(([, patch]) => appliesToStep(state, scene, patch, previous, space)),
+            space,
+          );
     cost += CUBE * here.costPerFoot;
     for (const name of here.patches) patches.add(name);
+    previous = snapPoint(space);
   }
   return { cost, patches: [...patches].sort() };
+}
+
+/**
+ * Whether a patch charges this step of a route.
+ *
+ * Every patch charges every space it covers but one kind: a patch narrowed to
+ * steps "closer to you" ({@link DifficultPatch.onlyTowards}) charges a step
+ * only when the space entered is nearer the caster than the space left. The
+ * caster is the region's origin creature where the region is carried — SRD
+ * Gust of Wind's Line blows from its caster — and the caster of the casting
+ * the patch names otherwise; a caster nobody has placed, or a step with no
+ * space left (the first of a route walked from nowhere), is a direction nobody
+ * can read, and the patch withholds rather than charges.
+ */
+function appliesToStep(
+  state: GameState,
+  scene: PositionState,
+  patch: DifficultPatch,
+  previous: Point | null,
+  space: Point,
+): boolean {
+  if (patch.onlyTowards === undefined) return true;
+  if (previous === null) return false;
+  const caster = casterOfPatch(state, patch);
+  if (caster === null) return false;
+  const at = positionOf(scene, caster);
+  if (at === null) return false;
+  return distanceBetweenPoints(snapPoint(space), at) < distanceBetweenPoints(previous, at);
+}
+
+/** The creature a directional patch measures "closer to you" against, or null. */
+function casterOfPatch(state: GameState, patch: DifficultPatch): CharacterId | null {
+  if ('creature' in patch.region.origin) return patch.region.origin.creature;
+  if (patch.source === undefined) return null;
+  const record = state.ongoing[patch.source];
+  return record === undefined ? null : (record.caster as CharacterId);
 }
 
 /**
@@ -3294,10 +3366,18 @@ export function uniformTerrainBetween(
   const live = livePatches(state);
   if (live.length === 0) return OPEN_FLOOR;
 
+  // A patch whose rate reads the direction of each step makes the rate depend
+  // on the path by construction — see {@link DifficultPatch.onlyTowards} — so
+  // a walk that could enter one is asked for its route rather than charged.
+  const directional = new Set(
+    live.filter(([, patch]) => patch.onlyTowards !== undefined).map(([name]) => name),
+  );
+
   let agreed: TerrainCharge | null = null;
   const patches = new Set<string>();
   for (const space of shortestRouteSpaces(scene, from, to)) {
     const here = chargeAt(scene, live, space);
+    if (here.patches.some((name) => directional.has(name))) return null;
     if (agreed === null) agreed = here;
     else if (agreed.costPerFoot !== here.costPerFoot) return null;
     for (const name of here.patches) patches.add(name);

@@ -3317,6 +3317,8 @@ export type GameEvent =
       readonly clears?: true;
       /** What the ground deals per distance travelled across it — see `TerrainDamage`. Additive; absent everywhere before it. */
       readonly damagePerFeet?: TerrainDamage;
+      /** A rate charged only for a step towards the caster — see `DifficultPatch.onlyTowards`. Additive; absent everywhere before it. */
+      readonly onlyTowards?: 'caster';
       readonly source?: string;
       readonly command?: CommandStamp;
     }

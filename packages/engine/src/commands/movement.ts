@@ -1367,7 +1367,10 @@ function chargeTerrain(
   if (route !== undefined) {
     const checked = checkRoute(scene, from, to, route);
     if (!checked.ok) return checked;
-    const walked = costOfRoute(state, checked.value);
+    // From the space being left, so a rate that reads the direction of each
+    // step — SRD Gust of Wind's "when moving closer to you" — has a first step
+    // to read.
+    const walked = costOfRoute(state, checked.value, from);
     return ok({ ...walked, cost: walked.cost * surcharge, unverified: [] });
   }
 

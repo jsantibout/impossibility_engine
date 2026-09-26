@@ -2251,7 +2251,11 @@ function resolveOnTargets(
           definition.area,
           casterId,
           area?.at,
-          area?.towards,
+          // A carried directional area has no point for its bearing to
+          // travel beside, so the bearing is `carriedAim`'s — the same one the
+          // record pins, so the ground SRD Gust of Wind's Line makes expensive
+          // is the Line its trigger reads. (W7-S19)
+          area?.towards ?? carriedAim,
           area?.anchoring ?? 'space',
         );
 
