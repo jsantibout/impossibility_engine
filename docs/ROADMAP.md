@@ -3046,3 +3046,14 @@ Appended 2026-09-26, wave seven on Opus:
   (`spell-definitions.ts` ≈6605 and ≈6630, `commands/unarmed.ts` ≈660); the
   same hand-it-to-someone-else gap `not_the_wearer` closed for the cloak still
   stands for Periapt of Health and Winged Boots. Opus review: PASS, one nit.
+- **A Speed given in a mode is a floor** (W8-E1a, a review finding). SRD
+  "a Fly Speed of N feet" states the Speed rather than adding to it:
+  `SpeedChange` gains `at-least`, read into `speedOf`'s base for a mode
+  (`floorInMode`) and by `hasSpeedInModeOn`; SRD Fly and Winged Boots are
+  restated with it, so Fly beside the boots reads 60 (was 90) and an Owl
+  under Fly 60 (was 120); a mode-named `add` in an old log still reads as it
+  was written. Gaseous Form's `only` overrides a floor as it overrides a
+  printed Fly Speed. No ledger row moves. **Owner question found here, not
+  built:** the SRD glossary's "Changes to Your Speeds" applies an increase or
+  a halving to every Speed; `speedOf` applies increases and doubling to
+  walking alone, a builder's reading and not a ruling. Opus review: PASS.
