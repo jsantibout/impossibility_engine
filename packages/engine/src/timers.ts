@@ -402,7 +402,7 @@ export interface EffectCheck {
    * otherwise offers — to the creature the casting's probe named. See
    * `SpellCheck.attemptBy`, which this is pinned from.
    */
-  readonly attemptBy?: 'probed';
+  readonly attemptBy?: 'singled-out';
   /** How the roll reads in the log. */
   readonly label: string;
 }

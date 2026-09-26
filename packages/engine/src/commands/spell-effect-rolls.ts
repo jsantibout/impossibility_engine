@@ -1573,19 +1573,18 @@ export function resolveSaveEffect(
       current = hung.value.events.reduce(applyEvent, current);
     }
     // **And the one success in the book that ends the spell it was forced by.**
-    // SRD Detect Thoughts: "On a successful save, the spell ends." The same
-    // release a check's `end-casting` and a repeated save's already perform,
-    // written here because this is the only place a save forced *once* knows
-    // how it fell — and with the same reason, so a log reads as what happened:
-    // the creature resisted it.
+    // SRD Detect Thoughts and SRD Phantasmal Force: "On a successful save, the
+    // spell ends." The same release a check's `end-casting` and a repeated
+    // save's already perform, recorded here because this is the only place a
+    // save forced *once* knows how it fell.
+    //
+    // **The fact, not the event.** A casting's own record is written after its
+    // effects have run, and a `spell-ended` naming a casting the fold has not
+    // seen is refused — so `resolveEffects` writes the ending below the record,
+    // which is where Ensnaring Strike's `resisted` ending already goes.
     if (effect.onSuccess === 'end-casting' && ctx.origin.kind === 'casting') {
-      events.push({
-        type: 'spell-ended',
-        castingId: ctx.casting().castingId,
-        on: null,
-        reason: 'resisted',
-      });
-      current = applyEvent(current, events[events.length - 1]!);
+      const ended = ctx.casting().castingId;
+      if (!ctx.resisted.includes(ended)) ctx.resisted.push(ended);
     }
     outcomes.push({ target, save: thrown, affected: false });
     return ok(current);

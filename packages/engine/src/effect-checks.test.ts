@@ -674,7 +674,13 @@ describe('the shape stops where the SRD stops being expressible', () => {
   // way**, and for a reason that was never about the check either: its area
   // has to spare the caster, and `notTheCaster` is what it was waiting for.
   // Its Athletics escape is asserted end to end in `filtered-catch.test.ts`.
-  it.each([['maze'], ['phantasmal-force']])('has not quietly implemented %s', (spellId) => {
+  // **And Phantasmal Force has left this list too, by being built.** The
+  // `end-casting` its check now carries is the sentence the book prints, and what
+  // had kept the spell undefined was never the check: it was a payout owed at the
+  // caster's own boundary, which `AreaTrigger.at: 'start-of-casters-turn'` is.
+  // Maze is the one left, and what blocks it is a demiplane the engine has no
+  // position for rather than anything about a check.
+  it.each([['maze']])('has not quietly implemented %s', (spellId) => {
     expect(SRD_CONTENT.spell(spellId)).toBeNull();
   });
 
@@ -691,7 +697,7 @@ describe('the shape stops where the SRD stops being expressible', () => {
    * ending the casting the SRD says it ends.
    *
    * What it carries now is the sentence itself: `end-casting`, narrowed to the
-   * creature the probe named by `attemptBy: 'probed'`. So this asserts the
+   * creature the probe named by `attemptBy: 'singled-out'`. So this asserts the
    * *unapproximated* shape rather than the absence of one — the outcome the book
    * prints, and the attempter the book names.
    */
@@ -702,7 +708,7 @@ describe('the shape stops where the SRD stops being expressible', () => {
       ability: 'int',
       skill: 'arcana',
       onSuccess: 'end-casting',
-      attemptBy: 'probed',
+      attemptBy: 'singled-out',
     });
     // And the probe that names the mind, which is what the pin is read off.
     expect(definition?.activation?.effects).toEqual([

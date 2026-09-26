@@ -26,6 +26,7 @@ import {
   persists as castingPersists,
   optionEffectLists,
   readsAStatedStorm,
+  singlesOutAtTheCast,
   statedChoiceCollides,
   statedChoiceReaches,
 } from './spell-definitions.js';
@@ -5882,6 +5883,16 @@ export function checkSpellDefinition(
    * day a spell prints both sentences the reader is written first and this row
    * goes; until then the refusal is what says the reader is missing.
    *
+   * **And one reader has now been written, for one of the three.** SRD
+   * Phantasmal Force draws a Cube and names the one creature inside it whose mind
+   * the illusion is in, and `AreaTrigger.onlyTarget` narrows the later catch to
+   * *that same creature* — off `OngoingSpell.singledOut`, which the cast pinned.
+   * So the filter does not let go of the casting a turn later: the same one
+   * creature is caught at the cast and at every boundary after it. The refusal
+   * stands for the other two clauses, which still have no reader on the later
+   * catch, and for a `chosenFromTheArea` whose trigger does not carry the
+   * narrowing.
+   *
    * The other two target clauses need no such guard, because they are checked
    * wherever a caller *names* somebody and every definition does.
    */
@@ -5895,7 +5906,12 @@ export function checkSpellDefinition(
       });
       continue;
     }
-    if (definition.areaTrigger !== undefined || definition.areaStanding !== undefined) {
+    const narrowedLater =
+      clause === 'chosenFromTheArea' && definition.areaTrigger?.onlyTarget === true;
+    if (
+      !narrowedLater &&
+      (definition.areaTrigger !== undefined || definition.areaStanding !== undefined)
+    ) {
       found.push({
         field: `targets.${clause}`,
         code: 'area_filter_and_a_later_catch',
@@ -6022,6 +6038,51 @@ export function checkSpellDefinition(
         checkEffect(effect, definition.level, `areaTrigger.effects[${i}]`, found),
       );
       checkPointMeasuredTrigger(definition.areaTrigger, definition.area, found);
+
+      // — the trigger that fires at the caster's boundary ————————————————————
+      //
+      // SRD Phantasmal Force: "**On each of your turns**, such a phantasm can
+      // deal 2d8 Psychic damage to the target." The moment belongs to the caster
+      // and the creature that pays is standing still somewhere else, so the
+      // clause only means anything where the casting has singled one creature
+      // out — a payout owed at the caster's boundary against whoever happened to
+      // walk into the area is a spell the book does not print.
+      if (definition.areaTrigger.at === 'start-of-casters-turn') {
+        if (definition.areaTrigger.onlyTarget !== true) {
+          found.push({
+            field: 'areaTrigger.at',
+            code: 'casters_turn_without_a_target',
+            reason:
+              'a trigger that fires at the caster’s own boundary pays out on the creature the casting singled out, and this one reaches whoever is standing in the area',
+          });
+        }
+      } else if (
+        definition.areaTrigger.at !== undefined &&
+        !TURN_MOMENT_NAMES.has(definition.areaTrigger.at)
+      ) {
+        found.push({
+          field: 'areaTrigger.at',
+          code: 'unknown_turn_moment',
+          reason: `"${String(definition.areaTrigger.at)}" is neither of the SRD's two turn boundaries nor the caster's own`,
+        });
+      }
+      if (definition.areaTrigger.onlyTarget !== undefined) {
+        if (definition.areaTrigger.onlyTarget !== true) {
+          found.push({
+            field: 'areaTrigger.onlyTarget',
+            code: 'malformed_field',
+            reason:
+              'a trigger reaches only the creature the casting singled out or it reaches whoever the geometry catches; the only value is true',
+          });
+        } else if (!singlesOutAtTheCast(definition)) {
+          found.push({
+            field: 'areaTrigger.onlyTarget',
+            code: 'only_target_without_a_target',
+            reason:
+              'a trigger narrowed to the creature the casting singled out needs the cast to single one out, and this spell names none',
+          });
+        }
+      }
     }
   }
 
@@ -6911,6 +6972,23 @@ export function checkSpellDefinition(
       });
     }
     checkSpellCheck(definition.check, 'check', found);
+    // SRD Detect Thoughts and SRD Phantasmal Force: a check only the creature the
+    // casting singled out may attempt. Either the cast singles one out, or a
+    // later action does — and a definition with neither would offer the check to
+    // nobody for ever, which is the reachability rule every stated fact here
+    // keeps.
+    if (
+      definition.check.attemptBy === 'singled-out' &&
+      !singlesOutAtTheCast(definition) &&
+      definition.activation === undefined
+    ) {
+      found.push({
+        field: 'check.attemptBy',
+        code: 'attempter_is_never_named',
+        reason:
+          'a check only the creature the casting singled out may attempt needs the cast or a later action to single one out, and this spell does neither',
+      });
+    }
   }
 
   // — the Reaction clause ——————————————————————————————————————————————————

@@ -1002,8 +1002,8 @@ function mayAttemptOrReach(state: GameState, timer: TimedEffect, who: CharacterI
   // this reads the pin, before the widening and before the derivation. A casting
   // whose probe has not been taken has pinned nobody and the check is nobody's,
   // which is the book's own reading of a sentence that begins "Either way".
-  if (timer.check?.attemptBy === 'probed') {
-    return timer.target.kind === 'casting' && state.ongoing[timer.target.castingId]?.probing === who;
+  if (timer.check?.attemptBy === 'singled-out') {
+    return timer.target.kind === 'casting' && state.ongoing[timer.target.castingId]?.singledOut === who;
   }
   if (mayAttempt(timer, who)) return true;
   if (timer.check?.byAnotherWithinReach !== true || timer.target.kind !== 'condition') return false;
@@ -1067,7 +1067,7 @@ export function resolveEffectCheck(
     if (!mayAttemptOrReach(state, timer, who)) {
       return err(
         'not_yours_to_attempt',
-        check.attemptBy === 'probed'
+        check.attemptBy === 'singled-out'
           ? `${command.effectKey} is in somebody else's mind, and only the creature being probed can shake it off`
           : check.byAnotherWithinReach === true
             ? `${command.effectKey} is on somebody else, and only they or a creature within reach of them can shake it off`

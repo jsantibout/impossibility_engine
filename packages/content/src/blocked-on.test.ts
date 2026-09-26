@@ -167,9 +167,15 @@ describe('the blocked-on map covers the undefined population', () => {
    * time; it is lowered by one rather than deleted because what it still
    * catches is an empty map, and an empty map is exactly what a wrong
    * directory produces.
+   *
+   * **Moved from 5 to 4 by the payout at the caster's own boundary**, which
+   * wrote Phantasmal Force — and two of that entry's three shapes had been built
+   * for other spells before the third arrived, which is the map predicting a
+   * build again. Lowered by one for the fourth time, and for the same one
+   * reason: what it catches is the map being read out of nowhere.
    */
   it('covers a population worth deriving', () => {
-    expect(Object.keys(BLOCKED_ON).length).toBeGreaterThan(5);
+    expect(Object.keys(BLOCKED_ON).length).toBeGreaterThan(4);
   });
 
   it('names only shapes the vocabulary has', () => {
@@ -488,11 +494,13 @@ describe('a read entry answers every sentence that names a mechanic', () => {
    * being the second the day somebody writes it, and being the most heavily
    * read entry in the map is exactly what makes a spell worth writing next.
    * Find Familiar was the third fixture and went the same way on 2026-09-22,
-   * written on the kept summons; Phantasmal Force is the replacement, and it
-   * is what "most heavily read" means now: nine clauses over one paragraph.
+   * written on the kept summons; Phantasmal Force was the fourth and has gone the
+   * same way again, written on the payout owed at the caster's own boundary. Maze
+   * is the replacement, and it is what "most heavily read" means now: nineteen
+   * clauses, which is the whole of the longest entry left in the map.
    */
   it('reports nothing once that sentence is answered', () => {
-    expect(sentenceGaps('phantasmal-force')).toEqual([]);
+    expect(sentenceGaps('maze')).toEqual([]);
   });
 
   /**
@@ -503,7 +511,7 @@ describe('a read entry answers every sentence that names a mechanic', () => {
    * told apart by the clause rather than by the silence.
    */
   it('does not call a grandfathered entry read', () => {
-    expect(isSentenceComplete('phantasmal-force')).toBe(true);
+    expect(isSentenceComplete('maze')).toBe(true);
     expect(isSentenceComplete('aid')).toBe(false);
     expect(clausesIn(BLOCKED_ON['aid'] ?? [])).toEqual([]);
   });
@@ -2659,10 +2667,16 @@ describe('a consumer count is a query', () => {
       // What the band below the leaders holds now is the one shape that fell
       // out of the leading band's old size when Unseen Servant was written on
       // the inline block and has lost nothing since.
-      // And `a-casting-ended-by-a-trigger` is back in this band once more,
-      // after Invisibility's free swing was paid for: one consumer is what
-      // separates the top band from this one.
-      'a-casting-ended-by-a-trigger',
+      // And `a-casting-ended-by-a-trigger` was back in this band once more,
+      // after Invisibility's free swing was paid for — and has dropped out of it
+      // again, which is the fourth time this row has moved and the first time it
+      // moved on a **stale** claim rather than a build. Phantasmal Force's
+      // "the target realizes that the phantasm is an illusion, and the spell
+      // ends" was filed against that shape while `SpellCheck.onSuccess:
+      // 'end-casting'` had already been built for Ensnaring Strike; writing the
+      // spell took the claim with it, so the shape lost a consumer nothing had
+      // to be built for. Said plainly, because a ranking that moved for that
+      // reason is a ranking reporting a filing rather than a difficulty.
       'a-stat-block-created-mid-fight',
     ]);
     // **Moved from 20 to 15 by the third catalogue pass, and the total fell

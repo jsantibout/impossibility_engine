@@ -463,27 +463,33 @@ export interface SpellCheck {
   /**
    * SRD Detect Thoughts: "**the target** can take an action on its turn to make
    * an Intelligence (Arcana) check against your spell save DC, ending the spell
-   * on a success."
+   * on a success." SRD Phantasmal Force: "**The target** can take a Study action
+   * to examine the phantasm with an Intelligence (Investigation) check against
+   * your spell save DC."
    *
    * {@link byAnotherWithinReach}'s opposite: that clause **widens** who may
    * attempt a check from the creature the effect sits on, and this **narrows**
    * it on a casting that sits on nobody. A casting with no victim is anybody's
    * to see through — which is right for an illusion standing in a corridor and
-   * wrong for a spell that is inside one goblin's head — so the one creature
-   * the probe named is pinned on the record (`OngoingSpell.probing`) and this is
-   * what says to read the pin.
+   * wrong for a spell that is inside one goblin's head, or for a phantasm
+   * "perceivable only to the target" — so the one creature the casting singled
+   * out is pinned on the record (`OngoingSpell.singledOut`) and this is what says
+   * to read the pin.
    *
-   * `probed` rather than `target`, because it is not the cast's target: Detect
-   * Thoughts is Range: Self and the creature is named by the *later action*,
-   * which is why `aimed` cannot answer and a field of its own is needed. The
-   * only value is `probed`; absent is every other check.
+   * **`singled-out` rather than `target`, because `aimed` cannot answer**, and
+   * the two spells cannot answer for two different reasons: Detect Thoughts is
+   * Range: Self and names the mind at a *later action*, and Phantasmal Force's
+   * one target rolled a saving throw, which takes it out of `aimed` by that
+   * field's own rule. So the pin is a field of its own, written by the cast for
+   * one spell and by the activation for the other. The only value is
+   * `singled-out`; absent is every other check.
    *
-   * `mayAttemptOrReach` is the one reader, and a casting whose probe has not
-   * been taken yet offers the check to nobody at all — which is the book's
-   * reading: the sentence begins "**Either way**, the target knows that you are
-   * probing into its mind".
+   * `mayAttemptOrReach` is the one reader, and a casting that has singled nobody
+   * out offers the check to nobody at all — which is the book's reading of a
+   * probe not yet taken: the sentence begins "**Either way**, the target knows
+   * that you are probing into its mind".
    */
-  readonly attemptBy?: 'probed';
+  readonly attemptBy?: 'singled-out';
 }
 
 /**
@@ -4501,12 +4507,29 @@ export const DIRECTIONAL_AREAS: ReadonlySet<SpellArea['kind']> = new Set([
  */
 export interface AreaTrigger {
   /**
-   * SRD "starts its turn there" / "ends its turn there".
+   * SRD "starts its turn there" / "ends its turn there", and **one more moment
+   * that is not the caught creature's at all**.
    *
    * Absent means the spell names no boundary at all — which is a real state,
    * not an omission: a spell can trigger only on entry.
+   *
+   * **`start-of-casters-turn` is the third moment, and the reason it is a member
+   * here rather than a `TurnMoment`.** SRD Phantasmal Force: "**On each of your
+   * turns**, such a phantasm can deal 2d8 Psychic damage to the target if it is
+   * in the phantasm's area or within 5 feet of the phantasm." Every other clause
+   * on this type fires at a boundary belonging to whoever is caught — the fold
+   * reads the creature whose turn began and asks which areas hold it — and this
+   * one fires at the **caster's**, against a creature standing still somewhere
+   * else. So the moment is read the same way and the population is the opposite
+   * one, which `TurnMoment` cannot say because it names a boundary and not whose
+   * it is.
+   *
+   * It presupposes {@link onlyTarget}, because "the target" is the whole of who
+   * the sentence is about: a payout owed at the caster's boundary against
+   * whoever happened to be standing in the area would be a spell the book does
+   * not print, and `checkSpellDefinition` refuses the pair apart.
    */
-  readonly at?: TurnMoment;
+  readonly at?: TurnMoment | 'start-of-casters-turn';
   /**
    * SRD "enters the area", and how often it may do so in one turn.
    *
@@ -4589,6 +4612,28 @@ export interface AreaTrigger {
    * clauses and the next caps the creature across all of them.
    */
   readonly oncePerTurn?: true;
+  /**
+   * Whether this trigger reaches **only the one creature the casting singled
+   * out**, rather than whoever the geometry catches.
+   *
+   * SRD Phantasmal Force: "a phantasmal object, creature, or other phenomenon
+   * that is no larger than a 10-foot Cube and that is **perceivable only to the
+   * target** for the duration ... such a phantasm can deal 2d8 Psychic damage
+   * **to the target**."
+   *
+   * **Not {@link SpellDefinition.designatesUnaffected} or `chosen`, which are
+   * lists the caster names at the cast**: this is the spell's own sentence and
+   * there is nothing to choose — an illusion in one mind is in one mind. And not
+   * a narrower template either, because the creature is picked out by *identity*
+   * and not by where it is standing; the geometry still decides whether the
+   * phantasm reaches it.
+   *
+   * Read off `OngoingSpell.singledOut`, which is the pin the same sentence made
+   * necessary for the check the target may attempt — one fact, one place. A
+   * casting that singled nobody out catches nobody here, which is the honest
+   * answer rather than a fallback to everybody.
+   */
+  readonly onlyTarget?: true;
   /**
    * What the trigger does, in the same vocabulary the casting itself uses.
    *
@@ -6952,6 +6997,27 @@ export function statedChoiceReaches(
 ): boolean {
   const after = statedChoice(effects, of, probe);
   return after.some((effect, i) => effect !== effects[i]);
+}
+
+/**
+ * Whether a **cast** of this spell singles its one target out.
+ *
+ * Two clauses read `OngoingSpell.singledOut` — the check only that creature may
+ * attempt (`SpellCheck.attemptBy`) and the trigger that reaches only it
+ * (`AreaTrigger.onlyTarget`) — and there are two moments the name can be pinned
+ * at. This is the one for a spell that names a creature when it is cast: SRD
+ * Phantasmal Force's "a creature you can see within range". The other is a later
+ * action, SRD Detect Thoughts' probe, and that spell names nobody at the cast at
+ * all, which is what tells the two apart.
+ *
+ * One reader for three askers — the resolution that writes the pin, and the two
+ * validator rules that refuse a clause with nothing to read — so a definition
+ * the validator accepts is one the cast really pins.
+ */
+export function singlesOutAtTheCast(definition: SpellDefinition): boolean {
+  const reads =
+    definition.check?.attemptBy === 'singled-out' || definition.areaTrigger?.onlyTarget === true;
+  return reads && definition.targets.count === 1;
 }
 
 /**

@@ -610,8 +610,8 @@ export function activateSpell(
       // cast aimed at nobody. Pinned only where the definition's check asks for
       // it — see `SpellCheck.attemptBy` — so every other activation writes the
       // event it always wrote.
-      ...(definition.check?.attemptBy === 'probed' && target !== null
-        ? { probing: target }
+      ...(definition.check?.attemptBy === 'singled-out' && target !== null
+        ? { singledOut: target }
         : {}),
       ...(stamp === null ? {} : { command: stamp }),
     });

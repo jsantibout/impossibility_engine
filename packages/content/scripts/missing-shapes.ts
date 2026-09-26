@@ -3795,53 +3795,15 @@ export const BLOCKED_ON: Readonly<Record<string, readonly BlockedEntry[]>> = {
   // The bare list had two shapes and the paragraph prints three. The check that
   // sees through the phantasm ends the casting, which is Maze's sentence in
   // different words and is filed to the same shape it is.
-  'phantasmal-force': [
-    {
-      clause: 'craft an illusion in the mind of a creature you can see within range',
-      why: 'table',
-      note: 'What the illusion is, and that only one creature perceives it, is narration; the range and the sight are checked before anything is spent and are the only mechanical words in the sentence.',
-    },
-    {
-      clause: 'The target makes an Intelligence saving throw',
-      why: 'expressible',
-      note: 'An Intelligence save against the casting’s pinned DC, with the whole of the spell on the failure branch — the plainest thing the definition format does.',
-    },
-    {
-      clause: 'no larger than a 10-foot Cube and that is perceivable only to the target',
-      why: 'table',
-      note: 'The Cube bounds a thing nobody but the target perceives and carries no effect of its own; what the size is later used for is the damage clause below, which is filed where its own blocker is.',
-    },
-    {
-      clause: 'The target can take a Study action to examine the phantasm with an Intelligence (Investigation) check',
-      why: 'expressible',
-      note: '`SpellCheck` carries an ability, a skill and the casting’s own DC, and a casting with no victim is anybody’s to see through — which here is the one creature the phantasm is on.',
-    },
-    {
-      clause: 'the target realizes that the phantasm is an illusion, and the spell ends',
-      why: 'a-casting-ended-by-a-trigger',
-      note: '`SpellCheck.onSuccess` is `none` or `end-on-target` and says in its own words that `end-casting` is deliberately absent. Ending the effect on the only target is not ending the casting, and the caster would still be concentrating — Maze prints the identical sentence and is filed the same way.',
-    },
-    {
-      clause: 'An affected target can even take damage from the illusion',
-      why: 'table',
-      note: 'Whether the phantasm is a dangerous creature or a hazard at all is the DM’s to decide, and this sentence decides nothing else; the damage it introduces is the clause below.',
-    },
-    {
-      clause: 'On each of your turns, such a phantasm can deal 2d8 Psychic damage to the target',
-      why: 'an-area-trigger-on-the-casters-turn',
-      note: 'The two boundaries an `AreaTrigger` knows are the caught creature’s, and the queue that raises area debt is keyed to the creature whose turn it is. A payout owed at the **caster’s** boundary is a third moment nothing schedules.',
-    },
-    {
-      clause: 'if it is in the phantasm’s area or within 5 feet of the phantasm',
-      why: 'an-area-trigger-measured-from-a-point',
-      note: 'A reach measured from the casting’s own origin rather than from a template. `CastingOrigin.reach` answers that for an attack the caster makes and for nothing that fires on its own.',
-    },
-    {
-      clause: 'The target perceives the damage as a type appropriate to the illusion',
-      why: 'table',
-      note: 'The damage type is whatever the fiction says it is, which is the DM’s sentence; the engine would need a type to roll against a defence and the book declines to print one.',
-    },
-  ],
+  // **Phantasmal Force has left the undefined population**, and the three shapes
+  // its entry named went with it. Two were already stale when the entry was read
+  // back: `SpellCheck.onSuccess: 'end-casting'` had been built for Ensnaring
+  // Strike, and `AreaTrigger.within` — a reach measured from the casting's own
+  // point rather than over its template — for Flaming Sphere. The third was real
+  // and is built now: `AreaTrigger.at: 'start-of-casters-turn'` is the moment,
+  // and `onlyTarget` is its population, read off `OngoingSpell.singledOut`. What
+  // is left of the spell is the illusion itself, and it is filed in `ADJUDICATED`
+  // below and handed to the table in the book's own words.
   // **Blocked on nothing, and now read.** Every trigger it has is fiction and
   // the one mechanical clause is a check the vocabulary states exactly. What
   // stops the definition being written is neither: `check_without_duration`

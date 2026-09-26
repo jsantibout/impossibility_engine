@@ -420,6 +420,14 @@ export const VERIFIED_SPELLS: readonly string[] = [
   // point, the four feet per foot its own paragraph prints charged over the
   // Sphere, and the patch left standing because the casting is Instantaneous
   // and SRD gives the plants no ending.
+  // `phantasmal-force.test.ts` (engine): the goblin's Intelligence save ending
+  // the spell on a success and crafting the phantasm on a failure, the target
+  // singled out on the record, 2d8 Psychic at the start of the bard's own turn
+  // and on that goblin alone, nothing once it has walked out of the Cube's five
+  // feet, the Study-action Investigation check offered to the goblin and to
+  // nobody else and ending the casting when it lands, and a creature the Cube
+  // does not cover refused.
+  'phantasmal-force',
   'plant-growth',
   'poison-spray',
   // Driven end to end by `executed-second-pass.test.ts`: the ten-minute rite

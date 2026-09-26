@@ -1981,6 +1981,101 @@ export const BLACK_TENTACLES: SpellDefinition = {
 };
 
 /**
+ * SRD Phantasmal Force:
+ *
+ * > _Level 2 Illusion (Bard, Sorcerer, Wizard)._ **Casting Time:** Action.
+ * > **Range:** 60 feet. **Duration:** Concentration, up to 1 minute.
+ * > "You attempt to craft an illusion in the mind of a creature you can see
+ * > within range. The target makes an Intelligence saving throw. On a failed
+ * > save, you create a phantasmal object, creature, or other phenomenon that is
+ * > no larger than a 10-foot Cube and that is perceivable only to the target for
+ * > the duration." / "The target can take a Study action to examine the phantasm
+ * > with an Intelligence (Investigation) check against your spell save DC. If the
+ * > check succeeds, the target realizes that the phantasm is an illusion, and the
+ * > spell ends." / "On each of your turns, such a phantasm can deal 2d8 Psychic
+ * > damage to the target if it is in the phantasm's area or within 5 feet of the
+ * > phantasm."
+ *
+ * **Three filed blockers and only one of them was still real.** The check whose
+ * success ends the casting had been built for Ensnaring Strike, and the reach
+ * measured from a point for Flaming Sphere. What nothing could say was a payout
+ * owed at the **caster's** own boundary: every other clause an area prints fires
+ * at a boundary belonging to whoever is caught. `AreaTrigger.at:
+ * 'start-of-casters-turn'` is that moment and `onlyTarget` is its population —
+ * the phantasm is "perceivable only to the target", so it pays out on the one
+ * creature the casting singled out and on nobody standing beside them.
+ *
+ * **The Cube is placed where the target is, and the caster draws it.** The book
+ * never says where the phantasm is, and the clause that matters measures from it,
+ * so the casting states a point and a direction as every Cube does; the target is
+ * the creature named. Five feet from the anchor covers the whole Cube and one
+ * space past it, which is the reading `AreaTrigger.within` takes of a point — a
+ * creature ten feet beyond the Cube's far face is out of reach of the payout and
+ * of the sentence alike.
+ *
+ * The rationalising, what the target perceives the damage as, and the phantasm's
+ * own appearance are handed to the table whole.
+ */
+export const PHANTASMAL_FORCE: SpellDefinition = {
+  id: 'phantasmal-force',
+  name: 'Phantasmal Force',
+  level: 2,
+  school: 'illusion',
+  castingTime: 'action',
+  concentration: true,
+  // "a creature you can see within range"
+  range: { kind: 'ranged', feet: 60 },
+  // "a creature you can see within range", read through the area the phantasm
+  // fills: the caster draws the Cube at a point within range and names the one
+  // creature inside it whose mind the illusion is in — SRD's "each creature of
+  // your choice in the area" narrowed to one, which is the only way a spell may
+  // both lay a template and name a creature.
+  targets: { count: 1, chosenFromTheArea: true },
+  requiresSight: true,
+  // "no larger than a 10-foot Cube", placed at a point and drawn along a bearing
+  // like every other Cube the book prints.
+  area: { kind: 'cube', size: 10, origin: 'point' },
+  effects: [
+    {
+      kind: 'save',
+      ability: 'int',
+      // "On a failed save, you create a phantasmal object" — so a success leaves
+      // nothing at all, which is the spell ending.
+      onSuccess: 'end-casting',
+    },
+  ],
+  // "On each of your turns, such a phantasm can deal 2d8 Psychic damage to the
+  // target if it is in the phantasm's area or within 5 feet of the phantasm."
+  areaTrigger: {
+    at: 'start-of-casters-turn',
+    within: 5,
+    onlyTarget: true,
+    label: 'Phantasmal Force (the phantasm)',
+    effects: [
+      { kind: 'auto-damage', damage: { dice: '2d8' }, damageType: 'psychic' },
+    ],
+  },
+  // "The target can take a Study action to examine the phantasm with an
+  // Intelligence (Investigation) check against your spell save DC. If the check
+  // succeeds, the target realizes that the phantasm is an illusion, and the
+  // spell ends."
+  check: {
+    ability: 'int',
+    skill: 'investigation',
+    onSuccess: 'end-casting',
+    attemptBy: 'singled-out',
+  },
+  durationSeconds: 60,
+  dmDecides: [
+    'The phantasm includes sound, temperature, and other stimuli.',
+    'While affected by the spell, the target treats the phantasm as if it were real and rationalizes any illogical outcomes from interacting with it.',
+    'For example, if the target steps through a phantasmal bridge and survives the fall, it believes the bridge exists and something else caused it to fall.',
+    'An affected target can even take damage from the illusion if the phantasm represents a dangerous creature or hazard.',
+    'The target perceives the damage as a type appropriate to the illusion.',
+  ],
+};
+
+/**
  * SRD Phantasmal Killer:
  *
  * > _Level 4 Illusion (Bard, Wizard)._ **Casting Time:** Action. **Range:**
@@ -7431,7 +7526,7 @@ export const DETECT_THOUGHTS: SpellDefinition = {
     ability: 'int',
     skill: 'arcana',
     onSuccess: 'end-casting',
-    attemptBy: 'probed',
+    attemptBy: 'singled-out',
   },
   durationSeconds: 60,
   dmDecides: [
@@ -16024,6 +16119,7 @@ export const SPELL_DEFINITIONS: readonly SpellDefinition[] = [
   NONDETECTION,
   PASS_WITHOUT_TRACE,
   PASSWALL,
+  PHANTASMAL_FORCE,
   PHANTASMAL_KILLER,
   PHANTOM_STEED,
   PLANAR_ALLY,

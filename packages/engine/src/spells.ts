@@ -714,31 +714,38 @@ export interface OngoingSpell {
    */
   readonly inAStorm?: true;
   /**
-   * The creature this casting's later action is turned on — SRD Detect Thoughts.
+   * The one creature this casting picked out, where neither the world nor
+   * {@link aimed} can say who it was.
    *
-   * > "As a Magic action on your next turn, you can try to probe deeper into the
-   * > target's mind. ... until you shift your attention away from the target's
-   * > mind, **the target** can take an action on its turn to make an Intelligence
-   * > (Arcana) check against your spell save DC, ending the spell on a success."
+   * > SRD Detect Thoughts: "As a Magic action on your next turn, you can try to
+   * > probe deeper into the target's mind. ... until you shift your attention
+   * > away from the target's mind, **the target** can take an action on its turn
+   * > to make an Intelligence (Arcana) check against your spell save DC."
+   * > SRD Phantasmal Force: "a phantasmal object ... that is **perceivable only
+   * > to the target** for the duration. ... **The target** can take a Study
+   * > action to examine the phantasm."
    *
-   * **Not {@link aimed}, and the difference is *when* the creature was named.**
-   * That field is what the **cast** declared, written once and only ever
-   * shrinking; this is a creature an **activation** named, on a Range: Self
-   * casting that was aimed at nobody but its caster. So there was nowhere for it
-   * to be written down, and the check the book offers had nobody to be narrowed
-   * to — which is the whole of what `a-check-another-creature-may-attempt` was.
+   * **Not {@link aimed}, and the two spells are outside it for two different
+   * reasons.** That field is what the **cast** declared, minus whatever the
+   * casting is holding in the world. Detect Thoughts is Range: Self and names
+   * the mind at a *later action*, so the cast declared nobody; Phantasmal Force
+   * names its creature at the cast and that creature *rolled a saving throw*,
+   * which takes it off `aimed` by the rule that field keeps — an outcome is a
+   * fact the log already holds. Either way there was nowhere for the name to be,
+   * and the check the book offers had nobody to be narrowed to, which is the
+   * whole of what `a-check-another-creature-may-attempt` was.
    *
-   * Written by `spell-activated`, which had changed no state until this: the
-   * creature is a decision the caster took at the later action, so the event that
-   * records the action is where it belongs. Replaced rather than joined, because
-   * the sentence is about one mind — "you shift your attention away" — and a
-   * second probe is a second attention.
+   * **Two writers, one field.** A casting pins it at the cast where the spell
+   * singles out its target then, and `spell-activated` pins it where a later
+   * action does — that event had changed no state until this. Replaced rather
+   * than joined, because both sentences are about one creature: "you shift your
+   * attention away from the target's mind" is not a thing that happens to two.
    *
-   * `SpellCheck.attemptBy: 'probed'` is the one reader, through
-   * `mayAttemptOrReach`. Absent on every other casting in the book, and on one
-   * whose probe has not been taken yet.
+   * `SpellCheck.attemptBy: 'singled-out'` and `AreaTrigger.onlyTarget` are the
+   * readers. Absent on every other casting in the book, and on one whose later
+   * action has not been taken yet.
    */
-  readonly probing?: string;
+  readonly singledOut?: string;
   /**
    * Somebody other than the caster may end this casting, and pays for it —
    * SRD Gaseous Form's "if it takes a Magic action to end the spell on

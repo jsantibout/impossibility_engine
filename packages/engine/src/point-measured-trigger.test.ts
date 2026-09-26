@@ -300,6 +300,18 @@ describe('the clause is the spell’s, not the mechanism’s', () => {
   it('leaves every other area measuring over its own template', () => {
     for (const definition of SPELL_DEFINITIONS) {
       if (definition.id === 'flaming-sphere') continue;
+      // **The second spell in the book whose clause is measured from a point**,
+      // and it prints the sentence as plainly as the sphere does: SRD Phantasmal
+      // Force's phantasm reaches "the target ... if it is in the phantasm's area
+      // **or within 5 feet of the phantasm**". The Cube is where the illusion is
+      // and the five feet is what it reaches past it, which is the same two
+      // questions about one point Flaming Sphere asks. `onPointEntry` stays
+      // Flaming Sphere's alone: a phantasm is rolled nowhere.
+      if (definition.id === 'phantasmal-force') {
+        expect(definition.areaTrigger?.within).toBe(5);
+        expect(definition.areaTrigger?.onPointEntry).toBeUndefined();
+        continue;
+      }
       expect(definition.areaTrigger?.within, definition.id).toBeUndefined();
       expect(definition.areaTrigger?.onPointEntry, definition.id).toBeUndefined();
     }

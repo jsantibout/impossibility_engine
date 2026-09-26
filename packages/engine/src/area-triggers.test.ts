@@ -946,8 +946,21 @@ describe('every trigger is a clause the SRD actually prints', () => {
       const prose = PROSE.get(spellId) ?? '';
       const starts = /\bstarts its turn\b/i.test(prose);
       const ends = /\bends? it'?s? turn\b/i.test(prose);
+      // **And the third boundary, which is not the caught creature's.** SRD
+      // Phantasmal Force: "On each of **your** turns, such a phantasm can deal
+      // 2d8 Psychic damage to the target." The prose says whose turn it is, so
+      // the sweep reads that sentence rather than the two about the creature —
+      // and a definition claiming the caster's boundary with no such clause in
+      // the book is caught exactly as one claiming the wrong one is.
+      const casters = /\bon each of your turns\b/i.test(prose);
       expect(definition.areaTrigger?.at).toBe(
-        starts ? 'start-of-turn' : ends ? 'end-of-turn' : undefined,
+        casters
+          ? 'start-of-casters-turn'
+          : starts
+            ? 'start-of-turn'
+            : ends
+              ? 'end-of-turn'
+              : undefined,
       );
     },
   );

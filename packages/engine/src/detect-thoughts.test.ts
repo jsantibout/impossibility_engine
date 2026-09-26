@@ -25,8 +25,8 @@ import { activateSpell, availableChecks, resolveEffectCheck, resolveSpell } from
  * was a save whose *success* ends the casting — `save.onSuccess: 'end-casting'`,
  * the other end of the sentence `SpellCheck.onSuccess` already had. **A check
  * narrowed to one creature**: the casting is on the caster and holds nothing on
- * the creature being probed, so the probe pins it (`OngoingSpell.probing`) and
- * `SpellCheck.attemptBy: 'probed'` is what reads the pin — the fighter standing
+ * the creature being probed, so the probe pins it (`OngoingSpell.singledOut`) and
+ * `SpellCheck.attemptBy: 'singled-out'` is what reads the pin — the fighter standing
  * beside the goblin may not shake off a spell that is in the goblin's head.
  */
 
@@ -146,7 +146,7 @@ describe('Detect Thoughts', () => {
     const { state, castingId } = listening();
     const record = state.ongoing[castingId]!;
     expect(record.caster).toBe(WIZARD);
-    expect(record.probing).toBeUndefined();
+    expect(record.singledOut).toBeUndefined();
   });
 
   it('forces the probed creature’s Wisdom saving throw', () => {
@@ -160,7 +160,7 @@ describe('Detect Thoughts', () => {
   it('ends on a successful save, and pins the probed creature on a failure', () => {
     const held = probe(seedWhere(false));
     expect(held.state.ongoing[held.castingId]).toBeDefined();
-    expect(held.state.ongoing[held.castingId]!.probing).toBe(GOBLIN);
+    expect(held.state.ongoing[held.castingId]!.singledOut).toBe(GOBLIN);
 
     const resisted = probe(seedWhere(true));
     expect(resisted.state.ongoing[resisted.castingId]).toBeUndefined();

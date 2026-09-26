@@ -120,7 +120,7 @@ export function applyOngoing({ state, next, legacy }: Applying, event: OngoingEv
     // than joined, because "you shift your attention away from the target's
     // mind" is a sentence about one mind at a time.
     case 'spell-activated': {
-      if (event.probing === undefined) return next;
+      if (event.singledOut === undefined) return next;
       const record = state.ongoing[event.castingId];
       if (record === undefined) {
         throw new CorruptLogError(event, `${event.castingId} is not running`);
@@ -129,7 +129,7 @@ export function applyOngoing({ state, next, legacy }: Applying, event: OngoingEv
         ...next,
         ongoing: sortedRecord({
           ...next.ongoing,
-          [event.castingId]: { ...record, probing: event.probing },
+          [event.castingId]: { ...record, singledOut: event.singledOut },
         }),
       };
     }

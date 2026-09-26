@@ -2057,7 +2057,7 @@ export type GameEvent =
    * SRD Detect Thoughts' probe names a mind, and the casting is Range: Self —
    * so the creature is neither a target of the cast nor anything the world holds,
    * and the event that records the action is the only place it could be written.
-   * See {@link probing} and `OngoingSpell.probing`.
+   * See {@link singledOut} and `OngoingSpell.singledOut`.
    */
   | {
       readonly type: 'spell-activated';
@@ -2071,7 +2071,7 @@ export type GameEvent =
        * Absent for every other activation in the book, which names its target
        * for the length of one action and leaves nothing behind.
        */
-      readonly probing?: CharacterId;
+      readonly singledOut?: CharacterId;
       readonly command?: CommandStamp;
     }
   /**

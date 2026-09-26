@@ -102,6 +102,7 @@ import {
   optionEffects,
   laysTerrain,
   type SpellOption,
+  singlesOutAtTheCast,
   statedChoice,
   statedDamageType,
   damageTypesDealt,
@@ -2264,6 +2265,16 @@ function resolveOnTargets(
     // anything else. **A carried area records no position**: `caster` and the
     // definition's `origin: 'self'` already say where it is.
     ...stated,
+    // **And the one creature the spell singled out**, for the two clauses that
+    // reach it by identity rather than by geometry: the check only it may attempt
+    // and the trigger that pays out only on it. SRD Phantasmal Force's phantasm
+    // is "perceivable only to the target", and that target rolled a saving throw
+    // — which takes it off `aimed` by that field's own rule — so this is the only
+    // place the name can be. See `singlesOutAtTheCast`, which is what decides
+    // whether the cast is the moment or a later action is.
+    ...(singlesOutAtTheCast(definition) && targets[0] !== undefined
+      ? { singledOut: targets[0] }
+      : {}),
     // And the choice as the pair a record keeps — see `choicePinned`.
     ...(pinned === undefined ? {} : { choice: pinned }),
     // And the branch, as the bare name: which effects a word runs is a lookup
@@ -3421,7 +3432,7 @@ export function resolveEffects(
     ...(context.alters === undefined ? {} : { alters: context.alters }),
   });
   if (!resolved.ok) return resolved;
-  const { numbers, outcomes, held, summoned } = resolved.value;
+  const { numbers, outcomes, held, summoned, resisted } = resolved.value;
 
   // The live half of the casting, now that it is known what the casting
   // actually caught. See `OngoingSpell` for why each field is there.
@@ -3510,6 +3521,8 @@ export function resolveEffects(
         // later read it off this record rather than asking again — the same
         // reason every other stated fact is here.
         ...(becomes.inAStorm === undefined ? {} : { inAStorm: becomes.inAStorm }),
+        // And the creature the spell picked out — see `OngoingSpell.singledOut`.
+        ...(becomes.singledOut === undefined ? {} : { singledOut: becomes.singledOut }),
         // The casting this one turns aside, pinned at the cast — see
         // `OngoingSpell.negates`.
         ...(becomes.negates === undefined ? {} : { negates: becomes.negates }),
@@ -3548,6 +3561,23 @@ export function resolveEffects(
   // the same words for a DM binding a creature by hand.
   if (becomes !== undefined && summoned.length > 0) {
     events.push(...bindSummonsToCasting(summoned, casterId, castingId));
+  }
+
+  // **The casting its own saving throw ended, released below the record it
+  // leaves.** SRD Detect Thoughts and SRD Phantasmal Force: "On a successful
+  // save, the spell ends." The record is written first because the fold refuses
+  // a `spell-ended` for a casting it has not seen, and because the slot, the
+  // Concentration and the deadline have all already gone out — so the honest log
+  // is the spell taking hold and then being shrugged off, which is the order
+  // Ensnaring Strike's `resisted` ending already reads in.
+  //
+  // `resisted` names the casting rather than being a flag, because a run that
+  // ends a casting is always ending *this* one: `resolveSaveEffect` reads it off
+  // its own context. A run reached through an activation has no record to write
+  // and the ending goes out on its own, which is what Detect Thoughts' probe
+  // does.
+  for (const ended of resisted) {
+    events.push({ type: 'spell-ended', castingId: ended, on: null, reason: 'resisted' });
   }
 
   // **After the record, because the patch may hang on it.** The fold does not
@@ -3690,6 +3720,16 @@ export interface EffectRunOutcome {
    * and the fold refuses a `creature-summoned` that arrives before it.
    */
   readonly summoned: readonly CharacterId[];
+  /**
+   * The castings a **successful saving throw** of this run ended — see
+   * `EffectContext.resisted`.
+   *
+   * Returned rather than released inside the run for the reason the summons
+   * above is returned rather than bound: the record the ending releases is
+   * written after the effects resolve, and the fold refuses a `spell-ended` that
+   * arrives before it.
+   */
+  readonly resisted: readonly string[];
 }
 
 /**
@@ -3873,6 +3913,10 @@ export function runEffects(
   // What it put into the world, for the caller to bind once its record exists
   // — see `EffectContext.summoned`.
   const summoned: CharacterId[] = [];
+  // Castings a successful saving throw of this run ended — see
+  // `EffectContext.resisted`. Collected rather than written, because the record
+  // a casting releases is written after its effects have run.
+  const resisted: string[] = [];
   const issuedBefore = supply.issuer.count;
 
   // **Derived once, at the casting, and read from the record ever after.**
@@ -3927,6 +3971,7 @@ export function runEffects(
     outcomes,
     held,
     summoned,
+    resisted,
     leapt: [],
     alters: run.alters ?? NO_ALTERATIONS(),
     ...(run.from === undefined ? {} : { from: run.from }),
@@ -3985,7 +4030,7 @@ export function runEffects(
     });
   }
 
-  return ok({ state: current, numbers, outcomes, held, summoned });
+  return ok({ state: current, numbers, outcomes, held, summoned, resisted });
 }
 
 /**
@@ -4085,6 +4130,8 @@ interface OngoingRecordPlan {
   readonly path?: readonly Point[];
   /** Whether the caster said they were outdoors in a storm — see `OngoingSpell.inAStorm`. */
   readonly inAStorm?: true;
+  /** The one creature the cast singled out — see `OngoingSpell.singledOut`. */
+  readonly singledOut?: string;
 }
 
 /**
