@@ -201,6 +201,30 @@ describe('SRD Coven Magic: the gate, the DC and the rest per spell', () => {
     expect(isErr(asked) && asked.code).toBe('undeclared_side');
   });
 
+  it('asks where the coven stands, rather than refusing on a room nobody has described', () => {
+    // No scene at all: three hags in a hut nobody has set.
+    let bare = fold(SEED, []);
+    for (const [who, block] of [
+      [MOTHER, 'green-hag'],
+      [SISTER, 'green-hag'],
+      [AUNT, 'sea-hag'],
+    ] as const) {
+      bare = unwrap(addCreature(bare, SRD_CONTENT, who, block), who).events.reduce(applyEvent, bare);
+      bare = unwrap(declareCreatureSide(bare, who, 'coven'), 'side').reduce(applyEvent, bare);
+    }
+    const noRoom = cast(bare, 'locate-object');
+    expect(isNeedsContext(noRoom)).toBe(true);
+    expect(isErr(noRoom) && noRoom.code).toBe('no_scene');
+
+    // A scene, and one sister nobody has placed.
+    let room = coven([[SISTER, 'green-hag', 20, 'coven']]);
+    room = unwrap(addCreature(room, SRD_CONTENT, AUNT, 'sea-hag'), 'aunt').events.reduce(applyEvent, room);
+    room = unwrap(declareCreatureSide(room, AUNT, 'coven'), 'side').reduce(applyEvent, room);
+    const unplaced = cast(room, 'locate-object');
+    expect(isNeedsContext(unplaced)).toBe(true);
+    expect(isErr(unplaced) && unplaced.code).toBe('unplaced');
+  });
+
   it('refuses a spell the menu does not print', () => {
     const wrong = cast(coven(WHOLE), 'fireball');
     expect(isErr(wrong) && wrong.code).toBe('spell_not_on_the_line');

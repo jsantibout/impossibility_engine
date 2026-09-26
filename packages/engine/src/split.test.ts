@@ -31,7 +31,9 @@ import {
   declareCreatureSide,
   placeCreatureInScene,
   reactionOpportunities,
+  resolveTurn,
   setScene,
+  summonCreature,
   takeDamageResponse,
 } from './commands.js';
 import { dealSpellDamage } from './commands/damage.js';
@@ -228,6 +230,48 @@ describe('SRD Split: the Reaction, the gate and the two triggers', () => {
       );
     expect(offered(struck(atHitPoints(12), 'slashing', 7))).toBe(true);
     expect(offered(struck(atHitPoints(9), 'slashing', 3))).toBe(false);
+  });
+
+  /**
+   * **On its own turn**, the original is the creature whose turn it is: the
+   * halves are seated straight after it and it leaves, so the order must go
+   * on from them rather than wedge.
+   */
+  it('splits on its own turn, and the fight goes on', () => {
+    let state = atHitPoints(20);
+    state = [{ type: 'turn-advanced' as const }].reduce(applyEvent, state);
+    expect(state.combat!.order[state.combat!.turnIndex]!.id).toBe(PUDDING);
+    state = struck(state, 'slashing', 3);
+    state = unwrap(split(state), 'the split').events.reduce(applyEvent, state);
+    expect(state.combat!.order.map((combatant) => combatant.id)).toEqual([GOBLIN, LEFT, RIGHT]);
+    // The rung the original held is the first half's now, so the turn in hand
+    // is the first half's and the order moves on from it.
+    expect(state.combat!.order[state.combat!.turnIndex]!.id).toBe(LEFT);
+    const turned = unwrap(resolveTurn(state, supply()), 'the turn');
+    const after = turned.events.reduce(applyEvent, state);
+    expect(after.combat!.order[after.combat!.turnIndex]!.id).toBe(RIGHT);
+  });
+
+  /**
+   * `Summons.size`, which the split writes, is the size the scene is told as
+   * well as the one the record holds: a summons placed in the same breath
+   * reads the size back off the arrival it pinned, never off the block.
+   */
+  it('places a summons raised at a stated size at that size', () => {
+    const state = atHitPoints(20);
+    const raised = unwrap(
+      summonCreature(state, SRD_CONTENT, {
+        id: LEFT,
+        monsterId: 'black-pudding',
+        by: PUDDING,
+        size: 'small',
+        placement: { from: { creature: GOBLIN }, feet: 10, bearing: 0 },
+      }),
+      'the summons',
+    );
+    const after = raised.events.reduce(applyEvent, state);
+    expect(after.creatures[LEFT]!.size).toBe('small');
+    expect(after.scene!.sizes[LEFT]).toBe('small');
   });
 
   it('splits the ochre jelly the same way', () => {

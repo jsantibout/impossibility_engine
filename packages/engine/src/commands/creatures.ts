@@ -323,9 +323,14 @@ function arrivalOf(
           // that makes this different from a rider's residue: a trait is not
           // spent, so there is no later moment to say it at.
           ...monster.traits.flatMap((line) =>
-            (line.trait?.handedOver ?? []).map(
-              (clause) =>
-                `${id}: ${line.name} reads "${clause}" — the engine does not apply that; a DM does`,
+            (line.trait?.handedOver ?? []).map((clause) =>
+              // SRD Fire Elemental's closing sentence is carried whole, because
+              // it joins the creatures the engine lights with the objects it
+              // cannot — so the note says which half is whose rather than
+              // telling a DM to light the creatures a second time. (W7-B12)
+              line.trait?.kind === 'damages-creatures-in-an-emanation' && line.trait.ignites === true
+                ? `${id}: ${line.name} reads "${clause}" — the engine lights the creatures the emanation catches; the flammable objects are a DM's`
+                : `${id}: ${line.name} reads "${clause}" — the engine does not apply that; a DM does`,
             ),
           ),
         ],
@@ -697,13 +702,14 @@ export function summonCreature(
       }
 
       if (summons.placement !== undefined) {
-        // The size is the stat block's, and it is **read back** off the
-        // arrival rather than adapted a second time — the same reading
-        // `speedOf` takes below, asked of the world the arrival leaves. A
-        // caller restating it is the one place the two could disagree about
-        // how many cubes a Conjured Hound holds, which is why `Summons`
-        // has nowhere to put one.
-        const pinned = arrival.value.events.reduce(applyEvent, state).creatures[id]?.size;
+        // The size is the one the arrival pinned, and it is **read back** off
+        // it rather than adapted a second time — the same reading `speedOf`
+        // takes below, asked of the world the arrival leaves. The block's own,
+        // or the one `Summons.size` wrote over it (SRD Split's "one size
+        // smaller", W7-B12) — so it is read off the events this command is
+        // about to emit, where that is pinned, and never restated by a caller
+        // beside the placement.
+        const pinned = events.reduce(applyEvent, state).creatures[id]?.size;
         events.push({
           type: 'creature-placed',
           id,

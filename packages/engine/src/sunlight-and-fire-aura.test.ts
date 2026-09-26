@@ -160,6 +160,13 @@ describe('SRD Fire Elemental, Fire Aura: the damage, and the burning it lights',
     expect(turned.unverified.some((note) => note.includes('flammable objects'))).toBe(true);
   });
 
+  it('tells the table at arrival which half of the burning sentence is its own', () => {
+    const arrived = unwrap(addCreature(fold(SEED, []), SRD_CONTENT, ELEMENTAL, 'fire-elemental'), 'arrival');
+    const note = arrived.unverified.find((line) => line.includes('flammable objects'));
+    expect(note).toContain('the engine lights the creatures');
+    expect(note).not.toContain('the engine does not apply that');
+  });
+
   it('lights nobody where the aura prints no burning — the azer’s', () => {
     const log = line([
       [ELEMENTAL, 'azer-sentinel', 0],

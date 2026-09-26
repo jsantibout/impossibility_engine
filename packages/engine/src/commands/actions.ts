@@ -3566,9 +3566,11 @@ export function castPrintedLine(
  *   it, each of whose name carries the line's own noun as a word — a stat
  *   block's name is the block's ("Green Hag", "Sea Hag"), so the noun the book
  *   printed ("hag") is read off it and nothing here names a catalogue entry.
- *   An ally nobody has placed is at no distance and is not counted, which is
- *   the conservative reading every reach in this engine takes; a caster whose
- *   side nobody has declared has no allies to count, and is asked for one;
+ *   Too few of that kind anywhere is refused; too few *placed* is a fact
+ *   missing, so a room nobody has set and an ally nobody has placed are
+ *   asked for, the reading `reachedBy` takes of every reach — and a caster
+ *   whose side nobody has declared has no allies to count, and is asked for
+ *   one;
  * - **the price**, which is the route's own pool — one use of each spell
  *   between Long Rests, spent by the casting pipeline like any free casting —
  *   and the spell's own casting time, which `castingOf` reads off a route that
@@ -3641,19 +3643,49 @@ function castThroughTrait(
       );
     }
     const word = new RegExp(`\\b${gate.kind.replace(/[^a-z -]/g, '')}\\b`, 'i');
-    const allies = (Object.keys(state.creatures) as CharacterId[]).sort().filter((other) => {
+    // Every creature the gate could count — alive, on the caster's side, of
+    // the printed kind — before any distance is asked.
+    const kin = (Object.keys(state.creatures) as CharacterId[]).sort().filter((other) => {
       const ally = state.creatures[other];
       if (other === id || ally === undefined || ally.vitals.dead) return false;
-      if (ally.side !== side || !word.test(ally.name)) return false;
-      if (state.scene === null) return false;
-      const apart = distanceBetween(state.scene, id, other);
-      return apart.ok && apart.value <= gate.feet;
+      return ally.side === side && word.test(ally.name);
     });
-    if (allies.length < gate.count) {
-      return err(
+    const tooFew = (counted: readonly CharacterId[]) =>
+      err(
         'coven_too_small',
-        `${line.name} is cast within ${gate.feet} feet of at least ${gate.count} ${gate.kind} allies, and ${id} has ${allies.length === 0 ? 'none' : allies.join(', ')} there`,
+        `${line.name} is cast within ${gate.feet} feet of at least ${gate.count} ${gate.kind} allies, and ${id} has ${counted.length === 0 ? 'none' : counted.join(', ')} there`,
       );
+    // Too few of them anywhere is a verdict; too few *placed* is a fact
+    // missing, and rule 6 asks for it rather than refusing on it.
+    if (kin.length < gate.count) return tooFew([]);
+    const scene = sceneFor(state, id, `${line.name} counts ${gate.kind} allies within ${gate.feet} feet`);
+    if (!scene.ok) return scene;
+    const within: CharacterId[] = [];
+    const unplaced: CharacterId[] = positionOf(scene.value, id) === null ? [id] : [];
+    for (const other of kin) {
+      if (positionOf(scene.value, other) === null) {
+        unplaced.push(other);
+        continue;
+      }
+      const apart = distanceBetween(scene.value, id, other);
+      if (apart.ok && apart.value <= gate.feet) within.push(other);
+    }
+    if (within.length < gate.count) {
+      const couldCount = unplaced.includes(id) || within.length + unplaced.length >= gate.count;
+      if (unplaced.length > 0 && couldCount) {
+        return needsContext(
+          'unplaced',
+          `nobody has said where ${unplaced.join(' or ')} ${unplaced.length === 1 ? 'is' : 'are'} standing, and ${line.name} counts ${gate.kind} allies within ${gate.feet} feet`,
+          unplaced.map((absent) => ({
+            kind: 'position' as const,
+            subject: absent,
+            need: `where ${absent} is standing`,
+            because: `${line.name} counts ${gate.kind} allies within ${gate.feet} feet`,
+            satisfyWith: `a placeCreatureInScene command for ${absent}`,
+          })),
+        );
+      }
+      return tooFew(within);
     }
   }
 
