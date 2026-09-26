@@ -412,6 +412,66 @@ describe('SRD Magic Circle: "cause its magic to operate in the reverse direction
     expect(game.shoot(FIEND)).toBe('disadvantage');
     expect(game.shoot(BANDIT)).toBe('normal');
   });
+
+  /**
+   * **And it protects them from the creature it is holding, and from no
+   * other.** `outside` on its own said half the sentence: a reversed circle
+   * handed its two clauses to everybody standing outside, so a *second* Fiend
+   * out on the road had Disadvantage attacking a cleric on the far side of the
+   * field and could Frighten nobody out there — a protection the spell does not
+   * grant, from a circle the imp had never been near.
+   *
+   * The whole sentence is "preventing a creature of the specified type from
+   * **leaving** the Cylinder and protecting targets outside it": the creature
+   * it is about is the one penned in. `AreaSide.attackerInside` is the other
+   * end of the pair, and the imp is what it is for.
+   */
+  it('cast outward, leaves a Fiend that is not in the circle out of it entirely', () => {
+    const IMP = id('imp');
+    const game = new Game('inside east').draw('outward');
+    game.push([
+      added(IMP, 'foes', 'Fiend'),
+      { type: 'items-gained', id: IMP, items: [{ id: 'longbow', quantity: 1 }], source: 'kit' },
+      { type: 'item-equipped', id: IMP, item: 'longbow', armor: null },
+      // Fifty feet off across the field: outside the Cylinder, and far enough
+      // from the cleric that a longbow is not at close quarters.
+      { type: 'landmark-added', name: 'the far hedge', at: { x: 150, y: 250, z: 0 } },
+      {
+        type: 'creature-placed',
+        id: IMP,
+        placement: { from: { landmark: 'the far hedge' }, feet: 0 },
+      },
+      { type: 'sight-declared', from: IMP, to: CLERIC, seen: true },
+      { type: 'sight-declared', from: CLERIC, to: IMP, seen: true },
+    ]);
+    // The cleric outside her own circle, exactly as the test above puts her.
+    game.push([
+      {
+        type: 'creature-moved',
+        id: CLERIC,
+        placement: { from: { creature: BANDIT }, feet: 10, bearing: 270 },
+      },
+    ]);
+
+    // The Fiend the circle is holding is refused; the one across the field is
+    // not, and neither is the Humanoid.
+    expect(game.frighten(FIEND)).toBe('immune');
+    expect(game.frighten(IMP)).toBeNull();
+
+    game.push([
+      {
+        type: 'combat-started',
+        combatants: [
+          { id: CLERIC, initiative: 20, speed: 30 },
+          { id: FIEND, initiative: 15, speed: 30 },
+          { id: IMP, initiative: 12, speed: 30 },
+          { id: BANDIT, initiative: 10, speed: 30 },
+        ],
+      },
+    ]);
+    expect(game.shoot(FIEND)).toBe('disadvantage');
+    expect(game.shoot(IMP)).toBe('normal');
+  });
 });
 
 describe('SRD Magic Circle: a printed Teleport is a teleport too', () => {

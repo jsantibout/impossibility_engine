@@ -943,8 +943,12 @@ function checkAreaStanding(
 }
 
 /**
- * A clause's `outside` marker — SRD Magic Circle's reverse — is printed or it
- * is not, so the only value is `true`.
+ * A clause's two side markers — SRD Magic Circle's reverse, read whole — are
+ * printed or they are not, so the only value of either is `true`.
+ *
+ * `outside` narrows whom the clause protects and `attackerInside` narrows whom
+ * it protects them from. Neither implies the other and both are checked the
+ * same way, which is why one function asks about both.
  */
 function checkOutside(
   standing: Record<string, unknown>,
@@ -956,6 +960,13 @@ function checkOutside(
       field: `${path}.outside`,
       code: 'bad_area_side',
       reason: `a clause protects whoever is outside the area or it does not, so the only value is true, and this is ${nameOf(standing['outside'])}`,
+    });
+  }
+  if (standing['attackerInside'] !== undefined && standing['attackerInside'] !== true) {
+    found.push({
+      field: `${path}.attackerInside`,
+      code: 'bad_area_side',
+      reason: `a clause holds against whoever is inside the area or it asks nothing about them, so the only value is true, and this is ${nameOf(standing['attackerInside'])}`,
     });
   }
 }

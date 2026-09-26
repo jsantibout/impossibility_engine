@@ -13,6 +13,10 @@ import {
   resolveSpell,
   type SpellResolution,
 } from './commands.js';
+// The two forced movements a spell makes, reached directly: neither is on the
+// command barrel, because each is a rider's half of a casting rather than a
+// command anybody calls.
+import { lift, shoveAwayFrom } from './commands/spell-effect-movement.js';
 
 /**
  * SRD Tiny Hut, whole.
@@ -309,5 +313,86 @@ describe('SRD Tiny Hut: "The spell ends early if you leave the Emanation"', () =
       { type: 'creature-moved', id: WIZARD, placement: { from: { landmark: 'the field' }, feet: 0 } },
     ]);
     expect(game.hut()).toBeUndefined();
+  });
+});
+
+/**
+ * The ruling the barriers track surfaced: a shove that would drive a creature
+ * through a dome that bars it.
+ *
+ * `resolveMove` has asked `barriersAgainst` since this spell landed, and every
+ * forced move a *spell* or a *stat block* makes went straight to
+ * `moveCreature` — so a Thunderwave pushed the goblin through the dome and a
+ * Levitate lifted one through the roof, with nothing refused, reported or even
+ * noticed.
+ *
+ * **Forced movement reports rather than refuses**, which is the movement
+ * command's own rule for it and the only one available here: by the time a
+ * rider runs the slot is spent and the save is rolled, so a refusal would be a
+ * casting undone by the room. So the creature travels as far as the last space
+ * on its own side and comes to rest there, with the wall named in `unverified`.
+ */
+describe('SRD Tiny Hut: a shove that would carry somebody through it', () => {
+  /** East of the goblin, so a push away from it drives the goblin at the dome. */
+  const BULLY = id('bully');
+
+  const withBully = (game: Game): Game =>
+    game.push([
+      added(BULLY, 'foes'),
+      { type: 'landmark-added', name: 'the far road', at: { x: 250, y: 200, z: 0 } },
+      {
+        type: 'creature-placed',
+        id: BULLY,
+        placement: { from: { landmark: 'the far road' }, feet: 0 },
+      },
+    ]);
+
+  const shove = (game: Game, feet: number) =>
+    shoveAwayFrom(game.state, GOBLIN, BULLY, { feet }, 'Thunderwave');
+
+  it('stops the goblin at the dome and says where it came to rest', () => {
+    const game = withBully(new Game().raiseTheHut());
+    // Thirty feet of push from x=250 at a goblin on x=230 runs it west into a
+    // dome whose edge is x=210; the last space on its own side is x=215.
+    const out = shove(game, 30);
+    expect(out.events).toHaveLength(1);
+    expect(out.events[0]).toMatchObject({ type: 'creature-moved', id: GOBLIN, forced: true });
+    game.push(out.events);
+    expect(game.state.scene?.positions[GOBLIN]).toEqual(LANDMARKS['just outside']);
+    expect(out.unverified.join(' ')).toContain('Tiny Hut');
+    expect(out.unverified.join(' ')).toContain('comes to rest against it after 15 feet');
+  });
+
+  it('pushes the whole distance where no barrier stands in the way', () => {
+    const game = withBully(new Game());
+    const out = shove(game, 30);
+    game.push(out.events);
+    expect(game.state.scene?.positions[GOBLIN]).toEqual({ x: 200, y: 200, z: 0 });
+    expect(out.unverified).toEqual([]);
+  });
+
+  /** And a push whose very first space crosses moves nobody at all. */
+  it('moves nobody where the first space is already through', () => {
+    const game = withBully(new Game().raiseTheHut());
+    game.push(unwrap(game.move(GOBLIN, 'just outside'), 'to the edge').events);
+    const out = shove(game, 10);
+    expect(out.events).toEqual([]);
+    expect(out.unverified.join(' ')).toContain('comes to rest against it after 0 feet');
+  });
+
+  /** The lift asks the same question on the one axis a bearing cannot name. */
+  it('lifts the creature the dome lets through, and the one with sky above it', () => {
+    const game = new Game().raiseTheHut();
+    // The fighter was inside at the cast, so the dome lets them through: SRD's
+    // own exception, and the rise is unimpeded.
+    const inside = lift(game.state, FIGHTER, { feet: 30 }, 'Levitate#cast:1', 'Levitate');
+    expect(inside.unverified).toEqual([]);
+    expect(inside.events).toHaveLength(2);
+
+    // And the goblin was not, but a rise from the road crosses nothing: there
+    // is only sky above it.
+    const outside = lift(game.state, GOBLIN, { feet: 30 }, 'Levitate#cast:2', 'Levitate');
+    expect(outside.unverified).toEqual([]);
+    expect(outside.events).toHaveLength(2);
   });
 });

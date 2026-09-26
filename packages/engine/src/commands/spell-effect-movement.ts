@@ -21,20 +21,127 @@
  * wall would be a log that cannot be folded rather than a refusal. It is asked
  * before it is written, and what could not happen is said out loud on the
  * casting's `unverified`, exactly as the Push mastery says it.
+ *
+ * **And a casting's own barriers are asked about too**, which they were not:
+ * `resolveMove` has consulted `barriersAgainst` since SRD Tiny Hut's dome
+ * landed, and every function here called `moveCreature` straight past it — so
+ * a Thunderwave drove a goblin through a dome that bars it and a Levitate
+ * lifted one through the roof, neither refused nor reported. {@link
+ * stopAtBarriers} is the one ask, shared by the push, the lift and the pull,
+ * and it **stops** the creature on its own side rather than refusing, which is
+ * the same paragraph again.
  */
 
 import { err, ok, type CharacterId, type Result } from '@ie/shared';
 import { applyEvent, type GameEvent, type GameState } from '../events.js';
-import { bearingBetween, distanceBetween, moveCreature, sizeAtMost } from '../positioning.js';
+import {
+  bearingBetween,
+  distanceBetween,
+  moveCreature,
+  moverInRegionAt,
+  positionOf,
+  sizeAtMost,
+  type Placement,
+  type PositionState,
+} from '../positioning.js';
 import { effectiveSizeOf } from '../size.js';
 import type { CreatureSize } from '@ie/srd';
 import { ranged, type ForcedMovement } from '../spell-definitions.js';
 import { castingIdOf } from '../spells.js';
+import { barriersAgainst, type BarrierAgainst } from '../standing.js';
 import { type EffectContext, type EffectOfKind } from './spell-effect-context.js';
 
 /** A size as the book prints it, for a reason a person reads. */
 const printed = (size: CreatureSize): string =>
   `${size.charAt(0).toUpperCase()}${size.slice(1)}`;
+
+/** One space on the lattice, which is the granularity a crossing is read at. */
+const STEP = 5;
+
+/** How a barrier's own clause reads in a sentence a table acts on. */
+const verbOf = (crossing: BarrierAgainst['crossing']): string =>
+  crossing === 'in' ? 'entering' : crossing === 'out' ? 'leaving' : 'passing through';
+
+/** How far a forced move really carries, and what the engine could not settle. */
+interface ShoveReach {
+  readonly feet: number;
+  readonly unverified: readonly string[];
+}
+
+/**
+ * Stop a forced move at the first barrier it would cross.
+ *
+ * SRD Tiny Hut: "All other creatures and objects are barred from passing
+ * through it." SRD Magic Circle, SRD Wind Wall the same of their own
+ * populations. `resolveMove` has asked `barriersAgainst` since the barriers
+ * landed and **a spell's shove never did**: `shoveAwayFrom` and {@link lift}
+ * call `moveCreature` straight, so a Thunderwave drove a goblin through a dome
+ * that bars it and nothing was refused, reported or even noticed.
+ *
+ * **It stops rather than refuses**, which is the movement command's own rule
+ * for forced movement: by the time a rider runs the slot is spent and the save
+ * is rolled, so a refusal here would be a casting undone by the room. The
+ * creature travels as far as the last space on its own side of the boundary and
+ * comes to rest there, and the wall it is up against is named in `unverified`.
+ * Where the very first space would cross, nothing moves at all.
+ *
+ * **Read a space at a time**, because a crossing is a step from one side to the
+ * other and the endpoints cannot always see it: a ten-foot push that begins
+ * outside a dome and ends outside the far side of it has passed through. The
+ * geometry is `moverInRegionAt`'s, asked of the mover's whole volume, which is
+ * the same question `checkBarriers` asks of a walk.
+ *
+ * **`flying: false`**, for `teleportTo`'s reason: nobody flies through a shove,
+ * so SRD Wind Wall's clause about a Small flier does not bite on one.
+ */
+function stopAtBarriers(
+  state: GameState,
+  scene: PositionState,
+  target: CharacterId,
+  feet: number,
+  /** The placement this move would use at a given distance. */
+  placementAt: (feet: number) => Placement,
+  /** What the log calls the thing that moved them, and how it moved them. */
+  by: { readonly name: string; readonly verb: string },
+): ShoveReach {
+  const barriers = barriersAgainst(state, target, { flying: false });
+  if (barriers.length === 0) return { feet, unverified: [] };
+
+  const from = positionOf(scene, target);
+  if (from === null) return { feet, unverified: [] };
+
+  // Every space the move passes through, and the end of it whether or not the
+  // printed distance lands on the lattice.
+  const stops: number[] = [];
+  for (let step = STEP; step < feet; step += STEP) stops.push(step);
+  if (feet > 0) stops.push(feet);
+
+  let previous = from;
+  let reached = 0;
+  for (const step of stops) {
+    const moved = moveCreature(scene, target, placementAt(step), { forced: true });
+    // The room's own answer, left to the caller that already reports it.
+    if (!moved.ok) break;
+    const at = moved.value.state.positions[target];
+    if (at === undefined) break;
+    for (const barrier of barriers) {
+      const inA = moverInRegionAt(scene, barrier.region, target, previous);
+      const inB = moverInRegionAt(scene, barrier.region, target, at);
+      const crossed =
+        barrier.crossing === 'in' ? !inA && inB : barrier.crossing === 'out' ? inA && !inB : inA !== inB;
+      if (!crossed) continue;
+      return {
+        feet: reached,
+        unverified: [
+          `${by.name}: ${target} was ${by.verb} into ${barrier.spell}, which bars ${verbOf(barrier.crossing)} it, and comes to rest against it after ${reached} feet`,
+        ],
+      };
+    }
+    previous = at;
+    reached = step;
+  }
+  return { feet, unverified: [] };
+}
 
 /** What a shove came to: the event it wrote, or the reason it wrote none. */
 export interface PushOutcome {
@@ -98,11 +205,21 @@ export function shoveAwayFrom(
   const bearing = bearingBetween(scene, source, target);
   if (!bearing.ok) return { events: [], unverified: [...assumed, `${name}: ${bearing.reason}`] };
 
-  const placement = {
+  const placementAt = (feet: number): Placement => ({
     from: { creature: target },
-    feet: movement.feet,
+    feet,
     bearing: bearing.value,
-  } as const;
+  });
+
+  // **And the barriers a casting has raised against this creature**, which a
+  // spell's shove had never asked about. Reported and stopped rather than
+  // refused: see {@link stopAtBarriers}.
+  const reach = stopAtBarriers(state, scene, target, movement.feet, placementAt, {
+    name,
+    verb: 'pushed',
+  });
+  if (reach.feet <= 0) return { events: [], unverified: [...assumed, ...reach.unverified] };
+  const placement = placementAt(reach.feet);
 
   // SRD: "You can't **willingly** end a move in a space occupied by another
   // creature." A shove is the "somehow" that rule leaves room for, so
@@ -120,7 +237,7 @@ export function shoveAwayFrom(
   // Difficult Terrain was charged — a shove is not the creature's movement.
   return {
     events: [{ type: 'creature-moved', id: target, placement, forced: true }],
-    unverified: assumed,
+    unverified: [...assumed, ...reach.unverified],
   };
 }
 
@@ -172,7 +289,20 @@ export function lift(
     };
   }
 
-  const placement = { from: { creature: target }, feet: 0, elevation: movement.feet } as const;
+  const placementAt = (feet: number): Placement => ({
+    from: { creature: target },
+    feet: 0,
+    elevation: feet,
+  });
+
+  // A dome has a roof, and a rise is a crossing like any other: the barrier
+  // read is the same one a push gets, on the one axis a bearing cannot name.
+  const reach = stopAtBarriers(state, scene, target, movement.feet, placementAt, {
+    name,
+    verb: 'lifted',
+  });
+  if (reach.feet <= 0) return { events: [], unverified: reach.unverified };
+  const placement = placementAt(reach.feet);
 
   // Forced, for the reason every other movement in this module is: nobody
   // spent a Speed on it, it provokes nothing, and the space it ends in is not
@@ -187,7 +317,7 @@ export function lift(
       { type: 'creature-moved', id: target, placement, forced: true },
       { type: 'creature-lifted', id: target, lift: { source } },
     ],
-    unverified: [],
+    unverified: reach.unverified,
   };
 }
 
@@ -333,14 +463,27 @@ export function pullToward(
   const feet = Math.min(movement.feet, gap.value);
   if (feet <= 0) return { events: [], unverified: [] };
 
-  const placement = { from: { creature: target }, feet, bearing: bearing.value } as const;
+  const placementAt = (far: number): Placement => ({
+    from: { creature: target },
+    feet: far,
+    bearing: bearing.value,
+  });
+
+  // The same ask its twin gets, and the same reason: a creature dragged into a
+  // dome that bars it stops at the boundary and the wall is named.
+  const reach = stopAtBarriers(state, scene, target, feet, placementAt, { name, verb: 'pulled' });
+  if (reach.feet <= 0) return { events: [], unverified: reach.unverified };
+  const placement = placementAt(reach.feet);
 
   const moved = moveCreature(scene, target, placement, { forced: true });
   if (!moved.ok) {
     return { events: [], unverified: [`${name}: ${target} could not be pulled: ${moved.reason}`] };
   }
 
-  return { events: [{ type: 'creature-moved', id: target, placement, forced: true }], unverified: [] };
+  return {
+    events: [{ type: 'creature-moved', id: target, placement, forced: true }],
+    unverified: reach.unverified,
+  };
 }
 
 /**

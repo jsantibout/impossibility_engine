@@ -14137,14 +14137,30 @@ export const MAGIC_CIRCLE: SpellDefinition = {
     },
     outward: {
       label: 'Reverse',
+      // "preventing a creature of the specified type from **leaving** the
+      // Cylinder and protecting targets outside it." Two narrowings and not
+      // one, which the reversed branch needed and did not have: `outside` says
+      // whom the two protective clauses reach, and `attackerInside` says whom
+      // they protect them *from* — the creature the circle is penning in. With
+      // only the first, a Fiend walking past on the road had Disadvantage
+      // against a cleric on the far side of the field and could Charm nobody
+      // out there, which is a protection the spell does not grant and one no
+      // circle would have to be anywhere near.
       areaStanding: [
         { kind: 'bars-passage', to: { types: 'stated' }, crossing: 'out', saveToCross: 'cha' },
-        { kind: 'attack-mode', mode: 'disadvantage', attackerType: 'stated', outside: true },
+        {
+          kind: 'attack-mode',
+          mode: 'disadvantage',
+          attackerType: 'stated',
+          outside: true,
+          attackerInside: true,
+        },
         {
           kind: 'condition-immunity',
           conditions: ['charmed', 'frightened'],
           fromTypes: 'stated',
           outside: true,
+          attackerInside: true,
         },
       ],
     },
