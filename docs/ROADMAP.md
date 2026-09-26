@@ -3016,3 +3016,19 @@ Appended 2026-09-26, wave seven on Opus:
   Form's occupancy clause sits in `unmodelled` without an adjudication, so
   "partial" (computed from `ADJUDICATED`) does not see it — an older gap this
   made visible. One Opus review, three defects, fixed.
+- **What the economy track left** (W7-S22). The engine knows a spell's
+  components: `SpellEntry.components` on the regenerated spell index
+  (optional; `hasComponent` its one reader). SRD Slow's Somatic chance is
+  `ActionRule` `casting-chance`, thrown once after the cost is paid
+  (`castingFailure`, a d100 through `thrownAgainst`), a failure writing
+  `spell-fizzled` and ending the casting through `releaseCasting`; an item's
+  casting and a Subtle one are exempt. SRD Command's Drop and Grovel land at
+  the target's next turn start: `OutcomeRiders.at`, `riders-deferred` pinning
+  a `DeferredRiders` record, a new seam `fold/deferred.ts`, settled in
+  `resolveTurn` after the granted action; "then ends its turn" spends the
+  Action and the Bonus Action (not the Reaction), the movement reported.
+  Spells in reach 3 → 2 (Command executes). **Not yet:** Slow's die on a
+  readied casting, a cantrip cast with a swing or a smite on a hit, and a
+  glyph's inscription (named in SLOW's `unmodelled`); Silence's
+  `noVerbalComponent` is still declared, not derived. Main re-indexed.
+  One Opus review, five defects, fixed.

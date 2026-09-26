@@ -28,7 +28,7 @@ than to the table.
 
 | Parsed | Tracked | Executed | of which partial | Verified |
 |---|---|---|---|---|
-| 339 | 143 (42.2%) | 192 (56.6%) | 28 | 158 (46.6%) |
+| 339 | 143 (42.2%) | 192 (56.6%) | 27 | 158 (46.6%) |
 
 A **tracked** spell is not a half-finished executed one. Disguise Self will
 never be executed, because what the caster looks like is not arithmetic;
@@ -70,7 +70,7 @@ a plain statement of what the table decides.
 - **Circle of Death** (level 6) — verified
 - **Cloudkill** (level 5) — untested, partial — a clause the engine owns is still unbuilt
 - **Color Spray** (level 1) — untested
-- **Command** (level 1) — verified, partial — a clause the engine owns is still unbuilt
+- **Command** (level 1) — verified
 - **Compulsion** (level 4) — verified, partial — a clause the engine owns is still unbuilt
 - **Cone of Cold** (level 5) — verified
 - **Conjure Animals** (level 3) — verified
@@ -441,8 +441,8 @@ of *Tracked* and is never added to it.
 | `an-effect-that-suppresses-other-magic` | 8 | 0 | 0 | 0 | 8 | 0 | 0 |
 | `a-repeat-save-raised-by-a-trigger` | 7 | 0 | 0 | 5 | 2 | 0 | 0 |
 | `a-spells-effects-applied-to-different-targets` | 7 | 0 | 0 | 2 | 5 | 0 | 0 |
-| `a-creature-somebody-else-is-playing` | 6 | 0 | 0 | 5 | 1 | 0 | 0 |
 | `an-action-a-spell-compels-or-forbids` | 6 | 0 | 0 | 2 | 4 | 0 | 0 |
+| `a-creature-somebody-else-is-playing` | 5 | 0 | 0 | 4 | 1 | 0 | 0 |
 | `difficult-terrain-an-area-creates` | 5 | 0 | 0 | 3 | 2 | 1 | 0 |
 | `a-hit-point-maximum-a-spell-moves` | 4 | 0 | 0 | 1 | 3 | 0 | 0 |
 | `an-area-trigger-on-the-casters-turn` | 4 | 0 | 0 | 0 | 4 | 0 | 0 |

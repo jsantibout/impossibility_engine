@@ -92,7 +92,12 @@ turn begins is a question about the world the previous end left behind.
    `1d6`, rolled with provenance like any other, and comes back on the printed
    number or better. `recharge_owed` refuses where there is no generator, the
    fourth member of the family `payout_owed`, `damage_owed` and
-   `death_save_owed` already belong to.
+   `death_save_owed` already belong to. **And riders a save deferred into
+   this creature's turn land here** (`state.deferredRiders`, settled by
+   `settleDeferredRiders` right after a granted action is minted — SRD
+   Command's Drop and Grovel): conditions, drops and spends, each an event;
+   `riders_owed` refuses where there is no catalogue to settle with, and
+   `combat-ended` forgets every such debt.
 
 A fight opening is the same moment by a second door: `combat-started`
 marks the first combatant's start pending, step 6 reaches it, and **step 7

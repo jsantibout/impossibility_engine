@@ -150,12 +150,14 @@ deliberately cannot. One kind with two behaviours would report itself read
 when only half of it was.
 
 Left open, and worth knowing before somebody meets it: **Counterspell
-triggers on components, an item's spell requires none, and a
-`SpellDefinition` holds one component fact and no more** — `noVerbalComponent`,
-a negative marker Silence reads (absent means the spell has a V, the book's
-own default; `spell-catalogue.test.ts` checks every definition against the
-parsed book in both directions) — so today's reaction window would open on a
-wand. Whether the window reads components or the item route refuses it is a
+triggers on components, an item's spell requires none**, and the engine
+now knows a spell's components twice: `SpellEntry.components` off the parsed
+book (optional; absent reads as Verbal and Somatic, no Material, through
+`hasComponent`, which SRD Slow's Somatic chance reads — W7-S22), and the older
+declared `noVerbalComponent` Silence reads (absent means the spell has a V;
+`spell-catalogue.test.ts` checks every definition against the parsed book in
+both directions). Nothing yet derives the second from the first, and today's
+Counterspell window would still open on a wand. Whether the window reads components or the item route refuses it is a
 rules decision nobody has taken.
 
 A feature's pool use is the third host of an effect list. It confers without

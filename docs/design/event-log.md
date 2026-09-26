@@ -64,7 +64,9 @@ summoner keeps a creature on.
 Interruptible resolutions live in state so a reload cannot lose them:
 `pendingAttack`, `pendingDamage`, `pendingTest`, `pendingMove`,
 `pendingCastings`, `pendingSaves`, `scheduledDamage`, `owedAreaEffects`,
-`readied`. The turn refuses to advance past one it cannot settle.
+`readied`, `deferredRiders` (a save's riders owed at the target's next turn
+start, pinned whole on `riders-deferred`, folded by `fold/deferred.ts`). The
+turn refuses to advance past one it cannot settle.
 
 A creature summoned by a casting that has since ended is the same kind of
 debt and is **not** state: who is standing on a casting that is over is a
