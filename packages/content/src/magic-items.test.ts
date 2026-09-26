@@ -392,8 +392,13 @@ describe('every transcribed item agrees with the entry it was read from', () => 
         // is held against the per-day sentences that could be about *it* —
         // one naming another spell the same item prices is somebody else's —
         // rather than against the presence of any such sentence anywhere.
+        // **And one filed under another property is that property's**: SRD
+        // Rod of Alertness's "Once used, this property can't be used again
+        // until the next dawn" closes its _Protective Aura_, and its spells
+        // are under _Spells._ — see {@link underAnotherProperty}.
         const limits = dawnSentences(entry.description).filter(
           (sentence) =>
+            !underAnotherProperty(entry.description, sentence, name ?? grant.spell) &&
             !(item.grants ?? []).some(
               (other) =>
                 other.kind === 'casts' &&
@@ -405,8 +410,13 @@ describe('every transcribed item agrees with the entry it was read from', () => 
         if (grant.atWill === true) {
           expect(grant.charges, `${item.id} casts ${name} at will and names a price`)
             .toBeUndefined();
-          expect(entry.charges, `${item.id} casts ${name} at will and its entry has charges`)
-            .toBeNull();
+          // An entry with charges may still price one casting at nothing, in
+          // the two ways {@link pricedAtNothing} reads; anywhere else a charge
+          // count beside an at-will casting is a staff quietly made free.
+          expect(
+            entry.charges === null || pricedAtNothing(entry.description, name ?? grant.spell),
+            `${item.id} casts ${name} at will and its entry has charges`,
+          ).toBe(true);
           expect(
             limits,
             `${item.id} casts ${name} at will and its entry prints a per-day limit`,
@@ -431,7 +441,11 @@ describe('every transcribed item agrees with the entry it was read from', () => 
                 contains(entry.description, `expends ${grant.charges} charge`) ||
                 contains(entry.description, `expend ${grant.charges} of the`) ||
                 contains(entry.description, `For ${grant.charges} charge`) ||
-                tablePrices(entry.description).get(name ?? '') === grant.charges;
+                tablePrices(entry.description).get(name ?? '') === grant.charges ||
+                // And a cell that prices by the level — see {@link perLevelCells}
+                // — where the floor is one charge for each level of the spell.
+                (perLevelCells(entry.description).has(name ?? '') &&
+                  grant.charges === SRD_SPELLS.find((spell) => spell.id === grant.spell)?.level);
           expect(printed, `${item.id} prices ${name} at ${grant.charges}, and its entry does not`)
             .toBe(true);
         }
@@ -461,12 +475,15 @@ describe('every transcribed item agrees with the entry it was read from', () => 
           // the lenses hold — so the maximum it may name is the pool's size
           // and nothing else.
           const poolSize = (item.grants ?? []).find((one) => one.kind === 'pool');
+          // And a third: SRD Staff of Healing's "(maximum 4 for a level 4
+          // spell)", whose ceiling is printed in the cell that prices the row.
           expect(
             contains(entry.description, `no more than ${grant.upToCharges} charges`) ||
               (contains(entry.description, `${grant.charges ?? 1} or more charges`) &&
                 poolSize !== undefined &&
                 'uses' in poolSize &&
-                poolSize.uses === grant.upToCharges),
+                poolSize.uses === grant.upToCharges) ||
+              perLevelCells(entry.description).get(name ?? '') === grant.upToCharges,
             `${item.id} lets ${grant.upToCharges} charges go and its entry does not`,
           ).toBe(true);
         }
@@ -505,6 +522,147 @@ const tablePrices = (description: string): ReadonlyMap<string, number> => {
   }
   return prices;
 };
+
+/** The cells of an entry's table, in order, with the markup left on. */
+const tableCells = (description: string): readonly string[] =>
+  [...description.matchAll(/<td>([^<]*)<\/td>/g)].map((m) => (m[1] ?? '').trim());
+
+/**
+ * **A cell that prices a row by the level**, and the ceiling it prints.
+ *
+ * SRD Staff of Healing: "_Cure Wounds_ | 1 charge per spell level (maximum 4
+ * for a level 4 spell)". That is the wands' sentence read from the other end —
+ * one charge buys the spell's own level and each further charge one level more
+ * — so the grant is a floor and an `upToCharges`, and this reads both off the
+ * cell: the floor is one charge per level of the spell, the ceiling is the
+ * printed maximum. Only the one wording, with the level and the maximum the
+ * same number, because that is the only form in which the engine's arithmetic
+ * ("one more level for each additional charge") is the book's.
+ */
+const perLevelCells = (description: string): ReadonlyMap<string, number> => {
+  const found = new Map<string, number>();
+  const cells = tableCells(description);
+  for (let n = 0; n + 1 < cells.length; n += 2) {
+    const printed = /^1 charge per spell level \(maximum (\d+) for a level \1 spell\)$/.exec(
+      cells[n + 1] ?? '',
+    );
+    if (printed === null) continue;
+    found.set((cells[n] ?? '').replace(/[*_]/g, '').trim(), Number(printed[1]));
+  }
+  return found;
+};
+
+/**
+ * **An entry with charges that prices one of its castings at nothing**, in the
+ * two ways the book prints it.
+ *
+ * - **A "0" in the table.** SRD Staff of the Magi prices Detect Magic, Light
+ *   and three others at "0" in a staff of fifty charges — a cell that says the
+ *   casting costs nothing, which is `atWill` and not a price of zero.
+ * - **A sentence that names the spell and no charge.** SRD Ring of Shooting
+ *   Stars: "You can cast _Dancing Lights_ or _Light_ from the ring. The ring has
+ *   6 charges ... You can expend its charges to use the properties below." The
+ *   cantrips are named before the charges are mentioned and in a sentence that
+ *   prices nothing.
+ *
+ * The second is read strictly: every sentence that italicises the spell's name
+ * must be free of the word "charge", so a spell priced anywhere in its own
+ * entry is never free. A table row that prices it at more than nothing settles
+ * it the other way before any sentence is read.
+ */
+const pricedAtNothing = (description: string, name: string): boolean => {
+  const cell = tablePrices(description).get(name);
+  if (cell !== undefined) return cell === 0;
+  const naming = description
+    .split(/(?<=\.)\s+/)
+    .filter((sentence) => [`_${name}_`, `*${name}*`].some((mark) => sentence.includes(mark)));
+  return naming.length > 0 && naming.every((sentence) => !/\bcharges?\b/i.test(sentence));
+};
+
+/**
+ * The property heading each paragraph of an entry sits under.
+ *
+ * The book writes a many-property item as paragraphs each opening on its name
+ * — "_Alertness._", "**_Faerie Fire._**", "**Cast Spell.**" — and a paragraph
+ * with no heading of its own (a list of spells, a sentence continuing the
+ * property above it) belongs to the one before. Null before the first.
+ */
+const headedParagraphs = (
+  description: string,
+): readonly { readonly heading: string | null; readonly text: string }[] => {
+  let heading: string | null = null;
+  return description.split(/\n\s*\n/).map((text) => {
+    const opened = /^(?:\*\*_|\*\*|_)([^*_]+?)\.(?:_\*\*|\*\*|_)/.exec(text.trim());
+    if (opened !== null) heading = opened[1] ?? null;
+    return { heading, text };
+  });
+};
+
+/**
+ * **Is this per-day sentence filed under a property the spell is not?**
+ *
+ * "Once used, this property can't be used again until the next dawn" limits
+ * *this property*, and which one that is the page says by where the sentence
+ * stands. So a sentence under a heading is somebody else's limit when every
+ * paragraph that italicises the spell sits under a different heading — and
+ * nobody's verdict at all (false) where either is unheaded, which leaves the
+ * guard exactly as strict as it was on every entry that does not head its
+ * properties.
+ */
+const underAnotherProperty = (description: string, sentence: string, name: string): boolean => {
+  const paragraphs = headedParagraphs(description);
+  const at =
+    paragraphs.find((one) => normaliseProse(one.text).includes(normaliseProse(sentence)))
+      ?.heading ?? null;
+  if (at === null) return false;
+  const spells = paragraphs
+    .filter((one) => [`_${name}_`, `*${name}*`].some((mark) => one.text.includes(mark)))
+    .map((one) => one.heading);
+  return spells.length > 0 && spells.every((heading) => heading !== null && heading !== at);
+};
+
+describe('the two ways a charged entry prices a casting at nothing, and the level-priced cell', () => {
+  const magi = entryFor(SRD_MAGIC_ITEMS.find((item) => item.id === 'staff-of-the-magi')!);
+  const ring = entryFor(SRD_MAGIC_ITEMS.find((item) => item.id === 'ring-of-shooting-stars')!);
+  const healing = entryFor(SRD_MAGIC_ITEMS.find((item) => item.id === 'staff-of-healing')!);
+
+  it('reads a "0" cell as free and every other cell as a price', () => {
+    expect(pricedAtNothing(magi.description, 'Detect Magic')).toBe(true);
+    expect(pricedAtNothing(magi.description, 'Light')).toBe(true);
+    expect(pricedAtNothing(magi.description, 'Web')).toBe(false);
+    expect(pricedAtNothing(magi.description, 'Fireball')).toBe(false);
+  });
+
+  it('reads a sentence that names no charge as free, and one that names a charge as not', () => {
+    expect(pricedAtNothing(ring.description, 'Dancing Lights')).toBe(true);
+    expect(pricedAtNothing(ring.description, 'Light')).toBe(true);
+    expect(pricedAtNothing(ring.description, 'Faerie Fire')).toBe(false);
+    // A spell the entry never italicises is never free.
+    expect(pricedAtNothing(ring.description, 'Fireball')).toBe(false);
+  });
+
+  it('reads the Staff of Healing’s cell as a ceiling of 4 on Cure Wounds and nothing else', () => {
+    expect([...perLevelCells(healing.description)]).toEqual([['Cure Wounds', 4]]);
+    expect(perLevelCells(magi.description).size).toBe(0);
+  });
+
+  it('files a per-day sentence under the property it closes, and a spell under its own', () => {
+    const rod = entryFor(SRD_MAGIC_ITEMS.find((item) => item.id === 'rod-of-alertness')!);
+    const [aura] = dawnSentences(rod.description);
+    // The rod's dawn closes Protective Aura, and its spells are under Spells.
+    expect(underAnotherProperty(rod.description, aura!, 'Detect Magic')).toBe(true);
+    // The cloak's closes Web, and Web is named under Web.
+    const cloak = entryFor(SRD_MAGIC_ITEMS.find((item) => item.id === 'cloak-of-arachnida')!);
+    const [web] = dawnSentences(cloak.description);
+    expect(underAnotherProperty(cloak.description, web!, 'Web')).toBe(false);
+    // And the rod's spells moved under the aura would be limited by it.
+    const moved = rod.description.replace(
+      "The rod's head stops glowing",
+      '_Detect Magic_ again. The rod\'s head stops glowing',
+    );
+    expect(underAnotherProperty(moved, aura!, 'Detect Magic')).toBe(false);
+  });
+});
 
 describe('what an item does not do is data, and quotes the page', () => {
   const declared = SRD_MAGIC_ITEMS.filter((item) => item.unmodelled !== undefined);

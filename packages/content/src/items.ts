@@ -1925,6 +1925,400 @@ const NAMED_ITEMS: readonly CatalogueItem[] = [
     },
   ),
 
+  // ── staffs and wands through the wand door ───────────────────────────────
+  //
+  // Every record below is a `casts` grant reached through `cast_spell.item`,
+  // and all but two print the last-charge d20. What kept them out was never a
+  // spell: each one's table was defined before the door onto it existed, and
+  // the d20 had no reader. Both are built now, so the book's staffs are its
+  // tables, one grant per row, and what a staff does *besides* cast is either
+  // a grant the engine reads or a note that says which clause it is.
+  //
+  // **Held is `while-worn`**, exactly as the Staff of Fire writes it: "while
+  // you hold this staff" is being in hand, and in hand is the equipped set.
+
+  wornItem(
+    { id: 'wand-of-magic-missiles', name: 'Wand of Magic Missiles', kind: 'wand' },
+    {
+      /**
+       * SRD Wand of Magic Missiles: "Wand, Uncommon. This wand has 7 charges.
+       * While holding it, you can expend no more than 3 charges to cast _Magic
+       * Missile_ from it. For 1 charge, you cast the level 1 version of the
+       * spell. You can increase the spell's level by 1 for each additional
+       * charge you expend. ... The wand regains 1d6 + 1 expended charges daily
+       * at dawn. If you expend the wand's last charge, roll 1d20. On a 1, the
+       * wand crumbles into ashes and is destroyed."
+       *
+       * The Wand of Fireballs' sentence over a level 1 spell, and the whole of
+       * the entry: three darts for one charge, five for three, no bracket and
+       * no printed number — Magic Missile rolls no save and makes no attack, so
+       * there is nothing for the wand to have printed.
+       */
+      grants: [
+        charges('wand-of-magic-missiles', 'Wand of Magic Missiles', 7, '1d6 + 1', CRUMBLES_ON_A_1),
+        castsSpell('magic-missile', 1, { upToCharges: 3 }),
+      ],
+    },
+  ),
+  wornItem(
+    { id: 'staff-of-healing', name: 'Staff of Healing', kind: 'staff' },
+    {
+      /**
+       * SRD Staff of Healing: "Staff, Rare (Requires Attunement by a Bard,
+       * Cleric, or Druid). This staff has 10 charges. While holding the staff,
+       * you can cast one of the spells on the following table from it, using
+       * your spellcasting ability modifier." Cure Wounds for "1 charge per
+       * spell level (maximum 4 for a level 4 spell)", Lesser Restoration for
+       * 2, Mass Cure Wounds for 5. "The staff regains 1d6 + 4 expended charges
+       * daily at dawn. If you expend the last charge, roll 1d20. On a 1, the
+       * staff vanishes in a flash of light, lost forever."
+       *
+       * **"1 charge per spell level" is the wands' own shape**, read from the
+       * other end. Cure Wounds is a level 1 spell, so one charge is the level
+       * 1 version and each further charge one level more — which is what
+       * `upToCharges` has always done — and "maximum 4 for a level 4 spell"
+       * is the ceiling. The map filed this cell as a cost that reads the slot;
+       * it reads the charges, and the level follows.
+       */
+      attunement: { byClass: ['bard', 'cleric', 'druid'] },
+      grants: [
+        charges('staff-of-healing', 'Staff of Healing', 10, '1d6 + 4', CRUMBLES_ON_A_1),
+        castsSpell('cure-wounds', 1, { upToCharges: 4 }),
+        castsSpell('lesser-restoration', 2),
+        castsSpell('mass-cure-wounds', 5),
+      ],
+    },
+  ),
+  wornItem(
+    { id: 'staff-of-frost', name: 'Staff of Frost', kind: 'staff' },
+    {
+      /**
+       * SRD Staff of Frost: "Staff, Very Rare (Requires Attunement by a Druid,
+       * Sorcerer, Warlock, or Wizard). You have Resistance to Cold damage
+       * while you hold this staff." Then the Staff of Fire's table with four
+       * other rows — Cone of Cold 5, Fog Cloud 1, Ice Storm 4, Wall of Ice 4 —
+       * "using your spell save DC", the same 1d6 + 4 at dawn, and on a 1 "the
+       * staff turns to water and is destroyed".
+       *
+       * The Staff of Fire's record with the element changed, down to the
+       * bracket, and like it the whole entry.
+       */
+      attunement: { byClass: ['druid', 'sorcerer', 'warlock', 'wizard'] },
+      grants: [
+        resistanceWhileWorn(['cold']),
+        charges('staff-of-frost', 'Staff of Frost', 10, '1d6 + 4', CRUMBLES_ON_A_1),
+        castsSpell('cone-of-cold', 5),
+        castsSpell('fog-cloud', 1),
+        castsSpell('ice-storm', 4),
+        castsSpell('wall-of-ice', 4),
+      ],
+    },
+  ),
+  wornItem(
+    { id: 'staff-of-charming', name: 'Staff of Charming', kind: 'staff' },
+    {
+      /**
+       * SRD Staff of Charming: "Staff, Rare (Requires Attunement by a Bard,
+       * Cleric, Druid, Sorcerer, Warlock, or Wizard). This staff has 10
+       * charges. ... You can expend 1 of the staff's charges to cast _Charm
+       * Person_, _Command_, or _Comprehend Languages_ from it using your spell
+       * save DC. ... The staff regains 1d8 + 2 expended charges daily at dawn.
+       * If you expend the last charge, roll 1d20. On a 1, the staff crumbles
+       * to dust and is destroyed."
+       *
+       * The three castings and the crumble. What is left are two protections
+       * that each *add* to the staff — a Reaction and a once-a-day turned
+       * save — so leaving them out leaves a staff weaker than the page and
+       * never a stronger one.
+       */
+      attunement: { byClass: ['bard', 'cleric', 'druid', 'sorcerer', 'warlock', 'wizard'] },
+      grants: [
+        charges('staff-of-charming', 'Staff of Charming', 10, '1d8 + 2', CRUMBLES_ON_A_1),
+        castsSpell('charm-person', 1),
+        castsSpell('command', 1),
+        castsSpell('comprehend-languages', 1),
+      ],
+      unmodelled: [
+        '"_Reflect Enchantment._ If you succeed on a saving throw against an Enchantment spell that targets only you, you can take a Reaction to expend 1 charge from the staff and turn the spell back on its caster as if you had cast the spell": a Reaction an item grants, on a save a spell forced, paid for out of the staff — no item grant kind reads a Reaction',
+        '"_Resist Enchantment._ If you fail a saving throw against an Enchantment spell that targets only you, you can turn your failed save into a successful one. You can\'t use this property of the staff again until the next dawn": a failed save turned into a success, narrowed to a school and to a spell that targets only its holder, which no item grant can say',
+      ],
+    },
+  ),
+  wornItem(
+    { id: 'staff-of-swarming-insects', name: 'Staff of Swarming Insects', kind: 'staff' },
+    {
+      /**
+       * SRD Staff of Swarming Insects: "Staff, Rare (Requires Attunement by a
+       * Bard, Cleric, Druid, Sorcerer, Warlock, or Wizard). This staff has 10
+       * charges." Giant Insect for 4 and Insect Plague for 5, "using your
+       * spell save DC and spell attack modifier"; the 1d6 + 4 at dawn; and on
+       * a 1, "a swarm of insects consumes and destroys the staff, then
+       * disperses".
+       */
+      attunement: { byClass: ['bard', 'cleric', 'druid', 'sorcerer', 'warlock', 'wizard'] },
+      grants: [
+        charges('staff-of-swarming-insects', 'Staff of Swarming Insects', 10, '1d6 + 4', CRUMBLES_ON_A_1),
+        castsSpell('giant-insect', 4),
+        castsSpell('insect-plague', 5),
+      ],
+      unmodelled: [
+        '"_Insect Cloud._ While holding the staff, you can take a Magic action and expend 1 charge to cause a swarm of harmless flying insects to fill a 30-foot Emanation originating from you. The insects remain for 10 minutes, making the area Heavily Obscured for creatures other than you": an area an item lays down rather than a spell, and a conferral has a reach and no area — so the charge buys nothing here rather than something wider',
+      ],
+    },
+  ),
+  magicWeapon(
+    { id: 'staff-of-the-woodlands', name: 'Staff of the Woodlands', row: 'quarterstaff', kind: 'staff' },
+    {
+      /**
+       * SRD Staff of the Woodlands: "Staff, Rare (Requires Attunement by a
+       * Druid). This staff has 6 charges and can be wielded as a magic
+       * Quarterstaff that grants a +2 bonus to attack rolls and damage rolls
+       * made with it." Eight castings off a table "using your spell save DC",
+       * and "The staff regains 1d6 expended charges daily at dawn. If you
+       * expend the last charge, roll 1d20. On a 1, the staff loses its
+       * properties and becomes a nonmagical Quarterstaff."
+       *
+       * **The d20 is written, and written harsher than the page.** On a 1 the
+       * book leaves a Quarterstaff in the druid's hand; the engine's last
+       * charge takes the copy, because the only thing a last charge can do to
+       * an item is remove it. Leaving the field off instead would be a staff
+       * whose magic never fails, which is rule 3 of this file run the wrong
+       * way — so the record loses a two-silver-piece stick more than the book
+       * does, and says so.
+       */
+      attunement: { byClass: ['druid'] },
+      grants: [
+        madeWithThisWeapon(2, true),
+        charges('staff-of-the-woodlands', 'Staff of the Woodlands', 6, '1d6', CRUMBLES_ON_A_1),
+        castsSpell('animal-friendship', 1),
+        castsSpell('awaken', 5),
+        castsSpell('barkskin', 2),
+        castsSpell('locate-animals-or-plants', 2),
+        castsSpell('pass-without-trace', 2),
+        castsSpell('speak-with-animals', 1),
+        castsSpell('speak-with-plants', 3),
+        castsSpell('wall-of-thorns', 6),
+      ],
+      unmodelled: [
+        '"While holding it, you have a +2 bonus to spell attack rolls": no standing effect raises a spell attack roll, so the staff\'s castings and its holder\'s own are made without it',
+        '"_Tree Form._ You can take a Magic action to plant one end of the staff in earth in an unoccupied space and expend 1 charge to transform the staff into a healthy tree": a 60-foot tree is an object standing in the scene, which nothing the engine keeps can be',
+        '"On a 1, the staff loses its properties and becomes a nonmagical Quarterstaff": the last charge destroys the copy outright, so the table hands the druid the `quarterstaff` the book leaves behind',
+      ],
+    },
+  ),
+  magicWeapon(
+    { id: 'staff-of-power', name: 'Staff of Power', row: 'quarterstaff', kind: 'staff' },
+    {
+      /**
+       * SRD Staff of Power: "Staff, Very Rare (Requires Attunement by a
+       * Sorcerer, Warlock, or Wizard). This staff has 20 charges and can be
+       * wielded as a magic Quarterstaff that grants a +2 bonus to attack rolls
+       * and damage rolls made with it. While holding it, you gain a +2 bonus
+       * to Armor Class, saving throws, and spell attack rolls." Nine castings
+       * "using your spell save DC", Fireball and Lightning Bolt each as "(level
+       * 5 version)" for 5; "The staff regains 2d8 + 4 expended charges daily
+       * at dawn. If you expend the last charge, roll 1d20. On a 1, the staff
+       * retains its +2 bonus to attack rolls and damage rolls but loses all
+       * other properties. On a 20, the staff regains 1d8 + 2 charges."
+       *
+       * **Two of the three +2s**, because an Armour Class and a saving throw
+       * are numbers the engine holds and a spell attack roll's bonus is not;
+       * and **the 1 written harsher than the page**, for the Staff of the
+       * Woodlands' reason: the book leaves a +2 Quarterstaff behind and the
+       * engine's last charge can only take the copy, while no field at all
+       * would be a staff that never fails. The 20 is a benefit and is left
+       * out.
+       *
+       * "(level 5 version)" is `level: 5` on a price of 5: five charges buy
+       * the level 5 casting and nothing buys more.
+       */
+      attunement: { byClass: ['sorcerer', 'warlock', 'wizard'] },
+      grants: [
+        madeWithThisWeapon(2, true),
+        {
+          kind: 'standing',
+          reach: 'self',
+          effects: [{ kind: 'flat-bonus', applies: ['ac', 'save'], flat: 2 }],
+          requires: WORN_AND_ATTUNED,
+        },
+        charges('staff-of-power', 'Staff of Power', 20, '2d8 + 4', CRUMBLES_ON_A_1),
+        castsSpell('cone-of-cold', 5),
+        castsSpell('fireball', 5, { level: 5 }),
+        castsSpell('globe-of-invulnerability', 6),
+        castsSpell('hold-monster', 5),
+        castsSpell('levitate', 2),
+        castsSpell('lightning-bolt', 5, { level: 5 }),
+        castsSpell('magic-missile', 1),
+        castsSpell('ray-of-enfeeblement', 1),
+        castsSpell('wall-of-force', 5),
+      ],
+      unmodelled: [
+        '"While holding it, you gain a +2 bonus to Armor Class, saving throws, and spell attack rolls": the third of the three is not granted, because no standing effect raises a spell attack roll',
+        '"On a 1, the staff retains its +2 bonus to attack rolls and damage rolls but loses all other properties. On a 20, the staff regains 1d8 + 2 charges": the last charge destroys the copy outright on a 1, so the table hands back the `quarterstaff-plus-2` the book leaves behind; and the 20 throws nothing',
+        '"_Retributive Strike._ You can take a Magic action to break the staff over your knee or against a solid surface": an explosion sized by the charges left in the staff, a 50 percent trip to a random plane, and damage its breaker takes with neither an attack roll nor a save',
+      ],
+    },
+  ),
+  magicWeapon(
+    { id: 'staff-of-the-magi', name: 'Staff of the Magi', row: 'quarterstaff', kind: 'staff' },
+    {
+      /**
+       * SRD Staff of the Magi: "Staff, Legendary (Requires Attunement by a
+       * Sorcerer, Warlock, or Wizard). This staff has 50 charges and can be
+       * wielded as a magic Quarterstaff that grants a +2 bonus to attack rolls
+       * and damage rolls made with it." Eighteen castings "using your spell
+       * save DC", five of them priced "0"; "The staff regains 4d6 + 2
+       * expended charges daily at dawn. If you expend the last charge, roll
+       * 1d20. On a 20, the staff regains 1d12 + 1 charges."
+       *
+       * **A "0" in a charged staff's table is `atWill`**, and the difference
+       * from a price of zero is the one the Helm of Comprehending Languages
+       * made: nothing is spent, so there is no `resource-spent` of nothing.
+       *
+       * **No last-charge field, because the page destroys nothing.** Its d20
+       * pays out on a 20 and costs nothing on any face, so leaving it out
+       * leaves a staff that refills less rather than one that lasts longer.
+       */
+      attunement: { byClass: ['sorcerer', 'warlock', 'wizard'] },
+      grants: [
+        madeWithThisWeapon(2, true),
+        charges('staff-of-the-magi', 'Staff of the Magi', 50, '4d6 + 2'),
+        castsSpellAtWill('arcane-lock'),
+        castsSpell('conjure-elemental', 7),
+        castsSpellAtWill('detect-magic'),
+        castsSpell('dispel-magic', 3),
+        castsSpellAtWill('enlarge-reduce'),
+        castsSpell('fireball', 7, { level: 7 }),
+        castsSpell('flaming-sphere', 2),
+        castsSpell('ice-storm', 4),
+        castsSpell('invisibility', 2),
+        castsSpell('knock', 2),
+        castsSpellAtWill('light'),
+        castsSpell('lightning-bolt', 7, { level: 7 }),
+        castsSpell('passwall', 5),
+        castsSpell('plane-shift', 7),
+        castsSpellAtWill('protection-from-evil-and-good'),
+        castsSpell('telekinesis', 5),
+        castsSpell('wall-of-fire', 4),
+        castsSpell('web', 2),
+      ],
+      unmodelled: [
+        '"While you hold it, you gain a +2 bonus to spell attack rolls": no standing effect raises a spell attack roll',
+        '"_Spell Absorption._ While holding the staff, you have Advantage on saving throws against spells": a mode narrowed to spells, and `againstMagic` is spells and every other magical effect as well, which is a wider staff than the page',
+        '"you can take a Reaction when another creature casts a spell that targets only you. If you do, the staff absorbs the magic of the spell, canceling its effect and gaining a number of charges equal to the absorbed spell\'s level": a Reaction an item grants, and charges given back by a casting — and with it the explosion "if doing so brings the staff\'s total number of charges above 50", which only an absorption can cause',
+        '"If you expend the last charge, roll 1d20. On a 20, the staff regains 1d12 + 1 charges": a d20 that only pays out, and nothing throws it',
+        '"_Retributive Strike._ You can take a Magic action to break the staff over your knee or against a solid surface": an explosion sized by the charges left in the staff, a 50 percent trip to a random plane, and damage its breaker takes with neither an attack roll nor a save',
+      ],
+    },
+  ),
+  wornItem(
+    { id: 'rod-of-alertness', name: 'Rod of Alertness', kind: 'rod' },
+    {
+      /**
+       * SRD Rod of Alertness: "Rod, Very Rare (Requires Attunement). ...
+       * _Alertness._ While holding the rod, you have Advantage on Wisdom
+       * (Perception) checks and on Initiative rolls. _Spells._ While holding
+       * the rod, you can cast the following spells from it" — Detect Evil and
+       * Good, Detect Magic, Detect Poison and Disease and See Invisibility,
+       * with no charge and no dawn.
+       *
+       * The Sentinel Shield's two modes, asked of an attuned hand, and four
+       * at-will castings in the Helm of Comprehending Languages' shape.
+       */
+      attunement: {},
+      grants: [
+        {
+          kind: 'standing',
+          reach: 'self',
+          effects: [
+            {
+              kind: 'roll-mode',
+              modifier: { mode: 'advantage', selector: { roll: 'initiative', relation: 'roller' } },
+            },
+            {
+              kind: 'roll-mode',
+              modifier: {
+                mode: 'advantage',
+                selector: {
+                  roll: 'ability-check',
+                  relation: 'roller',
+                  ability: 'wis',
+                  skill: 'perception',
+                },
+              },
+            },
+          ],
+          requires: WORN_AND_ATTUNED,
+        },
+        castsSpellAtWill('detect-evil-and-good'),
+        castsSpellAtWill('detect-magic'),
+        castsSpellAtWill('detect-poison-and-disease'),
+        castsSpellAtWill('see-invisibility'),
+      ],
+      unmodelled: [
+        '"_Protective Aura._ As a Magic action, you can plant the haft end of the rod in the ground, whereupon the rod\'s head sheds Bright Light in a 60-foot radius and Dim Light for an additional 60 feet. While in that Bright Light, you and your allies gain a +1 bonus to Armor Class and saving throws and can sense the location of any Invisible creature that is also in the Bright Light": a light an item sheds, a bonus to whoever stands in it and a sense of the Invisible — three shapes no item grant has',
+      ],
+    },
+  ),
+  wornItem(
+    { id: 'ring-of-shooting-stars', name: 'Ring of Shooting Stars', kind: 'ring' },
+    {
+      /**
+       * SRD Ring of Shooting Stars: "Ring, Very Rare (Requires Attunement).
+       * You can cast _Dancing Lights_ or _Light_ from the ring. The ring has 6
+       * charges and regains 1d6 expended charges daily at dawn. You can
+       * expend its charges to use the properties below. _Faerie Fire._ You
+       * can expend 1 charge to cast _Faerie Fire_ from the ring."
+       *
+       * **The two cantrips are free and the charges are for "the properties
+       * below"**, which is what the entry's order says: the at-will sentence
+       * comes before the charges are mentioned and names none. No last-charge
+       * clause is printed, so none is written.
+       */
+      attunement: {},
+      grants: [
+        charges('ring-of-shooting-stars', 'Ring of Shooting Stars', 6, '1d6'),
+        castsSpellAtWill('dancing-lights'),
+        castsSpellAtWill('light'),
+        castsSpell('faerie-fire', 1),
+      ],
+      unmodelled: [
+        '"_Lightning Spheres._ You can expend 2 charges as a Magic action to create up to four 3-foot-diameter spheres of lightning": spheres an item makes, moved by Bonus Actions and held by a Concentration with no casting behind it, that discharge on whoever they first come near',
+        '"_Shooting Stars._ You can expend 1 to 3 charges as a Magic action. For every charge you expend, you launch a glowing mote of light from the ring at a point you can see within 60 feet of yourself. Each creature in a 15-foot Cube originating from that point is showered in sparks and makes a DC 15 Dexterity saving throw": an area an item lays down at a point, one per charge, and a conferral has a reach and no area',
+      ],
+    },
+  ),
+  wornItem(
+    { id: 'cloak-of-arachnida', name: 'Cloak of Arachnida', kind: 'wondrous' },
+    {
+      /**
+       * SRD Cloak of Arachnida: "Wondrous Item, Very Rare (Requires
+       * Attunement). ... While wearing it, you gain the following benefits.
+       * _Poison Resistance._ You have Resistance to Poison damage. ... _Web._
+       * You can cast _Web_ (save DC 13). The web created by the spell fills
+       * twice its normal area. Once used, this property can't be used again
+       * until the next dawn."
+       *
+       * The Resistance and the Web, in the Cape of the Mountebank's pool of
+       * one. The doubled web is a benefit withheld — a casting from this
+       * cloak fills Web's own cube — so the record is a weaker cloak than the
+       * page, and the climb and the webs it walks through are benefits left
+       * out.
+       */
+      attunement: {},
+      grants: [
+        resistanceWhileWorn(['poison']),
+        charges('cloak-of-arachnida', 'Cloak of Arachnida', 1),
+        castsSpell('web', 1, { saveDc: 13 }),
+      ],
+      unmodelled: [
+        '"_Spider Climb._ You have a Climb Speed equal to your Speed and can move up, down, and across vertical surfaces and along ceilings, while leaving your hands free": a Speed an item grants while worn, which `checkContent` refuses by name (`item_speed_grant`) because `speedOf` gathers Speed from the sheet alone',
+        '"_Spider Walk._ You can\'t be caught in webs of any sort and can move through webs as if they were Difficult Terrain": an immunity to a spell\'s area and a terrain rule keyed to it, neither of which an item grant can say',
+        '"The web created by the spell fills twice its normal area": a `casts` grant hands the definition to the pipeline whole, so a web from this cloak fills Web\'s own 20-foot Cube — half the page\'s cloak rather than twice it',
+      ],
+    },
+  ),
+
   // ── the spells eighteen entries were waiting for ─────────────────────────
   //
   // `ITEM_SHAPES`'s heaviest blocker was never an item mechanism: these entries
