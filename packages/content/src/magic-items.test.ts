@@ -407,7 +407,25 @@ describe('every transcribed item agrees with the entry it was read from', () => 
                 contains(sentence, SRD_SPELLS.find((s) => s.id === other.spell)?.name ?? ''),
             ),
         );
-        if (grant.atWill === true) {
+        if (grant.usedUp !== undefined) {
+          // **Priced by the bottle.** SRD Potion of Animal Friendship: "When
+          // you drink this potion, you can cast" — and Potions: "Drinking a
+          // potion ... requires a Bonus Action. Once used, a potion takes
+          // effect immediately, and it is used up." So no charge and no limit
+          // on the page, a drink printed on it, and the Bonus Action beside
+          // the casting exactly where the item is a potion.
+          expect(entry.charges, `${item.id} is used up by casting ${name} and its entry has charges`)
+            .toBeNull();
+          expect(limits, `${item.id} is used up by casting ${name} and its entry prints a per-day limit`)
+            .toEqual([]);
+          expect(
+            contains(entry.description, 'When you drink this potion, you can cast'),
+            `${item.id} is used up by casting ${name} and its entry prints no drink`,
+          ).toBe(true);
+          expect(grant.usedUp.action === 'bonus-action', `${item.id}'s drink is a Bonus Action`).toBe(
+            item.kind === 'potion',
+          );
+        } else if (grant.atWill === true) {
           expect(grant.charges, `${item.id} casts ${name} at will and names a price`)
             .toBeUndefined();
           // An entry with charges may still price one casting at nothing, in
