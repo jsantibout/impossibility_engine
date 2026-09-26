@@ -395,7 +395,9 @@ describe('the door that rolls a printed line’s saving throw', () => {
       const awake = t.surface.observe().creatures.find((one) => one.id === 'grish')!.conditions;
       expect(awake).not.toContain('unconscious');
       expect(awake).toContain('poisoned');
-      expect(out.unverified).toHaveLength(1);
+      // Nothing of the line is carried: the pseudodragon's printed senses
+      // answer "one creature the pseudodragon can see" (W8-S25).
+      expect(out.unverified).toEqual([]);
 
       // And a creature holding nothing a shake would end is refused rather
       // than charged: an Action spent on nothing is what the verb exists to

@@ -1,6 +1,8 @@
 import {
   CreatureSizeSchema,
   DECLARED_DAMAGE_TYPE,
+  MONSTER_SENSES,
+  type MonsterSense,
   MonsterAcAddendSchema,
   MonsterAttackSchema,
   MonsterCastLineSchema,
@@ -189,6 +191,30 @@ const splitList = (raw: string): string[] =>
     .split(/[;,]/)
     .map((s) => s.replace(/<br>/g, '').trim())
     .filter((s) => s.length > 0);
+
+/**
+ * One segment of a Senses line, read into a sense and its range, or null.
+ *
+ * SRD 5.2.1 prints five shapes and this reads all five: "Darkvision 60 ft.",
+ * "Blindsight 60 ft.", "Truesight 120 ft.", "Tremorsense 60 ft.", and
+ * "Darkvision 120 ft. (unimpeded by magical Darkness)" — the last on seven
+ * blocks, a flag on the Darkvision it qualifies and nowhere else. The 2014
+ * "blind beyond this radius" is printed on no 2024 block, so it is not a
+ * shape here; a segment that is not one of the five stays in `senses` as
+ * printed and is read as nothing. (W8-S25)
+ */
+function readSpecialSense(
+  printed: string,
+): { sense: MonsterSense; feet: number; unimpededByMagicalDarkness?: true } | null {
+  const match = /^(\w+)\s+(\d+)\s*ft\.?(?:\s*\((unimpeded by magical Darkness)\))?$/i.exec(printed);
+  if (match === null) return null;
+  const sense = MONSTER_SENSES.find((name) => name === match[1]!.toLowerCase());
+  if (sense === undefined) return null;
+  const feet = Number(match[2]);
+  if (feet <= 0) return null;
+  if (match[3] === undefined) return { sense, feet };
+  return sense === 'darkvision' ? { sense, feet, unimpededByMagicalDarkness: true } : null;
+}
 
 function parseAbilities(block: string): Record<string, { score: number; modifier: number; save: number }> | null {
   const abbrs = { STR: 'str', DEX: 'dex', CON: 'con', INT: 'int', WIS: 'wis', CHA: 'cha' } as const;
@@ -3689,6 +3715,10 @@ function parseEntry(
   const sensesRaw = fields.get('senses') ?? '';
   const passiveMatch = /Passive Perception\s*(\d+)/i.exec(sensesRaw);
   const senses = splitList(sensesRaw).filter((s) => !/^Passive Perception/i.test(s));
+  const specialSenses = senses.flatMap((printed) => {
+    const read = readSpecialSense(printed);
+    return read === null ? [] : [read];
+  });
 
   // Sections: everything after a `#### <Section>` heading.
   const sections: Record<SectionKey, string[]> = {
@@ -3764,6 +3794,7 @@ function parseEntry(
     gear: splitList(fields.get('gear') ?? ''),
 
     senses,
+    ...(specialSenses.length === 0 ? {} : { specialSenses }),
     passivePerception: passiveMatch ? Number(passiveMatch[1]) : 10,
     languages: splitList(fields.get('languages') ?? ''),
 

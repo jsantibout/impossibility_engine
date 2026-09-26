@@ -1287,17 +1287,12 @@ describe('reading four families found blockers the bare lists had missed', () =>
     ['tsunami', 'unmodelled', 'swimming creatures being unaffected'],
     ['tsunami', 'unmodelled', 'nothing falls and there is no water'],
     // Find Familiar, written on the kept summons on 2026-09-22. Its three
-    // readings survive in the definition's own notes and in the executed map,
-    // which is where an executed-partial spell's debts are adjudicated.
-    // The pocket dimension is built — `dismissKeptSummons` and
-    // `recallKeptSummons` on the bond's pinned `pocket` — so its row is gone
-    // rather than kept, and **the delivered touch has gone the same way**:
-    // `KeptSummons.delivers` is the permission and the hundred feet, pinned onto
-    // the bond, and `cast_spell.deliveredBy` is the hand the Touch is measured
-    // from. One reading is left, and it is the one about sight — narrower
-    // since W7-S21 built the borrowing (`borrowSenses`): what is still owed is
-    // the senses the familiar's own stat block prints, which no sheet holds.
-    ['find-familiar', 'unmodelled', 'special senses printed on the familiar’s own stat block'],
+    // readings were all spent by being built, so none of its rows is left:
+    // the pocket dimension is `dismissKeptSummons` and `recallKeptSummons` on
+    // the bond's pinned `pocket`; the delivered touch is `KeptSummons.delivers`
+    // and `cast_spell.deliveredBy`; and the sight is `borrowSenses` (W7-S21)
+    // lending senses the familiar's own stat block now puts on its sheet
+    // (W8-S25).
     // Sending, defined on the owner's ruling of 2026-09-25. Three of its four
     // rows were spent by being built or by being a fact the caster states —
     // the die is the `chance` effect, the other plane is `otherPlane` on the
@@ -3415,15 +3410,16 @@ describe('a trigger that ends a casting is a partial build, and the map says whi
       ).toHaveLength(1);
     }
     // Find Familiar is written now, and the clause moved with it into the
-    // executed map rather than going away.
-    expect(ADJUDICATED['find-familiar']?.map((entry) => entry.why)).toContain(
+    // executed map — and then went, when a block's Senses line reached its
+    // sheet (W8-S25): the familiar's printed senses are lent, so the spell is
+    // no longer on the shape at all.
+    expect(ADJUDICATED['find-familiar']?.map((entry) => entry.why)).not.toContain(
       'senses-beyond-declared-sight',
     );
     // Project Image was the second and is a tracked definition now. Its
     // senses clause trips no mechanical marker, so it could not move into the
     // tracked map; what carries it is the definition's own note, which the
-    // table hears on every casting. The shape keeps Find Familiar and keeps
-    // its claim.
+    // table hears on every casting.
     expect(BLOCKED_ON['project-image']).toBeUndefined();
     expect(
       (SRD_CONTENT.spell('project-image')?.unmodelled ?? []).filter((note) =>

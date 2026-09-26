@@ -211,6 +211,15 @@ describe('a blocker no mechanical marker can see survives the spell being writte
         // Sunburst's "This spell dispels any Darkness in its area that was
         // created by a spell" — an executed spell's adjudication again, and
         // marker-less again, because a dispel is not a die.
+        //
+        // **`senses-beyond-declared-sight` arrived by the opposite road**:
+        // its executed claimant was paid. Find Familiar held it up from the
+        // executed map until a block's Senses line reached its sheet (W8-S25)
+        // and the familiar's printed senses were lent; what is left is Mirage
+        // Arcane's "Creatures with Truesight can see through the illusion",
+        // a tracked, marker-less claim — so without the form the shape would
+        // be retired while that sentence is still unexecuted.
+        'senses-beyond-declared-sight',
       ].sort(),
     );
     // What the form landed with is in it, less the one that was paid: Flesh

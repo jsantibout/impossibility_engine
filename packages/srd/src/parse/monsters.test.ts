@@ -139,6 +139,39 @@ describe('parseMonsters', () => {
     expect(m.languages).toEqual(['Common', 'Goblin']);
   });
 
+  /**
+   * SRD Monsters, "Senses": "The Senses entry specifies a monster's Passive
+   * Perception score, as well as any special senses the monster possesses."
+   * The strings stay the book's; `specialSenses` is the same line read into
+   * the glossary's four senses and a range, so a sheet can hold it. (W8-S25)
+   */
+  it('reads the special senses off the Senses line, beside the strings', () => {
+    expect(one(GOBLIN_MINION).specialSenses).toEqual([{ sense: 'darkvision', feet: 60 }]);
+  });
+
+  it('omits the special senses where the block prints none, and leaves an unread one a string', () => {
+    const blind = one(GOBLIN_MINION.replace('Darkvision 60 ft.; ', ''));
+    expect(blind.senses).toEqual([]);
+    expect(blind).not.toHaveProperty('specialSenses');
+
+    // A segment the reader cannot read stays in `senses` as printed and is
+    // not guessed at: the book's words are kept, and nothing is invented.
+    const odd = one(
+      GOBLIN_MINION.replace('Darkvision 60 ft.;', 'Darkvision 60 ft., Echolocation 30 ft.;'),
+    );
+    expect(odd.senses).toEqual(['Darkvision 60 ft.', 'Echolocation 30 ft.']);
+    expect(odd.specialSenses).toEqual([{ sense: 'darkvision', feet: 60 }]);
+    // And the one qualifier the book prints is read only where it qualifies a
+    // Darkvision: on another sense it is a sentence nobody wrote.
+    const qualified = one(
+      GOBLIN_MINION.replace(
+        'Darkvision 60 ft.;',
+        'Blindsight 10 ft. (unimpeded by magical Darkness);',
+      ),
+    );
+    expect(qualified).not.toHaveProperty('specialSenses');
+  });
+
   it('parses a fractional challenge rating into a number and a label', () => {
     expect(one(GOBLIN_MINION)).toMatchObject({
       cr: 0.125,
@@ -288,6 +321,38 @@ describe('the vendored SRD bestiary', () => {
     const monster = find(id);
     expect(monster, `${id} missing from parsed bestiary`).toBeDefined();
     expect(monster).toMatchObject(expected);
+  });
+
+  /**
+   * The Senses line in the five shapes the SRD prints it, read. SRD 5.2.1
+   * prints no "blind beyond this radius" anywhere, so there is no sixth; and
+   * its one qualifier, "(unimpeded by magical Darkness)", is carried as a flag
+   * on the Darkvision it qualifies. (W8-S25)
+   */
+  it.each([
+    ['goblin-warrior', [{ sense: 'darkvision', feet: 60 }]],
+    ['imp', [{ sense: 'darkvision', feet: 120, unimpededByMagicalDarkness: true }]],
+    [
+      'ankheg',
+      [
+        { sense: 'darkvision', feet: 60 },
+        { sense: 'tremorsense', feet: 60 },
+      ],
+    ],
+    ['couatl', [{ sense: 'truesight', feet: 120 }]],
+  ])('reads the special senses %s prints', (id, expected) => {
+    expect(find(id)?.specialSenses).toEqual(expected);
+  });
+
+  it('reads every special sense the bestiary prints, and none is left a string only', () => {
+    const all = [...monsters.items, ...animals.items];
+    const printed = all.flatMap((m) => m.senses);
+    const read = all.flatMap((m) => m.specialSenses ?? []);
+    expect(printed).toHaveLength(303);
+    expect(read).toHaveLength(printed.length);
+    expect(all.filter((m) => m.senses.length > 0)).toHaveLength(252);
+    expect(all.filter((m) => (m.specialSenses?.length ?? 0) !== m.senses.length)).toEqual([]);
+    expect(read.filter((sense) => sense.unimpededByMagicalDarkness === true)).toHaveLength(7);
   });
 
   it('spot-checks the Goblin Minion dagger action', () => {

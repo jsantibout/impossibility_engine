@@ -40,13 +40,11 @@ import {
  * sight model stays three-valued: where the familiar's own answer is not yes,
  * the caster's is what it always was.
  *
- * **Which senses the familiar has is the engine's answer, not the stat
- * block's**, and the two differ today: a block's printed Senses line — the
- * Owl's "Darkvision 120 ft." — reaches no sheet (`adaptMonster` puts it
- * nowhere `sensesOf` reads), so the owl here is given its Darkvision the way
- * the engine does give one, by the Darkvision spell, and it is that sense the
- * wizard borrows. The printed line is the bestiary's gap, and it is recorded
- * on Find Familiar's own `unmodelled` rather than papered over here.
+ * **The owl here is also touched with the Darkvision spell**, which was once
+ * the only way it had a Darkvision to lend. Since W8-S25 a block's printed
+ * Senses line reaches its sheet — the Owl's own "Darkvision 120 ft." — and
+ * the spell's 150 feet is the longer of the two, so it is the one read below.
+ * The printed sense lent with no casting at all is `monster-senses.test.ts`'s.
  */
 
 const id = (s: string): CharacterId => asCharacterId(s);

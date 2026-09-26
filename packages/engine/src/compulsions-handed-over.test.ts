@@ -41,6 +41,7 @@ import { createRollIssuer } from './rolls.js';
 import { createCharacter, type CharacterChoices } from './creation.js';
 import { DM_DECIDES, dmDecisionsIn } from './spell-definitions.js';
 import { printedLineSource } from './monster.js';
+import { canSee } from './standing.js';
 
 const id = (s: string) => asCharacterId(s);
 const MONSTER = id('monster');
@@ -280,10 +281,14 @@ describe("the ghost's Possession: the save and the day's grace are the engine's,
     expect(table.state.creatures[MONSTER]!.expendedLines).toEqual([]);
   });
 
-  it('refuses a Humanoid the ghost cannot see, and says so where nobody has declared it', () => {
+  it('refuses a Humanoid the ghost cannot see, and sees with its own Darkvision where nobody has declared it', () => {
     // "one Humanoid **the ghost can see**": where the engine's answer is no,
     // the line is refused before anything is spent — the casting door's
-    // reading — and where nobody has said, it is rolled and the sight reported.
+    // reading — and where nobody has said, the ghost's printed Darkvision 60
+    // answers for the Humanoid five feet off (W8-S25), so the line is rolled
+    // with nothing about the sight left owed. Where no sense of the looker
+    // reaches, the sight is still reported: `printed-save-effects.test.ts`'s
+    // Satyr holds that half.
     const table = haunted();
     table.do('the ghost cannot see the tough', (s) => declareSightBetween(s, MONSTER, TOUGH, false));
     const unseen = forcePrintedSave(table.state, MONSTER, { line: LINE, targets: [TOUGH] }, supply('a'));
@@ -294,7 +299,8 @@ describe("the ghost's Possession: the save and the day's grace are the engine's,
       forcePrintedSave(haunted().state, MONSTER, { line: LINE, targets: [TOUGH] }, supply('a')),
       'possession',
     );
-    expect(owedIn(undeclared.unverified).join(' ')).toContain('nobody has said whether it can see tough');
+    expect(canSee(haunted().state, MONSTER, TOUGH)).toBe(true);
+    expect(owedIn(undeclared.unverified).join(' ')).not.toContain('nobody has said whether it can see');
   });
 });
 

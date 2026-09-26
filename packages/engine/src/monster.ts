@@ -2097,6 +2097,51 @@ function carryingRequirement(
   return carried ? [{ kind: 'while-carrying', object: wanted }] : null;
 }
 
+/**
+ * SRD Monsters, "Senses": "The Senses entry specifies a monster's Passive
+ * Perception score, as well as any special senses the monster possesses" —
+ * onto the sheet as the `sense` grants they are.
+ *
+ * **The grant `sensesOf` already gathers**, whose own docstring names "a
+ * monster's stat block" beside a species trait and a magic item. So nothing
+ * that reads a sense changes: the adapted sheet is pinned whole on
+ * `creature-added` and on `shape-assumed`, a summons arrives through the first,
+ * and the fold opens no catalogue. A sheet pinned before this carries none and
+ * reads none, which is the answer it always gave.
+ *
+ * The one qualifier the book prints — "Darkvision 120 ft. (unimpeded by
+ * magical Darkness)" on the Imp, the Lemure and five devils — is a
+ * `sees-through` grant at the Darkvision's range beside it, which is what SRD
+ * Devil's Sight compiles to: Darkvision already sees through *nonmagical*
+ * darkness, and the magical half is the only thing the parenthesis adds.
+ *
+ * A block field rather than a line under a heading, so it is read once per
+ * block and keyed under the block's own "Senses", one effect per sense named
+ * for the sense. (W8-S25)
+ */
+function printedSenses(monster: Monster): readonly StandingEffect[] {
+  const key = printedTraitKey(monster.id, 'Senses');
+  return (monster.specialSenses ?? []).flatMap(({ sense, feet, unimpededByMagicalDarkness }) => {
+    const name = sense.charAt(0).toUpperCase() + sense.slice(1);
+    const had: StandingEffect = {
+      feature: key,
+      name,
+      reach: { kind: 'self' },
+      grant: { kind: 'sense', sense, feet },
+    };
+    if (unimpededByMagicalDarkness !== true) return [had];
+    return [
+      had,
+      {
+        feature: key,
+        name,
+        reach: { kind: 'self' },
+        grant: { kind: 'sees-through', through: 'darkness', feet },
+      },
+    ];
+  });
+}
+
 function printedStanding(monster: Monster): { readonly standing?: readonly StandingEffect[] } {
   const sections: readonly (readonly [readonly MonsterLine[], boolean])[] = [
     [monster.traits, false],
@@ -2106,7 +2151,7 @@ function printedStanding(monster: Monster): { readonly standing?: readonly Stand
     [monster.legendaryActions, false],
   ];
 
-  const standing = sections.flatMap(([section, costsABonusAction]) =>
+  const lines = sections.flatMap(([section, costsABonusAction]) =>
     section.flatMap((line) => {
       const key = printedTraitKey(monster.id, line.name);
       return [
@@ -2122,6 +2167,8 @@ function printedStanding(monster: Monster): { readonly standing?: readonly Stand
       ];
     }),
   );
+  // And the one block field that is standing rather than a line.
+  const standing = [...printedSenses(monster), ...lines];
 
   return standing.length === 0 ? {} : { standing };
 }
@@ -3033,7 +3080,20 @@ export function assumeStatBlock(
   // them" is the holder's, read off the level this sheet keeps, and every
   // printed attack already has the block's baked into its number.
   const stated: StatedValues = { ...withoutStatedBonus(block.stated ?? {}), saves, skills };
-  const standing = [...(own.standing ?? []), ...(block.standing ?? [])];
+  // SRD Wild Shape, "Game Statistics": "Your game statistics are replaced by
+  // the Beast's stat block, but you retain your creature type; Hit Points; Hit
+  // Point Dice; Intelligence, Wisdom, and Charisma scores; class features;
+  // languages; and feats." A block's Senses line is its statistics, and a
+  // species trait is not on the list — so a sense the holder's species gave
+  // is replaced by the block's rather than kept beside it, and a class
+  // feature's or a feat's is kept. A sheet pinned before species traits were
+  // marked cannot say which is which and keeps them all. (W8-S25)
+  const retained = (own.standing ?? []).filter(
+    (effect) =>
+      effect.speciesTrait !== true ||
+      (effect.grant.kind !== 'sense' && effect.grant.kind !== 'sees-through'),
+  );
+  const standing = [...retained, ...(block.standing ?? [])];
   const attacksPerAction = Math.max(own.attacksPerAction ?? 1, block.attacksPerAction ?? 1);
 
   return {
