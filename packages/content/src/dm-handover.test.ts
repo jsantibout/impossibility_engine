@@ -427,6 +427,12 @@ describe('the catalogue hands over exactly the text it means to', () => {
       'detect-evil-and-good',
       'detect-magic',
       'detect-poison-and-disease',
+      // **The knowledge a failed probe buys**, which is the one sentence of SRD
+      // Detect Thoughts the engine leaves alone now that the probe throws its
+      // saving throw and the check the probed creature makes ends the spell:
+      // what looms large in a goblin's mind is the table's, and it goes out in
+      // the book's own words.
+      'detect-thoughts',
       'disguise-self',
       'divination',
       'dream',

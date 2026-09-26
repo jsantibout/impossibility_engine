@@ -789,6 +789,20 @@ export const ADJUDICATED: Readonly<Record<string, readonly Adjudication[]>> = {
       note: 'the object half, as Darkness prints it and for its reason: an Emanation originating from a thing state does not hold, and a bowl or a helm over it. The sixty feet of Bright Light, the sixty more of Dim and the dispel against a Darkness of level 3 or lower are all executed.',
     },
   ],
+  'detect-thoughts': [
+    {
+      marker: 'range',
+      clause: 'Sense Thoughts is the DM’s',
+      why: 'table',
+      note: 'SRD: "You sense the presence of thoughts within 30 feet of yourself that belong to creatures that know languages or are telepathic." The thirty feet is a distance the engine measures, and everything the sentence measures it *to* is not: which creatures know a language, which are telepathic, and whether a foot of stone, an inch of metal or a thin sheet of lead stands between. What a caster senses is information the DM supplies, and the spell holds nothing for it to be recorded on.',
+    },
+    {
+      marker: 'action',
+      clause: 'which of the two options a Magic action turns on is the DM’s too',
+      why: 'table',
+      note: 'SRD: "Until the spell ends, you can activate either effect as a Magic action on your later turns." The probe is the one later action the engine resolves — it forces a save, ends on a success and pins the mind it read — and turning on Sense Thoughts or Read Thoughts buys information rather than state, so a second activation would be an action spent on a handover. `SpellActivation` carries one action for that reason and the DM narrates the other.',
+    },
+  ],
   'dimension-door': [
     {
       clause: 'the willing creature who comes along',
@@ -1667,20 +1681,14 @@ export const TRACKED_ADJUDICATED: Readonly<Record<string, readonly TrackedAdjudi
       note: 'the DC is modified by two printed tables of facts the engine does not hold and must not guess: how well the caster knows the target, and whether they are holding a possession, a likeness or a lock of its hair. Declared cover and declared sight are the line this follows.',
     },
   ],
-  'detect-thoughts': [
-    {
-      marker: 'saving-throw',
-      clause: 'If you probe deeper, the target makes a Wisdom saving throw',
-      why: 'an-activation-that-forces-a-saving-throw',
-      note: 'the probe is a Magic action on a later turn and the save is what it forces; every registered SpellActivation resolves an attack or moves an area instead, which is the machinery standing beside this with no consumer.',
-    },
-    {
-      marker: 'ability-check',
-      clause: 'make an Intelligence (Arcana) check against your spell save DC, ending the spell on a success',
-      why: 'a-check-another-creature-may-attempt',
-      note: 'who may attempt a check is derived from what its timer sits on, and this one sits on neither branch: the casting is on the caster and holds nothing on the creature being probed. SpellCheck.onSuccess has deliberately no end-casting either, and names this spell while refusing it.',
-    },
-  ],
+  // **Detect Thoughts has left the tracked map**, and it took both of its
+  // shapes with it: `SpellActivation.effects` forces the Wisdom save the probe
+  // calls for, `save.onSuccess: 'end-casting'` is the success that ends the
+  // spell, and `SpellCheck.attemptBy: 'probed'` narrows the Intelligence
+  // (Arcana) check to the creature the probe named — read off
+  // `OngoingSpell.probing`, which the activation pins. What is left of the
+  // spell is its two options, which are information, and they are filed in
+  // `ADJUDICATED` below.
   'private-sanctum': [
     {
       marker: 'teleport',

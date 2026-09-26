@@ -1977,12 +1977,22 @@ function checkSaveWithoutCondition(
   // are what keep this from being a licence to throw a die for nothing.
   const verdict = (effect as { readonly verdictOnly?: unknown }).verdictOnly === true;
 
-  if (!hangs && effect.recordsOutcome !== true && !verdict) {
+  // **The fifth way out, and it is the only one where the *success* is what
+  // decided something.** SRD Detect Thoughts' probe: "On a successful save, the
+  // spell ends." A die that ends the spell it was forced by is not a die thrown
+  // for nothing, whichever way it falls — and what the failure buys is the
+  // caster's knowledge, which the definition hands to the table. Every other
+  // way out above reads the failure, because a saving throw's affirmative
+  // outcome is its failure; this is the one sentence in the book that hangs the
+  // consequence on the other branch.
+  const ends = effect.onSuccess === 'end-casting';
+
+  if (!hangs && effect.recordsOutcome !== true && !verdict && !ends) {
     found.push({
       field: `${path}.condition`,
       code: 'save_imposes_nothing',
       reason:
-        'a saving throw whose failure imposes no condition, hangs no rider and records no outcome is a die thrown for nothing; name the condition, or the grants the failure hands out, or set recordsOutcome where the sentence says somebody knows the answer, or set verdictOnly where the verdict is the whole of it',
+        'a saving throw whose failure imposes no condition, hangs no rider and records no outcome is a die thrown for nothing; name the condition, or the grants the failure hands out, or set recordsOutcome where the sentence says somebody knows the answer, or set verdictOnly where the verdict is the whole of it, or end the casting on a success',
     });
   }
 

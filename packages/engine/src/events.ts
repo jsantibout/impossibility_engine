@@ -2047,16 +2047,31 @@ export type GameEvent =
   /**
    * An ongoing spell was used again on a later turn.
    *
-   * Changes no state — the action it costs and the damage it deals are their
-   * own events — so this is `roll-recorded`'s shape and exists for the same
-   * two reasons: without it the log shows an attack with no visible cause, and
-   * a command whose only other events may be a miss has nowhere to put its
-   * stamp.
+   * Changes almost no state — the action it costs and the damage it deals are
+   * their own events — so this is close to `roll-recorded`'s shape and exists
+   * for the same two reasons: without it the log shows an attack with no visible
+   * cause, and a command whose only other events may be a miss has nowhere to
+   * put its stamp.
+   *
+   * **One thing it does write, and it is a decision the action itself took.**
+   * SRD Detect Thoughts' probe names a mind, and the casting is Range: Self —
+   * so the creature is neither a target of the cast nor anything the world holds,
+   * and the event that records the action is the only place it could be written.
+   * See {@link probing} and `OngoingSpell.probing`.
    */
   | {
       readonly type: 'spell-activated';
       readonly castingId: string;
       readonly by: CharacterId;
+      /**
+       * The creature this later action turned the casting on — SRD Detect
+       * Thoughts' "probe deeper into **the target's** mind".
+       *
+       * Pinned onto the ongoing record, where the check the book offers reads it.
+       * Absent for every other activation in the book, which names its target
+       * for the length of one action and leaves nothing behind.
+       */
+      readonly probing?: CharacterId;
       readonly command?: CommandStamp;
     }
   /**

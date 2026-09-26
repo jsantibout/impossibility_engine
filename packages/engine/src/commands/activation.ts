@@ -604,6 +604,15 @@ export function activateSpell(
       type: 'spell-activated',
       castingId: record.castingId,
       by: casterId,
+      // **The one creature a later action leaves behind**, for the one spell
+      // that prints a check the creature it probed may attempt: SRD Detect
+      // Thoughts' Magic action turns a Range: Self casting on a mind, and the
+      // cast aimed at nobody. Pinned only where the definition's check asks for
+      // it — see `SpellCheck.attemptBy` — so every other activation writes the
+      // event it always wrote.
+      ...(definition.check?.attemptBy === 'probed' && target !== null
+        ? { probing: target }
+        : {}),
       ...(stamp === null ? {} : { command: stamp }),
     });
 

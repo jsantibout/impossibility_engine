@@ -7405,13 +7405,42 @@ export const DETECT_THOUGHTS: SpellDefinition = {
   concentration: true,
   range: { kind: 'self' },
   targets: { count: 0 },
+  // The spell listens; nothing happens to anybody until the probe is taken.
   effects: [],
+  // "As a Magic action on your next turn, you can try to probe deeper into the
+  // target's mind. If you probe deeper, the target makes a Wisdom saving throw."
+  // Thirty feet, which is the reach the spell's own two options print.
+  activation: {
+    action: 'action',
+    range: { kind: 'ranged', feet: 30 },
+    label: 'Detect Thoughts (probing deeper)',
+    effects: [
+      {
+        kind: 'save',
+        ability: 'wis',
+        // "On a successful save, the spell ends." What a failure buys is the
+        // caster's knowledge, which is handed over below.
+        onSuccess: 'end-casting',
+      },
+    ],
+  },
+  // "the target can take an action on its turn to make an Intelligence (Arcana)
+  // check against your spell save DC, ending the spell on a success" — offered
+  // to the creature the probe named and to nobody else.
+  check: {
+    ability: 'int',
+    skill: 'arcana',
+    onSuccess: 'end-casting',
+    attemptBy: 'probed',
+  },
   durationSeconds: 60,
+  dmDecides: [
+    "On a failed save, you discern the target's reasoning, emotions, and something that looms large in its mind (such as a worry, love, or hate).",
+  ],
   unmodelled: [
     'Sense Thoughts is the DM’s: which thinking creatures are within 30 feet, and the blocking rule — 1 foot of stone, dirt or wood, 1 inch of metal, a thin sheet of lead — are facts about a room',
     'Read Thoughts is the DM’s: "You learn what is most on the target’s mind right now" is information rather than state',
-    'the deeper probe is not run: "As a Magic action on your next turn, you can try to probe deeper into the target’s mind. If you probe deeper, the target makes a Wisdom saving throw" is an activation that forces a saving throw, and every registered activation resolves an attack or moves an area instead',
-    'the target’s escape is not offered: "the target can take an action on its turn to make an Intelligence (Arcana) check against your spell save DC, ending the spell on a success" is a check made by somebody the casting holds nothing on, and whose success ends the casting — an outcome `SpellCheck` deliberately has no member for, naming this spell',
+    'and which of the two options a Magic action turns on is the DM’s too: the probe is the one of them the engine resolves, and the spell prints "you can activate either effect as a Magic action on your later turns"',
   ],
 };
 

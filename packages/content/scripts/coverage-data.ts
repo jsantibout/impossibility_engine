@@ -252,6 +252,13 @@ export const VERIFIED_SPELLS: readonly string[] = [
   // `sight.test.ts` (engine): the sense conferred and read by `sensesOf`.
   'darkvision',
   'daylight',
+  // `detect-thoughts.test.ts` (engine): the spell listening on its caster and
+  // probing nobody, the Magic action forcing the goblin's Wisdom save, a success
+  // ending the spell as resisted and a failure pinning the mind it read, the
+  // Intelligence (Arcana) check offered to that goblin at the wizard's own DC
+  // and refused to the fighter beside it, and the check landing ending the
+  // casting.
+  'detect-thoughts',
   'dimension-door',
   'dispel-magic',
   'dissonant-whispers',

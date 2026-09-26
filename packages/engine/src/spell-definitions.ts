@@ -460,6 +460,30 @@ export interface SpellCheck {
    * affected creature alone may attempt.
    */
   readonly byAnotherWithinReach?: true;
+  /**
+   * SRD Detect Thoughts: "**the target** can take an action on its turn to make
+   * an Intelligence (Arcana) check against your spell save DC, ending the spell
+   * on a success."
+   *
+   * {@link byAnotherWithinReach}'s opposite: that clause **widens** who may
+   * attempt a check from the creature the effect sits on, and this **narrows**
+   * it on a casting that sits on nobody. A casting with no victim is anybody's
+   * to see through — which is right for an illusion standing in a corridor and
+   * wrong for a spell that is inside one goblin's head — so the one creature
+   * the probe named is pinned on the record (`OngoingSpell.probing`) and this is
+   * what says to read the pin.
+   *
+   * `probed` rather than `target`, because it is not the cast's target: Detect
+   * Thoughts is Range: Self and the creature is named by the *later action*,
+   * which is why `aimed` cannot answer and a field of its own is needed. The
+   * only value is `probed`; absent is every other check.
+   *
+   * `mayAttemptOrReach` is the one reader, and a casting whose probe has not
+   * been taken yet offers the check to nobody at all — which is the book's
+   * reading: the sentence begins "**Either way**, the target knows that you are
+   * probing into its mind".
+   */
+  readonly attemptBy?: 'probed';
 }
 
 /**
@@ -2781,6 +2805,36 @@ export type SpellEffect =
        * sweep exists to catch.
        */
       readonly onSuccessRiders?: OutcomeRiders;
+      /**
+       * A **successful** save ends the whole casting.
+       *
+       * SRD Detect Thoughts, of the deeper probe: "If you probe deeper, the
+       * target makes a Wisdom saving throw. On a failed save, you discern the
+       * target's reasoning, emotions, and something that looms large in its
+       * mind. **On a successful save, the spell ends.**"
+       *
+       * **The other end of a sentence the vocabulary already had at one end.**
+       * `SpellCheck.onSuccess: 'end-casting'` is a *check* whose success ends
+       * the casting, and `SpellRepeatSave.onSuccess: 'end-casting'` is a save a
+       * turn boundary repeats; what had no spelling was a save the spell forces
+       * **once**, whose success is the end of it. All three converge on
+       * `releaseCasting`, so this is a third writer of one release rather than a
+       * third release.
+       *
+       * **A member rather than a flag, and the only member is the one the book
+       * prints.** `end-on-target` would be the release a repeat save already
+       * performs on a creature the casting is holding something on, and a save
+       * of this shape holds nothing — the whole point of the sentence is that
+       * the failure's consequence is the *caster's* knowledge. `none` is the
+       * absence, which is every other save in the book.
+       *
+       * **A save that does nothing else is legal because of this**, which is
+       * the one authoring rule it relaxes: `checkEffect` refuses a save that
+       * imposes nothing and hangs nothing, and a save whose success ends the
+       * casting does something whichever way it falls. What a failure buys is
+       * handed to the table, in the definition's own `handsOver`.
+       */
+      readonly onSuccess?: 'end-casting';
       /**
        * A saving throw the condition repeats at a turn boundary, if it does.
        * Feeds straight into the turn-hook machinery.

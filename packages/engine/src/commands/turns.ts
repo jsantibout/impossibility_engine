@@ -992,6 +992,19 @@ const WITHIN_REACH_FEET = 5;
  * attempt it, and a distance nobody can measure is not one that qualifies.
  */
 function mayAttemptOrReach(state: GameState, timer: TimedEffect, who: CharacterId): boolean {
+  // — the clause that narrows, which is the compulsions track's opposite ——————
+  //
+  // SRD Detect Thoughts: "**the target** can take an action on its turn to make
+  // an Intelligence (Arcana) check against your spell save DC." The derivation
+  // below says a casting with no victim is anybody's to see through, and that is
+  // right for an illusion in a corridor and wrong for a spell inside one
+  // goblin's head — so the creature the probe named is pinned on the record and
+  // this reads the pin, before the widening and before the derivation. A casting
+  // whose probe has not been taken has pinned nobody and the check is nobody's,
+  // which is the book's own reading of a sentence that begins "Either way".
+  if (timer.check?.attemptBy === 'probed') {
+    return timer.target.kind === 'casting' && state.ongoing[timer.target.castingId]?.probing === who;
+  }
   if (mayAttempt(timer, who)) return true;
   if (timer.check?.byAnotherWithinReach !== true || timer.target.kind !== 'condition') return false;
   const scene = state.scene;
@@ -1054,9 +1067,11 @@ export function resolveEffectCheck(
     if (!mayAttemptOrReach(state, timer, who)) {
       return err(
         'not_yours_to_attempt',
-        check.byAnotherWithinReach === true
-          ? `${command.effectKey} is on somebody else, and only they or a creature within reach of them can shake it off`
-          : `${command.effectKey} is on somebody else, and only they can shake it off`,
+        check.attemptBy === 'probed'
+          ? `${command.effectKey} is in somebody else's mind, and only the creature being probed can shake it off`
+          : check.byAnotherWithinReach === true
+            ? `${command.effectKey} is on somebody else, and only they or a creature within reach of them can shake it off`
+            : `${command.effectKey} is on somebody else, and only they can shake it off`,
       );
     }
 

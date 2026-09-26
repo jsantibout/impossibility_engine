@@ -197,7 +197,12 @@ const castFrom = (
  * agree with a batch that wrote none of them.
  */
 const WRITTEN: Readonly<Record<string, 'tracked' | 'executed'>> = {
-  'detect-thoughts': 'tracked',
+  // **Executed now**, and it was the one spell on this list whose bucket the
+  // brief expected to move: the probe's Wisdom save is forced by the Magic
+  // action, a success ends the spell, and the Intelligence (Arcana) check the
+  // probed creature may attempt ends it too. Both halves of the sentence the
+  // items were waiting for are the engine's.
+  'detect-thoughts': 'executed',
   // Both halves whole now: the size as a sourced grant, the modes, the die and
   // the penalty, and the save offered to the unwilling alone.
   'enlarge-reduce': 'executed',

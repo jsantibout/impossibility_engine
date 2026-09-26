@@ -108,11 +108,31 @@ export function applyOngoing({ state, next, legacy }: Applying, event: OngoingEv
         : releaseOnTarget(next, event.on, event.castingId);
     }
 
-    // Changes nothing, like `roll-recorded`: the action it cost and the damage
-    // it dealt are their own events. It is here so the log can say why a spell
-    // struck on a turn nobody cast it.
-    case 'spell-activated':
-      return next;
+    // Changes nothing for all but one spell, like `roll-recorded`: the action it
+    // cost and the damage it dealt are their own events. It is here so the log
+    // can say why a spell struck on a turn nobody cast it.
+    //
+    // **The one thing it writes is a creature the action named.** SRD Detect
+    // Thoughts' probe turns a Range: Self casting on one mind, and the check the
+    // book then offers that creature has to be narrowed to it — so the name is
+    // pinned on the record here, which is the only place it could be: the cast
+    // aimed at nobody, and nothing in the world holds the fact. Replaced rather
+    // than joined, because "you shift your attention away from the target's
+    // mind" is a sentence about one mind at a time.
+    case 'spell-activated': {
+      if (event.probing === undefined) return next;
+      const record = state.ongoing[event.castingId];
+      if (record === undefined) {
+        throw new CorruptLogError(event, `${event.castingId} is not running`);
+      }
+      return {
+        ...next,
+        ongoing: sortedRecord({
+          ...next.ongoing,
+          [event.castingId]: { ...record, probing: event.probing },
+        }),
+      };
+    }
 
     // SRD Alter Self's swap: what the casting hung on its caster goes, and the
     // word is re-pinned. The caster's grants alone — a re-choosing spell is

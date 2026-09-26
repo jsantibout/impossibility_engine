@@ -714,6 +714,32 @@ export interface OngoingSpell {
    */
   readonly inAStorm?: true;
   /**
+   * The creature this casting's later action is turned on — SRD Detect Thoughts.
+   *
+   * > "As a Magic action on your next turn, you can try to probe deeper into the
+   * > target's mind. ... until you shift your attention away from the target's
+   * > mind, **the target** can take an action on its turn to make an Intelligence
+   * > (Arcana) check against your spell save DC, ending the spell on a success."
+   *
+   * **Not {@link aimed}, and the difference is *when* the creature was named.**
+   * That field is what the **cast** declared, written once and only ever
+   * shrinking; this is a creature an **activation** named, on a Range: Self
+   * casting that was aimed at nobody but its caster. So there was nowhere for it
+   * to be written down, and the check the book offers had nobody to be narrowed
+   * to — which is the whole of what `a-check-another-creature-may-attempt` was.
+   *
+   * Written by `spell-activated`, which had changed no state until this: the
+   * creature is a decision the caster took at the later action, so the event that
+   * records the action is where it belongs. Replaced rather than joined, because
+   * the sentence is about one mind — "you shift your attention away" — and a
+   * second probe is a second attention.
+   *
+   * `SpellCheck.attemptBy: 'probed'` is the one reader, through
+   * `mayAttemptOrReach`. Absent on every other casting in the book, and on one
+   * whose probe has not been taken yet.
+   */
+  readonly probing?: string;
+  /**
    * Somebody other than the caster may end this casting, and pays for it —
    * SRD Gaseous Form's "if it takes a Magic action to end the spell on
    * itself".
