@@ -684,7 +684,7 @@ is where a figure like that belongs.
 
 | Parsed | Transcribed | Instances | of which complete | of which partial |
 |---|---|---|---|---|
-| 258 | 89 | 250 | 208 | 42 |
+| 258 | 100 | 261 | 211 | 50 |
 
 | Records handing printed text to the DM |
 |---|
@@ -707,13 +707,13 @@ inventing a column that nothing checks.
 |---|---|---|---|---|---|
 | Armor | 19 | 10 | 55 | 50 | 5 |
 | Potions | 24 | 11 | 14 | 9 | 5 |
-| Rings | 22 | 5 | 5 | 4 | 1 |
-| Rods | 7 | 1 | 1 | 1 | 0 |
+| Rings | 22 | 6 | 6 | 4 | 2 |
+| Rods | 7 | 2 | 2 | 1 | 1 |
 | Scrolls | 1 | 0 | 0 | 0 | 0 |
-| Staffs | 12 | 1 | 1 | 1 | 0 |
-| Wands | 13 | 9 | 9 | 7 | 2 |
+| Staffs | 12 | 8 | 8 | 3 | 5 |
+| Wands | 13 | 10 | 10 | 8 | 2 |
 | Weapons | 33 | 15 | 128 | 115 | 13 |
-| Wondrous Items | 127 | 37 | 37 | 21 | 16 |
+| Wondrous Items | 127 | 38 | 38 | 21 | 17 |
 
 ### Entries transcribed
 
@@ -732,6 +732,7 @@ how many of those still carry a clause the engine does not say.
 - **Cape of the Mountebank** (Wondrous Items) — 1 recorded, 1 partial
 - **Chime of Opening** (Wondrous Items) — 1 recorded, complete
 - **Circlet of Blasting** (Wondrous Items) — 1 recorded, complete
+- **Cloak of Arachnida** (Wondrous Items) — 1 recorded, 1 partial
 - **Cloak of Elvenkind** (Wondrous Items) — 1 recorded, 1 partial
 - **Cloak of Invisibility** (Wondrous Items) — 1 recorded, 1 partial
 - **Cloak of Protection** (Wondrous Items) — 1 recorded, complete
@@ -780,17 +781,26 @@ how many of those still carry a clause the engine does not say.
 - **Ring of Animal Influence** (Rings) — 1 recorded, 1 partial
 - **Ring of Jumping** (Rings) — 1 recorded, complete
 - **Ring of Protection** (Rings) — 1 recorded, complete
+- **Ring of Shooting Stars** (Rings) — 1 recorded, 1 partial
 - **Ring of Telekinesis** (Rings) — 1 recorded, complete
 - **Ring of Water Walking** (Rings) — 1 recorded, complete
 - **Robe of Stars** (Wondrous Items) — 1 recorded, 1 partial
 - **Robe of the Archmagi** (Wondrous Items) — 1 recorded, 1 partial
+- **Rod of Alertness** (Rods) — 1 recorded, 1 partial
 - **Rod of Resurrection** (Rods) — 1 recorded, complete
 - **Scimitar of Speed** (Weapons) — 1 recorded, 1 partial
 - **Sentinel Shield** (Armor) — 1 recorded, complete
 - **Shield of the Cavalier** (Armor) — 1 recorded, 1 partial
 - **Shield, +1, +2, or +3** (Armor) — 3 recorded, complete
 - **Sovereign Glue** (Wondrous Items) — 1 recorded, complete
+- **Staff of Charming** (Staffs) — 1 recorded, 1 partial
 - **Staff of Fire** (Staffs) — 1 recorded, complete
+- **Staff of Frost** (Staffs) — 1 recorded, complete
+- **Staff of Healing** (Staffs) — 1 recorded, complete
+- **Staff of Power** (Staffs) — 1 recorded, 1 partial
+- **Staff of Swarming Insects** (Staffs) — 1 recorded, 1 partial
+- **Staff of the Magi** (Staffs) — 1 recorded, 1 partial
+- **Staff of the Woodlands** (Staffs) — 1 recorded, 1 partial
 - **Stone of Good Luck (Luckstone)** (Wondrous Items) — 1 recorded, complete
 - **Sword of Wounding** (Weapons) — 1 recorded, 1 partial
 - **Universal Solvent** (Wondrous Items) — 1 recorded, complete
@@ -801,6 +811,7 @@ how many of those still carry a clause the engine does not say.
 - **Wand of Fireballs** (Wands) — 1 recorded, complete
 - **Wand of Lightning Bolts** (Wands) — 1 recorded, complete
 - **Wand of Magic Detection** (Wands) — 1 recorded, complete
+- **Wand of Magic Missiles** (Wands) — 1 recorded, complete
 - **Wand of Paralysis** (Wands) — 1 recorded, complete
 - **Wand of Polymorph** (Wands) — 1 recorded, complete
 - **Wand of Secrets** (Wands) — 1 recorded, 1 partial
@@ -832,7 +843,7 @@ entry of "Magic Items A–Z" is in exactly one of them.
 
 | Parsed | Transcribed | Blocked | Ready | Fiction | Unread |
 |---|---|---|---|---|---|
-| 258 | 89 | 162 | 0 | 4 | 3 |
+| 258 | 100 | 151 | 0 | 4 | 3 |
 
 **Unread is the honest default**, not a backlog nobody got to. An entry
 whose blocker cannot be named from something this repository has already
@@ -877,26 +888,26 @@ the next tranche makes false.
 |---|---|---|---|
 | `an-ability-score-a-spell-changes` | 11 | 0 | 6 |
 | `a-container-with-a-space-of-its-own` | 6 | 0 | 5 |
-| `a-spell-an-item-casts-that-nothing-executes` | 19 | 2 | 2 |
 | `a-stat-block-created-mid-fight` | 17 | 0 | 4 |
+| `a-spell-an-item-casts-that-nothing-executes` | 13 | 2 | 2 |
 | `a-version-of-an-item-the-book-leaves-to-the-gm` | 28 | 0 | 3 |
-| `an-object-with-statistics-of-its-own` | 18 | 0 | 3 |
+| `an-object-with-statistics-of-its-own` | 17 | 0 | 3 |
 | `a-fact-only-the-table-can-declare` | 12 | 0 | 3 |
 | `a-benefit-an-item-switches-on-and-off` | 12 | 0 | 2 |
 | `an-item-instance-with-a-state-of-its-own` | 12 | 0 | 2 |
-| `a-speed-an-item-grants` | 11 | 0 | 2 |
-| `a-reaction-an-item-grants` | 8 | 0 | 2 |
+| `a-speed-an-item-grants` | 10 | 0 | 2 |
+| `a-reaction-an-item-grants` | 7 | 0 | 2 |
 | `a-mode-on-the-save-a-spell-forces` | 5 | 1 | 1 |
-| `a-casting-an-item-stores-or-gives-back` | 4 | 0 | 2 |
+| `a-casting-an-item-stores-or-gives-back` | 3 | 0 | 2 |
 | `a-target-rule-the-format-cannot-state` | 2 | 1 | 1 |
-| `an-area-an-item-creates` | 22 | 0 | 1 |
+| `an-area-an-item-creates` | 17 | 0 | 1 |
 | `a-rider-on-a-later-weapon-attack` | 12 | 0 | 1 |
-| `a-rider-on-the-face-the-die-showed` | 12 | 0 | 1 |
-| `a-charge-spent-on-something-other-than-a-casting` | 9 | 0 | 1 |
-| `damage-with-neither-an-attack-roll-nor-a-save` | 8 | 0 | 1 |
-| `senses-beyond-declared-sight` | 8 | 0 | 1 |
+| `senses-beyond-declared-sight` | 7 | 0 | 1 |
 | `a-bonus-narrowed-to-a-skill` | 6 | 1 | 0 |
+| `a-charge-spent-on-something-other-than-a-casting` | 6 | 0 | 1 |
+| `damage-with-neither-an-attack-roll-nor-a-save` | 6 | 0 | 1 |
 | `a-language-or-a-proficiency-an-item-grants` | 5 | 0 | 1 |
+| `a-rider-on-the-face-the-die-showed` | 5 | 0 | 1 |
 | `healing-modified-by-an-effect` | 5 | 0 | 1 |
 | `what-ends-attunement-besides-a-command` | 4 | 0 | 1 |
 | `a-benefit-an-item-suspends-on-a-trigger` | 2 | 0 | 1 |
@@ -905,12 +916,12 @@ the next tranche makes false.
 | `a-reduction-an-effect-applies-to-damage` | 1 | 0 | 1 |
 | `a-save-an-item-forces` | 11 | 0 | 0 |
 | `a-condition-an-item-imposes` | 10 | 0 | 0 |
-| `movement-modes` | 10 | 0 | 0 |
+| `movement-modes` | 9 | 0 | 0 |
 | `a-range-an-item-names` | 8 | 0 | 0 |
-| `a-bonus-to-spell-attack-rolls` | 6 | 0 | 0 |
 | `an-exhaustion-level-a-spell-changes` | 4 | 0 | 0 |
-| `a-concentration-with-no-casting-behind-it` | 3 | 0 | 0 |
+| `a-bonus-to-spell-attack-rolls` | 3 | 0 | 0 |
 | `a-random-outcome-that-is-not-a-d20` | 3 | 0 | 0 |
+| `a-concentration-with-no-casting-behind-it` | 2 | 0 | 0 |
 | `a-condition-immunity-narrowed-to-its-source` | 2 | 0 | 0 |
 | `a-damage-roll-an-item-makes` | 2 | 0 | 0 |
 | `a-filter-on-the-attackers-creature-type` | 2 | 0 | 0 |

@@ -3161,3 +3161,19 @@ Appended 2026-09-26, wave seven on Opus:
   Poison resistance), not only senses — one condition in `assumeStatBlock`'s
   filter. **Left:** `classes/druid.ts:175`'s Wild Shape note still says the
   block's senses are not carried. Opus review, two defects, fixed.
+- **Treasure T-C2: staffs and wands.** Eleven casting items, content only, on
+  T-C1's door: the Wand of Magic Missiles; the Staffs of Healing, Frost,
+  Charming, Swarming Insects, the Woodlands, Power and the Magi (Fireball and
+  Lightning Bolt at level 7 for 7 charges, the "0" rows at will); the Rod of
+  Alertness; the Ring of Shooting Stars; the Cloak of Arachnida. The
+  reachability sweep carries all of them. Magic items transcribed 89 → 100,
+  instances 250 → 261, blocked 162 → 151. **Two deviations under rule 3:**
+  the Staff of the Woodlands' and the Staff of Power's last-charge outcomes
+  (a nonmagical Quarterstaff; one that keeps its +2) are not sayable, and "no
+  field" would make a staff that never fails, so both carry `CRUMBLES_ON_A_1`
+  — harsher than the page — with a note that the DM hands back the
+  quarterstaff. **Wants:** a `LastCharge` that becomes another item
+  (`becomes: <itemId>`), which would make both exact. **Left out:** the
+  Potion of Animal Friendship — `itemRoute` casts only from an equipped item
+  and potions are not equippable, so it needs a casting route that reaches a
+  potion in the pack. Opus review, two defects, fixed.
