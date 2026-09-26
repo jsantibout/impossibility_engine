@@ -3,6 +3,8 @@ import {
   MonsterAcAddendSchema,
   MonsterAttackSchema,
   MonsterCastLineSchema,
+  MonsterDashSchema,
+  MonsterJumpSchema,
   MonsterRollAddendSchema,
   MonsterSaveSchema,
   MonsterSchema,
@@ -12,6 +14,7 @@ import {
   MonsterSpellcastingSchema,
   MonsterSwallowSchema,
   MonsterTeleportSchema,
+  MonsterTreeStrideSchema,
   slugify,
   type Feature,
   type Monster,
@@ -19,6 +22,9 @@ import {
   type MonsterAttack,
   type MonsterCastLine,
   type MonsterDamage,
+  type MonsterDash,
+  type MonsterJump,
+  type MonsterTreeStride,
   type MonsterForm,
   type MonsterForms,
   type MonsterMultiattack,
@@ -878,6 +884,22 @@ const CARRIES_AS_A_LARGER_CREATURE = new RegExp(
 );
 
 /**
+ * SRD Jumper, on the cat: "The cat's jump distance is determined using its
+ * Dexterity rather than its Strength." — W7-B9.
+ */
+const JUMPER = new RegExp(
+  `^${SUBJECT}['’]s jump distance is determined using its Dexterity rather than its Strength\\.$`,
+);
+
+/**
+ * SRD Abduct, on both bugbears: "The bugbear needn't spend extra movement to
+ * move a creature it is grappling." — W7-B9.
+ */
+const ABDUCT = new RegExp(
+  `^${SUBJECT} needn['’]t spend extra movement to move a creature it is grappling\\.$`,
+);
+
+/**
  * The sentences the parser reads so that the **table** gets them, and that no
  * rule will ever consult.
  *
@@ -1436,6 +1458,10 @@ export function parseTraitShape(text: string): MonsterTrait | null {
   if (CARRIES_AS_A_LARGER_CREATURE.test(text)) {
     return { kind: 'carries-as-a-larger-creature', sizesLarger: 1 };
   }
+  // The two traits about moving — W7-B9: which ability a jump reads, and the
+  // cost a drag does not charge.
+  if (JUMPER.test(text)) return { kind: 'jumps-by-dexterity' };
+  if (ABDUCT.test(text)) return { kind: 'drags-for-free' };
 
   // Last, because every sentence above states a mechanic and these state
   // none: a handover that matched first would be a rule read as fiction.
@@ -1889,6 +1915,111 @@ export function parsePlaneShiftLine(text: string): MonsterPlaneShift | null {
   const checked = MonsterPlaneShiftSchema.safeParse({
     plane: 'ethereal',
     companions: { count, within: Number(stride[2]!) },
+  });
+  return checked.success ? checked.data : null;
+}
+
+// — the moves a line makes (W7-B9) ————————————————————————————————————————————
+
+/**
+ * SRD Bulette, Half-Dragon and Lamia, Leap: "The bulette jumps up to 30 feet
+ * by spending 10 feet of movement."
+ *
+ * SRD *Jump*'s own sentence at a heading's price, anchored end to end: a line
+ * that said where the jump lands or what it does on landing says something
+ * this shape has no field for.
+ */
+const JUMP_LINE = new RegExp(
+  `^The ${SUBJECT} jumps up to (\\d+) feet by spending (\\d+) feet of movement\\.$`,
+);
+
+/** The jump this line buys, or null for every other line. */
+export function parseJumpLine(text: string): MonsterJump | null {
+  const matched = JUMP_LINE.exec(oneLine(text));
+  if (matched === null) return null;
+  const checked = MonsterJumpSchema.safeParse({
+    feet: Number(matched[1]!),
+    costsMovement: Number(matched[2]!),
+  });
+  return checked.success ? checked.data : null;
+}
+
+/**
+ * The book's four ways of granting a move on a line, in one grammar:
+ *
+ * - "While underwater, the seahorse moves up to half its Swim Speed without
+ *   provoking Opportunity Attacks." (SRD Giant Seahorse; the Seahorse without
+ *   the half)
+ * - "The weretiger moves up to its Speed without provoking Opportunity
+ *   Attacks. At the end of this movement, the weretiger can take the Hide
+ *   action." (SRD Weretiger)
+ * - "The troll moves up to half its Speed straight toward an enemy it can
+ *   see." (SRD Troll; the Sahuagin swims up to its Swim Speed; the Xorn moves
+ *   up to its Speed or Burrow Speed toward one it can sense)
+ *
+ * An optional leading clause the table adjudicates, the verb, the fraction,
+ * one or two Speeds, and then either the exemption or the bearing — anchored
+ * end to end, with the Hide as the one sentence that may follow. SRD Unicorn's
+ * Charging Horn adds "and it makes one Radiant Horn attack" and is a legendary
+ * line besides, so it stays where it is.
+ */
+const DASH_LINE = new RegExp(
+  `^(?:(While underwater), )?[Tt]he ${SUBJECT} (?:moves|swims) up to (half )?its ` +
+    `((?:Swim |Burrow |Climb |Fly )?Speed)(?: or (Swim|Burrow|Climb|Fly) Speed)? ` +
+    `(?:(without provoking Opportunity Attacks)|(straight toward an enemy it can (?:see|sense)))\\.` +
+    `( At the end of this movement, the ${SUBJECT} can take the Hide action\\.)?$`,
+);
+
+const DASH_MODES: Readonly<Record<string, MonsterDash['modes'][number]>> = {
+  Speed: 'walk',
+  'Swim Speed': 'swim',
+  'Burrow Speed': 'burrow',
+  'Climb Speed': 'climb',
+  'Fly Speed': 'fly',
+  Swim: 'swim',
+  Burrow: 'burrow',
+  Climb: 'climb',
+  Fly: 'fly',
+};
+
+/** The move this line grants, or null for every other line. */
+export function parseDashLine(text: string): MonsterDash | null {
+  const matched = DASH_LINE.exec(oneLine(text));
+  if (matched === null) return null;
+  const [, water, half, first, second, exempt, toward, hide] = matched;
+  const modes = [DASH_MODES[first!]!, ...(second === undefined ? [] : [DASH_MODES[second]!])];
+  const checked = MonsterDashSchema.safeParse({
+    fraction: half === undefined ? 'whole' : 'half',
+    modes,
+    noOpportunityAttacks: exempt !== undefined,
+    ...(hide === undefined ? {} : { thenHide: true }),
+    handedOver: [...(water === undefined ? [] : [water]), ...(toward === undefined ? [] : [toward])],
+  });
+  return checked.success ? checked.data : null;
+}
+
+/**
+ * SRD Dryad, Tree Stride: "If within 5 feet of a Large or bigger tree, the
+ * dryad teleports to an unoccupied space within 5 feet of a second Large or
+ * bigger tree that is within 60 feet of the previous tree."
+ *
+ * Anchored end to end, with the size back-referenced so both trees are the
+ * same clause: a line that named two sizes would be a rule nobody printed.
+ */
+const TREE_STRIDE_LINE = new RegExp(
+  `^If within (\\d+) feet of a (${SIZE_WORD}) or bigger tree, the ${SUBJECT} teleports to an unoccupied space ` +
+    `within (\\d+) feet of a second \\2 or bigger tree that is within (\\d+) feet of the previous tree\\.$`,
+);
+
+/** The teleport between two trees this line makes, or null for every other line. */
+export function parseTreeStrideLine(text: string): MonsterTreeStride | null {
+  const matched = TREE_STRIDE_LINE.exec(oneLine(text));
+  if (matched === null) return null;
+  const checked = MonsterTreeStrideSchema.safeParse({
+    fromWithin: Number(matched[1]!),
+    toWithin: Number(matched[3]!),
+    treesWithin: Number(matched[4]!),
+    treeSize: matched[2]!.toLowerCase(),
   });
   return checked.success ? checked.data : null;
 }
@@ -2779,6 +2910,11 @@ function parseFeatures(
       // another, and a step onto the Ethereal Plane and back.
       const swallows = parseSwallowLine(text);
       const shiftsPlane = parsePlaneShiftLine(text);
+      // And the moves a line makes — W7-B9: a jump bought, a move granted, a
+      // step between two trees. Read on every section like everything else.
+      const jumps = parseJumpLine(text);
+      const dashes = parseDashLine(text);
+      const treeStride = parseTreeStrideLine(text);
       const addsToRoll = parseRollAddendLine(text);
       // The Reactions section's other two templates, read off the sentence for
       // the reason every detector here is: SRD Parry's number goes on an
@@ -2809,6 +2945,9 @@ function parseFeatures(
         ...(pulls === null ? {} : { pulls }),
         ...(swallows === null ? {} : { swallows }),
         ...(shiftsPlane === null ? {} : { shiftsPlane }),
+        ...(jumps === null ? {} : { jumps }),
+        ...(dashes === null ? {} : { dashes }),
+        ...(treeStride === null ? {} : { treeStride }),
         ...(addsToRoll === null ? {} : { addsToRoll }),
         ...(addsToAc === null ? {} : { addsToAc }),
         ...(usesLine === null ? {} : { usesLine }),

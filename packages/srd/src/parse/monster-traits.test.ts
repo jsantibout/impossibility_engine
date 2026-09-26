@@ -764,7 +764,8 @@ describe('the sentences that describe a world the lattice does not hold', () => 
     ['succubus', 'Incubus Form'],
     ['incubus', 'Succubus Form'],
     ['flesh-golem', 'Berserk'],
-    ['bugbear-warrior', 'Abduct'],
+    // The bugbears' Abduct left this list in W7-B9: the drag surcharge it
+    // waives is charged now, and `drags-for-free` is the exemption.
     ['swarm-of-insects', 'Spider Climb'],
   ])('leaves %s’s %s unread, because it states a mechanic', (block, line) => {
     expect(traitOf(block, line)).toBeNull();

@@ -4,13 +4,17 @@ import { describe, expect, it } from 'vitest';
 import {
   parseAcAddendLine,
   parseCastLine,
+  parseDashLine,
+  parseJumpLine,
   parseMonsters,
   parsePlaneShiftLine,
   parsePullLine,
   parseReactionUseLine,
   parseRollAddendLine,
+  parseSaveLine,
   parseSwallowLine,
   parseTeleportLine,
+  parseTreeStrideLine,
 } from './monsters.js';
 import type { Monster } from '../schemas.js';
 
@@ -810,5 +814,168 @@ describe('a heading that names the forms its line may be used in', () => {
       );
       expect(gated.filter((name) => !forms.includes(name)), block.id).toEqual([]);
     }
+  });
+});
+
+/**
+ * The moves a line makes — W7-B9.
+ *
+ * Fourteen bestiary lines at CR ≤ 5 whose sentence is a **move**: a jump into
+ * other creatures' spaces with a save per creature, a charge through them, a
+ * jump bought with a Bonus Action, a dash that provokes nothing, a teleport
+ * between trees, a drag that costs no extra, a straight run at an enemy. Each
+ * reader is anchored end to end like every other in this parser.
+ */
+describe('a save a move precedes', () => {
+  it('reads the bulette’s Deadly Leap: a jump into occupied spaces, then a save per creature', () => {
+    const save = lineOf('bulette', 'Deadly Leap').save;
+    expect(save).toBeDefined();
+    expect(save!.movesThen).toEqual({
+      kind: 'jump-to',
+      within: 15,
+      feetSpent: 5,
+      intoOccupiedBy: 'large',
+    });
+    expect(save!.ability).toBe('dex');
+    expect(save!.dc).toBe(15);
+    expect(save!.targets).toBe("each creature in the bulette's destination space");
+    expect(save!.damage).toEqual({ dice: '3d12', flat: 0, type: 'bludgeoning', average: 19 });
+    expect(save!.onSuccess).toBe('half');
+    expect(save!.onFailure).toEqual([{ kind: 'condition', condition: 'prone' }]);
+    expect(save!.onSuccessEffects).toEqual([{ kind: 'push', feet: 5 }]);
+    expect(save!.handedOver).toBeUndefined();
+  });
+
+  it('reads the centaur’s Trampling Charge: a move through Medium spaces, then a save per creature entered', () => {
+    const save = lineOf('centaur-trooper', 'Trampling Charge (Recharge 5–6)').save;
+    expect(save).toBeDefined();
+    expect(save!.movesThen).toEqual({
+      kind: 'move-through',
+      upToSpeed: true,
+      noOpportunityAttacks: true,
+      throughSpacesOf: 'medium',
+    });
+    expect(save!.ability).toBe('str');
+    expect(save!.dc).toBe(14);
+    // The template prints no targeting clause; the prelude's is the one it means.
+    expect(save!.targets).toBe('each creature whose space the centaur enters');
+    expect(save!.damage).toEqual({ dice: '1d6', flat: 4, type: 'bludgeoning', average: 7 });
+    expect(save!.onFailure).toEqual([{ kind: 'condition', condition: 'prone' }]);
+    expect(save!.onSuccess).toBe('none');
+    expect(save!.handedOver).toBeUndefined();
+  });
+
+  it('leaves a save with no move in front of it without the field', () => {
+    expect(lineOf('gorgon', 'Trample').save?.movesThen).toBeUndefined();
+  });
+
+  it('still refuses a template with no targeting clause and no prelude to supply one', () => {
+    expect(
+      parseSaveLine('_Strength Saving Throw:_ DC 14. _Failure:_ 7 (1d6 + 4) Bludgeoning damage.'),
+    ).toBeNull();
+  });
+});
+
+describe('a jump a line buys', () => {
+  it('reads "jumps up to 30 feet by spending 10 feet of movement" on all three Leaps', () => {
+    for (const id of ['bulette', 'half-dragon', 'lamia']) {
+      expect(lineOf(id, 'Leap').jumps, id).toEqual({ feet: 30, costsMovement: 10 });
+    }
+  });
+
+  it('refuses a sentence with anything else in it', () => {
+    expect(
+      parseJumpLine('The lamia jumps up to 30 feet by spending 10 feet of movement, landing Prone.'),
+    ).toBeNull();
+    expect(parseJumpLine('The bulette leaps up to 30 feet.')).toBeNull();
+  });
+});
+
+describe('a dash a line grants', () => {
+  it('reads the seahorses’ Bubble Dash, half and whole of a Swim Speed, with the water handed over', () => {
+    expect(lineOf('giant-seahorse', 'Bubble Dash').dashes).toEqual({
+      fraction: 'half',
+      modes: ['swim'],
+      noOpportunityAttacks: true,
+      handedOver: ['While underwater'],
+    });
+    expect(lineOf('seahorse', 'Bubble Dash').dashes).toEqual({
+      fraction: 'whole',
+      modes: ['swim'],
+      noOpportunityAttacks: true,
+      handedOver: ['While underwater'],
+    });
+  });
+
+  it('reads the weretiger’s Prowl with the Hide at the end of it', () => {
+    expect(lineOf('weretiger', 'Prowl (Tiger or Hybrid Form Only)').dashes).toEqual({
+      fraction: 'whole',
+      modes: ['walk'],
+      noOpportunityAttacks: true,
+      thenHide: true,
+      handedOver: [],
+    });
+  });
+
+  it('reads the three Charges as a move that provokes, with the direction handed over', () => {
+    expect(lineOf('troll', 'Charge').dashes).toEqual({
+      fraction: 'half',
+      modes: ['walk'],
+      noOpportunityAttacks: false,
+      handedOver: ['straight toward an enemy it can see'],
+    });
+    expect(lineOf('sahuagin-warrior', 'Aquatic Charge').dashes).toEqual({
+      fraction: 'whole',
+      modes: ['swim'],
+      noOpportunityAttacks: false,
+      handedOver: ['straight toward an enemy it can see'],
+    });
+    expect(lineOf('xorn', 'Charge').dashes).toEqual({
+      fraction: 'whole',
+      modes: ['walk', 'burrow'],
+      noOpportunityAttacks: false,
+      handedOver: ['straight toward an enemy it can sense'],
+    });
+  });
+
+  it('refuses a move whose sentence says something more', () => {
+    // SRD Unicorn's Charging Horn adds an attack; it is a legendary line and stays that.
+    expect(
+      parseDashLine(
+        'The unicorn moves up to half its Speed without provoking Opportunity Attacks, and it makes one Radiant Horn attack.',
+      ),
+    ).toBeNull();
+    expect(parseDashLine('The troll moves up to half its Speed.')).toBeNull();
+  });
+});
+
+describe('a teleport between two trees', () => {
+  it('reads the dryad’s Tree Stride', () => {
+    expect(lineOf('dryad', 'Tree Stride').treeStride).toEqual({
+      fromWithin: 5,
+      toWithin: 5,
+      treesWithin: 60,
+      treeSize: 'large',
+    });
+    expect(lineOf('dryad', 'Tree Stride').teleports).toBeUndefined();
+  });
+
+  it('refuses the sentence with a clause changed', () => {
+    expect(
+      parseTreeStrideLine(
+        'If within 5 feet of a Large or bigger tree, the dryad teleports to an unoccupied space within 5 feet of a second Large or bigger tree.',
+      ),
+    ).toBeNull();
+  });
+});
+
+describe('two traits about moving', () => {
+  it('reads the cat’s Jumper as a jump measured by Dexterity', () => {
+    expect(lineOf('cat', 'Jumper').trait).toEqual({ kind: 'jumps-by-dexterity' });
+  });
+
+  it('reads the bugbears’ Abduct as a drag that costs no extra', () => {
+    expect(lineOf('bugbear-stalker', 'Abduct').trait).toEqual({ kind: 'drags-for-free' });
+    expect(lineOf('bugbear-warrior', 'Abduct').trait).toEqual({ kind: 'drags-for-free' });
   });
 });

@@ -1093,6 +1093,61 @@ export const PrintedSaveTriggerSchema = z.discriminatedUnion('kind', [
 ]);
 export type PrintedSaveTrigger = z.infer<typeof PrintedSaveTriggerSchema>;
 
+/**
+ * The move a printed line makes **before** its save, where the sentence in
+ * front of the template is one.
+ *
+ * SRD Bulette, Deadly Leap: "The bulette spends 5 feet of movement to jump to
+ * a space within 15 feet that contains one or more Large or smaller creatures.
+ * _Dexterity Saving Throw:_ DC 15, each creature in the bulette's destination
+ * space." SRD Centaur Trooper, Trampling Charge: "The centaur moves up to its
+ * Speed without provoking Opportunity Attacks and can move through the spaces
+ * of Medium or smaller creatures. Each creature whose space the centaur enters
+ * is targeted once by the following effect. _Strength Saving Throw:_ DC 14."
+ *
+ * **The fourth prelude, and the first that is a rule the world's half of.**
+ * The three before it — a death, a definition, an object named — were facts
+ * about *when* or *what*; this one is a movement the creature spends, and a
+ * save read without it would be a Trample forced standing still. So it is
+ * carried as structure the door that moves the creature reads, and a prelude
+ * of this family the reader cannot place still refuses the line whole.
+ *
+ * Two kinds because the book prints two moves: a **jump** into a space other
+ * creatures are standing in, priced in feet and bounded in reach, and a
+ * **walk** up to a Speed through the spaces of creatures no bigger than the
+ * printed size. Who the save catches is the same in both — every creature
+ * whose space the mover ends up in or passed through — and the executor asks
+ * the lattice rather than the caller.
+ */
+export const MonsterPrintedMoveSchema = z.discriminatedUnion('kind', [
+  z.object({
+    kind: z.literal('jump-to'),
+    /** "a space within 15 feet": how far the jump may reach, from where the creature stands. */
+    within: z.number().int().min(5),
+    /** "spends 5 feet of movement": what the jump costs, whatever ground it clears. */
+    feetSpent: z.number().int().min(0),
+    /**
+     * "that contains one or more Large or smaller creatures": the biggest
+     * creature the destination may hold, and the destination must hold one.
+     */
+    intoOccupiedBy: CreatureSizeSchema,
+  }),
+  z.object({
+    kind: z.literal('move-through'),
+    /**
+     * "moves up to its Speed" — a literal, because every printing says so and
+     * a homebrew line that priced the move differently is one this shape does
+     * not describe.
+     */
+    upToSpeed: z.literal(true),
+    /** "without provoking Opportunity Attacks" — the same literal, for the same reason. */
+    noOpportunityAttacks: z.literal(true),
+    /** "can move through the spaces of Medium or smaller creatures". */
+    throughSpacesOf: CreatureSizeSchema,
+  }),
+]);
+export type MonsterPrintedMove = z.infer<typeof MonsterPrintedMoveSchema>;
+
 export const MonsterSaveSchema = z.object({
   /** Which save, by the engine's own key: `con` for "Constitution". */
   ability: z.enum(['str', 'dex', 'con', 'int', 'wis', 'cha']),
@@ -1238,6 +1293,18 @@ export const MonsterSaveSchema = z.object({
     .optional(),
   /** What happens whichever way the save went — the `_Failure or Success:_` coda. */
   either: z.array(PrintedSaveEffectSchema).optional(),
+  /**
+   * The move the line makes before the save is rolled — see
+   * {@link MonsterPrintedMoveSchema}.
+   *
+   * Present on a line whose prelude is a jump into occupied spaces or a walk
+   * through them; absent on every line a creature forces standing still. A
+   * line carrying it is spent by the door that moves the creature and rolls
+   * the save once per creature whose space was entered, and refused by the
+   * door that rolls a save over a caller's head count — a Trample nobody
+   * moved for is a rule nobody printed.
+   */
+  movesThen: MonsterPrintedMoveSchema.optional(),
   /**
    * The sentences the reader carried and did not read, verbatim.
    *
@@ -1639,6 +1706,87 @@ export const MonsterPlaneShiftSchema = z.object({
     .optional(),
 });
 export type MonsterPlaneShift = z.infer<typeof MonsterPlaneShiftSchema>;
+
+/**
+ * One line that buys its creature a jump, at a price in feet.
+ *
+ * SRD Bulette, Leap: "The bulette jumps up to 30 feet by spending 10 feet of
+ * movement." SRD Half-Dragon and SRD Lamia print the same sentence with their
+ * own noun. It is SRD *Jump*'s sentence word for word — "that creature can
+ * jump up to 30 feet by spending 10 feet of movement" — and `GrantedJump`
+ * already carries both numbers, so the line is the spell's allowance at the
+ * heading's price, with a lifetime the heading implies: a Bonus Action buys
+ * the jump for the turn it was spent on.
+ */
+export const MonsterJumpSchema = z.object({
+  /** "jumps up to 30 feet": the bound on the distance covered. */
+  feet: z.number().int().min(5),
+  /** "by spending 10 feet of movement": what the jump costs, whatever it clears. */
+  costsMovement: z.number().int().min(0),
+});
+export type MonsterJump = z.infer<typeof MonsterJumpSchema>;
+
+/**
+ * One line that grants its creature a move, measured against one of its
+ * Speeds.
+ *
+ * SRD Giant Seahorse, Bubble Dash: "While underwater, the seahorse moves up to
+ * half its Swim Speed without provoking Opportunity Attacks." SRD Weretiger,
+ * Prowl: "The weretiger moves up to its Speed without provoking Opportunity
+ * Attacks. At the end of this movement, the weretiger can take the Hide
+ * action." SRD Troll, Charge: "The troll moves up to half its Speed straight
+ * toward an enemy it can see." SRD Xorn: "up to its Speed or Burrow Speed
+ * straight toward an enemy it can sense."
+ *
+ * **One shape over two families, and the field that tells them apart is the
+ * rule.** A dash that provokes nothing is SRD Tactical Shift's sentence at a
+ * heading's price — `movement-granted` and a move spent from the grant — and
+ * a charge is the same grant with the exemption off: the troll's move provokes
+ * exactly as walking does. "Straight toward an enemy it can see" and "While
+ * underwater" are the table's — a bearing and a body of water the lattice
+ * does not hold — and travel in `handedOver`, reported at the moment of use.
+ */
+export const MonsterDashSchema = z.object({
+  /** "up to its Speed" or "up to half its Speed". */
+  fraction: z.enum(['whole', 'half']),
+  /**
+   * The Speeds the sentence names, in the order it names them: "its Speed" is
+   * `walk`, "its Swim Speed" is `swim`, "its Speed or Burrow Speed" is both.
+   * The move names which it took, and the grant is measured against that one.
+   */
+  modes: z.array(z.enum(['walk', 'burrow', 'climb', 'fly', 'swim'])).min(1),
+  /** "without provoking Opportunity Attacks", or the silence a charge prints. */
+  noOpportunityAttacks: z.boolean(),
+  /** SRD Prowl: "At the end of this movement, the weretiger can take the Hide action." */
+  thenHide: z.literal(true).optional(),
+  /** The clauses the table adjudicates, verbatim: the water, the bearing. */
+  handedOver: z.array(z.string().min(1)),
+});
+export type MonsterDash = z.infer<typeof MonsterDashSchema>;
+
+/**
+ * One line that teleports its creature from beside one tree to beside another.
+ *
+ * SRD Dryad, Tree Stride: "If within 5 feet of a Large or bigger tree, the
+ * dryad teleports to an unoccupied space within 5 feet of a second Large or
+ * bigger tree that is within 60 feet of the previous tree."
+ *
+ * A teleport whose two ends are **objects**: a tree is a declared object —
+ * `declareObject`, Large or bigger, placed — because a tree can be burnt and
+ * a landmark cannot. The three distances and the size are the sentence's own;
+ * that the object is a tree is the table's, stated by naming it.
+ */
+export const MonsterTreeStrideSchema = z.object({
+  /** "If within 5 feet of a Large or bigger tree": how near the first tree must be. */
+  fromWithin: z.number().int().min(5),
+  /** "to an unoccupied space within 5 feet of a second … tree": how near the landing is. */
+  toWithin: z.number().int().min(5),
+  /** "that is within 60 feet of the previous tree": how far apart the two may stand. */
+  treesWithin: z.number().int().min(5),
+  /** "Large or bigger": the smallest thing that counts as a tree. */
+  treeSize: CreatureSizeSchema,
+});
+export type MonsterTreeStride = z.infer<typeof MonsterTreeStrideSchema>;
 
 /**
  * One Reaction line that adds a flat number to somebody's D20 Test.
@@ -2490,6 +2638,33 @@ const MonsterTraitMechanicSchema = z.discriminatedUnion('kind', [
      */
     kind: z.literal('regains-no-hit-points'),
   }),
+  z.object({
+    /**
+     * SRD Jumper, on the cat: "The cat's jump distance is determined using
+     * its Dexterity rather than its Strength."
+     *
+     * A swap of the ability the two glossary jumps read, and nothing else:
+     * `longJumpDistance` takes the score and `highJumpHeight` the modifier
+     * exactly as they do for everybody, off the other column. A cat has
+     * Strength 3 and Dexterity 15, which is the whole difference between a
+     * standing Long Jump of one foot and one of seven.
+     */
+    kind: z.literal('jumps-by-dexterity'),
+  }),
+  z.object({
+    /**
+     * SRD Abduct, on both bugbears: "The bugbear needn't spend extra movement
+     * to move a creature it is grappling."
+     *
+     * The exemption from one cost — SRD Grappled's "every foot of movement
+     * costs it 1 extra foot unless you are Tiny or two or more sizes smaller
+     * than it" — and read by the movement command where that cost is charged.
+     * It was a residue line for as long as the engine charged nothing to drag
+     * a creature; the surcharge and this exemption landed together, because a
+     * trait waiving a cost nobody paid would be a sentence read for nothing.
+     */
+    kind: z.literal('drags-for-free'),
+  }),
 ]);
 
 /**
@@ -2727,6 +2902,26 @@ export const FeatureSchema = z.object({
    * use costs.
    */
   shiftsPlane: MonsterPlaneShiftSchema.optional(),
+  /**
+   * The jump this line buys its creature — see {@link MonsterJumpSchema}.
+   *
+   * SRD prints all three under Bonus Actions and it is read on every section
+   * for the reason everything here is: the heading says what a use costs.
+   */
+  jumps: MonsterJumpSchema.optional(),
+  /**
+   * The move this line grants its creature — see {@link MonsterDashSchema}.
+   *
+   * SRD prints five under Bonus Actions and the Seahorse's under Actions,
+   * which is a heading saying what the use costs and nothing else.
+   */
+  dashes: MonsterDashSchema.optional(),
+  /**
+   * The teleport between two trees this line makes — see
+   * {@link MonsterTreeStrideSchema}. SRD prints the one line under Bonus
+   * Actions.
+   */
+  treeStride: MonsterTreeStrideSchema.optional(),
   /**
    * The forms this line may be used in, where its **heading** says so.
    *
