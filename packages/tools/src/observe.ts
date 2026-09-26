@@ -704,7 +704,21 @@ function catchOf(save: StatedAction['save']): ObservedCatch | null {
   if (reach !== undefined) {
     return { kind: 'within', feet: reach.feet, count: reach.count, seen: reach.seen === true };
   }
-  return null;
+  const catches = save.catches;
+  if (catches === undefined) return null;
+  switch (catches.kind) {
+    case 'cone':
+      return { kind: 'cone', feet: catches.length };
+    case 'line':
+      return { kind: 'line', feet: catches.length, width: catches.width };
+    case 'emanation':
+      return { kind: 'emanation', feet: catches.distance };
+    case 'sphere':
+      return { kind: 'sphere', feet: catches.radius, within: catches.within };
+    case 'own-space':
+    case 'held':
+      return { kind: catches.kind, count: catches.count ?? null };
+  }
 }
 
 const sequencesOf = (multiattack: PrintedMultiattack): readonly ObservedMultiattackSequence[] =>

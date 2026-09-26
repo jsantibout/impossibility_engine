@@ -392,13 +392,19 @@ describe('a save the target repeats, a size gate, an immunity, and a carried suc
   it("leaves an Ogre standing where the Gladiator's Shield Bash would floor a Medium creature", () => {
     let floored = false;
     let spared = false;
+    // One creature a bash, because the line reaches "one creature within 5
+    // feet that the gladiator can see" — which the door measures since I-E9
+    // read the book's other word order — and so the Ogre stands beside the
+    // Gladiator rather than behind Bren.
+    const ogre = [{ id: OGRE, monster: 'ogre', nearFoe: true as const }];
     for (const seed of SEEDS) {
-      const { out, state } = forced('gladiator', 'Shield Bash', seed, [BREN, OGRE], [{ id: OGRE, monster: 'ogre' }]);
-      const [onBren, onOgre] = out.outcomes;
-      if (!onBren!.save!.success) {
-        expect(has(state, BREN, 'prone')).toBe(true);
+      const onBren = forced('gladiator', 'Shield Bash', seed, [BREN], ogre);
+      if (!onBren.out.outcomes[0]!.save!.success) {
+        expect(has(onBren.state, BREN, 'prone')).toBe(true);
         floored = true;
       }
+      const { out, state } = forced('gladiator', 'Shield Bash', seed, [OGRE], ogre);
+      const [onOgre] = out.outcomes;
       if (!onOgre!.save!.success) {
         expect(has(state, OGRE, 'prone')).toBe(false);
         expect(onOgre!.damage).toBeGreaterThan(0);
@@ -1432,8 +1438,10 @@ describe('a bite that feeds', () => {
       // "and the vampire regains Hit Points equal to that amount" — the same
       // number, with no dice anywhere in it.
       expect(bitten.creatures[FOE]!.vitals.hp).toBe(fangs + necrotic);
-      // And nothing of the line is carried but the clause about who it caught.
-      expect(out.unverified).toHaveLength(1);
+      // And nothing of the line is carried: not even the clause about who it
+      // caught, which the door measures since I-E9 read "within 5 feet that
+      // is willing or that has …" whole.
+      expect(out.unverified).toEqual([]);
       return;
     }
     throw new Error('no seed failed the save');

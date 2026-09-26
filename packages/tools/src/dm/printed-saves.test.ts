@@ -340,7 +340,9 @@ describe('the door that rolls a printed line’s saving throw', () => {
    * a caller who has not said it is **asked** rather than refused.
    */
   it('asks whether an unheld creature is willing, and bites one that is', () => {
-    const t = fight('the-vampire-bites', 'vampire-spawn');
+    // Close in, because the Bite reaches "one creature within 5 feet", which
+    // the door measures since I-E9 read the clause past its restriction.
+    const t = fight('the-vampire-bites', 'vampire-spawn', true);
     turnOf(t, 'fang');
 
     const asked = t.call('force_printed_save', {

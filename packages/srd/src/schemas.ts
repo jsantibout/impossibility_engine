@@ -379,11 +379,15 @@ export type MonsterMultiattack = z.infer<typeof MonsterMultiattackSchema>;
  * lines that force *a* save and the lines that write *this sentence* is wide:
  * most of the book's saves say something this shape cannot hold.
  *
- * **Who it catches is not read.** "Each creature in a 15-foot Cone" needs an
- * origin and a facing nobody has declared, and a Cone measured out of a
- * sentence would be the engine inventing a fact. So the clause is carried
- * verbatim, the table says who is in it, and the engine does the part a table
- * may not: the save, the dice, and the half.
+ * **Who it catches is read as a template, and laid where somebody aims it.**
+ * "Each creature in a 15-foot Cone" is the same Cone SRD Burning Hands fills,
+ * so the clause is read into {@link MonsterSaveSchema.catches} — the shape and
+ * its feet, never an origin or a facing — and the engine measures it with the
+ * spells' own templates once a caller says which way it points (I-E9). The
+ * clause stays verbatim in `targets` beside it, and a clause with one word
+ * the reader cannot account for reads no catch at all, leaving the table to
+ * say who is in it and the engine the part a table may not: the save, the
+ * dice, and the half.
  *
  * **Only the template.** Anything the sentence says besides damage — a
  * condition after it, a second rung of failure, a trigger before it, a type
@@ -1507,6 +1511,43 @@ export const MonsterPrintedMoveSchema = z.discriminatedUnion('kind', [
 ]);
 export type MonsterPrintedMove = z.infer<typeof MonsterPrintedMoveSchema>;
 
+/**
+ * Who a spent line catches, where the targeting clause is a template the
+ * engine already measures — I-E9.
+ *
+ * The four areas are the spells' own `SpellArea` members in the spells' own
+ * words — SRD Winter Wolf's "each creature in a 15-foot Cone" is SRD Burning
+ * Hands' Cone — so a line and a spell are laid by one function and cannot
+ * disagree about who stands in them. A Cone, a Line and an Emanation start at
+ * the creature; a Sphere is "centered on a point within" `within` feet.
+ *
+ * The other two are the lattice's without a template: "each creature in the
+ * elemental's space" (SRD Water Elemental's Whelm) and "each creature Grappled
+ * by the otyugh". `count` is absent for "each" and 1 for "one".
+ *
+ * **No origin and no facing**, because neither is printed: where a Cone points
+ * is the caller's aim, stated at the moment of use, and the engine measures
+ * the rest. A line reaching one creature at a distance is {@link
+ * MonsterSaveSchema.reach}, not this.
+ */
+export const MonsterSaveCatchSchema = z.discriminatedUnion('kind', [
+  z.object({ kind: z.literal('cone'), length: z.number().int().min(5) }),
+  z.object({
+    kind: z.literal('line'),
+    length: z.number().int().min(5),
+    width: z.number().int().min(5),
+  }),
+  z.object({ kind: z.literal('emanation'), distance: z.number().int().min(5) }),
+  z.object({
+    kind: z.literal('sphere'),
+    radius: z.number().int().min(5),
+    within: z.number().int().min(5),
+  }),
+  z.object({ kind: z.literal('own-space'), count: z.literal(1).optional() }),
+  z.object({ kind: z.literal('held'), count: z.literal(1).optional() }),
+]);
+export type MonsterSaveCatch = z.infer<typeof MonsterSaveCatchSchema>;
+
 export const MonsterSaveSchema = z.object({
   /** Which save, by the engine's own key: `con` for "Constitution". */
   ability: z.enum(['str', 'dex', 'con', 'int', 'wis', 'cha']),
@@ -1625,9 +1666,9 @@ export const MonsterSaveSchema = z.object({
    * the caller says it and the command asks when nobody has.
    *
    * **The second part of a targeting clause this reader takes**, after the Hit
-   * Point ceiling a `dies` is gated by, and for the same reason: who stands in
-   * a Cone needs an origin and a facing nobody declared, and this is a fact
-   * about one creature somebody has already named.
+   * Point ceiling a `dies` is gated by, and for the same reason: it is a fact
+   * about one creature, which the engine holds. SRD Sea Hag's "one
+   * **Frightened** creature" is the same fact printed as an adjective (I-E9).
    */
   onlyIfTargetHas: z
     .object({
@@ -1685,8 +1726,12 @@ export const MonsterSaveSchema = z.object({
    * Possession: "one Humanoid the ghost **can see** within 5 feet". A ruler
    * between two creatures somebody has already named, which the engine holds
    * where the scene places both — so the door measures it and refuses a
-   * creature out of reach before anything is spent, where an area's origin and
-   * facing are still the table's. The sight is flagged rather than measured:
+   * creature out of reach before anything is spent. I-E9 widened the reading
+   * to a size cap ("one Large or smaller creature"), the book's other word
+   * order ("within 5 feet that the gladiator can see"), a restriction after
+   * the distance, a condition printed as an adjective ("one Frightened
+   * creature") and the Rust Monster's feet, which its prelude prints. The
+   * sight is flagged rather than measured:
    * whether one creature sees another is a question the engine answers
    * three-valued, and the door says so where nobody has.
    */
@@ -1697,6 +1742,38 @@ export const MonsterSaveSchema = z.object({
       seen: z.literal(true).optional(),
     })
     .optional(),
+  /**
+   * The template or the lattice fact the targeting clause catches by — see
+   * {@link MonsterSaveCatchSchema}. I-E9.
+   *
+   * Read only on a spent line (never beside `trigger` or `movesThen`) and only
+   * where every word of the clause is accounted for; absent, the caller names
+   * the head count, as every line did before.
+   */
+  catches: MonsterSaveCatchSchema.optional(),
+  /**
+   * SRD Ghost's Horrific Visage: "each creature in a 60-foot Cone **that can
+   * see the ghost**". SRD Doppelganger's Unsettling Visage prints the same
+   * clause on an Emanation. I-E9.
+   *
+   * The sight is the *target's*, of the source — the other way round from
+   * `reach.seen` — and it is asked of the engine three-valued: a creature that
+   * cannot see the source is spared, one nobody has settled is caught and
+   * said.
+   */
+  seesSource: z.literal(true).optional(),
+  /**
+   * SRD Ghost's Horrific Visage: "… that can see the ghost **and isn't an
+   * Undead**". The types the clause spares, singular and capitalised — the
+   * {@link onlyIfTargetType} vocabulary. I-E9.
+   */
+  unlessTargetType: z.array(z.string().min(1)).min(1).optional(),
+  /**
+   * The largest size the line reaches: SRD Ettercap's "one **Large or
+   * smaller** creature". Beside {@link onlyIfTargetType} and for its reason —
+   * a fact about who the line may be forced on, which the engine holds. I-E9.
+   */
+  onlyIfTargetSize: CreatureSizeSchema.optional(),
   /**
    * The sentences the reader carried and did not read, verbatim.
    *

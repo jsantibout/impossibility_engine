@@ -29,6 +29,7 @@ import type { CharacterSheet } from './character.js';
 import {
   addCreature,
   addSceneLandmark,
+  applyConditionTo,
   beginCombat,
   declareCreatureSide,
   forcePrintedSave,
@@ -230,6 +231,11 @@ function facing(
   step(placeCreatureInScene(state, FOE, { from: { creature: BREN }, feet: 5, bearing: 90 }), 'place foe');
   step(declareCreatureSide(state, BREN, 'party'), 'Bren’s side');
   step(declareCreatureSide(state, FOE, 'wild'), 'the foe’s side');
+  // Bren is already afraid of what faces him. SRD Sea Hag's Death Glare
+  // reaches "one **Frightened** creature the hag can see", which the door
+  // checks since I-E9 read the adjective; the Incubus's Nightmare reaches any
+  // creature and is indifferent to it, and neither line's save reads it.
+  step(applyConditionTo(state, BREN, 'frightened', 'the sight of it'), 'Bren is frightened');
   if (options.concentrating === true) {
     // The victim's own Concentration, so the control below has one to break.
     // Cast **before** the fight starts: outside combat there is no turn to
@@ -546,7 +552,16 @@ function untilTheHag(state: GameState): GameState {
 
 /** The hag glares at one creature, on the first seed that fails the save. */
 function glare(before: GameState, target: CharacterId) {
-  const state = untilTheHag(before);
+  // "one **Frightened** creature the hag can see within 30 feet" — the
+  // glare's own clause, which the door checks since I-E9 read it whole. So
+  // the target is Frightened of her, by a ruling, and she has come within
+  // reach of it on her own turn; she stands 40 feet off the rest of the time,
+  // where her Vile Appearance catches nobody at a turn's start.
+  let state = untilTheHag(before);
+  state = after(state, unwrap(applyConditionTo(state, target, 'frightened', 'the hag’s face'), 'frightened'));
+  if (state.scene !== null) {
+    state = applyEvent(state, { type: 'creature-moved', id: FOE, placement: { from: { creature: target }, feet: 20 } });
+  }
   for (const seed of SEEDS) {
     const out = unwrap(
       forcePrintedSave(

@@ -221,6 +221,8 @@ describe('the block carries the save onto the sheet', () => {
       ability: 'con',
       dc: 12,
       targets: 'each creature in a 15-foot Cone',
+      // The template, pinned on the sheet with the rest of the save — I-E9.
+      catches: { kind: 'cone', length: 15 },
       damage: { dice: '4d8', flat: 0, type: 'cold', average: 18 },
       onSuccess: 'half',
     });

@@ -371,6 +371,38 @@ describe('what a code-run monster reads off look to rank its lines', () => {
     }).toEqual({ lines: 104, whole: 96, part: 3, none: 5, damageAlone: 15 });
   });
 
+  it('says who each kind of line catches, off the pinned record the doors read', () => {
+    const t = table('every-catch');
+    const monsters = [
+      'winter-wolf',
+      'blue-dragon-wyrmling',
+      'dretch',
+      'gibbering-mouther',
+      'water-elemental',
+      'chuul',
+      'wight',
+      'bulette',
+      'centaur-trooper',
+      'will-o-wisp',
+    ];
+    for (const monsterId of monsters) expectOk(t.call('add_creature', { id: monsterId, monsterId }));
+    const catchOf = (who: string, heading: string) =>
+      [...blockOf(t, who).actions, ...blockOf(t, who).bonusActions].find((one) =>
+        one.name.startsWith(heading),
+      )!.catches;
+    expect(catchOf('winter-wolf', 'Cold Breath')).toEqual({ kind: 'cone', feet: 15 });
+    expect(catchOf('blue-dragon-wyrmling', 'Lightning Breath')).toEqual({ kind: 'line', feet: 30, width: 5 });
+    expect(catchOf('dretch', 'Fetid Cloud')).toEqual({ kind: 'emanation', feet: 10 });
+    expect(catchOf('gibbering-mouther', 'Blinding Spittle')).toEqual({ kind: 'sphere', feet: 10, within: 30 });
+    expect(catchOf('water-elemental', 'Whelm')).toEqual({ kind: 'own-space', count: null });
+    expect(catchOf('chuul', 'Paralyzing Tentacles')).toEqual({ kind: 'held', count: 1 });
+    expect(catchOf('wight', 'Life Drain')).toEqual({ kind: 'within', feet: 5, count: 1, seen: false });
+    expect(catchOf('bulette', 'Deadly Leap')).toEqual({ kind: 'jump', within: 15 });
+    expect(catchOf('centaur-trooper', 'Trampling Charge')).toEqual({ kind: 'walk' });
+    // The one CR ≤ 5 line whose clause the engine does not measure: "living".
+    expect(catchOf('will-o-wisp', 'Consume Life')).toBeNull();
+  });
+
   it("reports a Wraith's Speed in every mode, and what is left of each on its turn", () => {
     const t = pair('the-wraith-flies', 'wraith', 5);
     const wraith = seen(t, 'beast');

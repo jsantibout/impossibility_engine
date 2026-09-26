@@ -78,6 +78,7 @@ describe('a failure hung on the target’s own rolls', () => {
       ability: 'str',
       dc: 13,
       targets: "each creature that isn't currently affected by this breath in a 15-foot Cone",
+      catches: { kind: 'cone', length: 15 },
       onlyIfNotAffected: true,
       onSuccess: 'none',
       onFailure: [
@@ -135,6 +136,7 @@ describe('a save whose failure is knowledge', () => {
       dc: 10,
       targets:
         'one creature within 5 feet the sprite can see (Celestials, Fiends, and Undead automatically fail the save)',
+      reach: { feet: 5, count: 1, seen: true },
       autoFailTypes: ['Celestial', 'Fiend', 'Undead'],
       onSuccess: 'none',
       onFailure: [{ kind: 'reveals', facts: ['emotions', 'alignment'] }],
@@ -164,6 +166,7 @@ describe('a save aimed at an object somebody is wearing or holding', () => {
       ability: 'dex',
       dc: 11,
       targets: 'the creature with the object',
+      reach: { feet: 5, count: 1 },
       targetsObject: true,
       onSuccess: 'none',
       onFailure: [{ kind: 'object-penalty', points: 1 }],
@@ -187,6 +190,7 @@ describe('a line whose sentence is the save template', () => {
       ability: 'con',
       dc: 12,
       targets: 'each creature in a 15-foot Cone',
+      catches: { kind: 'cone', length: 15 },
       damage: { dice: '4d8', flat: 0, type: 'cold', average: 18 },
       onSuccess: 'half',
     });
@@ -199,6 +203,7 @@ describe('a line whose sentence is the save template', () => {
       ability: 'dex',
       dc: 16,
       targets: 'one creature within 5 feet that has the Prone condition',
+      reach: { feet: 5, count: 1 },
       damage: { dice: '2d10', flat: 5, type: 'bludgeoning', average: 16 },
       onSuccess: 'half',
       // The other fact a targeting clause gives up, beside the Hit Point
@@ -280,6 +285,7 @@ describe('the clauses a failure prints besides the damage', () => {
       ability: 'con',
       dc: 10,
       targets: 'each creature in a 15-foot Cone',
+      catches: { kind: 'cone', length: 15 },
       damage: { dice: '2d4', flat: 0, type: 'fire', average: 5 },
       onSuccess: 'half',
       onFailure: [
@@ -459,6 +465,8 @@ describe('the clauses a failure prints besides the damage', () => {
       ability: 'str',
       dc: 15,
       targets: 'one Medium or smaller creature the couatl can see within 5 feet',
+      reach: { feet: 5, count: 1, seen: true },
+      onlyIfTargetSize: 'medium',
       damage: { dice: '1d6', flat: 5, type: 'bludgeoning', average: 8 },
       onSuccess: 'none',
       onFailure: [
@@ -483,6 +491,7 @@ describe('the clauses a failure prints besides the damage', () => {
       ability: 'con',
       dc: 13,
       targets: 'one creature Grappled by the chuul',
+      catches: { kind: 'held', count: 1 },
       onSuccess: 'none',
       onFailure: [
         {
@@ -506,6 +515,7 @@ describe('the clauses a failure prints besides the damage', () => {
       ability: 'wis',
       dc: 10,
       targets: "one creature in the swarm's space",
+      catches: { kind: 'own-space', count: 1 },
       onSuccess: 'none',
       onFailure: [
         {
@@ -723,6 +733,7 @@ describe('a damage type the block leaves to the table', () => {
       ability: 'dex',
       dc: 14,
       targets: 'each creature in a 30-foot Cone',
+      catches: { kind: 'cone', length: 30 },
       damage: { dice: '8d6', flat: 0, type: 'declared', average: 28 },
       onSuccess: 'half',
     });
@@ -750,6 +761,7 @@ describe('a failure the line grades', () => {
       ability: 'con',
       dc: 15,
       targets: 'each creature in a 30-foot Cone',
+      catches: { kind: 'cone', length: 30 },
       onSuccess: 'none',
       onFailure: [
         {
@@ -804,6 +816,7 @@ describe('a failure the line grades', () => {
       ability: 'con',
       dc: 11,
       targets: 'each creature in a 15-foot Cone',
+      catches: { kind: 'cone', length: 15 },
       onSuccess: 'none',
       onFailure: [
         {
@@ -841,6 +854,7 @@ describe('a failure the line grades', () => {
       ability: 'con',
       dc: 13,
       targets: 'each creature in a 15-foot Cone',
+      catches: { kind: 'cone', length: 15 },
       onSuccess: 'none',
       onFailure: [
         {
@@ -936,6 +950,8 @@ describe('a failure that branches on the target’s Hit Points', () => {
       ability: 'wis',
       dc: 11,
       targets: 'one Frightened creature the hag can see within 30 feet',
+      reach: { feet: 30, count: 1, seen: true },
+      onlyIfTargetHas: { conditions: ['frightened'] },
       onSuccess: 'none',
       onFailure: [
         {
@@ -1037,6 +1053,7 @@ describe('a failure that changes what a turn may hold', () => {
       ability: 'con',
       dc: 11,
       targets: 'each creature in a 10-foot Emanation originating from the dretch',
+      catches: { kind: 'emanation', distance: 10 },
       onSuccess: 'none',
       onFailure: [
         {
@@ -1068,6 +1085,7 @@ describe('a failure that changes what a turn may hold', () => {
       ability: 'con',
       dc: 11,
       targets: 'each creature in a 15-foot Cone',
+      catches: { kind: 'cone', length: 15 },
       onSuccess: 'none',
       onFailure: [
         { kind: 'action-rule', rule: { kind: 'forbids', slots: ['reaction'] }, lasts },
@@ -1278,6 +1296,7 @@ describe('the lines the reader does not reach', () => {
       ability: 'dex',
       dc: 10,
       targets: 'each creature in a 15-foot Cone',
+      catches: { kind: 'cone', length: 15 },
       onSuccess: 'none',
       onFailure: [
         {
@@ -1395,5 +1414,222 @@ describe('the corpus, so a format change is a failing test rather than a smaller
     const carrying = saves.filter((line) => (line.save?.handedOver?.length ?? 0) > 0);
     expect(carrying.length).toBeGreaterThan(3);
     expect(carrying.length).toBeLessThan(saves.length / 2);
+  });
+});
+
+/**
+ * Who a spent line catches, read whole or not at all — I-E9.
+ *
+ * `targets` stays the book's words. Beside it the reader now states, where
+ * every word of the clause is accounted for, the template the spells already
+ * lay (`catches`), the ruler to one creature (`reach`, widened), whether the
+ * creature must see the source, which types it spares and the largest size it
+ * reaches. A clause with one word left over reads none of those, and the line
+ * keeps the head-count road it had — "a save read down to the part that fits
+ * is a rule nobody printed".
+ */
+describe('who a spent line catches', () => {
+  const saveOf = (id: string, heading: string) => {
+    const save = lineOf(id, heading).save;
+    if (save === undefined) throw new Error(`${id}'s ${heading} states no save`);
+    return save;
+  };
+  /** Only the fields this reader writes, so each assertion is about the catch alone. */
+  const caught = (id: string, heading: string) => {
+    const save = saveOf(id, heading);
+    return {
+      catches: save.catches,
+      reach: save.reach,
+      seesSource: save.seesSource,
+      unlessTargetType: save.unlessTargetType,
+      onlyIfTargetSize: save.onlyIfTargetSize,
+    };
+  };
+  const none = {
+    catches: undefined,
+    reach: undefined,
+    seesSource: undefined,
+    unlessTargetType: undefined,
+    onlyIfTargetSize: undefined,
+  };
+
+  it('reads a Cone, a Line, an Emanation and a Sphere as the spells’ own templates', () => {
+    expect(caught('winter-wolf', 'Cold Breath')).toEqual({ ...none, catches: { kind: 'cone', length: 15 } });
+    expect(caught('blue-dragon-wyrmling', 'Lightning Breath')).toEqual({
+      ...none,
+      catches: { kind: 'line', length: 30, width: 5 },
+    });
+    expect(caught('dretch', 'Fetid Cloud')).toEqual({ ...none, catches: { kind: 'emanation', distance: 10 } });
+    expect(caught('gibbering-mouther', 'Blinding Spittle')).toEqual({
+      ...none,
+      catches: { kind: 'sphere', radius: 10, within: 30 },
+    });
+    // "in an 60-foot-long" — the book's own article, read as it prints it.
+    expect(saveOf('adult-copper-dragon', 'Acid Breath').catches).toEqual({ kind: 'line', length: 60, width: 5 });
+  });
+
+  it('reads the sight and the exclusion a clause puts on an area', () => {
+    expect(caught('doppelganger', 'Unsettling Visage')).toEqual({
+      ...none,
+      catches: { kind: 'emanation', distance: 15 },
+      seesSource: true,
+    });
+    expect(caught('ghost', 'Horrific Visage')).toEqual({
+      ...none,
+      catches: { kind: 'cone', length: 60 },
+      seesSource: true,
+      unlessTargetType: ['Undead'],
+    });
+  });
+
+  it('keeps the types, the moment of use and the gate the reader already took', () => {
+    const song = saveOf('harpy', 'Luring Song');
+    expect(song.catches).toEqual({ kind: 'emanation', distance: 300 });
+    expect(song.onlyIfTargetType).toEqual(['Humanoid', 'Giant']);
+    const weakening = saveOf('gold-dragon-wyrmling', 'Weakening Breath');
+    expect(weakening.catches).toEqual({ kind: 'cone', length: 15 });
+    expect(weakening.onlyIfNotAffected).toBe(true);
+  });
+
+  it('reads the creature’s own space, and whom it holds', () => {
+    expect(caught('water-elemental', 'Whelm')).toEqual({ ...none, catches: { kind: 'own-space' } });
+    expect(caught('air-elemental', 'Whirlwind')).toEqual({
+      ...none,
+      catches: { kind: 'own-space', count: 1 },
+      onlyIfTargetSize: 'medium',
+    });
+    expect(caught('otyugh', 'Tentacle Slam')).toEqual({ ...none, catches: { kind: 'held' } });
+    expect(caught('chuul', 'Paralyzing Tentacles')).toEqual({ ...none, catches: { kind: 'held', count: 1 } });
+  });
+
+  it('widens the ruler to one creature: a size cap, the word order, a restriction after it', () => {
+    expect(caught('ettercap', 'Web Strand')).toEqual({
+      ...none,
+      reach: { feet: 30, count: 1, seen: true },
+      onlyIfTargetSize: 'large',
+    });
+    expect(caught('gladiator', 'Shield Bash')).toEqual({ ...none, reach: { feet: 5, count: 1, seen: true } });
+    const trample = saveOf('gorgon', 'Trample');
+    expect(trample.reach).toEqual({ feet: 5, count: 1 });
+    expect(trample.onlyIfTargetHas).toEqual({ conditions: ['prone'] });
+    expect(saveOf('sprite', 'Heart Sight').reach).toEqual({ feet: 5, count: 1, seen: true });
+    expect(saveOf('shambling-mound', 'Engulf').onlyIfTargetSize).toBe('medium');
+  });
+
+  it('reads a condition the clause names as an adjective', () => {
+    const glare = saveOf('sea-hag', 'Death Glare');
+    expect(glare.reach).toEqual({ feet: 30, count: 1, seen: true });
+    expect(glare.onlyIfTargetHas).toEqual({ conditions: ['frightened'] });
+  });
+
+  it("reads the Rust Monster's feet out of the prelude that names the holder", () => {
+    expect(caught('rust-monster', 'Antennae')).toEqual({ ...none, reach: { feet: 5, count: 1 } });
+    expect(saveOf('rust-monster', 'Antennae').targetsObject).toBe(true);
+  });
+
+  it('reads none of a clause with one word it cannot account for', () => {
+    // "living" is a fact the engine does not hold about a creature.
+    expect(caught('will-o-wisp', 'Consume Life')).toEqual(none);
+    // "Charmed by the succubus" names who charmed it, and the engine cannot
+    // trace a charm the Succubus's own Charm line — a cast line it refuses —
+    // would have laid. So the clause stays the table's.
+    expect(caught('succubus', 'Draining Kiss')).toEqual(none);
+    // A trigger's clause is the fold's, and the Death Burst's regex reads it.
+    expect(caught('magmin', 'Death Burst')).toEqual(none);
+  });
+
+  const spent = (maxCr: number) =>
+    bestiary
+      .filter((monster) => monster.cr <= maxCr)
+      .flatMap((monster) =>
+        [...monster.actions, ...monster.bonusActions].map((line) => ({ monster, line })),
+      )
+      .filter(({ line }) => line.save !== undefined && line.save.trigger === undefined);
+  const tally = (maxCr: number) => {
+    const lines = spent(maxCr);
+    const unread = lines
+      .filter(({ line }) => {
+        const save = line.save!;
+        return save.catches === undefined && save.reach === undefined && save.movesThen === undefined;
+      })
+      .map(({ monster, line }) => `${monster.id}/${line.name}`)
+      .sort();
+    return {
+      lines: lines.length,
+      catches: lines.filter(({ line }) => line.save!.catches !== undefined).length,
+      reach: lines.filter(({ line }) => line.save!.reach !== undefined).length,
+      movesThen: lines.filter(({ line }) => line.save!.movesThen !== undefined).length,
+      unread,
+    };
+  };
+
+  it('reads every spent CR ≤ 5 line but the two whose clause is not the engine’s', () => {
+    expect(tally(5)).toEqual({
+      lines: 65,
+      catches: 35,
+      reach: 25,
+      movesThen: 3,
+      unread: ['succubus/Draining Kiss', "will-o-wisp/Consume Life"],
+    });
+  });
+
+  it('reads the whole book but the clauses no rule the engine holds can measure', () => {
+    expect(tally(30)).toEqual({
+      lines: 141,
+      catches: 90,
+      reach: 35,
+      movesThen: 3,
+      unread: [
+        'aboleth/Consume Memories',
+        'kraken/Swallow',
+        'planetar/Holy Burst',
+        'rakshasa/Baleful Command (Recharge 5–6)',
+        'sphinx-of-lore/Mind-Rending Roar (Recharge 5–6)',
+        'sphinx-of-valor/First Roar',
+        'sphinx-of-valor/Second Roar',
+        'sphinx-of-valor/Third Roar',
+        'storm-giant/Lightning Storm (Recharge 5–6)',
+        'succubus/Draining Kiss',
+        'tarrasque/Thunderous Bellow (Recharge 5–6)',
+        'vrock/Stunning Screech (1/Day)',
+        'will-o-wisp/Consume Life',
+      ],
+    });
+  });
+
+  it('never reads a catch, a sight or a size beside a trigger or a move', () => {
+    for (const monster of bestiary) {
+      for (const line of [...monster.traits, ...monster.actions, ...monster.bonusActions]) {
+        const save = line.save;
+        if (save === undefined || (save.trigger === undefined && save.movesThen === undefined)) continue;
+        expect(save.catches, `${monster.id}/${line.name}`).toBeUndefined();
+        expect(save.reach, `${monster.id}/${line.name}`).toBeUndefined();
+        expect(save.seesSource, `${monster.id}/${line.name}`).toBeUndefined();
+        expect(save.onlyIfTargetSize, `${monster.id}/${line.name}`).toBeUndefined();
+      }
+    }
+  });
+
+  it('leaves the lines that carry a save, a handover and a filed sentence exactly where they were', () => {
+    let save = 0;
+    let handed = 0;
+    let filed = 0;
+    for (const monster of bestiary) {
+      for (const line of [
+        ...monster.traits,
+        ...monster.actions,
+        ...monster.bonusActions,
+        ...monster.reactions,
+        ...monster.legendaryActions,
+      ]) {
+        if (line.save === undefined) continue;
+        save += 1;
+        if (line.save.handedOver !== undefined) handed += 1;
+        if (line.save.forTheTable !== undefined) filed += 1;
+      }
+    }
+    // The counts the corpus held before I-E9, pinned: reading who a line
+    // catches gains and loses no line its save, and hands nothing new over.
+    expect({ save, handed, filed }).toEqual({ save: 151, handed: 15, filed: 8 });
   });
 });
