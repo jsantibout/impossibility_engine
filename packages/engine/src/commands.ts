@@ -216,6 +216,8 @@ export type {
 } from './commands/movement.js';
 export { relocateCreature } from './commands/teleport.js';
 export type { RelocateCommand, RelocateOutcome } from './commands/teleport.js';
+export { takePrintedMove } from './commands/printed-move.js';
+export type { PrintedMoveCommand, PrintedMoveOutcome } from './commands/printed-move.js';
 export {
   dismissKeptSummons,
   enterElsewhere,

@@ -151,6 +151,7 @@ import {
   returnFromElsewhere,
   takePrintedPlaneShift,
   takePrintedSwallow,
+  takePrintedMove,
   takeStatedAction,
   takeStatedBonusAction,
   takeTestReaction,
@@ -569,6 +570,31 @@ const SWALLOWING_LINE: StatedAction = {
     handedOver: [],
   },
 };
+
+/**
+ * The same invented line with the book's move-then-save template read off it
+ * — W7-B9: a jump into an occupied space, and a save for whoever is there.
+ * Five feet north lands on B, so the save is rolled and a second run under one
+ * id would roll it again.
+ */
+const LEAPING_LINE: StatedAction = {
+  ...PRINTED_LINE,
+  save: {
+    ability: 'dex',
+    dc: 12,
+    targets: 'each creature in the destination space',
+    onSuccess: 'none',
+    onFailure: [{ kind: 'condition', condition: 'prone' }],
+    movesThen: { kind: 'jump-to', within: 15, feetSpent: 5, intoOccupiedBy: 'large' },
+  },
+};
+
+/** A with the leaping line under Actions. */
+const LEAPING: readonly GameEvent[] = SETUP.map((event) =>
+  event.type === 'creature-added' && event.id === A
+    ? { ...event, sheet: sheet({ stated: { unreadActions: [LEAPING_LINE] } }) }
+    : event,
+);
 
 /** A with the stepping line under Actions. */
 const STEPPING: readonly GameEvent[] = SETUP.map((event) =>
@@ -2335,6 +2361,22 @@ const GUARDED: readonly Guarded[] = [
     run: (s, commandId) => takePrintedPlaneShift(s, A, { line: STEPPING_LINE.name, commandId }),
   },
   /**
+   * The door on a line that moves first — W7-B9. A retry that was not guarded
+   * would spend a second Action, land A on B a second time and roll B's save
+   * again under one id.
+   */
+  {
+    name: 'takePrintedMove',
+    log: LEAPING,
+    run: (s, commandId) =>
+      takePrintedMove(
+        s,
+        A,
+        { line: LEAPING_LINE.name, to: { from: { creature: A }, feet: 5, bearing: 0 }, commandId },
+        supply(),
+      ),
+  },
+  /**
    * The second place's way back and the two doors on a kept summons. A retry
    * that was not guarded would stand B in the scene twice — the second time
    * refused by the fold as a return from nowhere — or spend a second Action.
@@ -3869,6 +3911,8 @@ const SPENDERS: readonly Spender[] = [
   // And the two printed roads, refused for the debt before the line is read.
   { name: 'takePrintedSwallow', run: (s) => takePrintedSwallow(s, B, { line: 'A Printed Line', target: A }) },
   { name: 'takePrintedPlaneShift', run: (s) => takePrintedPlaneShift(s, B, { line: 'A Printed Line' }) },
+  // And the door on a line that moves first, refused for the debt before the line is read.
+  { name: 'takePrintedMove', run: (s) => takePrintedMove(s, B, { line: 'A Printed Line' }, supply()) },
   { name: 'takeDisengage', run: (s) => takeDisengage(s, B, {}) },
   { name: 'takeDodge', run: (s) => takeDodge(s, B, {}) },
   // The debt is checked before the target is looked at, so a shake aimed at a

@@ -2715,6 +2715,20 @@ export type GameEvent =
       readonly placement: Placement;
       readonly forced?: boolean;
       /**
+       * A move of the creature's own that ends in an occupied space because
+       * its printed line says so — W7-B9. SRD Bulette's Deadly Leap: "jump to
+       * a space within 15 feet that contains one or more Large or smaller
+       * creatures."
+       *
+       * **Not `forced`**, which is the near miss: a shove is somebody else's
+       * movement and spends nothing, and a log that called the bulette's leap
+       * a shove would be lying about who moved. The fold relaxes the same one
+       * rule for both — SRD forbids ending in an occupied space only
+       * *willingly*, and the bulette's line is the book willing it — and reads
+       * nothing else off this flag.
+       */
+      readonly intoOccupied?: true;
+      /**
        * A move that provoked nothing is the whole command, so the stamp rides
        * here. The provoked path stamps `movement-declared` instead, because
        * there the move is only declared and something else completes it —

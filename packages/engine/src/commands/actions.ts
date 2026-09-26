@@ -107,9 +107,11 @@ import {
 import { remaining, tallied, type SlotKind } from '../resources.js';
 import { type Content } from '../content.js';
 import { durationSecondsAt, untilDispelledAt } from '../spell-definitions.js';
-import { startOfNextTurn } from '../time.js';
+import { endOfCurrentTurn, startOfNextTurn } from '../time.js';
+import { OBJECT_CREATURE_TYPE } from '../objects.js';
+import type { MonsterTreeStride } from '@ie/srd';
 import { castSpell, chooseRoute, type Supply, nextCastingId } from './casting.js';
-import { creatureOf, unknownCreature } from './command.js';
+import { creatureOf, sceneFor, unknownCreature } from './command.js';
 import { routeLabel } from './item-casting.js';
 import { applyConditionTo, schedule } from './conditions.js';
 import { type AttackResolution, resolveAttack } from './attacks.js';
@@ -446,6 +448,83 @@ export function takeDisengage(
 }
 
 /** Which line the caller is taking, by the heading the block prints it under. */
+/**
+ * What a stated line hands the turn, where its sentence is a move — W7-B9.
+ *
+ * Two of the book's sentences under these headings are SRD rules the engine
+ * already spends, at a heading's price:
+ *
+ * - **a jump bought** — SRD Bulette's Leap, "jumps up to 30 feet by spending
+ *   10 feet of movement", which is SRD *Jump*'s allowance. `GrantedJump`
+ *   carries both numbers for the spell and `checkJump` reads it; what the
+ *   heading adds is the lifetime, and it is the one the hit riders file: a
+ *   `grants` deadline at the end of the current turn, so the jump is this
+ *   turn's and not every later turn's for free.
+ * - **a move granted** — SRD Giant Seahorse's Bubble Dash, SRD Weretiger's
+ *   Prowl and the three Charges, which are SRD Tactical Shift's sentence at
+ *   a heading's price: feet handed to the turn under the line's own source,
+ *   the printed fraction of the printed Speed pinned at the spend, and spent
+ *   by a move that names the line (`MoveCommand.usingLine`). Where the book
+ *   offers two Speeds the larger is pinned and the move re-checks the cap
+ *   against the one it names. Prowl's "can take the Hide action" is an extra
+ *   action narrowed to the Hide — the vocabulary SRD Patient Defense's Dodge
+ *   already uses — priced from the Bonus Action this spend already cost.
+ *
+ * The clauses the line hands over — "While underwater", "straight toward an
+ * enemy it can see" — come back for the table with the spend, so a caller is
+ * told what was applied and what was not. A line that is neither returns
+ * nothing and the caller's blanket hand-over stands.
+ */
+function grantsOfPrintedLine(
+  state: GameState,
+  id: CharacterId,
+  line: StatedAction | StatedBonusAction,
+): Result<{ readonly events: GameEvent[]; readonly unverified: string[]; readonly applied: boolean }> {
+  const events: GameEvent[] = [];
+  const unverified: string[] = [];
+  const source = printedLineSource(id, line.name);
+
+  if (line.jumps !== undefined) {
+    const deadline = schedule(state, { kind: 'grants', on: id, source }, endOfCurrentTurn);
+    if (!deadline.ok) return deadline;
+    events.push(
+      {
+        type: 'jump-allowance-granted',
+        id,
+        allowance: { source, feet: line.jumps.feet, costsMovement: line.jumps.costsMovement },
+      },
+      deadline.value,
+    );
+  }
+
+  if (line.dashes !== undefined) {
+    const { fraction, modes, thenHide, handedOver } = line.dashes;
+    // The largest of the Speeds the line names, pinned: SRD Xorn's "its Speed
+    // or Burrow Speed" is one grant, and the move names which it took.
+    const feet = Math.max(
+      ...modes.map((mode) => {
+        const whole = speedOf(state, id, mode);
+        return fraction === 'half' ? Math.floor(whole / 2) : whole;
+      }),
+    );
+    if (feet > 0) {
+      events.push({ type: 'movement-granted', id, source, feet });
+    } else {
+      unverified.push(`${line.name} moves ${id} up to a fraction of a Speed it has none of; nothing was handed over`);
+    }
+    if (thenHide === true) {
+      events.push({ type: 'turn-budget-granted', id, source, action: { only: ['hide'] } });
+    }
+    for (const clause of handedOver) {
+      unverified.push(
+        `${line.name}: "${clause}" is the table's to judge; the engine hands the move over as the line prints it and applies the rest`,
+      );
+    }
+  }
+
+  return ok({ events, unverified, applied: line.jumps !== undefined || line.dashes !== undefined });
+}
+
 export interface StatedBonusActionCommand extends CommandIdentity {
   readonly line: string;
 }
@@ -577,6 +656,10 @@ export function takeStatedBonusAction(
       });
       if (!spent.ok) return spent;
 
+      // What the line hands the turn, where its sentence is a move — W7-B9.
+      const granted = grantsOfPrintedLine(state, id, line);
+      if (!granted.ok) return granted;
+
       return ok({
         events: [
           { type: 'bonus-action-spent', id },
@@ -610,10 +693,13 @@ export function takeStatedBonusAction(
             turn: state.combat.turnsTaken,
             ...(stamp === null ? {} : { command: stamp }),
           },
+          ...granted.value.events,
         ],
-        unverified: [
-          `${id}'s block prints "${line.name}: ${line.text}" — the engine does not apply that; a DM does`,
-        ],
+        // A line whose sentence the engine applied says only what it did not;
+        // every other line is handed over whole, as it always was.
+        unverified: granted.value.applied
+          ? granted.value.unverified
+          : [`${id}'s block prints "${line.name}: ${line.text}" — the engine does not apply that; a DM does`],
         duplicate: false,
       });
     },
@@ -766,6 +852,11 @@ export function takeStatedAction(
       });
       if (!spent.ok) return spent;
 
+      // What the line hands the turn, where its sentence is a move — W7-B9.
+      // SRD Seahorse prints its Bubble Dash under this heading.
+      const granted = grantsOfPrintedLine(state, id, line);
+      if (!granted.ok) return granted;
+
       return ok({
         events: [
           { type: 'action-spent', id },
@@ -797,10 +888,11 @@ export function takeStatedAction(
             line: line.name,
             ...(stamp === null ? {} : { command: stamp }),
           },
+          ...granted.value.events,
         ],
-        unverified: [
-          `${id}'s block prints "${line.name}: ${line.text}" — the engine does not apply that; a DM does`,
-        ],
+        unverified: granted.value.applied
+          ? granted.value.unverified
+          : [`${id}'s block prints "${line.name}: ${line.text}" — the engine does not apply that; a DM does`],
         duplicate: false,
       });
     },
@@ -979,6 +1071,18 @@ export function forcePrintedSave(
         return err(
           'line_states_no_save',
           `${line.name} states no saving throw this engine could read; take it with the door that hands the sentence over, and a DM applies what it says`,
+        );
+      }
+
+      // **A line that moves first is not a save over a head count** — W7-B9.
+      // SRD Bulette's Deadly Leap and SRD Centaur Trooper's Trampling Charge
+      // roll their save for each creature whose space the mover entered, and
+      // the lattice decides who that was; a caller naming targets here would
+      // be a Trample nobody moved for. `takePrintedMove` is the door.
+      if (printed.movesThen !== undefined) {
+        return err(
+          'line_moves_first',
+          `${line.name} moves ${id} before its save, and who it catches is whoever's space was entered; take it with the door that moves the creature, and name the destination or the route rather than the targets`,
         );
       }
 
@@ -1627,6 +1731,76 @@ export interface PrintedTeleportCommand extends CommandIdentity {
    * about rather than refused, because a missing fact is not a wrong one.
    */
   readonly to?: Placement;
+  /**
+   * The two trees a stride is made between, for a line whose sentence is SRD
+   * Dryad's Tree Stride — W7-B9: "If within 5 feet of a Large or bigger tree,
+   * the dryad teleports to an unoccupied space within 5 feet of a second
+   * Large or bigger tree that is within 60 feet of the previous tree."
+   *
+   * **A tree is a declared object** — `declareObject`, Large or bigger,
+   * placed — because a tree can be burnt and a landmark cannot; that the
+   * object is a tree is the table's, stated by naming it here. The engine
+   * checks what the sentence prints: both sizes, the creature's distance from
+   * the first, the two trees' distance from each other, and the landing's
+   * distance from the second. Absent on such a line is asked about
+   * (`undeclared_trees`); present on a line that steps between no trees is
+   * ignored, because the line does not read it.
+   */
+  readonly via?: { readonly from: CharacterId; readonly to: CharacterId };
+}
+
+/**
+ * Whether the two trees a stride names are trees the line may step between —
+ * W7-B9.
+ *
+ * Objects, both; each at least the printed size; the first within the printed
+ * reach of the creature and the second within the printed span of the first.
+ * The landing is checked by the caller against the space `teleportTo` chose,
+ * because the space is the geometry's answer and not the caller's claim.
+ */
+function checkTrees(
+  state: GameState,
+  id: CharacterId,
+  line: string,
+  stride: MonsterTreeStride,
+  via: { readonly from: CharacterId; readonly to: CharacterId },
+): Result<null> {
+  for (const tree of [via.from, via.to]) {
+    const record = state.creatures[tree];
+    if (record === undefined) return unknownCreature(tree);
+    if (record.creatureType !== OBJECT_CREATURE_TYPE) {
+      return err(
+        'not_a_tree',
+        `${tree} is a creature, and ${line} steps between trees — a tree is a declared object, ${stride.treeSize} or bigger, that the table has named as one`,
+      );
+    }
+    const size = effectiveSizeOf(state, tree) ?? 'medium';
+    if (!sizeAtMost(stride.treeSize, size)) {
+      return err('tree_too_small', `${line} steps between ${stride.treeSize} or bigger trees, and ${tree} is ${size}`);
+    }
+  }
+  if (via.from === via.to) {
+    return err('not_a_tree', `${line} steps to a second tree, and ${via.to} is the one ${id} is standing beside`);
+  }
+  const scene = sceneFor(state, id, `${id} to step between trees within`);
+  if (!scene.ok) return scene;
+  const near = distanceBetween(scene.value, id, via.from);
+  if (!near.ok) return near;
+  if (near.value > stride.fromWithin) {
+    return err(
+      'tree_out_of_reach',
+      `${line} needs ${id} within ${stride.fromWithin} feet of a tree, and ${via.from} is ${near.value} feet away`,
+    );
+  }
+  const apart = distanceBetween(scene.value, via.from, via.to);
+  if (!apart.ok) return apart;
+  if (apart.value > stride.treesWithin) {
+    return err(
+      'trees_too_far_apart',
+      `${line} steps to a tree within ${stride.treesWithin} feet of the first, and ${via.to} is ${apart.value} feet from ${via.from}`,
+    );
+  }
+  return ok(null);
 }
 
 export interface PrintedTeleportOutcome {
@@ -1730,7 +1904,10 @@ export function takePrintedTeleport(
       }
 
       const printed = line.teleports;
-      if (printed === undefined) {
+      // The other teleport a line prints — W7-B9: SRD Dryad's Tree Stride,
+      // whose two ends are trees rather than a distance from the creature.
+      const stride = line.treeStride;
+      if (printed === undefined && stride === undefined) {
         return err(
           'line_states_no_teleport',
           `${line.name} states no teleport this engine could read; take it with the door that hands the sentence over, and a DM applies what it says`,
@@ -1762,6 +1939,29 @@ export function takePrintedTeleport(
         );
       }
 
+      // **The two trees, before the destination** — W7-B9 — because a stride
+      // is measured from them and a landing asked for before the trees are
+      // named is homework with nothing at the end of it.
+      if (stride !== undefined) {
+        if (command.via === undefined) {
+          return needsContext(
+            'undeclared_trees',
+            `${line.name} steps ${id} from beside one ${stride.treeSize} or bigger tree to beside another within ${stride.treesWithin} feet of it, and nobody has said which trees`,
+            [
+              {
+                kind: 'creature',
+                subject: id,
+                need: `the two trees ${id} steps between, each a declared object ${stride.treeSize} or bigger`,
+                because: 'a tree is a thing the table has put in the scene and named as one; the engine holds no forest',
+                satisfyWith: 'takePrintedTeleport again with `via` naming the tree beside the creature and the tree it steps to',
+              },
+            ],
+          );
+        }
+        const trees = checkTrees(state, id, line.name, stride, command.via);
+        if (!trees.ok) return trees;
+      }
+
       // Where to, which is the table's to say. Asked for rather than refused:
       // a space nobody has named is a fact that is missing rather than a call
       // that is wrong.
@@ -1769,7 +1969,9 @@ export function takePrintedTeleport(
       if (destination === undefined) {
         return needsContext(
           'undeclared_destination',
-          `${line.name} sends ${id} "up to ${printed.feet} feet to an unoccupied space it can see", and nobody has said which space`,
+          stride !== undefined
+            ? `${line.name} sends ${id} "to an unoccupied space within ${stride.toWithin} feet of a second … tree", and nobody has said which space`
+            : `${line.name} sends ${id} "up to ${printed!.feet} feet to an unoccupied space it can see", and nobody has said which space`,
           [
             {
               kind: 'position',
@@ -1783,17 +1985,39 @@ export function takePrintedTeleport(
         );
       }
 
-      const relocation = {
-        placement: destination,
-        within: printed.feet,
-        ...(printed.mustSee ? { requiresSight: true as const } : {}),
-      };
+      // A stride's distance is from the second tree, checked below over the
+      // space the geometry chose; a teleport's is from the creature, and the
+      // sight clause is the teleport's alone.
+      const relocation =
+        stride !== undefined
+          ? { placement: destination }
+          : {
+              placement: destination,
+              within: printed!.feet,
+              ...(printed!.mustSee ? { requiresSight: true as const } : {}),
+            };
 
       // **The pre-flight, before anything is spent.** Pure, rolls nothing and
       // changes nothing, so asking twice costs the caller nothing and asking
       // once would cost them their turn.
       const reachable = teleportTo(state, id, relocation);
       if (!reachable.ok) return reachable;
+
+      // "to an unoccupied space within 5 feet of a second … tree": the landing,
+      // measured over the world the pre-flight leaves, against the tree named.
+      if (stride !== undefined && command.via !== undefined) {
+        const landed = reachable.value.events.reduce(applyEvent, state);
+        const scene = sceneFor(landed, id, `${id} to land within`);
+        if (!scene.ok) return scene;
+        const gap = distanceBetween(scene.value, id, command.via.to);
+        if (!gap.ok) return gap;
+        if (gap.value > stride.toWithin) {
+          return err(
+            'landing_too_far_from_tree',
+            `${line.name} lands ${id} within ${stride.toWithin} feet of ${command.via.to}, and that space is ${gap.value} feet from it`,
+          );
+        }
+      }
 
       // The slot the **heading** names: one Action on a turn, or the one Bonus
       // Action, each refused by the primitive that owns its rule.
