@@ -28,7 +28,7 @@ than to the table.
 
 | Parsed | Tracked | Executed | of which partial | Verified |
 |---|---|---|---|---|
-| 339 | 151 (44.5%) | 182 (53.7%) | 46 | 148 (43.7%) |
+| 339 | 151 (44.5%) | 182 (53.7%) | 45 | 148 (43.7%) |
 
 A **tracked** spell is not a half-finished executed one. Disguise Self will
 never be executed, because what the caster looks like is not arithmetic;
@@ -130,7 +130,7 @@ a plain statement of what the table decides.
 - **Hellish Rebuke** (level 1) — untested
 - **Heroism** (level 1) — verified
 - **Hex** (level 1) — verified
-- **Hideous Laughter** (level 1) — verified, partial — a clause the engine owns is still unbuilt
+- **Hideous Laughter** (level 1) — verified
 - **Hold Monster** (level 5) — verified
 - **Hold Person** (level 2) — verified
 - **Hunter's Mark** (level 1) — verified, partial — a clause the engine owns is still unbuilt
@@ -485,7 +485,6 @@ of *Tracked* and is never added to it.
 | `a-repeat-save-on-the-clock` | 1 | 0 | 0 | 1 | 0 | 0 | 0 |
 | `a-rest-an-effect-gives-or-denies` | 1 | 0 | 0 | 0 | 1 | 0 | 0 |
 | `a-rider-on-a-later-weapon-attack` | 1 | 0 | 0 | 0 | 1 | 0 | 0 |
-| `a-self-cure-a-spell-forbids` | 1 | 0 | 0 | 1 | 0 | 0 | 0 |
 | `a-spell-that-answers-a-later-attack` | 1 | 0 | 0 | 0 | 1 | 0 | 0 |
 | `a-turn-a-spell-inserts-into-the-order` | 1 | 0 | 0 | 0 | 1 | 0 | 0 |
 | `an-action-the-engine-has-no-spender-for` | 1 | 0 | 0 | 1 | 0 | 0 | 0 |
@@ -1015,10 +1014,10 @@ and a bite whose hit buys a save.
 |---|---|---|
 | A save a line forces | 127 | 187 |
 | A recharge | 83 | 83 |
-| A hit whose line says more than the engine applies | 45 | 46 |
 | A use the block limits per day | 45 | 49 |
-| An effect a hit buys | 32 | 33 |
-| A save whose line says more than the engine spends | 20 | 20 |
+| A hit whose line says more than the engine applies | 44 | 45 |
+| An effect a hit buys | 31 | 32 |
+| A save whose line says more than the engine spends | 19 | 19 |
 | A trait whose heading says more than the engine spends | 7 | 7 |
 | A trait shape nothing spends | 3 | 3 |
 | How many attacks the Attack action holds | 2 | 2 |

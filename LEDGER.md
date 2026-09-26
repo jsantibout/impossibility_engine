@@ -42,11 +42,11 @@ for exactly this reason.
 
 | Ledger | Size | Waits on an engine shape | Waits on a definition | Waits on none | Read to the end, handed over whole |
 |---|---|---|---|---|---|
-| Spells in reach, not executed | 30 spells | 30 | 0 | 0 | 34 |
+| Spells in reach, not executed | 29 spells | 29 | 0 | 0 | 34 |
 | Features manual, or a pool with nothing to buy | 0 features | 0 | 0 | 0 | 0 |
 | Items a level 1–5 party can buy | 157 items | 0 | 0 | 157 | 0 |
 | Glossary general rules nothing executes | 23 rules | 0 | 0 | 23 | 0 |
-| CR ≤ 5 stat-block items handed over or unapplied | 69 items | on 67 of 244 blocks | 0 | 177 blocks already clean | 0 |
+| CR ≤ 5 stat-block items handed over or unapplied | 68 items | on 66 of 244 blocks | 0 | 178 blocks already clean | 0 |
 
 ## 1. Spells in reach the engine does not resolve
 
@@ -79,7 +79,6 @@ exactly the silently-missing entry this report’s header refuses.
 | `a-duration-the-slot-changes` | 1 | 1 |
 | `a-mode-on-the-save-a-spell-forces` | 1 | 1 |
 | `a-repeat-save-that-does-something-on-a-failure` | 1 | 1 |
-| `a-self-cure-a-spell-forbids` | 1 | 1 |
 | `an-action-the-engine-has-no-spender-for` | 1 | 1 |
 | `an-object-with-statistics-of-its-own` | 1 | 1 |
 | `difficult-terrain-an-area-creates` | 1 | 1 |
@@ -152,10 +151,6 @@ sums to the population.
 #### `a-repeat-save-that-does-something-on-a-failure` — blocks 1, finishes 1
 
 - **Bestow Curse** (level 3) — executed-partial
-
-#### `a-self-cure-a-spell-forbids` — blocks 1, finishes 1
-
-- **Hideous Laughter** (level 1) — executed-partial
 
 #### `an-action-the-engine-has-no-spender-for` — blocks 1, finishes 1
 
@@ -375,9 +370,9 @@ so none of them waits on reach: every one is in it.
 
 ## 5. CR ≤ 5 stat-block lines handed over or unapplied
 
-244 of the 332 carried stat blocks are CR ≤ 5. They print 738 lines, of which the parser reads 684 and hands over 54. Reading is not spending: a further 12 of the read attack lines carry a printed rider nothing applies, and 3 read trait lines state a mechanic no engine reader asks for. So the population is 69 items over 244 blocks — 177 of which already carry none of them.
+244 of the 332 carried stat blocks are CR ≤ 5. They print 738 lines, of which the parser reads 684 and hands over 54. Reading is not spending: a further 11 of the read attack lines carry a printed rider nothing applies, and 3 read trait lines state a mechanic no engine reader asks for. So the population is 68 items over 244 blocks — 178 of which already carry none of them.
 
-**A third answer, counted apart from both:** 77 of the read trait lines are sentences the engine reads and **hands to the table**, and will never execute — the breathing traits, the telepathies, the other planes, the substances this world holds none of, and the GM's own choices: sentences that say what a creature is and name nothing any rule consults. What is **not** among them is the other half of the residue below, where a sentence states a mechanic the engine has no seam for — an Amorphous squeezing through an inch, a Web Walker ignoring a web — because calling one of those fiction would retire a debt by renaming it. They are neither spent nor waiting, so they are not among the 69 above and do not keep a block off the clean list. `HANDOVER_TRAIT_KINDS` holds the reason per kind, and `coverage.test.ts` pins that none of them has a reader after all.
+**A third answer, counted apart from both:** 77 of the read trait lines are sentences the engine reads and **hands to the table**, and will never execute — the breathing traits, the telepathies, the other planes, the substances this world holds none of, and the GM's own choices: sentences that say what a creature is and name nothing any rule consults. What is **not** among them is the other half of the residue below, where a sentence states a mechanic the engine has no seam for — an Amorphous squeezing through an inch, a Web Walker ignoring a web — because calling one of those fiction would retire a debt by renaming it. They are neither spent nor waiting, so they are not among the 68 above and do not keep a block off the clean list. `HANDOVER_TRAIT_KINDS` holds the reason per kind, and `coverage.test.ts` pins that none of them has a reader after all.
 
 **A block is the unit that matters and a line is the unit that is counted.**
 A block with four unapplied lines is one fight that does not run, not four,
@@ -386,8 +381,8 @@ overlap: one sentence can force a save and recharge.
 
 | Shape | Lines | Blocks | Three example blocks |
 |---|---|---|---|
-| A hit whose line says more than the engine applies | 23 | 23 | Animated Rug of Smothering (CR 2) / Smother; Barbed Devil (CR 5) / Hurl Flame; Bearded Devil (CR 3) / Infernal Glaive |
-| An effect a hit buys | 12 | 12 | Barbed Devil (CR 5) / Hurl Flame; Bearded Devil (CR 3) / Infernal Glaive; Death Dog (CR 1) / Bite |
+| A hit whose line says more than the engine applies | 22 | 22 | Animated Rug of Smothering (CR 2) / Smother; Barbed Devil (CR 5) / Hurl Flame; Black Pudding (CR 4) / Dissolving Pseudopod |
+| An effect a hit buys | 11 | 11 | Barbed Devil (CR 5) / Hurl Flame; Death Dog (CR 1) / Bite; Incubus (CR 4) / Restless Touch |
 | A use the block limits per day | 9 | 8 | Darkmantle (CR 0.5) / Darkness Aura (1/Day); Gnoll Warrior (CR 0.5) / Rampage (1/Day); Night Hag (CR 5) / Nightmare Haunting (1/Day; Requires Soul Bag) |
 | A trait whose heading says more than the engine spends | 7 | 7 | Swarm of Crawling Claws (CR 3) / Swarm; Swarm of Bats (CR 0.25) / Swarm; Swarm of Insects (CR 0.5) / Swarm |
 | A save a line forces | 6 | 6 | Bulette (CR 5) / Deadly Leap; Centaur Trooper (CR 2) / Trampling Charge (Recharge 5–6); Gelatinous Cube (CR 2) / Engulf |

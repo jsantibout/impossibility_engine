@@ -29,7 +29,7 @@ homebrew.
 - **Combat and time** — Initiative and Alert's swap, the action budget, an
   extra action a running effect grants, a slot of somebody else's turn spent
   by a spell, joining a running fight, the clock, turn-anchored deadlines,
-  repeat saves and delayed damage at the boundary, Short and Long Rests. A
+  repeat saves and delayed damage at the boundary, Short and Long Rests. A creature stands up for half its Speed unless a spell forbids it; a Bearded Devil's wound bleeds each turn and closes on a minute, a Medicine check or a spell's healing; a push, pull or lift stops at a barrier; a reversed Magic Circle binds the creature it holds. A
   fight **ends** when no hostile remains or they surrender.
 - **Monsters that fight from their own printed lines** — Multiattack as a
   named sequence, an opportunity attack reaching for the best printed melee
@@ -53,7 +53,7 @@ homebrew.
   on the roll command — if it misses, fails, or shows a named face or lower (Heroic Inspiration). **The glossary's
   Help, Influence, Search, Study and Utilize are actions a command spends**,
   the Light property's extra attack carries Nick and Two-Weapon
-  Fighting, and the small named features, Savage Attacker to Primal Order, execute (`COVERAGE.md` lists each); a feature may ask two questions, grant a language, or know a
+  Fighting, and the small named features, Savage Attacker to Primal Order, execute; a feature may ask two questions, grant a language, or know a
   marked quarry's defences through `look`. Eldritch Invocations executes
   whole, both Pacts included: a feature may conjure the weapon it imbues and
   widen the forms a summons offers. **Wild Shape executes**: a Druid wears a learned Beast's stat block, keeps the SRD's retained half, and comes back by every ending the book names.
@@ -102,15 +102,11 @@ homebrew.
 - **A Druid's known forms are the ones it was made with**; no rest replaces
   one yet, and the block's senses are not carried.
 - **A summons still carries one debt**: a printed line whose numbers are the summoner's (the Otherworldly Steed's).
-- **Jumping is half**; Slow Fall is elected on the landing rather than in a
-  window; **nothing stands a creature up** by its own act, so a spell that
-  forbids standing has nothing to forbid.
-- **A printed hit is read clause by clause** and what nothing read is handed
-  back, the ledger keeping the block. A repeat save may deepen its condition
+- **Jumping is half**; Slow Fall is elected on the landing.
+- **A printed hit is read clause by clause**, what nothing read handed back. A repeat save may deepen its condition
   and stop asking; Resistance's d4 comes off the total before defences.
-- **Nothing brings a jumper down** from a High Jump; a lifted creature is set
-  down when its casting ends.
-- No ammunition spent. **An object cannot make an ability check** (a door asked for one rolls at −5), and nothing stops a
+- **Nothing brings a jumper down** from a High Jump.
+- No ammunition spent. **An object cannot make an ability check**, and nothing stops a
   caller putting an object in the turn order.
 - A conferral refuses by name what it cannot do: spell attack bonuses,
   ability scores an item sets, curses, Speed from an item.

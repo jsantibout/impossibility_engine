@@ -2645,3 +2645,33 @@ Appended after wave seven's first spells track (2026-09-24):
   branch's handover without the `[the DM decides]` mark; the ending seam's
   event count; and a docstring naming what a per-creature branch list does
   not get (the creature-type pre-flight, the caster's riders).
+- **Standing up, the infernal wound, and two rulings.** `standUp`
+  (`commands/stand.ts`, `stand_up` on both doors): half the Speed through
+  `spendMovement`, every Prone instance ended, refused `not_prone`,
+  `cannot_stand` (Speed 0, or a mark on the condition instance —
+  `ConditionRider.forbidsStandingUp`, Hideous Laughter's, lifting with the
+  Laughter) and `not_enough_movement`; free outside a fight. **Crawling is
+  not the double cost the brief assumed**: `wayOf`'s `surcharge` is the
+  glossary's sentence and nothing asks it of a Prone creature — recorded, not
+  built (a movement-model change). The Bearded Devil's wound is one `wound`
+  clause filed under one source: a `GrantedPayout` at the target's turn start
+  (not `dueDamageOf`, which is a one-off debt), the minute its deadline, the
+  stanch an `EffectCheck` by a neighbour within five feet; `mayAttempt` fixed
+  (it answered *true for everybody* on a `grants` timer), `effect-check-resolved`
+  releases a `grants` target, `healed` names its casting so `closeHealedWounds`
+  (a new derived pass) closes the wound on a spell's healing and on nothing
+  else; the gate "doesn't already have an infernal wound" stands in front of
+  the die. `HIT_POINT_LOSS`: "loses Hit Points" rides the damage funnel and
+  the docblock says what that costs — **an owner ruling is worth having** on
+  whether SRD "loses" should break Concentration, eat temporary hit points,
+  wake sleepers. Forced movement (`shoveAwayFrom`, `lift`, `pullToward`) now
+  asks `stopAtBarriers` and stops a space at a time rather than refusing;
+  `AreaSide.attackerInside` gives the reversed Magic Circle its meaning (the
+  creature penned in, not everybody outside). **Part 3 not built, honestly:**
+  the four day-long clocks read to nothing today and need a hit-rider arm in
+  `commands/attacks.ts` (Incubus, Mummy — the Mummy's curse prints no ending
+  at all), a repeat save raised by elapsed time and a save triggered by a
+  Long Rest (Death Dog, Otyugh); the brief's "until cured by Lesser
+  Restoration" is in none of the four blocks. Re-briefed as B14.
+  `a-clock-that-runs-for-days` stays. The reviewer ran on Fable. Main
+  re-ingested.
