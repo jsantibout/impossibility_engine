@@ -21,6 +21,7 @@ import {
   ABILITY_NAMES,
   type CharacterId,
   type ConditionName,
+  err,
   ok,
   type Result,
 } from '@ie/shared';
@@ -29,6 +30,7 @@ import { type RepeatSave } from '../timers.js';
 import { applyEvent, type GameEvent, type GameState } from '../events.js';
 import {
   type ConditionRider,
+  type DeferredRiderSet,
   delayedDuration,
   type DelayedDamage,
   type OutcomeRiders,
@@ -79,7 +81,7 @@ export function scheduleDelayed(
   delayed: DelayedDamage,
   context: {
     readonly casterId: CharacterId;
-    readonly definition: SpellDefinition;
+    readonly definition: RiderSpell;
     readonly castingId: string;
     readonly castLevel: number;
     readonly casterLevel: number;
@@ -336,7 +338,7 @@ export function applyRiders(
   target: CharacterId,
   riders: OutcomeRiders,
   context: {
-    readonly definition: SpellDefinition;
+    readonly definition: RiderSpell;
     readonly castingId: string;
     readonly casterId: CharacterId;
     readonly saveDc: number;
@@ -365,6 +367,16 @@ export function applyRiders(
 }> {
   const { definition, castingId, casterId, saveDc, held } = context;
   const source = castingSource(definition.name, castingId);
+
+  // **Owed rather than applied, where the book lands them on the target's own
+  // next turn** — SRD Command's "follow the command on its next turn". The
+  // outcome is settled here and what it buys is written down whole, to be
+  // landed by the turn boundary through this same function. See
+  // {@link OutcomeRiders.at} and {@link settleDeferredRiders}. (W7-S22)
+  if (riders.at !== undefined) {
+    return ok({ events: deferredRiders(state, target, riders, source, context), conditions: [] });
+  }
+
   const events: GameEvent[] = [];
   const conditions: ConditionName[] = [];
   let current = state;
@@ -826,6 +838,149 @@ export function applyRiders(
   }
 
   return ok({ events, conditions });
+}
+
+/**
+ * What a spell reads of its own definition when its riders land: the name the
+ * log uses, the level a payout scales from, and the activation a lift reads
+ * its per-turn cap off. A `SpellDefinition` is one; a deferred debt pins the
+ * first two, because it lands a turn after the definition was read.
+ */
+export type RiderSpell = Pick<SpellDefinition, 'name' | 'level' | 'activation'>;
+
+/**
+ * The debt a deferred outcome writes, or a line saying why it wrote none.
+ *
+ * The pre-flight asked for the target's place in the order before a die was
+ * thrown, so an atomic casting always arrives here with a turn to owe. What
+ * may not is a casting declared in one fight and settled after it ended — the
+ * settlement has already rolled, so the debt is **reported rather than
+ * refused**, the way `scheduleDelayed` reports a second hit with no turn to
+ * fall on. (W7-S22)
+ */
+function deferredRiders(
+  state: GameState,
+  target: CharacterId,
+  riders: OutcomeRiders,
+  source: string,
+  context: Parameters<typeof applyRiders>[3],
+): readonly GameEvent[] {
+  const { definition } = context;
+  if (state.combat === null || !state.combat.order.some((seat) => seat.id === target)) {
+    context.unverified.push(
+      `${definition.name} owes ${target} what its failed save bought on its next turn, and ${target} has no turn in a fight; nothing was owed`,
+    );
+    return [];
+  }
+  const owed: DeferredRiderSet = {
+    ...(riders.conditions === undefined ? {} : { conditions: riders.conditions }),
+    ...(riders.drops === undefined ? {} : { drops: riders.drops }),
+    ...(riders.spends === undefined ? {} : { spends: riders.spends }),
+  };
+  return [
+    {
+      type: 'riders-deferred',
+      owed: {
+        target,
+        source,
+        castingId: context.castingId,
+        spell: definition.name,
+        spellLevel: definition.level,
+        castLevel: context.castLevel,
+        casterLevel: context.casterLevel,
+        casterId: context.casterId,
+        saveDc: context.saveDc,
+        saveAbility: context.saveAbility,
+        ...(context.object === undefined ? {} : { object: context.object }),
+        riders: owed,
+      },
+    },
+  ];
+}
+
+/**
+ * What the creature whose turn has just begun is owed by an outcome settled on
+ * an earlier turn — SRD Command's word, obeyed. (W7-S22)
+ *
+ * > "The target must succeed on a Wisdom saving throw or follow the command
+ * > on its next turn." / "_Drop._ The target drops whatever it is holding and
+ * > then ends its turn." / "_Grovel._ The target has the Prone condition and
+ * > then ends its turn."
+ *
+ * **Every debt the creature owes, in the order they were filed**, each landed
+ * through {@link applyRiders} with what the record pinned, so the conditions,
+ * the drop and the spend go in the order every outcome's riders go and a
+ * second reading of them cannot drift from the first. `deferred-riders-settled`
+ * closes each, beside its landings.
+ *
+ * **Nothing is rolled**, so the generator is not asked for; the catalogue is,
+ * because a drop reads how many hands a thing takes off the item's record. A
+ * boundary with a debt due and no catalogue refuses `riders_owed` rather than
+ * advancing past the word — the family `payout_owed` and `recharge_owed`
+ * belong to. A creature that has died since keeps nothing it could be told to
+ * do, and its debt is closed with nothing landed.
+ *
+ * **Exported for the one boundary that raises a turn's beginning mid-fight**,
+ * `resolveTurn`. The door that opens a fight has nothing to settle: the debt
+ * is only ever filed in a fight, and a fight ending takes it.
+ */
+export function settleDeferredRiders(
+  state: GameState,
+  content: Content | undefined,
+  begun: CharacterId | undefined,
+): Result<{ readonly events: readonly GameEvent[]; readonly unverified: readonly string[] }> {
+  if (begun === undefined) return ok({ events: [], unverified: [] });
+  const owed = state.deferredRiders.filter((debt) => debt.target === begun);
+  if (owed.length === 0) return ok({ events: [], unverified: [] });
+  if (content === undefined) {
+    return err(
+      'riders_owed',
+      `${begun} begins its turn owing what ${owed.map((debt) => debt.spell).join(' and ')} bought; advancing needs the catalogue to settle it`,
+    );
+  }
+
+  const events: GameEvent[] = [];
+  const unverified: string[] = [];
+  let current = state;
+  for (const debt of owed) {
+    const creature = current.creatures[begun];
+    if (creature !== undefined && !creature.vitals.dead) {
+      const landed = applyRiders(current, begun, debt.riders, {
+        definition: { name: debt.spell, level: debt.spellLevel },
+        castingId: debt.castingId,
+        casterId: debt.casterId,
+        saveDc: debt.saveDc,
+        castLevel: debt.castLevel,
+        casterLevel: debt.casterLevel,
+        unverified,
+        // The casting was over before the turn began — Command is
+        // Instantaneous — so there is no record to tell whom it holds.
+        held: new Set<CharacterId>(),
+        saveAbility: debt.saveAbility,
+        content,
+        ...(debt.object === undefined ? {} : { object: debt.object }),
+      });
+      if (!landed.ok) return landed;
+      events.push(...landed.value.events);
+      current = landed.value.events.reduce(applyEvent, current);
+      // **What "then ends its turn" could not reach, said out loud.** A spend
+      // charges the turn's own Action and Bonus Action, and an extra action a
+      // running effect handed this turn — SRD Haste's, granted a moment ago at
+      // this same boundary — is a slot `budget-compelled` does not name, as the
+      // movement is. Both stay in the budget, so the table is told the turn is
+      // over rather than the engine pretending it has nothing left. (W7-S22)
+      const extra = current.combat?.budgets[begun]?.extraActions.length ?? 0;
+      if (debt.riders.spends !== undefined && extra > 0) {
+        unverified.push(
+          `${debt.spell}: ${begun}'s turn ends here, and it still holds ${extra} extra action${extra === 1 ? '' : 's'} and its movement, which the word does not spend; the turn is the table's to end`,
+        );
+      }
+    }
+    const settled: GameEvent = { type: 'deferred-riders-settled', id: begun, source: debt.source };
+    events.push(settled);
+    current = applyEvent(current, settled);
+  }
+  return ok({ events, unverified });
 }
 
 /**

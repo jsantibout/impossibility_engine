@@ -20,6 +20,7 @@ import { LONG_CASTING_SECONDS } from './spells.js';
 import {
   conditionRiderOf,
   CREATURE_TYPES,
+  DEFERRABLE_RIDERS,
   DIRECTIONAL_AREAS,
   DM_DECIDES,
   modifierRidersOf,
@@ -34,6 +35,7 @@ import type {
   AreaTrigger,
   AttackRollCount,
   ConditionRider,
+  DeferredMoment,
   DiceScaling,
   LightRider,
   ModifierRider,
@@ -2193,6 +2195,7 @@ function checkVerdictIsWhole(
     effect.movement !== undefined ||
     effect.breaksConcentration === true ||
     effect.drops !== undefined ||
+    effect.spends !== undefined ||
     effect.recordsOutcome === true;
 
   if (!decided) return;
@@ -2230,6 +2233,9 @@ function checkSaveWithoutCondition(
     // cannot be dropped, and a die that empties a hand is not a die thrown for
     // nothing.
     effect.drops !== undefined ||
+    // And a failure that uses up the target's turn — SRD Command's "and then
+    // ends its turn" — has decided something too. (W7-S22)
+    effect.spends !== undefined ||
     // **A repeat whose failure acts is content too**, and SRD Bestow Curse's
     // Dodge face is the sentence that says so: the save imposes nothing at the
     // casting and puts the creature under an obligation it must save against at
@@ -2619,8 +2625,36 @@ export function checkActionRule(
     return;
   }
 
+  /*
+   * SRD Slow's "If it casts a spell with a Somatic component, there is a 25
+   * percent chance the spell fails", held to the two things it can be wrong
+   * about: a component the book prints, and a percentage the die can fall
+   * under. Nought is a chance nobody prints and a die thrown for nothing; a
+   * hundred is the casting forbidden, which is `forbids.casting` in fewer
+   * words and without the slot. (W7-S22)
+   */
+  if (rule.kind === 'casting-chance') {
+    if (rule.component !== 'verbal' && rule.component !== 'somatic' && rule.component !== 'material') {
+      bad(
+        `"${String(rule.component)}" is not a spell component; the book prints verbal, somatic and material`,
+      );
+      return;
+    }
+    if (
+      typeof rule.percent !== 'number' ||
+      !Number.isInteger(rule.percent) ||
+      rule.percent < 1 ||
+      rule.percent > 99
+    ) {
+      bad(
+        `a chance of a casting failing is a whole percentage from 1 to 99, not ${String(rule.percent)}; none is no rule and a hundred is the casting forbidden`,
+      );
+    }
+    return;
+  }
+
   bad(
-    `"${String((rule as { readonly kind?: unknown }).kind)}" is not something a spell does to a turn; a spell forbids, permits only, allows, grants, couples one of several slots, or caps the attacks inside an Attack action`,
+    `"${String((rule as { readonly kind?: unknown }).kind)}" is not something a spell does to a turn; a spell forbids, permits only, allows, grants, couples one of several slots, caps the attacks inside an Attack action, or puts a casting at a chance of failing`,
   );
 }
 
@@ -3129,7 +3163,7 @@ function checkSuccessRiders(
         'no saving throw in the book rewards a success with damage; a hit a success still takes is the failure branch, or the host\u2019s own onSuccess',
     });
   }
-  for (const slot of ['light', 'drops', 'breaksConcentration'] as const) {
+  for (const slot of ['light', 'drops', 'breaksConcentration', 'at'] as const) {
     if (riders[slot] === undefined) continue;
     found.push({
       field: `${path}.${slot}`,
@@ -3152,6 +3186,73 @@ function checkSuccessRiders(
   );
 }
 
+/**
+ * When an outcome's riders land, held to what the settlement can land.
+ *
+ * SRD Command's "follow the command on its next turn" is the one writer, and
+ * what it defers is a condition, a drop and a spend — so those three are what
+ * a `DeferredRiders` record pins and what the turn boundary lands. A grant, a
+ * shove, a later hit, a glow or a broken Concentration owed to a later turn
+ * would land with facts the casting never wrote down, so each is refused
+ * rather than carried; and a deferral that owes nothing is a sentence
+ * somebody meant to finish. (W7-S22)
+ */
+function checkDeferral(
+  riders: {
+    readonly conditions?: readonly ConditionRider[];
+    readonly drops?: unknown;
+    readonly spends?: unknown;
+    readonly at?: DeferredMoment;
+  },
+  path: string,
+  found: SpellDefinitionProblem[],
+): void {
+  const bad = (reason: string): void => {
+    found.push({ field: `${path}.at`, code: 'bad_deferral', reason });
+  };
+  if (riders.at !== 'start-of-targets-next-turn') {
+    bad(
+      `"${String(riders.at)}" is not a moment an outcome is owed to; the book defers one, the start of the target's next turn`,
+    );
+    return;
+  }
+  const others = Object.keys(riders).filter(
+    (slot) =>
+      slot !== 'at' &&
+      !(DEFERRABLE_RIDERS as readonly string[]).includes(slot) &&
+      RIDER_SLOTS.has(slot) &&
+      (riders as Readonly<Record<string, unknown>>)[slot] !== undefined,
+  );
+  if (others.length > 0) {
+    bad(
+      `${others.join(', ')} cannot be owed to a later turn; the settlement lands ${DEFERRABLE_RIDERS.join(', ')} and nothing else`,
+    );
+    return;
+  }
+  // A save writes its first condition flat, so "owes nothing" asks that too.
+  const flat = (riders as { readonly condition?: unknown }).condition;
+  const owes =
+    flat !== undefined ||
+    (Array.isArray(riders.conditions) && riders.conditions.length > 0) ||
+    riders.drops !== undefined ||
+    riders.spends !== undefined;
+  if (!owes) {
+    bad('a deferral that owes the target nothing defers nothing; name the condition, the drop or the spend it owes');
+  }
+}
+
+/** Every rider slot a host may carry, for the deferral check to tell a rider from the host's own fields. */
+const RIDER_SLOTS: ReadonlySet<string> = new Set([
+  'conditions',
+  'modifiers',
+  'delayed',
+  'movement',
+  'spends',
+  'light',
+  'breaksConcentration',
+  'drops',
+]);
+
 function checkRiders(
   riders: {
     readonly conditions?: readonly ConditionRider[];
@@ -3162,12 +3263,14 @@ function checkRiders(
     readonly light?: LightRider;
     readonly breaksConcentration?: true;
     readonly drops?: { readonly all?: unknown; readonly orElse?: readonly ModifierRider[] };
+    readonly at?: DeferredMoment;
   },
   level: number,
   path: string,
   host: RiderHost,
   found: SpellDefinitionProblem[],
 ): void {
+  if (riders.at !== undefined) checkDeferral(riders, path, found);
   // **A slot that is present and not a list is reported, not skipped.** `??`
   // reads `null` as absent, which is the right answer for a field the author
   // left out and the wrong one for a field they filled in wrongly: a

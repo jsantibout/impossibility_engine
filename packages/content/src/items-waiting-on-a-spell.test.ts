@@ -1245,9 +1245,10 @@ describe('the four wands whose remainder was a note', () => {
     // of them.
     const commanded = castFrom('wand-of-fear', 'command', {
       targets: [OTHER],
-      // Grovel rather than Halt: Halt's rule ends at the end of the target's
-      // next turn, and nobody in this fixture has rolled Initiative.
-      option: 'grovel',
+      // Flee, one of the two words the wand prints, rather than Grovel, the
+      // other: Grovel's Prone lands as the target's next turn begins (W7-S22),
+      // and nobody in this fixture has rolled Initiative.
+      option: 'flee',
     });
     expect(left(commanded.log, 'wand-of-fear')).toBe(6);
 

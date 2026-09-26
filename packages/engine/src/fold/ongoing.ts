@@ -34,6 +34,7 @@ export const ONGOING_EVENTS = [
   'spell-aim-changed',
   'concentration-started',
   'concentration-ended',
+  'spell-fizzled',
 ] as const;
 
 /** The narrowed union this seam reduces, `Extract`ed from the list above. */
@@ -294,6 +295,22 @@ export function applyOngoing({ state, next, legacy }: Applying, event: OngoingEv
       const creature = creatureOf(state, event, event.id);
       if (creature.concentration?.castingId !== event.castingId) {
         throw new CorruptLogError(event, `${event.id} is not concentrating on ${event.castingId}`);
+      }
+      return releaseCasting(next, event.id, event.castingId);
+    }
+
+    // **A casting made and failed** — SRD Slow's gestures. The `spell-cast`
+    // before it spent the slot and may have begun a Concentration and a
+    // deadline; this ends the casting through the one door out, which takes
+    // both. The casting has to have been made, and to have been settled rather
+    // than still held open: a declaration that fails is `spell-interrupted`'s,
+    // and one that never happened is a fumble the log invented. (W7-S22)
+    case 'spell-fizzled': {
+      if (Number(event.castingId.slice('cast:'.length)) > state.castingsBegun) {
+        throw new CorruptLogError(event, `${event.castingId} has not been cast`);
+      }
+      if (state.pendingCastings[event.castingId] !== undefined) {
+        throw new CorruptLogError(event, `${event.castingId} is still being cast`);
       }
       return releaseCasting(next, event.id, event.castingId);
     }

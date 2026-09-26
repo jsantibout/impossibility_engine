@@ -596,6 +596,32 @@ export type ActionRule =
       readonly kind: 'caps-attacks';
       /** How many swings an Attack action may hold. SRD prints one. */
       readonly attacks: number;
+    }
+  /**
+   * SRD Slow: "If it casts a spell with a **Somatic component**, there is a 25
+   * percent chance the spell fails as a result of the target making the
+   * spell's gestures too slowly." (W7-S22)
+   *
+   * **The eighth member and the second that is not about a spend**, beside
+   * `caps-attacks`: a casting is not a slot, so {@link refuseSpend} never
+   * consults it and {@link governs} says so. What reads it is the casting
+   * pipeline, **after the cost is paid** — the slot is gone and the action with
+   * it, which is what "the spell fails" means as against "the spell cannot be
+   * cast" — and it throws the same 1d100 against the printed percentage that
+   * SRD Augury's and SRD Sending's `chance` effect throws, through the one
+   * function that reads a percentage as a chance of *failing*.
+   *
+   * **Which component is part of the sentence**, read off the spell's entry
+   * (`SpellEntry.components`), so a Command — Verbal only — throws no die and a
+   * Fire Bolt does. A casting that has none of its components — SRD Subtle
+   * Spell, an item's — throws none either.
+   */
+  | {
+      readonly kind: 'casting-chance';
+      /** The component a casting must have for the die to be thrown. SRD prints Somatic. */
+      readonly component: 'verbal' | 'somatic' | 'material';
+      /** The printed chance of failing, as a percentage: SRD Slow's 25. */
+      readonly percent: number;
     };
 
 /**

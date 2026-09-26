@@ -99,6 +99,7 @@ import type {
   Attachment,
   BorrowedSenses,
   CommandStamp,
+  DeferredRiders,
   GrantedFallWard,
   GrantedJump,
   GrantedLift,
@@ -160,6 +161,7 @@ export type {
   BorrowedSenses,
   CommandStamp,
   CreatureState,
+  DeferredRiders,
   GameState,
   GrantedFallWard,
   GrantedJump,
@@ -2364,6 +2366,54 @@ export type GameEvent =
       readonly by: CharacterId | null;
       readonly reason: 'countered' | 'caster-left';
       readonly command?: CommandStamp;
+    }
+  /**
+   * A casting that was made and failed. (W7-S22)
+   *
+   * SRD Slow: "there is a 25 percent chance **the spell fails** as a result of
+   * the target making the spell's gestures too slowly." Not `spell-interrupted`,
+   * whose casting never took effect and whose slot was never spent: this one
+   * follows the `spell-cast` that spent it, in the same batch, and the slot
+   * stays spent — the spell was cast and nothing came of it. The die that
+   * decided it is the `roll-recorded` before it.
+   *
+   * The fold ends the casting through the one door every ending uses, so the
+   * Concentration `spell-cast` began and the deadline it scheduled go with it.
+   * `source` and `label` name the rule that put the casting at risk, pinned
+   * because the fold opens no catalogue and the log should say why.
+   */
+  | {
+      readonly type: 'spell-fizzled';
+      readonly castingId: string;
+      readonly id: CharacterId;
+      /** The grant that set the chance: `Slow#cast:1`. */
+      readonly source: string;
+      /** What the log calls it: the spell's name. */
+      readonly label: string;
+    }
+  /**
+   * What a failed save bought, owed to the target's next turn rather than
+   * applied. (W7-S22)
+   *
+   * SRD Command: "The target must succeed on a Wisdom saving throw or follow
+   * the command **on its next turn**." The save was rolled beside this and the
+   * verdict is history; what it bought is a debt, pinned whole — see
+   * `DeferredRiders` — and settled by the turn boundary as that creature's
+   * turn begins.
+   */
+  | {
+      readonly type: 'riders-deferred';
+      readonly owed: DeferredRiders;
+    }
+  /**
+   * A deferred debt paid: the riders landed as their own events, beside this
+   * one, at the start of the target's turn. `source` names which of the
+   * target's debts it was, because two castings may owe one creature. (W7-S22)
+   */
+  | {
+      readonly type: 'deferred-riders-settled';
+      readonly id: CharacterId;
+      readonly source: string;
     }
   | {
       readonly type: 'concentration-started';

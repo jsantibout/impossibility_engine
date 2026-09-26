@@ -2626,11 +2626,14 @@ export const HYPNOTIC_PATTERN: SpellDefinition = {
  * this spell can catch. The goblin that makes its save is free and the
  * hobgoblin beside it is still slowed.
  *
- * **What is left is two sentences and each is a different absence.** The
- * attacks counted inside the Attack action are a thing the economy does not
- * count: it counts one Attack action and not the swings in it. And the 25
- * percent is a die no `SpellEffect` asks for — a die that decides whether
- * another casting happens at all.
+ * **And the last two sentences are rules on the creature too.** The one
+ * attack inside the Attack action is `caps-attacks`; the 25 percent is
+ * `casting-chance`, a die the casting pipeline throws after the slot and the
+ * action are spent, read against the Somatic component the spell's entry
+ * prints — `SpellEntry.components`, carried out of the parsed book. Three roads
+ * make a casting without passing that point — a Ready, a spell cast with or on
+ * a hit, a glyph's stored spell — and do not throw the die yet, which is the
+ * `unmodelled` line below. (W7-S22)
  */
 export const SLOW: SpellDefinition = {
   id: 'slow',
@@ -2692,12 +2695,20 @@ export const SLOW: SpellDefinition = {
         // spent, so it stands on the creature and reaches every Attack action
         // it takes, its own and any a Haste or an Action Surge buys.
         { kind: 'action', rule: { kind: 'caps-attacks', attacks: 1 } },
+        // "If it casts a spell with a Somatic component, there is a 25 percent
+        // chance the spell fails" — a rule the casting pipeline reads after
+        // the cost is paid, against the components the spell's entry prints,
+        // so a Command throws no die and a Fire Bolt does. (W7-S22)
+        {
+          kind: 'action',
+          rule: { kind: 'casting-chance', component: 'somatic', percent: 25 },
+        },
       ],
     },
   ],
   durationSeconds: 60,
   unmodelled: [
-    'the 25 percent chance a Somatic spell fails is not rolled: it is a percentage no effect asks for, deciding whether another casting happens at all',
+    'the 25 percent chance is thrown where a casting is made through the casting pipeline, and not yet on three roads that make one elsewhere: a spell readied with the Ready action (cast at the Ready), a cantrip cast with a swing or a smite cast on a hit, and the spell a Glyph of Warding stores at its inscription',
   ],
 };
 
@@ -8692,11 +8703,17 @@ export const CONJURE_FEY: SpellDefinition = {
  * before it went, and only a rider does. So Halt, Drop and Grovel each write
  * "Wisdom saving throw" and hang their own sentence off the failure.
  *
- * **Approach and Flee carry no save at all**, and it is the honest end of the
- * same rule rather than an oversight: their whole consequence is a turn played
- * by somebody along a route nobody chose, so there is nothing for a failure to
- * hang and `save_imposes_nothing` refuses a die thrown for nothing. Both hand
- * the book's sentence to the table, which is where the roll goes with it.
+ * **Approach and Flee roll a verdict-only save**: their whole consequence is a
+ * turn played by somebody along a route nobody chose, so what the engine
+ * decides is who resisted, and both hand the book's sentence to the table.
+ *
+ * **Drop and Grovel land on the target's next turn**, which is where the book
+ * puts them: "follow the command **on its next turn**". The save is rolled at
+ * the casting and what a failure buys is owed — `at:
+ * 'start-of-targets-next-turn'` — to be landed by the turn boundary as the
+ * target's turn begins: the hands emptied or the Prone, and "then ends its
+ * turn" as the Action and the Bonus Action spent. Halt needed none of it,
+ * because its rule already runs to the end of that same turn. (W7-S22)
  */
 export const COMMAND: SpellDefinition = {
   id: 'command',
@@ -8743,10 +8760,14 @@ export const COMMAND: SpellDefinition = {
           // was written for. Heat Metal points at one thing; this empties the
           // hands.
           drops: { all: true },
+          // "and then ends its turn": the turn's two actions, spent. The
+          // movement is the one slot a spend may not take, so it stays in the
+          // budget and the table ends the turn. (W7-S22)
+          spends: { slots: ['action', 'bonus-action'], on: 'dropping what it held, and then ending its turn' },
+          // "or follow the command **on its next turn**": the save is rolled
+          // now and what it buys lands as the target's turn begins. (W7-S22)
+          at: 'start-of-targets-next-turn',
         },
-      ],
-      unmodelled: [
-        'the hands are emptied at the casting rather than on the target’s next turn, and "and then ends its turn" is not applied at all: both are the directed turn itself — "follow the command on its next turn" defers every one of the five words to a turn somebody else is deciding, and a rider settles with the save that raised it',
       ],
     },
     flee: {
@@ -8771,10 +8792,11 @@ export const COMMAND: SpellDefinition = {
           // Command is Instantaneous, and Prone ends when the creature stands
           // up — Grease’s reading, on the same condition and the same word.
           outlivesCasting: true,
+          // "and then ends its turn", as Drop's. (W7-S22)
+          spends: { slots: ['action', 'bonus-action'], on: 'grovelling, and then ending its turn' },
+          // "on its next turn", as Drop's. (W7-S22)
+          at: 'start-of-targets-next-turn',
         },
-      ],
-      unmodelled: [
-        'the Prone lands at the casting rather than on the target’s next turn, and the turn it cuts short is not cut short, for the reason Drop’s object hits the floor early: the word is obeyed inside a turn somebody else is directing, and nothing defers a rider into one',
       ],
     },
     halt: {

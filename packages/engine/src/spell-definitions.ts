@@ -1683,7 +1683,58 @@ export interface OutcomeRiders {
    * in this format.
    */
   readonly breaksConcentration?: true;
+  /**
+   * **When** the riders land, where the book does not land them at the
+   * outcome. (W7-S22)
+   *
+   * > SRD Command: "The target must succeed on a Wisdom saving throw or
+   * > **follow the command on its next turn**." / "_Drop._ The target drops
+   * > whatever it is holding and then ends its turn." / "_Grovel._ The target
+   * > has the Prone condition and then ends its turn."
+   *
+   * Absent is every rider in the book: it lands with the outcome that bought
+   * it. `start-of-targets-next-turn` is Command's: the failure is settled at
+   * the casting — the save rolled, the verdict in the log — and what it buys
+   * is **owed** rather than applied, a `riders-deferred` record on the target
+   * that the turn boundary settles as that creature's turn begins. "And then
+   * ends its turn" is the `spends` beside it: the turn's own Action and Bonus
+   * Action go. Two things stay in the budget, because no spend can name them —
+   * the movement, which is spent by the foot, and an extra action a running
+   * effect handed the turn (SRD Haste's) — so a turn that ends at its start is
+   * a budget with both its own actions gone, its feet untouched and any extra
+   * action standing, and the settlement says so in `unverified`: the turn is
+   * the table's to end. The Reaction is not the turn's at all: it is spent
+   * off-turn as often as on, and ending one's turn does not use it.
+   *
+   * **Only three riders may be owed** — conditions, a drop and a spend, which
+   * are what the one writer defers — and `checkSpellDefinition` refuses the
+   * rest: what the record pins is what those three read, so a deferred grant
+   * or push would settle with facts the casting never wrote down.
+   */
+  readonly at?: DeferredMoment;
 }
+
+/**
+ * The moment a deferred outcome lands — see {@link OutcomeRiders.at}.
+ *
+ * One member, the one the book writes. A second arrives with the sentence
+ * that needs it.
+ */
+export type DeferredMoment = 'start-of-targets-next-turn';
+
+/**
+ * The riders an outcome may owe rather than apply — see {@link
+ * OutcomeRiders.at}. `DEFERRABLE_RIDERS` is the same list as data, for the
+ * validator that refuses the rest.
+ */
+export type DeferredRiderSet = Pick<OutcomeRiders, 'conditions' | 'drops' | 'spends'>;
+
+/** The slots of {@link OutcomeRiders} a deferral may carry. */
+export const DEFERRABLE_RIDERS: readonly (keyof DeferredRiderSet)[] = [
+  'conditions',
+  'drops',
+  'spends',
+];
 
 /**
  * A glow a settled outcome hangs on its target — see {@link
@@ -2936,6 +2987,23 @@ export type SpellEffect =
        * object if it can**".
        */
       readonly drops?: DropRider;
+      /**
+       * Slots of the target's own turn the same failed save uses up: see
+       * {@link OutcomeRiders.spends}.
+       *
+       * Flat for the reason the slots above it are, and SRD Command is the
+       * writer: "The target drops whatever it is holding **and then ends its
+       * turn**." The third host of the slot, beside `attack` and `save-damage`,
+       * because Command's save deals no damage. (W7-S22)
+       */
+      readonly spends?: SpentBudget;
+      /**
+       * When what the failure buys lands: see {@link OutcomeRiders.at}.
+       *
+       * Flat for the reason `spends` is, and SRD Command is the writer: "or
+       * follow the command **on its next turn**". (W7-S22)
+       */
+      readonly at?: DeferredMoment;
       /**
        * What a **successful** save carries with it, where the sentence gives a
        * success a consequence.
@@ -7935,6 +8003,16 @@ export function riderDurations(
     for (const rider of effect.kind === 'save' ? (effect.onSuccessRiders?.modifiers ?? []) : []) {
       if (rider.kind === 'mode' && rider.lasts !== undefined) found.push(rider.lasts);
     }
+    // **And the moment a deferred outcome is owed at** — SRD Command's "on its
+    // next turn", which is the target's next turn and means nothing where the
+    // target has no place in an order. Asked before the slot for the reason
+    // every deadline here is: the record is written after the save has been
+    // rolled, and a moment that cannot be pinned by then is a refusal that has
+    // already moved the world. `DeferredMoment`'s one member is also a
+    // `RiderDuration`, so the pre-flight's target-anchored loop reads it
+    // unchanged. (W7-S22)
+    const deferred = outcomeRidersOf(effect).at;
+    if (deferred !== undefined) found.push(deferred);
     // Every rider on every host, because a plural `conditions` means the one
     // that cannot be pinned is not always the first.
     for (const rider of conditionRiderOf(effect)) {
@@ -8812,10 +8890,18 @@ export function outcomeRidersOf(effect: SpellEffect): OutcomeRiders {
     effect.kind === 'attack' || effect.kind === 'save-damage' || effect.kind === 'save'
       ? effect.movement
       : undefined;
-  // The same two hosts, and for the same reason: the SRD writes a spend "on a
-  // hit" and "on a failed save" and nowhere else that a rider hangs.
+  // **All three hosts**, and the third is SRD Command's: "and then ends its
+  // turn" hangs off a bare `save`, which keeps its flat spelling. (W7-S22)
   const spends =
-    effect.kind === 'attack' || effect.kind === 'save-damage' ? effect.spends : undefined;
+    effect.kind === 'attack' || effect.kind === 'save-damage' || effect.kind === 'save'
+      ? effect.spends
+      : undefined;
+  // And when the riders land, off the same three for the same reason — SRD
+  // Command's "on its next turn" is written on a bare `save`. (W7-S22)
+  const at =
+    effect.kind === 'attack' || effect.kind === 'save-damage' || effect.kind === 'save'
+      ? effect.at
+      : undefined;
   // **All three hosts**, and the third is why this reads the field rather than
   // the interface: SRD Faerie Fire writes the glow off a bare `save`, which
   // keeps its flat spelling, so the slot is declared there as well and read
@@ -8845,6 +8931,7 @@ export function outcomeRidersOf(effect: SpellEffect): OutcomeRiders {
     ...(light === undefined ? {} : { light }),
     ...(breaksConcentration === undefined ? {} : { breaksConcentration }),
     ...(drops === undefined ? {} : { drops }),
+    ...(at === undefined ? {} : { at }),
   };
 }
 

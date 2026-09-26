@@ -9,7 +9,7 @@ import { spellSlotKey } from './resources.js';
 import { declaredCasting } from './spellcasting.js';
 import { checkSpellDefinitionValue } from './spell-schema.js';
 import { actionRulesOn } from './standing.js';
-import { equipItem, resolveSpell, takeReady } from './commands.js';
+import { equipItem, resolveSpell, resolveTurn, takeReady } from './commands.js';
 
 /**
  * A choice of **which effects run**, which is the second arm of
@@ -139,6 +139,13 @@ const speak = (
     supply(bonus),
   ) as Result<{ readonly events: readonly GameEvent[] }>;
 
+/** The cleric's turn ended through the command that settles what the thug's beginning owes. */
+const theirTurn = (log: readonly GameEvent[]): GameState => {
+  const state = fold('seed', log);
+  const out = unwrap(resolveTurn(state, supply(0, 'turn')), 'turn');
+  return fold('seed', [...log, ...out.events]);
+};
+
 const spoken = (
   log: readonly GameEvent[],
   over: Record<string, unknown>,
@@ -235,9 +242,16 @@ describe('Command runs the branch its caster spoke and no other', () => {
     expect(isErr(out) && out.reason).toContain('an Initiative order');
   });
 
-  /** And the four words that hang no deadline are not asked the question. */
+  /**
+   * And the two words that hang nothing are not asked the question. Drop and
+   * Grovel are, since W7-S22: what their failure buys is owed to the target's
+   * next turn, which is a turn only an Initiative order has.
+   */
   it('does not ask it of a word whose branch hangs nothing', () => {
-    expect(speak(ARMED, { option: 'grovel' }).ok).toBe(true);
+    expect(speak(ARMED, { option: 'approach' }).ok).toBe(true);
+    expect(speak(ARMED, { option: 'flee' }).ok).toBe(true);
+    const grovel = speak(ARMED, { option: 'grovel' });
+    expect(isErr(grovel) && grovel.code).toBe('needs_context');
   });
 
   it('Halt hangs nothing on a creature that made the save', () => {
@@ -245,26 +259,36 @@ describe('Command runs the branch its caster spoke and no other', () => {
     expect(actionRulesOn(state, THUG)).toEqual([]);
   });
 
-  it('Drop empties both hands', () => {
-    const { state } = spoken(ARMED, { option: 'drop' });
-    expect(state.creatures[THUG]?.equipped ?? []).toEqual([]);
+  /**
+   * "Follow the command **on its next turn**": the save is rolled at the
+   * casting and what Drop and Grovel buy lands as the thug's turn begins —
+   * see `command-deferred.test.ts`, which drives the whole of it. (W7-S22)
+   */
+  it('Drop empties both hands, on the thug’s next turn', () => {
+    const { events, state } = spoken(FIGHTING, { option: 'drop' });
+    expect(state.creatures[THUG]?.equipped ?? []).toHaveLength(2);
+    expect(theirTurn([...FIGHTING, ...events]).creatures[THUG]?.equipped ?? []).toEqual([]);
   });
 
   it('Drop leaves a creature that made the save holding both', () => {
-    const { state } = spoken(ARMED, { option: 'drop' }, SAVES);
+    const { events } = spoken(FIGHTING, { option: 'drop' }, SAVES);
+    const state = theirTurn([...FIGHTING, ...events]);
     expect((state.creatures[THUG]?.equipped ?? []).map((worn) => worn.id).sort()).toEqual([
       MACE,
       SHIELD,
     ]);
   });
 
-  it('Grovel knocks the target Prone', () => {
-    const { state } = spoken(ARMED, { option: 'grovel' });
-    expect((state.creatures[THUG]?.conditions.conditions ?? [])).toContain('prone');
+  it('Grovel knocks the target Prone, on the thug’s next turn', () => {
+    const { events, state } = spoken(FIGHTING, { option: 'grovel' });
+    expect((state.creatures[THUG]?.conditions.conditions ?? [])).not.toContain('prone');
+    const theirs = theirTurn([...FIGHTING, ...events]);
+    expect((theirs.creatures[THUG]?.conditions.conditions ?? [])).toContain('prone');
   });
 
   it('Grovel does nothing to a creature that made the save', () => {
-    const { state } = spoken(ARMED, { option: 'grovel' }, SAVES);
+    const { events } = spoken(FIGHTING, { option: 'grovel' }, SAVES);
+    const state = theirTurn([...FIGHTING, ...events]);
     expect((state.creatures[THUG]?.conditions.conditions ?? [])).not.toContain('prone');
   });
 

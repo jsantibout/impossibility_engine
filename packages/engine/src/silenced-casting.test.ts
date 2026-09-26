@@ -10,7 +10,7 @@ import { declaredCasting } from './spellcasting.js';
 import type { CharacterSheet } from './character.js';
 import type { Point } from './positioning.js';
 import { remaining } from './resources.js';
-import { resolveSpell } from './commands.js';
+import { resolveDeclaredCast, resolveSpell } from './commands.js';
 
 /**
  * SRD Silence: "Casting a spell that includes a Verbal component is impossible
@@ -319,5 +319,65 @@ describe('a Verbal casting inside a Silence, and the option that has none', () =
     // the same batch as the casting.
     const after = fold('seed', [...log, ...out.events]);
     expect(points(state) - points(after)).toBe(1);
+  });
+});
+
+/**
+ * The same option against SRD Slow's other component sentence: "If it casts a
+ * spell with a Somatic component, there is a 25 percent chance the spell
+ * fails." A Subtle casting has no Somatic component to fumble, so a slowed
+ * Sorcerer who bought it throws no die — at the casting or, where the casting
+ * was held open, at its settlement. (W7-S22)
+ */
+describe('a Subtle casting under Slow', () => {
+  const SLOWED: readonly GameEvent[] = [
+    ...SETUP,
+    {
+      type: 'action-rule-granted',
+      id: SORCERER,
+      rule: {
+        source: 'Slow#cast:90',
+        rule: { kind: 'casting-chance', component: 'somatic', percent: 25 },
+        label: 'Slow',
+        until: 'the spell ends',
+      },
+    },
+  ];
+  const fumbles = (events: readonly GameEvent[]) =>
+    events.filter((event) => event.type === 'roll-recorded' && event.label.includes('under Slow'));
+
+  it('throws the die for an ordinary Fire Bolt and none for a Subtle one', () => {
+    const state = fold('seed', SLOWED);
+    const plain = unwrap(
+      resolveSpell(state, SORCERER, { spellId: 'fire-bolt', targets: [TARGET] }, supply(state)),
+      'plain',
+    );
+    expect(fumbles(plain.events)).toHaveLength(1);
+    const subtle = unwrap(
+      resolveSpell(
+        state,
+        SORCERER,
+        { spellId: 'fire-bolt', targets: [TARGET], usingOptions: ['subtle-spell'] },
+        supply(state),
+      ),
+      'subtle',
+    );
+    expect(fumbles(subtle.events)).toEqual([]);
+  });
+
+  it('throws none at the settlement of a Subtle casting held open', () => {
+    const state = fold('seed', SLOWED);
+    const declared = unwrap(
+      resolveSpell(
+        state,
+        SORCERER,
+        { spellId: 'fire-bolt', targets: [TARGET], usingOptions: ['subtle-spell'], hold: true },
+        supply(state),
+      ),
+      'declared',
+    );
+    const open = fold('seed', [...SLOWED, ...declared.events]);
+    const settled = unwrap(resolveDeclaredCast(open, declared.castingId!, supply(open)), 'settled');
+    expect(fumbles(settled.events)).toEqual([]);
   });
 });

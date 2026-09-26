@@ -104,6 +104,45 @@ export interface SpellEntry {
   readonly castingTime: string;
   readonly ritual: boolean;
   readonly concentration: boolean;
+  /**
+   * Whether the casting has each of the three components the book prints
+   * after the Range — SRD Slow's "If it casts a spell with a **Somatic
+   * component**, there is a 25 percent chance the spell fails". (W7-S22)
+   *
+   * **Absent is read as a Verbal and a Somatic component and no Material
+   * one**, and the polarity is `SpellDefinition.noVerbalComponent`'s for its
+   * reason: the two a rule turns on — SRD Silence's words, SRD Slow's
+   * gestures — bite a spell nobody described rather than silently sparing it,
+   * and no rule reads a Material component, so that half claims nothing. Every
+   * SRD entry states all three — `@ie/srd` parses them — so absence is only
+   * ever an entry derived from a bare homebrew definition, or a homebrew entry
+   * written before the field. See {@link hasComponent}.
+   */
+  readonly components?: SpellComponentFacts;
+}
+
+/** The three components a spell's entry says its casting has. */
+export interface SpellComponentFacts {
+  readonly verbal: boolean;
+  readonly somatic: boolean;
+  readonly material: boolean;
+}
+
+/** One of the three components the book prints. */
+export type SpellComponent = keyof SpellComponentFacts;
+
+/**
+ * Whether a casting of this spell has the component, read off its entry.
+ *
+ * The one reader, so the rule that asks and the entry that answers cannot
+ * disagree about what absence means: a spell nobody described has a Verbal
+ * and a Somatic component and no Material one — see `SpellEntry.components`
+ * for why. (W7-S22)
+ */
+export function hasComponent(entry: SpellEntry | null, component: SpellComponent): boolean {
+  const stated = entry?.components;
+  if (stated !== undefined) return stated[component];
+  return component !== 'material';
 }
 
 /** Everything a catalogue may contribute. Every field is optional and additive. */
@@ -6163,6 +6202,20 @@ function parseSpellEntry(value: unknown): Result<SpellEntry> {
     castingTime: s.string(value, 'castingTime'),
     ritual: s.bool(value, 'ritual'),
     concentration: s.bool(value, 'concentration'),
+    // Optional, through the collector like every other field — see
+    // `SpellEntry.components` for what absence means. (W7-S22)
+    ...(value['components'] === undefined
+      ? {}
+      : (() => {
+          const shape = s.object(value, 'components');
+          return {
+            components: {
+              verbal: s.bool(shape, 'verbal'),
+              somatic: s.bool(shape, 'somatic'),
+              material: s.bool(shape, 'material'),
+            },
+          };
+        })()),
   };
   const problems = s.problems();
   if (problems.length > 0) return err('bad_spell_entry', problems.join('; '));
