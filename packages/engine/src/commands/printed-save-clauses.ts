@@ -173,6 +173,23 @@ const SKILL_NAMES: ReadonlySet<string> = new Set<string>(SKILLS);
  * handed one to every devil-hunter in mail. What a table reads in the log is
  * the phrase the book printed.
  *
+ * ### What riding the damage funnel costs, said out loud
+ *
+ * A loss that goes through `dealSpellDamage` is **damage in every respect but
+ * its type**, and that is a reading rather than a detail. The funnel writes a
+ * `damage-taken`, so the loss puts the wounded creature's Concentration at
+ * risk, eats a pool of Temporary Hit Points, wakes a sleeper whose condition is
+ * marked `endsOnDamage`, raises a repeat save whose trigger is taking damage,
+ * and is seen by every feature that reads "when you take damage" — SRD Rage's
+ * Resistance among them, which is exactly a Resistance the sentence does not
+ * offer being asked about a type nothing holds one to.
+ *
+ * Whether SRD's "loses Hit Points" should do any of that is a question the book
+ * does not settle, and this engine has no second arithmetic to put it through.
+ * So the seam is the one the brief chose, the consequences are written here
+ * rather than left to be discovered, and the day a "lose hit points that is not
+ * damage" primitive exists this constant is what names every site to move.
+ *
  * Exported so the tests assert the same string the executor writes.
  */
 export const HIT_POINT_LOSS = 'hit point loss';
@@ -192,6 +209,27 @@ export const HIT_POINT_LOSS = 'hit point loss';
  */
 export function woundOn(state: GameState, who: CharacterId): string | null {
   return state.creatures[who]?.payouts.find((held) => isWoundSource(held.source))?.source ?? null;
+}
+
+/**
+ * Whether this line's save could leave a wound, whichever way it goes.
+ *
+ * Every arm, because the gate the book prints is on the **effect** and not on
+ * the failure: a line that wounded on a success or on a margin rung would be
+ * gated the same way, and a reader that looked only at `onFailure` would throw
+ * a die the sentence forbids. A `branch`'s arms are walked for the same reason.
+ */
+function imposesAWound(printed: MonsterSave): boolean {
+  const wounds = (clauses: readonly PrintedSaveEffect[]): boolean =>
+    clauses.some(
+      (clause) => clause.kind === 'wound' || (clause.kind === 'branch' && wounds(clause.then)),
+    );
+  return (
+    wounds(printed.onFailure ?? []) ||
+    wounds(printed.onFailureBy?.effects ?? []) ||
+    wounds(printed.onSuccessEffects ?? []) ||
+    wounds(printed.either ?? [])
+  );
 }
 
 /** Which arm of a printed branch the target's Hit Points chose, and what is left to do. */
@@ -1155,8 +1193,12 @@ export function applyPrintedClauses(
         // **One wound per target**, which the book states twice — as a gate on
         // the Bearded Devil's rider and inside the Horned Devil's own failure
         // — and it is *any* wound rather than this devil's: a creature already
-        // bleeding takes nothing further from a second glaive. Reported
-        // nowhere, because the line did exactly what the book says it does.
+        // bleeding takes nothing further from a second glaive.
+        //
+        // **The door above has already refused the save**, so nothing reaches
+        // here on a wounded creature today; this is the second reading of one
+        // sentence, kept so that a caller reaching the executor another way
+        // cannot stack one. See `forcePrintedSaveOn`.
         if (woundOn(current, target) !== null) break;
 
         const woundedBy = woundSource(lineSource);
@@ -1301,6 +1343,29 @@ export function forcePrintedSaveOn(
   if (source === undefined) return unknownCreature(by, 'has no record here yet; add it first');
   const victim = state.creatures[target];
   if (victim === undefined) return unknownCreature(target);
+
+  // **A creature that already has an infernal wound is not asked to save.**
+  // SRD Bearded Devil: "If the target is a creature **and doesn't already have
+  // an infernal wound**, it is subjected to the following effect.
+  // _Constitution Saving Throw:_ DC 12." The gate is on the whole effect and
+  // the save is inside it, so a second glaive on a bleeding rogue throws no
+  // die: nothing comes out of the generator and the log records no saving
+  // throw the book never called for.
+  //
+  // **Before the roll rather than at the clause**, which is where it used to
+  // be. The executor still refuses to hang a second wound — a caller that
+  // reached it another way must not stack one — and that is a second reading
+  // of one sentence kept on purpose, exactly as `applyConditionTo` re-refuses
+  // a repeat save the validator has already rejected.
+  if (imposesAWound(printed) && woundOn(state, target) !== null) {
+    return ok({
+      events: [],
+      outcome: { target, save: null, damage: 0, concentration: { kind: 'none' } },
+      unverified: [
+        `${target} already has an infernal wound, and ${line} gives no creature a second — no save was rolled`,
+      ],
+    });
+  }
 
   let current = state;
   const events: GameEvent[] = [];

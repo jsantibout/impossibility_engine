@@ -1665,9 +1665,9 @@ function readCurse(cursed: string, next: string | undefined): PrintedSaveEffect[
 
 /**
  * SRD Bearded Devil's Infernal Glaive, sentence one: "The target receives an
- * infernal wound." SRD Erinyes' Infernal Tail prints the gate here instead of
- * in the opening: "the target receives an infernal wound **if it doesn't have
- * one**."
+ * infernal wound." SRD Horned Devil's Infernal Tail prints the gate here
+ * instead of in the opening: "the target receives an infernal wound **if it
+ * doesn't have one**."
  *
  * The gate is matched and dropped, because it is not a fact about this
  * sentence that a reader could vary: every line printing a wound prints it,

@@ -331,11 +331,24 @@ describe('SRD Bearded Devil: what the wound costs', () => {
     // replaces rather than stacks, so one devil swinging twice could not tell
     // the rule from the bookkeeping.
     table.until(OTHER_DEVIL);
+    const before = table.state.rollsIssued;
     const again = table.strike(OTHER_DEVIL);
     // The second glaive still cuts — the wound gates the rider, not the blow.
     expect(again.some((event) => event.type === 'damage-taken')).toBe(true);
     expect(woundOn(table.state, ROGUE)).toBe(first);
     expect(table.state.creatures[ROGUE]!.payouts).toHaveLength(1);
+
+    // **And no Constitution save was thrown.** SRD gates the whole effect —
+    // "If the target is a creature **and doesn't already have an infernal
+    // wound**, it is subjected to the following effect. _Constitution Saving
+    // Throw:_ DC 12" — so a second glaive on a bleeding rogue asks for no die,
+    // and a log with one in it would be recording a roll the book never called
+    // for. The generator moved for the attack and the damage and nothing else.
+    const saves = again.filter(
+      (event) => event.type === 'roll-recorded' && / save vs /.test(event.label),
+    );
+    expect(saves).toEqual([]);
+    expect(table.state.rollsIssued).toBeGreaterThan(before);
   });
 });
 
@@ -412,6 +425,13 @@ describe('SRD Bearded Devil: the three ways the wound closes', () => {
 
     const table = wounded('heal-spell');
     table.until(CLERIC);
+    // **Read before the healing, because afterwards there is nothing to look
+    // up.** `woundKey` finds the timer through the wound the creature is
+    // holding, so asking it after the wound has closed asks about no key at
+    // all — an assertion that would pass whether or not the timer went.
+    const key = table.woundKey();
+    expect(table.state.timers[key]).toBeDefined();
+
     const cast = unwrap(
       resolveSpell(
         table.state,
@@ -426,7 +446,9 @@ describe('SRD Bearded Devil: the three ways the wound closes', () => {
     expect(healed).toMatchObject({ id: ROGUE, source: expect.stringContaining('Cure Wounds') });
     table.push(cast.events);
     expect(woundOn(table.state, ROGUE)).toBeNull();
-    expect(table.state.timers[table.woundKey() ?? '']).toBeUndefined();
+    // And the deadline and the check went with the payout: a wound that is no
+    // longer there has nothing left to run out or be stanched.
+    expect(table.state.timers[key]).toBeUndefined();
   });
 
   /** "The wound closes after 1 minute" — ten rounds, and nobody lifted a finger. */

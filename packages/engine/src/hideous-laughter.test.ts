@@ -393,7 +393,7 @@ describe('the clause that keeps a laughing creature down', () => {
 });
 
 describe('the catalogue says what this spell does', () => {
-  it('keeps the self-cure it cannot close and nothing else about the save', () => {
+  it('says nothing about the damage-triggered save, which it executes', () => {
     const definition = SRD_CONTENT.spell('hideous-laughter')!;
     expect(definition.unmodelled ?? []).not.toContain(
       'the second Wisdom save each time the target takes damage, which is made with Advantage',

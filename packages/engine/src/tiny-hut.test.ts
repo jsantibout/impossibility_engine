@@ -16,7 +16,7 @@ import {
 // The two forced movements a spell makes, reached directly: neither is on the
 // command barrel, because each is a rider's half of a casting rather than a
 // command anybody calls.
-import { lift, shoveAwayFrom } from './commands/spell-effect-movement.js';
+import { lift, pullToward, shoveAwayFrom } from './commands/spell-effect-movement.js';
 
 /**
  * SRD Tiny Hut, whole.
@@ -378,6 +378,22 @@ describe('SRD Tiny Hut: a shove that would carry somebody through it', () => {
     const out = shove(game, 10);
     expect(out.events).toEqual([]);
     expect(out.unverified.join(' ')).toContain('comes to rest against it after 0 feet');
+  });
+
+  /**
+   * **And a pull, which is the same arithmetic with the bearing reversed.**
+   * SRD Merrow drags its target toward itself; a stat block that dragged one
+   * into a dome that bars it would have walked the creature through a wall for
+   * the same reason a Thunderwave did.
+   */
+  it('stops a pull at the dome as it stops a push', () => {
+    const game = new Game().raiseTheHut();
+    const out = pullToward(game.state, GOBLIN, WIZARD, { feet: 30 }, 'Reel');
+    expect(out.events).toHaveLength(1);
+    game.push(out.events);
+    expect(game.state.scene?.positions[GOBLIN]).toEqual(LANDMARKS['just outside']);
+    expect(out.unverified.join(' ')).toContain('Tiny Hut');
+    expect(out.unverified.join(' ')).toContain('comes to rest against it after 15 feet');
   });
 
   /** The lift asks the same question on the one axis a bearing cannot name. */

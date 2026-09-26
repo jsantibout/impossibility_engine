@@ -987,8 +987,8 @@ const PRINTED_SAVE_CLAUSES = [
    * each of its turns. The wound closes after 1 minute, after a spell restores
    * Hit Points to the target, or after the target or a creature within 5 feet
    * of it takes an action to stanch the wound, doing so by succeeding on a DC
-   * 12 Wisdom (Medicine) check." SRD Erinyes' Infernal Tail prints the same
-   * three sentences over 3d6 and a DC of 17.
+   * 12 Wisdom (Medicine) check." SRD Horned Devil's Infernal Tail prints the
+   * same three sentences over 3d6 and a DC of 17.
    *
    * **Three printed sentences read as one clause**, for {@link readCurse}'s
    * reason: each is useless without the others. A wound with no loss costs
@@ -1005,9 +1005,9 @@ const PRINTED_SAVE_CLAUSES = [
    *
    * **One wound per target**, which the book states and the executor keeps:
    * SRD gates the save on "doesn't already have an infernal wound", and the
-   * Erinyes writes the same words into the failure itself. No field carries it,
-   * because there is nothing for a definition to vary — every line that prints
-   * this sentence prints that one.
+   * Horned Devil writes the same words into the failure itself. No field
+   * carries it, because there is nothing for a definition to vary — every line
+   * that prints this sentence prints that one.
    */
   z.object({
     kind: z.literal('wound'),

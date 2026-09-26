@@ -8,6 +8,7 @@ import { fold, type GameEvent, type GameState } from './events.js';
 import { declaredCasting } from './spellcasting.js';
 import { checkSpellDefinitionValue } from './spell-schema.js';
 import { remaining } from './resources.js';
+import { lift } from './commands/spell-effect-movement.js';
 import {
   addCreature,
   applyConditionTo,
@@ -471,6 +472,43 @@ describe('SRD Magic Circle: "cause its magic to operate in the reverse direction
     ]);
     expect(game.shoot(FIEND)).toBe('disadvantage');
     expect(game.shoot(IMP)).toBe('normal');
+  });
+});
+
+/**
+ * A lift that would carry a creature out through the roof of a circle drawn to
+ * keep it in.
+ *
+ * `shoveAwayFrom`'s question on the one axis a bearing cannot name. A reversed
+ * circle bars a Fiend from **leaving** a Cylinder that is twenty feet tall, and
+ * a Levitate raising it thirty feet would have taken it out through the top —
+ * the same walk-through-a-wall a Thunderwave used to make, standing up.
+ *
+ * Forced movement reports rather than refuses, so the rise stops under the roof
+ * and the casting's `unverified` says which wall it is against.
+ */
+describe('SRD Magic Circle: a lift that would carry the Fiend out of the top', () => {
+  it('stops the rise under the roof and names the circle', () => {
+    const game = new Game('inside east').draw('outward');
+    const out = lift(game.state, FIEND, { feet: 30 }, 'Levitate#cast:3', 'Levitate');
+    expect(out.events).toHaveLength(2);
+    const moved = out.events[0];
+    expect(moved).toMatchObject({ type: 'creature-moved', id: FIEND, forced: true });
+    // Fifteen feet: the last space whose whole volume is still under a
+    // twenty-foot ceiling, which is the same reading `moverInRegionAt` gives a
+    // creature with one corner in a dome.
+    expect(moved?.type === 'creature-moved' ? moved.placement.elevation : null).toBe(15);
+    expect(out.unverified.join(' ')).toContain('Magic Circle');
+    expect(out.unverified.join(' ')).toContain('comes to rest against it after 15 feet');
+  });
+
+  /** And the cleric outside it rises the whole way: the circle bars her nothing. */
+  it('lifts the creature the circle says nothing about all the way', () => {
+    const game = new Game('inside east').draw('outward');
+    const out = lift(game.state, CLERIC, { feet: 30 }, 'Levitate#cast:4', 'Levitate');
+    expect(out.unverified).toEqual([]);
+    const moved = out.events[0];
+    expect(moved?.type === 'creature-moved' ? moved.placement.elevation : null).toBe(30);
   });
 });
 
