@@ -23,7 +23,14 @@
 
 import type { CharacterId } from '@ie/shared';
 import { asCharacterId } from '@ie/shared';
-import type { CharacterSheet, GameState, StatedAction, StatedAttack } from '@ie/engine';
+import type {
+  CharacterSheet,
+  CreatureState,
+  GameState,
+  MovementMode,
+  StatedAction,
+  StatedAttack,
+} from '@ie/engine';
 import {
   armorClassOf,
   awarenessesOn,
@@ -32,13 +39,18 @@ import {
   detectedBy,
   distanceBetween,
   knownDefencesAmong,
+  MOVEMENT_MODES,
+  movementLeft,
   movementLeftFor,
   lightAt,
+  perDayTallyKey,
   positionOf,
+  readPrintedRiders,
   remaining,
   speedOf,
   spellSlotKey,
   strandedSummons,
+  tallied,
 } from '@ie/engine';
 
 const SLOT_LEVELS = [1, 2, 3, 4, 5, 6, 7, 8, 9] as const;
@@ -47,7 +59,18 @@ export interface ObservedBudget {
   readonly action: boolean;
   readonly bonusAction: boolean;
   readonly reaction: boolean;
+  /** What is left of the walk this turn — `movementLeftFor`. */
   readonly movementFeet: number;
+  /**
+   * What is left this turn in each mode, measured against that mode's own
+   * Speed: `movementLeft(budget, speedOf(state, id, mode))`, the allowance
+   * `move` spends against for a mode the creature has a Speed in. I-E9.
+   *
+   * A mode with no Speed of its own reads 0. A climb or swim without one is
+   * still made on the walk, at the surcharge `move` charges, which is
+   * `movementFeet`'s to say and not this field's.
+   */
+  readonly movementFeetByMode: Readonly<Record<MovementMode, number>>;
   readonly spentASlotThisTurn: boolean;
 }
 
@@ -81,7 +104,59 @@ export interface ObservedPrintedAttack {
   readonly recharge: string | null;
   /** Whether this line has been used and not yet got back. */
   readonly expended: boolean;
+  /**
+   * How many of the day's uses the heading prints are left — "(1/Day)" — or
+   * null where the heading prints no limit. I-E9.
+   *
+   * The door's own two calls, `perDay − tallied(resources, perDayTallyKey)`,
+   * so the report and the `daily_limit_reached` refusal cannot disagree.
+   */
+  readonly usesLeft: number | null;
+  /**
+   * How much of {@link rider} the swing applies, as `readPrintedRiders` — the
+   * reader the swing itself calls — answers it. I-E9.
+   *
+   * - `whole`: everything the rider says is applied;
+   * - `part`: something is applied and a sentence is handed back, including a
+   *   residue on a save printed inside the hit;
+   * - `none`: the rider is printed and nothing in it is applied;
+   * - null: the line prints no rider and no save inside the hit.
+   *
+   * A sentence filed as the table's for good at ingest is not a residue,
+   * which is the ledger's reading of the same two predicates.
+   */
+  readonly riderApplied: 'whole' | 'part' | 'none' | null;
+  /**
+   * The kinds of what the swing applies off the rider, in printed order and
+   * each once, and `save` where the hit forces a save of its own. I-E9.
+   *
+   * {@link riderApplied} alone does not tell a Goblin Warrior's extra die on
+   * an Advantage roll (`['damage']`) from a Specter's lowered Hit Point
+   * maximum (`['hit-point-maximum']`); both are applied whole.
+   */
+  readonly riderReads: readonly string[];
 }
+
+/**
+ * Who a printed line catches, as the engine measures it — or null where it
+ * measures nothing and the caller names the head count. I-E9.
+ *
+ * One entry per road the engine owns: an area it lays with the spells'
+ * templates (`cone`, `line`, `emanation`, `sphere`), the creature's own space,
+ * whom it holds, a ruler to one creature (`within`, read off `reach`), and a
+ * move first (`jump`, `walk`). `count` is null for "each" and a number for
+ * "one". Feet only, never a DC or a die — {@link ObservedPrintedAttack}'s rule.
+ */
+export type ObservedCatch =
+  | { readonly kind: 'cone'; readonly feet: number }
+  | { readonly kind: 'line'; readonly feet: number; readonly width: number }
+  | { readonly kind: 'emanation'; readonly feet: number }
+  | { readonly kind: 'sphere'; readonly feet: number; readonly within: number }
+  | { readonly kind: 'own-space'; readonly count: number | null }
+  | { readonly kind: 'held'; readonly count: number | null }
+  | { readonly kind: 'within'; readonly feet: number; readonly count: number; readonly seen: boolean }
+  | { readonly kind: 'jump'; readonly within: number }
+  | { readonly kind: 'walk' };
 
 /**
  * One line printed under **Actions** or **Bonus Actions** that is not an
@@ -103,15 +178,13 @@ export interface ObservedPrintedLine {
    * the caller's to adjudicate.
    *
    * **A claim about the engine, never about the English.** Two hundred-odd of
-   * these lines are printed across a third of the bestiary and fifty-five of
-   * the CR ≤ 5 ones force a save somewhere in their prose; eighteen write the
-   * book's template plainly enough that the parser structured an ability, a
-   * DC, dice and a `_Success:_` clause out of it, and those eighteen are the
-   * ones this is true of. SRD Gorgon's Petrifying Breath says
-   * `_Constitution Saving Throw:_` and reads `false` here, because it prints a
-   * second rung of failure the reader is anchored against — a flag that said
-   * `true` on the strength of the words would send a caller to a door that
-   * refuses it.
+   * these lines are printed across a third of the bestiary, and many force a
+   * save somewhere in their prose; this is true only of the ones whose
+   * sentence the parser structured into an ability, a DC and what a failure
+   * does — how many is `COVERAGE.md`'s to say. A line whose prose says
+   * `_Constitution Saving Throw:_` and whose failure the reader is anchored
+   * against reads `false` here — a flag that said `true` on the strength of
+   * the words would send a caller to a door that refuses it.
    *
    * It is reported because without it the two doors over one line are a guess.
    * `take_printed_action` spends the slot and hands the sentence back
@@ -203,6 +276,15 @@ export interface ObservedPrintedLine {
    * Stride.
    */
   readonly engineTreeStrides: boolean;
+  /** See {@link ObservedPrintedAttack.usesLeft}. */
+  readonly usesLeft: number | null;
+  /**
+   * Who this line catches, where the engine measures it, off the pinned
+   * record `forcePrintedSave` and `printed_line_catch` read — see
+   * {@link ObservedCatch}. Null on every line the engine rolls no save for,
+   * and on a save line whose targeting clause the parser left the table's.
+   */
+  readonly catches: ObservedCatch | null;
 }
 
 /**
@@ -216,6 +298,14 @@ export interface ObservedPrintedLine {
 export interface ObservedMultiattackClause {
   readonly count: number;
   readonly attacks: readonly string[];
+  /**
+   * The printed heading this clause **uses** rather than swings, or null —
+   * SRD Wight: "makes two attacks, using Necrotic Sword or Necrotic Bow in any
+   * combination. It can replace one attack with a use of **Life Drain**." I-E9.
+   * `attacks` stays empty for such a clause; the heading is taken by the door
+   * that spends it, which a use counts as a slot of the Attack action.
+   */
+  readonly uses: string | null;
 }
 
 /** One sequence a Multiattack offers, and what must have happened for it. */
@@ -295,7 +385,14 @@ export interface ObservedCreature {
    */
   readonly stable: boolean;
   readonly armorClass: number;
+  /** The walking Speed, `speedOf`'s default. */
   readonly speed: number;
+  /**
+   * The Speed in every mode, through `speedOf` — the number a move in that
+   * mode is measured against. A mode the creature has no Speed in reads 0.
+   * SRD Wraith: walk 5, fly 60. I-E9.
+   */
+  readonly speeds: Readonly<Record<MovementMode, number>>;
   /**
    * The light over the creature's own space: the glossary's level, and whether
    * a casting made it. Null where the scene has said nothing and no patch lies
@@ -558,7 +655,57 @@ const clauses = (entries: readonly PrintedClause[]): readonly ObservedMultiattac
     count: entry.count,
     // One name or a menu of them; the schema guarantees exactly one of the two.
     attacks: entry.attacks ?? (entry.attack === undefined ? [] : [entry.attack]),
+    // Or a heading the clause spends rather than swings — the third member of
+    // the same "exactly one" the schema holds.
+    uses: entry.uses ?? null,
   }));
+
+/**
+ * The day's uses left on a heading that prints a limit — the door's own two
+ * calls, so the report and `daily_limit_reached` cannot disagree.
+ */
+const usesLeftOf = (
+  resources: CreatureState['resources'],
+  line: { readonly name: string; readonly perDay?: number },
+): number | null =>
+  line.perDay === undefined
+    ? null
+    : Math.max(0, line.perDay - tallied(resources, perDayTallyKey(line.name)));
+
+/**
+ * What the swing applies off a printed attack's rider, through the reader the
+ * swing itself calls. See {@link ObservedPrintedAttack.riderApplied}.
+ */
+function riderOf(attack: StatedAttack): Pick<ObservedPrintedAttack, 'riderApplied' | 'riderReads'> {
+  const read = attack.rider === null ? { riders: [], handedOver: [] } : readPrintedRiders(attack.rider);
+  const save = attack.riderSave;
+  const kinds = [...new Set(read.riders.map((rider) => rider.kind))];
+  const reads: readonly string[] = save === undefined ? kinds : [...kinds, 'save'];
+  if (attack.rider === null && save === undefined) return { riderApplied: null, riderReads: [] };
+  // Nothing at all was read — the ledger's `hasUnappliedRider`, which wins
+  // where a line both reads nothing and hands a sentence back.
+  if (attack.rider !== null && read.riders.length === 0) return { riderApplied: 'none', riderReads: reads };
+  // A residue — the ledger's `hasHandedOverRider`, both halves of it.
+  const residue = read.handedOver.length > 0 || (save?.handedOver?.length ?? 0) > 0;
+  return { riderApplied: residue ? 'part' : 'whole', riderReads: reads };
+}
+
+/**
+ * Who a line catches, off the pinned save — see {@link ObservedCatch}. The
+ * same fields `forcePrintedSave` and `takePrintedMove` read.
+ */
+function catchOf(save: StatedAction['save']): ObservedCatch | null {
+  if (save === undefined || save.trigger !== undefined) return null;
+  const move = save.movesThen;
+  if (move !== undefined) {
+    return move.kind === 'jump-to' ? { kind: 'jump', within: move.within } : { kind: 'walk' };
+  }
+  const reach = save.reach;
+  if (reach !== undefined) {
+    return { kind: 'within', feet: reach.feet, count: reach.count, seen: reach.seen === true };
+  }
+  return null;
+}
 
 const sequencesOf = (multiattack: PrintedMultiattack): readonly ObservedMultiattackSequence[] =>
   multiattack.entries === undefined
@@ -582,6 +729,7 @@ const rechargeSaid = (recharge: StatedAttack['recharge']): string | null =>
 function printedBlock(
   sheet: CharacterSheet,
   expendedLines: readonly string[],
+  resources: CreatureState['resources'],
 ): ObservedBlock | null {
   const stated = sheet.stated;
   if (stated === undefined) return null;
@@ -590,6 +738,7 @@ function printedBlock(
     readonly name: string;
     readonly text: string;
     readonly recharge?: StatedAttack['recharge'];
+    readonly perDay?: number;
     readonly save?: StatedAction['save'];
     readonly teleports?: StatedAction['teleports'];
     readonly forms?: StatedAction['forms'];
@@ -630,6 +779,8 @@ function printedBlock(
     engineGrantsJump: one.jumps !== undefined,
     engineGrantsMove: one.dashes !== undefined,
     engineTreeStrides: one.treeStride !== undefined,
+    usesLeft: usesLeftOf(resources, one),
+    catches: catchOf(one.save),
   });
 
   return {
@@ -642,6 +793,8 @@ function printedBlock(
       rider: attack.rider,
       recharge: rechargeSaid(attack.recharge),
       expended: expendedLines.includes(attack.name),
+      usesLeft: usesLeftOf(resources, attack),
+      ...riderOf(attack),
     })),
     actions: (stated.unreadActions ?? []).map(line),
     bonusActions: (stated.bonusActions ?? []).map(line),
@@ -677,6 +830,10 @@ const castingOrder = (a: string, b: string): number => {
   }
   return left - right;
 };
+
+/** One number per movement mode, in the book's order. */
+const byMode = (of: (mode: MovementMode) => number): Readonly<Record<MovementMode, number>> =>
+  Object.fromEntries(MOVEMENT_MODES.map((mode) => [mode, of(mode)])) as Record<MovementMode, number>;
 
 const feet = (state: GameState, a: CharacterId, b: CharacterId): number | null => {
   if (state.scene === null) return null;
@@ -716,12 +873,13 @@ export function observe(state: GameState): Observation {
       stable: c.vitals.stable,
       armorClass: armorClassOf(state, c.id),
       speed: speedOf(state, c.id),
+      speeds: byMode((mode) => speedOf(state, c.id, mode)),
       light: litSpace(state, c.id),
       creatureType: c.creatureType ?? null,
       conditions: c.conditions.conditions,
       cursedBy: c.curses.map((curse) => ({ by: curse.by, line: curse.line })),
       carrying: carrying(state, c.id).map((line) => line.id),
-      printed: printedBlock(c.sheet, c.expendedLines),
+      printed: printedBlock(c.sheet, c.expendedLines, c.resources),
       concentratingOn: c.concentration?.spell ?? null,
       placed: state.scene === null ? null : positionOf(state.scene, c.id) !== null,
       feetTo: Object.fromEntries(
@@ -759,6 +917,10 @@ export function observe(state: GameState): Observation {
               bonusAction: budget.bonusAction,
               reaction: budget.reaction,
               movementFeet: movementLeftFor(state, c.id) ?? 0,
+              movementFeetByMode: byMode((mode) => {
+                const speed = speedOf(state, c.id, mode);
+                return speed === 0 ? 0 : movementLeft(budget, speed);
+              }),
               spentASlotThisTurn: budget.spellSlotSpentOnTurn !== null,
             },
     };

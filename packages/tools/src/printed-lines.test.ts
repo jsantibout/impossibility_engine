@@ -31,7 +31,13 @@
 
 import { describe, expect, it } from 'vitest';
 import { SRD_CONTENT } from '@ie/content';
-import { createCampaign, createSurface, type ObservedBlock, type ToolOutcome } from '@ie/tools';
+import {
+  createCampaign,
+  createDmSurface,
+  createSurface,
+  type ObservedBlock,
+  type ToolOutcome,
+} from '@ie/tools';
 
 function table(seed: string) {
   const campaign = createCampaign({ content: SRD_CONTENT, seed });
@@ -223,7 +229,9 @@ describe('a Multiattack reports as the sequence it is', () => {
     expect(block.attacks.map((one) => one.name)).toEqual(['Bite', 'Claw']);
 
     const multiattack = block.multiattack!;
-    expect(multiattack.sequences).toEqual([{ clauses: [{ count: 2, attacks: ['Bite'] }], requires: null }]);
+    expect(multiattack.sequences).toEqual([
+      { clauses: [{ count: 2, attacks: ['Bite'], uses: null }], requires: null },
+    ]);
     expect(multiattack.handOver).toBeNull();
   });
 
@@ -236,8 +244,8 @@ describe('a Multiattack reports as the sequence it is', () => {
     expect(sequences).toHaveLength(2);
 
     const [ordinary, gated] = sequences;
-    expect(ordinary).toEqual({ clauses: [{ count: 2, attacks: ['Slam'] }], requires: null });
-    expect(gated!.clauses).toEqual([{ count: 3, attacks: ['Slam'] }]);
+    expect(ordinary).toEqual({ clauses: [{ count: 2, attacks: ['Slam'], uses: null }], requires: null });
+    expect(gated!.clauses).toEqual([{ count: 3, attacks: ['Slam'], uses: null }]);
     // The gate is a Bonus Action line the same block prints, by its heading —
     // so a caller can find what it must take first.
     expect(gated!.requires).toBe(block.bonusActions[0]!.name);
@@ -262,5 +270,120 @@ describe('a block nobody can see is a block nobody can read', () => {
     expect(t.surface.observe().creatures.map((one) => one.id)).toEqual(['beast', 'grish']);
     expect(JSON.stringify(t.surface.observe())).not.toContain('Petrifying Gaze');
     expect(JSON.stringify(t.surface.observe())).not.toContain('Basilisk');
+  });
+});
+
+/**
+ * What a planner needs to rank a block's lines — I-E9's read-only fields.
+ *
+ * Every one is a claim about the engine and never about the English: the day's
+ * uses are the door's own two calls, the heading a Multiattack clause spends
+ * is the parsed `uses`, what a rider applies is `readPrintedRiders` — the
+ * reader the swing itself calls — and a Speed per mode is `speedOf`. No DC
+ * and no die, which is {@link ObservedBlock}'s rule.
+ */
+describe('what a code-run monster reads off look to rank its lines', () => {
+  const dmTable = (seed: string) => {
+    const campaign = createCampaign({ content: SRD_CONTENT, seed });
+    const surface = createDmSurface(campaign);
+    let calls = 0;
+    const call = (tool: string, input: unknown = {}): ToolOutcome =>
+      surface.call({ tool, input, commandId: `toolu_${(calls += 1)}` });
+    return { campaign, surface, call };
+  };
+
+  it("counts a Dretch's Fetid Cloud down from one to none as the door spends it", () => {
+    const t = dmTable('the-cloud-is-counted');
+    room(t);
+    expectOk(t.call('add_creature', { id: 'beast', monsterId: 'dretch' }));
+    expectOk(t.call('add_creature', { id: 'grish', monsterId: 'goblin-warrior' }));
+    expectOk(t.call('place_creature', { who: 'beast', fromLandmark: 'the fire', feet: 0 }));
+    expectOk(t.call('place_creature', { who: 'grish', fromCreature: 'beast', feet: 5, bearing: 0 }));
+    const cloud = blockOf(t, 'beast').actions.find((one) => one.name.startsWith('Fetid Cloud'))!;
+    expect(cloud.usesLeft).toBe(1);
+    // A line whose heading prints no limit reads null, not a number nobody printed.
+    expect(blockOf(t, 'beast').attacks.find((one) => one.name === 'Rend')!.usesLeft).toBeNull();
+
+    expectOk(t.call('roll_initiative', { combatants: [{ who: 'beast' }, { who: 'grish' }] }));
+    for (let guard = 0; guard < 4 && t.surface.observe().turnOf !== 'beast'; guard += 1) {
+      expectOk(t.call('end_turn', {}));
+    }
+    expectOk(t.call('force_printed_save', { who: 'beast', line: cloud.name, targets: ['grish'] }));
+    expect(blockOf(t, 'beast').actions.find((one) => one.name === cloud.name)!.usesLeft).toBe(0);
+  });
+
+  it("names the line the Wight's second sequence spends, and still lists no attack for it", () => {
+    const t = pair('the-drain-is-named', 'wight', 5);
+    const sequences = blockOf(t, 'beast').multiattack!.sequences;
+    expect(sequences).toHaveLength(2);
+    expect(sequences[0]!.clauses.map((clause) => clause.uses)).toEqual([null]);
+    const [swing, drain] = sequences[1]!.clauses;
+    expect(swing!.uses).toBeNull();
+    expect(drain!.uses).toBe('Life Drain');
+    // The planner's skip of a clause with no attacks still reads true.
+    expect(drain!.attacks).toEqual([]);
+  });
+
+  it('says what a rider applies, by the kinds the swing reads', () => {
+    const attackOf = (monsterId: string, name: string) =>
+      blockOf(pair(`a-${monsterId}`, monsterId, 5), 'beast').attacks.find((one) => one.name === name)!;
+
+    const scimitar = attackOf('goblin-warrior', 'Scimitar');
+    expect(scimitar.riderApplied).toBe('whole');
+    expect(scimitar.riderReads).toEqual(['damage']);
+
+    const drain = attackOf('specter', 'Life Drain');
+    expect(drain.riderApplied).toBe('whole');
+    expect(drain.riderReads).toEqual(['hit-point-maximum']);
+
+    expect(attackOf('wolf', 'Bite').riderReads).toEqual(['condition']);
+
+    const dog = attackOf('death-dog', 'Bite');
+    expect(dog.riderApplied).toBe('none');
+    expect(dog.riderReads).toEqual([]);
+
+    expect(attackOf('darkmantle', 'Crush').riderApplied).toBe('part');
+
+    // A line that prints no rider at all reads null rather than `whole`.
+    const fist = attackOf('ape', 'Fist');
+    expect(fist.rider).toBeNull();
+    expect(fist.riderApplied).toBeNull();
+    expect(fist.riderReads).toEqual([]);
+  });
+
+  it('reads every CR ≤ 5 rider the way the ledger does', () => {
+    const t = table('every-rider');
+    for (const monster of SRD_CONTENT.monsters.filter((one) => one.cr <= 5)) {
+      expectOk(t.call('add_creature', { id: `m-${monster.id}`, monsterId: monster.id }));
+    }
+    const attacks = t.surface
+      .observe()
+      .creatures.flatMap((one) => one.printed?.attacks ?? [])
+      .filter((one) => one.riderApplied !== null);
+    const count = (applied: string) => attacks.filter((one) => one.riderApplied === applied).length;
+    expect({
+      lines: attacks.length,
+      whole: count('whole'),
+      part: count('part'),
+      none: count('none'),
+      damageAlone: attacks.filter((one) => one.riderReads.length === 1 && one.riderReads[0] === 'damage')
+        .length,
+    }).toEqual({ lines: 104, whole: 96, part: 3, none: 5, damageAlone: 15 });
+  });
+
+  it("reports a Wraith's Speed in every mode, and what is left of each on its turn", () => {
+    const t = pair('the-wraith-flies', 'wraith', 5);
+    const wraith = seen(t, 'beast');
+    expect(wraith.speeds.fly).toBe(60);
+    expect(wraith.speeds.walk).toBe(5);
+    expect(wraith.speeds.swim).toBe(0);
+    // `speed` keeps its meaning — the walk — because the app reads it.
+    expect(wraith.speed).toBe(5);
+
+    expectOk(t.call('roll_initiative', { combatants: [{ who: 'beast' }, { who: 'grish' }] }));
+    const budget = seen(t, 'beast').budget!;
+    expect(budget.movementFeetByMode.fly).toBe(60);
+    expect(budget.movementFeetByMode.walk).toBe(5);
+    expect(budget.movementFeet).toBe(5);
   });
 });
