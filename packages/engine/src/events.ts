@@ -96,6 +96,7 @@ import {
 // module without an import that ESLint reads as unused and `tsc` does not.
 import type {
   AbilityLowering,
+  BlockDeadline,
   PrintedCurse,
   Attachment,
   BorrowedSenses,
@@ -1192,6 +1193,58 @@ export type GameEvent =
       readonly type: 'creature-removed';
       readonly id: CharacterId;
       readonly command?: CommandStamp;
+    }
+  /**
+   * A creature already in the game **becoming another stat block** — W7-B12.
+   *
+   * SRD Incubus, Succubus Form: "it can shape-shift into a **Succubus**, using
+   * that stat block instead of this one. Any equipment it is wearing or
+   * carrying isn't transformed." SRD Troll Limb, Troll Spawn: "On a 12, the limb
+   * turns into a **Troll**."
+   *
+   * **Not `shape-assumed`**, which is SRD Wild Shape's merge — the holder's Hit
+   * Points, mind and features kept under a borrowed body, and put back when the
+   * feature ends. "Using that stat block instead of this one" is the whole
+   * block and for good: its statistics, its lines, its magic and its Hit
+   * Points, at full. So this is the other block's **arrival over the same
+   * creature** — every number the adapter read pinned here exactly as
+   * `creature-added` pins them, so the fold opens no catalogue — and what it
+   * keeps is what is not the block's: the id, where it stands, whose side it is
+   * on, what it carries and wears, what is hung on it and the turn it holds.
+   *
+   * `cause` is the heading that said so, for the log.
+   */
+  | {
+      readonly type: 'stat-block-replaced';
+      readonly id: CharacterId;
+      /** The stat block's id, as content files it. */
+      readonly block: string;
+      readonly name: string;
+      readonly sheet: CharacterSheet;
+      readonly maxHp: number;
+      readonly diesAtZero: boolean;
+      readonly creatureType: string;
+      readonly alignment: string;
+      readonly defenses: Readonly<Record<string, DamageDefenses>>;
+      readonly conditionImmunities: readonly ConditionName[];
+      readonly size: CreatureSize;
+      readonly cr: number;
+      /** What the block's Spellcasting and cast lines declare, or null for none. */
+      readonly spellcasting: SpellcastingState | null;
+      /** The pools the block's own uses come out of, born full. */
+      readonly pools: readonly PoolDeclaration[];
+      readonly cause: string;
+      readonly command?: CommandStamp;
+    }
+  /**
+   * A block's own countdown to becoming another, hung at its arrival — W7-B12;
+   * see `CreatureState.blockDeadline`. SRD Troll Limb: "If the limb isn't
+   * destroyed within 24 hours, roll 1d12."
+   */
+  | {
+      readonly type: 'block-deadline-set';
+      readonly id: CharacterId;
+      readonly deadline: BlockDeadline;
     }
   /**
    * A summoner's control over a creature they already control, renewed to a

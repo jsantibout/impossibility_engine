@@ -22,14 +22,19 @@ import { asCharacterId, type CharacterId, expect as unwrap } from '@ie/shared';
 import {
   addCreature,
   addSceneLandmark,
+  beginCombat,
   declareCreatureSide,
+  equipItem,
   placeCreatureInScene,
   resolveAttack,
   resolveMove,
+  resolveTurn,
   setScene,
+  settleDamage,
 } from './commands.js';
+import { createCharacter, type CharacterChoices } from './creation.js';
 import { createRng, type Rng } from './dice.js';
-import { fold, type GameEvent, type GameState } from './events.js';
+import { applyEvent, fold, type GameEvent, type GameState } from './events.js';
 import { createRollIssuer } from './rolls.js';
 import { rollModesFor } from './standing.js';
 
@@ -188,5 +193,188 @@ describe('SRD Swarm of Insects, Spider Climb: a gate on the climb that costs no 
       'the climb',
     );
     expect(climbed.unverified.some((note) => note.includes('Athletics'))).toBe(false);
+  });
+});
+
+describe('SRD Corrosive Form: the acid back, and the weapon worn down', () => {
+  const BREN = id('bren');
+  const OOZE = id('ooze');
+
+  const bren = (): CharacterChoices => ({
+    name: 'Bren',
+    classId: 'fighter',
+    level: 1,
+    speciesId: 'human',
+    backgroundId: 'sage',
+    languages: ['Dwarvish', 'Orc'],
+    alignment: 'Neutral',
+    spellbook: [],
+    backgroundEquipment: 'A',
+    classEquipment: 'A',
+    hitPoints: { method: 'fixed' },
+    dmGrants: { items: [], goldPieces: 0, magicItems: [], note: 'standard' },
+    cantrips: [],
+    preparedSpells: [],
+    abilities: {
+      method: 'standard-array',
+      assignment: { str: 15, dex: 13, con: 14, int: 8, wis: 12, cha: 10 },
+    },
+    abilityIncreases: { con: 2, wis: 1 },
+    classSkills: ['athletics', 'survival'],
+    equipped: ['chain-mail'],
+    featureChoices: { 'human:skillful': ['perception'], 'fighter:weapon-mastery': [] },
+    feats: {
+      'sage:magic-initiate-wizard': {
+        featId: 'magic-initiate',
+        spellList: 'wizard',
+        spellcastingAbility: 'int',
+        cantrips: ['mage-hand', 'light'],
+        levelOneSpell: 'find-familiar',
+      },
+      'human:versatile': { featId: 'alert' },
+      'fighter:fighting-style': { featId: 'archery' },
+    },
+  });
+
+  /** Bren beside an ooze, the named weapon in hand, Bren's turn first. */
+  function beside(block: string, weapon: string): GameState {
+    let state = fold(SEED, []);
+    const step = (events: readonly GameEvent[]): void => {
+      state = events.reduce(applyEvent, state);
+    };
+    step(unwrap(createCharacter(SRD_CONTENT, bren(), BREN), 'Bren'));
+    step([{ type: 'items-gained', id: BREN, items: [{ id: weapon, quantity: 1 }], source: 'the test' }]);
+    step(unwrap(equipItem(state, SRD_CONTENT, BREN, weapon), `draw the ${weapon}`));
+    step(unwrap(addCreature(state, SRD_CONTENT, OOZE, block), block).events);
+    step(unwrap(setScene(state, { width: 120, depth: 80, height: 20 }), 'scene'));
+    step(unwrap(addSceneLandmark(state, 'the pit', { x: 40, y: 40, z: 0 }), 'landmark'));
+    step(unwrap(placeCreatureInScene(state, BREN, { from: { landmark: 'the pit' }, feet: 0 }), 'Bren'));
+    step(
+      unwrap(
+        placeCreatureInScene(state, OOZE, { from: { creature: BREN }, feet: 5, bearing: 90 }),
+        'the ooze',
+      ),
+    );
+    step(unwrap(declareCreatureSide(state, BREN, 'party'), 'side'));
+    step(unwrap(declareCreatureSide(state, OOZE, 'oozes'), 'side'));
+    step(
+      unwrap(
+        beginCombat(state, [
+          { id: BREN, initiative: 20, speed: 30 },
+          { id: OOZE, initiative: 1, speed: 20 },
+        ]),
+        'combat',
+      ),
+    );
+    return state;
+  }
+
+  /** A swing that cannot miss, so the question is only what the hit costs. */
+  const swing = (state: GameState, weapon: string, commandId = 'swing', seed = SEED) =>
+    unwrap(
+      resolveAttack(
+        state,
+        BREN,
+        { target: OOZE, weapon, attackBonuses: [{ source: 'certain', flat: 40 }], commandId },
+        supply(seed),
+      ),
+      `the ${weapon}`,
+    );
+
+  /** Round the order back to Bren, so the next swing is a new Attack action. */
+  const nextRound = (state: GameState): GameState => {
+    let now = state;
+    for (const what of ['Bren ends', 'the ooze ends']) {
+      now = unwrap(resolveTurn(now, supply(what)), what).events.reduce(applyEvent, now);
+    }
+    return now;
+  };
+
+  const acidTo = (events: readonly GameEvent[]): readonly GameEvent[] =>
+    events.filter(
+      (event) => event.type === 'damage-taken' && event.id === BREN && event.by === OOZE,
+    );
+
+  const penaltyOn = (state: GameState, weapon: string): number =>
+    state.creatures[BREN]!.equipped.find((held) => held.id === weapon)?.penalty ?? 0;
+
+  it('costs the pudding’s striker 1d8 Acid on a melee hit', () => {
+    const state = beside('black-pudding', 'mace');
+    const hit = swing(state, 'mace');
+    expect(acidTo(hit.events)).toHaveLength(1);
+    const before = state.creatures[BREN]!.vitals.hp;
+    const after = hit.events.reduce(applyEvent, state).creatures[BREN]!.vitals.hp;
+    expect(before - after).toBeGreaterThanOrEqual(1);
+    expect(before - after).toBeLessThanOrEqual(8);
+  });
+
+  it('wears a nonmagical mace that dealt damage down by 1, cumulatively', () => {
+    let state = beside('black-pudding', 'mace');
+    state = swing(state, 'mace', 'one').events.reduce(applyEvent, state);
+    expect(penaltyOn(state, 'mace')).toBe(1);
+    state = nextRound(state);
+    state = swing(state, 'mace', 'two').events.reduce(applyEvent, state);
+    expect(penaltyOn(state, 'mace')).toBe(2);
+  });
+
+  it('destroys the weapon when the penalty reaches −5', () => {
+    let state = beside('black-pudding', 'mace');
+    for (const n of ['one', 'two', 'three', 'four', 'five']) {
+      state = nextRound(swing(state, 'mace', n).events.reduce(applyEvent, state));
+    }
+    expect(state.creatures[BREN]!.equipped.some((held) => held.id === 'mace')).toBe(false);
+    expect(state.creatures[BREN]!.inventory.some((line) => line.id === 'mace')).toBe(false);
+  });
+
+  it('leaves a longsword the pudding took no damage from untouched, and still burns its wielder', () => {
+    // The pudding is immune to Slashing: "immediately after dealing damage"
+    // is never true of this blow, and the acid is about the hit.
+    const state = beside('black-pudding', 'longsword');
+    const hit = swing(state, 'longsword');
+    expect(acidTo(hit.events)).toHaveLength(1);
+    expect(penaltyOn(hit.events.reduce(applyEvent, state), 'longsword')).toBe(0);
+  });
+
+  it('leaves a magic weapon untouched', () => {
+    const state = beside('black-pudding', 'mace-of-smiting');
+    const hit = swing(state, 'mace-of-smiting');
+    expect(penaltyOn(hit.events.reduce(applyEvent, state), 'mace-of-smiting')).toBe(0);
+  });
+
+  it('wears the weapon on the gray ooze too, whose form burns nobody back', () => {
+    const state = beside('gray-ooze', 'mace');
+    const hit = swing(state, 'mace');
+    expect(acidTo(hit.events)).toHaveLength(0);
+    expect(penaltyOn(hit.events.reduce(applyEvent, state), 'mace')).toBe(1);
+  });
+
+  it('wears the weapon on the road a Reaction held open, once the settlement has dealt the damage', () => {
+    // The blow as `landDamage` holds it when somebody may answer: the weapon
+    // rides the hold to the one command that knows whether damage was dealt.
+    const held = [
+      {
+        type: 'damage-rolled' as const,
+        damage: {
+          target: OOZE,
+          by: BREN,
+          source: 'Mace',
+          components: [{ source: 'Mace', type: 'bludgeoning', roll: null, flat: 6, total: 6 }],
+          critical: false,
+          fromAttack: true,
+          reductions: [],
+          offers: [],
+          contactWeapon: 'mace',
+        },
+      },
+    ].reduce(applyEvent, beside('black-pudding', 'mace'));
+    const settled = unwrap(settleDamage(held, supply()), 'the settlement');
+    expect(penaltyOn(settled.events.reduce(applyEvent, held), 'mace')).toBe(1);
+  });
+
+  it('asks nothing of a ranged hit, which touches the ooze with nothing the engine tracks', () => {
+    const state = beside('black-pudding', 'shortbow');
+    const hit = swing(state, 'shortbow');
+    expect(acidTo(hit.events)).toHaveLength(0);
+    expect(penaltyOn(hit.events.reduce(applyEvent, state), 'shortbow')).toBe(0);
   });
 });

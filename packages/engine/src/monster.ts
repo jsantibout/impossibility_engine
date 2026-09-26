@@ -53,6 +53,7 @@ import type {
   StatedAttack,
   StatedBonusAction,
   StatedTrait,
+  StatedTraitCast,
   StatedValues,
 } from './character.js';
 import { vitals, type Vitals } from './vitals.js';
@@ -1590,6 +1591,36 @@ export const printedRegeneration = (
 export const regenerationStoppedSource = (who: CharacterId): string =>
   printedLineSource(who, `${REGENERATION} stopped`);
 
+/**
+ * SRD Corrosive Form: what a hit on the holder costs the striker and the
+ * weapon — or null for every block that prints none. (W7-B12)
+ *
+ * "A creature that hits the pudding with a melee attack roll takes 4 (1d8)
+ * Acid damage. … Any nonmagical weapon takes a cumulative −1 penalty to attack
+ * rolls immediately after dealing damage to the pudding and coming into
+ * contact with it. The weapon is destroyed if the penalty reaches −5." The
+ * first sentence is the Black Pudding's alone, so `meleeHitterTakes` is null on
+ * the Gray Ooze.
+ */
+export const printedCorrosion = (
+  sheet: CharacterSheet,
+): {
+  readonly meleeHitterTakes: { readonly dice: string; readonly damageType: string } | null;
+  readonly weaponPenalty: number;
+  readonly weaponDestroyedAt: number;
+} | null => {
+  for (const trait of sheet.stated?.traits ?? []) {
+    if (trait.kind === 'corrodes-what-hits-it') {
+      return {
+        meleeHitterTakes: trait.meleeHitterTakes ?? null,
+        weaponPenalty: trait.weaponPenalty,
+        weaponDestroyedAt: trait.weaponDestroyedAt,
+      };
+    }
+  }
+  return null;
+};
+
 /** One printed sentence that hurts somebody when a turn begins or ends. */
 export interface PrintedBoundaryDamage {
   readonly moment: TurnMoment;
@@ -2701,9 +2732,11 @@ function printedCastLines(
   declared: SpellcastingState | null,
 ): {
   readonly granted: readonly GrantedSpell[];
+  readonly pools: readonly PoolDeclaration[];
   readonly caveats: readonly string[];
 } {
   const granted: GrantedSpell[] = [];
+  const pools: PoolDeclaration[] = [];
   const caveats: string[] = [];
   /** Every spell the block already offers, so no two routes reach one spell. */
   const taken = new Set<string>(
@@ -2712,9 +2745,16 @@ function printedCastLines(
   /** The Spellcasting line's own ability and numbers, which a reference names. */
   const reference = declared?.classes[0] ?? null;
 
-  const sections: readonly (readonly [readonly MonsterLine[], CastingTime])[] = [
+  // **And the Traits section, for the one cast line the book prints there** —
+  // W7-B12, SRD Coven Magic. A trait prints no heading to price the use, and
+  // the sentence says so in as many words — "using the spell's normal casting
+  // time" — so its routes state no casting time and the spell's own stands.
+  // Only a line whose sentence says that is read off Traits: a trait that cast
+  // without saying how long it took would be a price nobody printed.
+  const sections: readonly (readonly [readonly MonsterLine[], CastingTime | null])[] = [
     [monster.actions, 'action'],
     [monster.bonusActions, 'bonus-action'],
+    [monster.traits.filter((line) => line.casts?.ownCastingTime === true), null],
   ];
 
   for (const [lines, castingTime] of sections) {
@@ -2758,13 +2798,28 @@ function printedCastLines(
 
       for (const spellId of printed.spells) {
         taken.add(spellId);
+        // SRD Coven Magic's "must finish a Long Rest before using this trait to
+        // cast **that spell** again": one use of each spell between rests, in a
+        // pool of its own the casting pipeline spends — the route is the price
+        // here, because no heading is. (W7-B12)
+        const restPool =
+          printed.eachSpellOncePer === undefined ? null : printedSpellRestPoolKey(spellId);
+        if (restPool !== null) {
+          pools.push({
+            key: restPool,
+            // The block's own words, so a report names the rule the book printed.
+            label: `${line.name}: ${spellId} (once per Long Rest)`,
+            max: 1,
+            recovers: printed.eachSpellOncePer!,
+          });
+        }
         granted.push({
           spellId,
           source: printedTraitKey(monster.id, line.name),
           ability,
           // The heading's price, and the only thing about this route that is
-          // not the spell's own.
-          castingTime,
+          // not the spell's own. A trait's line states none (W7-B12).
+          ...(castingTime === null ? {} : { castingTime }),
           // **And the heading this route is taken through, which is the only
           // road to it.** The price is the heading's, so a casting that
           // reached this route any other way would pay nothing at all:
@@ -2773,19 +2828,28 @@ function printedCastLines(
           // printed line's own licence. See `GrantedSpell.throughLine`.
           throughLine: line.name,
           // Paid at the door, out of the heading's recharge or its day's
-          // count — see the note above.
-          freeCastPool: null,
+          // count — see the note above — or out of the spell's own pool where
+          // the line rations each spell instead.
+          freeCastPool: restPool,
           // SRD offers no slot for any of these, and the creature holds none.
           slotCasting: false,
-          atWill: true,
+          ...(restPool === null ? { atWill: true as const } : {}),
           ...numbers,
         });
       }
     }
   }
 
-  return { granted, caveats };
+  return { granted, pools, caveats };
 }
+
+/**
+ * The pool one spell a trait rations per rest comes out of — W7-B12, SRD Coven
+ * Magic. {@link printedSpellPoolKey}'s sibling, and a different prefix because a
+ * different clock: that one comes back at dawn, this one at a Long Rest.
+ */
+export const printedSpellRestPoolKey = (spellId: string): string =>
+  `printed-spell-per-long-rest:${spellId}`;
 
 export function adaptMonster(printed: Monster, id: CharacterId): AdaptedMonster {
   // A line whose numbers are a summoner's, and were not supplied by a
@@ -2838,6 +2902,9 @@ export function adaptMonster(printed: Monster, id: CharacterId): AdaptedMonster 
         ];
   const traits = printedTraits(monster);
   const traitSaves = printedTraitSaves(monster);
+  const traitCasts: readonly StatedTraitCast[] = monster.traits.flatMap((line) =>
+    line.casts?.ownCastingTime === true ? [{ name: line.name, text: line.text, casts: line.casts }] : [],
+  );
   const multiattack = printedMultiattack(monster, attacks);
   // **What the parser did not read, carried rather than interpreted.** A line
   // with no attack, no trait and no sequence on it is one the parser got
@@ -2995,6 +3062,9 @@ export function adaptMonster(printed: Monster, id: CharacterId): AdaptedMonster 
     ...(legendaryActions.length === 0 ? {} : { legendaryActions }),
     ...(traits.length === 0 ? {} : { traits }),
     ...(traitSaves.length === 0 ? {} : { traitSaves }),
+    // And the trait lines that cast — SRD Coven Magic — where the door reads
+    // the gate and the menu. (W7-B12)
+    ...(traitCasts.length === 0 ? {} : { traitCasts }),
     ...(bonusActions.length === 0 ? {} : { bonusActions }),
     ...(multiattack === undefined ? {} : { multiattack }),
     ...(unreadActions.length === 0 ? {} : { unreadActions }),
@@ -3064,7 +3134,7 @@ export function adaptMonster(printed: Monster, id: CharacterId): AdaptedMonster 
     spellcasting,
     // Both kinds of per-day use in one list, sorted by key so two readers of
     // one block agree about the order and a log compares byte for byte.
-    pools: [...spellPools, ...reactionPools, ...legendaryPools].sort((a, b) =>
+    pools: [...spellPools, ...castLines.pools, ...reactionPools, ...legendaryPools].sort((a, b) =>
       a.key < b.key ? -1 : a.key > b.key ? 1 : 0,
     ),
     // The objects the block arrives holding — SRD Night Hag's Soul Bag, and

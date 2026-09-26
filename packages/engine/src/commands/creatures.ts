@@ -273,6 +273,28 @@ function arrivalOf(
           // `carriedObjectId`, derived from the noun and this creature, which
           // is what `while-carrying` works out again at the gate. (W7-B11)
           ...carriedObjectsOf(state, id, adapted.carries),
+          // **And the day a block's own line counts down to another block** —
+          // SRD Troll Limb's "If the limb isn't destroyed within 24 hours, roll
+          // 1d12." Hung at the arrival because the day is measured from it, and
+          // pinned whole so the throw opens no catalogue for the die; the block
+          // it becomes is read when the die says so. (W7-B12)
+          ...monster.traits.flatMap((line) =>
+            line.trait?.kind === 'becomes-another-block-on-a-die'
+              ? [
+                  {
+                    type: 'block-deadline-set' as const,
+                    id,
+                    deadline: {
+                      at: state.elapsed + line.trait.afterHours * 3600,
+                      line: line.name,
+                      dice: line.trait.dice,
+                      on: line.trait.on,
+                      block: line.trait.block,
+                    },
+                  },
+                ]
+              : [],
+          ),
         ] satisfies GameEvent[],
         // **Withheld and reported, never applied.** "Charmed (except from its
         // vampire master)" as a flat immunity makes the vampire unable to

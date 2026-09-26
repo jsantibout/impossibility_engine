@@ -66,6 +66,7 @@ import { rollRecorded } from '../rolls.js';
 import { filedFor, reportFiled } from './filed-handovers.js';
 import { settleStartOfTurnTraitDice } from './turn-start-dice.js';
 import { settleStartOfTurnBody } from './turn-start-body.js';
+import { blockDeadlinesDue } from './become-block.js';
 import { needsCasterSheet, statedChoice, statedDamageType } from '../spell-definitions.js';
 import {
   type AreaMoment,
@@ -2272,6 +2273,18 @@ export function resolveTurn(
       return err(
         'summons_stranded',
         `${stranded.join(', ')} ${stranded.length === 1 ? 'is' : 'are'} still standing on a casting that has ended; dismissStrandedSummons takes ${stranded.length === 1 ? 'it' : 'them'} away before the turn moves on`,
+      );
+    }
+
+    // **A block's own day, run out** — SRD Troll Limb's "If the limb isn't
+    // destroyed within 24 hours, roll 1d12". A debt of `summons_stranded`'s
+    // kind: derived from the world as it stands, and settled by
+    // `settleBlockDeadlines`, which throws the die. (W7-B12)
+    const changing = blockDeadlinesDue(state);
+    if (changing.length > 0) {
+      return err(
+        'block_change_owed',
+        `${changing.join(', ')} ${changing.length === 1 ? 'owes' : 'owe'} the die a printed line throws when its day runs out; settleBlockDeadlines throws it before the turn moves on`,
       );
     }
 

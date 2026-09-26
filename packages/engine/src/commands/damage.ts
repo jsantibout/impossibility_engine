@@ -813,6 +813,13 @@ export function landDamage(
      * the same breath as it always has: there is nobody to answer first.
      */
     readonly rider?: PendingHitRider;
+    /**
+     * The weapon that struck by contact, for the window to carry to the
+     * settlement — see {@link PendingDamage.contactWeapon}. Ignored where no
+     * window opens, where the caller asks what dealing damage cost the weapon
+     * in the same breath. (W7-B12)
+     */
+    readonly contactWeapon?: string;
   },
 ): Result<{
   readonly events: readonly GameEvent[];
@@ -862,6 +869,7 @@ export function landDamage(
     reductions: penalty.value.reductions,
     offers: possible.offers,
     ...(options.rider === undefined ? {} : { rider: options.rider }),
+    ...(options.contactWeapon === undefined ? {} : { contactWeapon: options.contactWeapon }),
   };
 
   return ok({

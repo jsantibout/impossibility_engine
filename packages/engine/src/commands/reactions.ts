@@ -87,7 +87,8 @@ import {
   type Supply,
   resolveDamage,
 } from './casting.js';
-import { creatureOf, unknownCreature } from './command.js';
+import { creatureOf, damageTakenIn, unknownCreature } from './command.js';
+import { wearTheWeapon } from './passive-defenses.js';
 import {
   adjustmentsFor,
   dealSpellDamage,
@@ -687,10 +688,27 @@ export function settleDamage(
     if (!raised.ok) return raised;
     const raisedCounted = rollsIssuedSince(supply, issuedBeforeRaised);
 
+    // **And what dealing it cost the weapon that struck**, which the hold
+    // carried here because only this command knows whether damage was dealt:
+    // SRD Corrosive Form's "immediately after dealing damage to the pudding".
+    // (W7-B12)
+    const worn =
+      pending.by === null
+        ? { events: [], unverified: [] }
+        : wearTheWeapon(
+            [...events, ...dealt.value.events, ...triggered.events].reduce(applyEvent, state),
+            pending.by,
+            pending.target,
+            pending.contactWeapon,
+            damageTakenIn(dealt.value.events, applied.total),
+            supply.content,
+          );
+
     const all = [
       ...events,
       ...dealt.value.events,
       ...triggered.events,
+      ...worn.events,
       ...raised.value.events,
       ...raisedCounted,
     ];
@@ -702,6 +720,7 @@ export function settleDamage(
     const unverified: string[] = [
       ...dealt.value.unverified,
       ...triggered.unverified,
+      ...worn.unverified,
       ...raised.value.unverified,
     ];
 

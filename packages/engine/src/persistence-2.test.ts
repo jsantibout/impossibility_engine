@@ -518,6 +518,17 @@ const UNCOVERED_EVENT_TYPES: readonly string[] = [
   // condition still standing on the creature underneath, and the benefit
   // handed back at the rider's own deadline.
   'benefit-denied',
+  // A block's own countdown to becoming another, and the change itself —
+  // W7-B12. Neither log was written when a creature could become another stat
+  // block: SRD Troll Spawn and the two rest forms were prose handed to the DM,
+  // and `CreatureState` held neither the countdown nor the instant of a change
+  // — so both fixtures fold to exactly the states they always folded to with
+  // both fields absent on every creature. `troll-spawn.test.ts` and
+  // `rest-forms.test.ts` fold both and drive them end to end: the day hung at
+  // the limb's arrival, the d12 thrown when it runs out and the Troll or the
+  // withering it brings, the turn refused while it is owed; the incubus
+  // becoming a succubus at a Long Rest's end with its gear kept, and back.
+  'block-deadline-set',
   // A slot of somebody's turn a spell used up. Neither log was written when a
   // spell could reach the action economy at all — `ActionRule` did not exist,
   // and the sentences that spend another creature's budget were refused by
@@ -942,6 +953,8 @@ const UNCOVERED_EVENT_TYPES: readonly string[] = [
   // re-choose; `alter-self.test.ts` folds it and drives it: the claws gone,
   // the swim come, the word re-pinned, and the Action spent.
   'spell-option-changed',
+  // The change of block `block-deadline-set` counts down to — see there.
+  'stat-block-replaced',
   // A line a stat block prints under **Actions** that the parser read nothing
   // out of, taken. Neither log was written when those lines reached a sheet as
   // anything but names, and nothing could spend one — so both fixtures fold to

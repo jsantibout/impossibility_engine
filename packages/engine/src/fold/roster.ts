@@ -12,7 +12,7 @@
  * changes a condition no longer meet in one file.
  */
 import { conditionState } from '../conditions.js';
-import { resourceState } from '../resources.js';
+import { declarePool, resourceState } from '../resources.js';
 import { noSpellcasting } from '../spellcasting.js';
 import { vitals } from '../vitals.js';
 import type { GameEvent } from '../events.js';
@@ -20,6 +20,7 @@ import { walkerOf, type GameState, type SummonBond } from '../state.js';
 import {
   CorruptLogError,
   creatureOf,
+  must,
   withCreature,
   seamOf,
   unhandledEvent,
@@ -34,6 +35,10 @@ export const ROSTER_EVENTS = [
   'creature-added',
   'creature-summoned',
   'creature-removed',
+  // A creature becoming another stat block, and the countdown a block's own
+  // line hangs to that — W7-B12.
+  'stat-block-replaced',
+  'block-deadline-set',
   'summons-control-renewed',
   'character-created',
   'character-advanced',
@@ -309,6 +314,61 @@ export function applyRoster({ state, next }: Applying, event: RosterEvent): Game
         event.id,
         null,
       );
+    }
+
+    case 'stat-block-replaced': {
+      const creature = creatureOf(state, event, event.id);
+      // A character is not a stat block, and nothing writes this for one: a
+      // character record under a monster's sheet would be a level nobody can
+      // advance from.
+      if (creature.character !== null) {
+        throw new CorruptLogError(event, `${event.id} is a character, and a character does not become a stat block`);
+      }
+      // The block's pools, born full, in place of the old block's: "using that
+      // stat block instead of this one" takes the old block's rationed uses
+      // with it, and the new one arrives with its own.
+      let resources = resourceState();
+      for (const pool of event.pools) resources = must(event, declarePool(resources, pool));
+      // And the old block's countdown goes with the old block: a troll is not
+      // a limb waiting for a day to run out.
+      const { blockDeadline: _countdown, ...withoutCountdown } = creature;
+      void _countdown;
+      const replaced = withCreature(
+        next,
+        event.id,
+        {
+          name: event.name,
+          sheet: event.sheet,
+          // At full, the new block's own: the change is an arrival, and the
+          // two SRD lines that make it come at a Long Rest's end and a day's.
+          vitals: vitals(event.maxHp, { diesAtZero: event.diesAtZero }),
+          creatureType: event.creatureType,
+          alignment: event.alignment,
+          defenses: event.defenses,
+          conditionImmunities: event.conditionImmunities,
+          size: event.size,
+          cr: event.cr,
+          spellcasting: event.spellcasting ?? noSpellcasting(),
+          resources,
+          // Nothing the old block had spent or worn is the new block's.
+          expendedLines: [],
+          form: null,
+          lastDamage: null,
+          blockReplacedAt: state.elapsed,
+        },
+        withoutCountdown,
+      );
+      // The scene's copy of the size follows the block, the reading
+      // `form-assumed` takes of the same question.
+      const scene = replaced.scene;
+      return scene === null || scene.sizes[event.id] === undefined
+        ? replaced
+        : { ...replaced, scene: { ...scene, sizes: { ...scene.sizes, [event.id]: event.size } } };
+    }
+
+    case 'block-deadline-set': {
+      const creature = creatureOf(state, event, event.id);
+      return withCreature(next, event.id, { blockDeadline: event.deadline }, creature);
     }
 
     case 'character-created': {

@@ -553,6 +553,17 @@ export interface StatedTrait {
 }
 
 /**
+ * A trait line that casts, carried whole — W7-B12; see
+ * {@link StatedValues.traitCasts}.
+ */
+export interface StatedTraitCast {
+  readonly name: string;
+  /** The book's sentence, verbatim, because what the engine hands back quotes it. */
+  readonly text: string;
+  readonly casts: MonsterCastLine;
+}
+
+/**
  * A day's grace from **one creature's one printed line**.
  *
  * > SRD Ghost: "_Success:_ The target is immune to this ghost's Horrific
@@ -695,6 +706,18 @@ export interface StatedValues {
    * which is all but ten in the SRD.
    */
   readonly traitSaves?: readonly StatedTrait[];
+  /**
+   * The block's trait lines that cast, in printed order — W7-B12.
+   *
+   * SRD Coven Magic, on the three hags: a cast line printed under **Traits**,
+   * whose price is a Long Rest per spell and whose gate is two allies within
+   * thirty feet. `castPrintedLine` reads the gate and the menu here, beside the
+   * Actions and Bonus Actions it reads the heading-priced lines off; the routes
+   * the adapter compiled carry the ability, the DC and the pools.
+   *
+   * Absent for every character and for every block whose traits cast nothing.
+   */
+  readonly traitCasts?: readonly StatedTraitCast[];
   /**
    * The **named sequence** the block's Multiattack prints, where it prints one
    * this engine can execute.

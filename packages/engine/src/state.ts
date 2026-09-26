@@ -536,6 +536,23 @@ export function walkerOf(state: GameState, body: CharacterId): CharacterId | nul
 export const carriedObjectId = (holder: CharacterId, noun: string): CharacterId =>
   `${noun.trim().toLowerCase().replace(/\s+/g, '-')}:${holder}` as CharacterId;
 
+/**
+ * A block's own countdown to becoming another — see
+ * {@link CreatureState.blockDeadline}. (W7-B12)
+ */
+export interface BlockDeadline {
+  /** The clock reading the throw falls due at. */
+  readonly at: number;
+  /** The heading that printed it — "Troll Spawn" — for the log. */
+  readonly line: string;
+  /** "roll 1d12". */
+  readonly dice: string;
+  /** "On a 12" — the face at or above which the block changes. */
+  readonly on: number;
+  /** The block it becomes, by the id content files it under. */
+  readonly block: string;
+}
+
 export interface CreatureState {
   readonly id: CharacterId;
   readonly name: string;
@@ -777,6 +794,28 @@ export interface CreatureState {
    * puts back when the line is used to return.
    */
   readonly form: WornForm | null;
+  /**
+   * A day the block's own line counts down to another block — W7-B12, SRD
+   * Troll Limb's Troll Spawn: "If the limb isn't destroyed within 24 hours,
+   * roll 1d12. On a 12, the limb turns into a **Troll**. Otherwise, the limb
+   * withers away."
+   *
+   * Hung at the arrival (`block-deadline-set`) with everything the throw needs
+   * pinned, so settling it opens no catalogue for the die; the block it turns
+   * into is read out of content by the command that throws, and pinned on the
+   * change. Gone with the creature, or with the change of block. **Absent** is
+   * no such line, which is every log written before it — so both frozen
+   * fixtures fold unchanged.
+   */
+  readonly blockDeadline?: BlockDeadline;
+  /**
+   * The clock instant this creature last became another block — W7-B12, SRD
+   * Succubus Form's "when the incubus finishes a Long Rest, it can
+   * shape-shift". One change per rest: the door refuses a second at the
+   * instant the first was taken. Absent is never, which is every log written
+   * before it.
+   */
+  readonly blockReplacedAt?: number;
   /**
    * The lines this creature's stat block prints a **recharge** on that it has
    * used and not got back, by the heading the block prints them under.
@@ -2276,6 +2315,18 @@ export interface PendingDamage {
    * on a swing nobody can answer resolves in the same command it always did.
    */
   readonly rider?: PendingHitRider;
+  /**
+   * The weapon that struck by **contact** — swung or thrown, by catalogue id —
+   * held so the settlement can ask what dealing damage cost it — W7-B12.
+   *
+   * SRD Corrosive Form: "Any nonmagical weapon takes a cumulative −1 penalty to
+   * attack rolls immediately after dealing damage to the pudding and coming
+   * into contact with it." Whether damage was dealt is the settlement's
+   * answer, so the blow a Bard's Cutting Words held open has to carry the
+   * weapon to it. Absent for every blow no weapon struck by contact, which is
+   * what every log written before it says.
+   */
+  readonly contactWeapon?: string;
 }
 
 /** A rider a held damage roll owes, and whose it is. */
