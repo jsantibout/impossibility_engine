@@ -194,8 +194,11 @@ function isBodyArmor(state: GameState, event: { readonly id: CharacterId; readon
 
 function endingFactsOf(state: GameState, event: GameEvent): readonly EndingFact[] {
   switch (event.type) {
+    // A slot of the Attack action spent on a printed use rather than a swing
+    // — the Roper's Reel, the Wight's Life Drain — made no attack at all.
+    // (W7-B10)
     case 'attack-made':
-      return [{ cause: 'target-attacks', who: event.id }];
+      return event.use === undefined ? [{ cause: 'target-attacks', who: event.id }] : [];
     // "makes an attack roll": every road — the Attack action, an Opportunity
     // Attack, a readied swing, a swing outside any fight, a later
     // activation's spell attack — and only the roll that says it was one.

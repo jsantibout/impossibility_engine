@@ -58,7 +58,7 @@ import {
 } from './commands.js';
 import { hasCondition } from './conditions.js';
 import { createRng, type Rng } from './dice.js';
-import { elsewhereOf, heldInside } from './elsewhere.js';
+import { elsewhereOf, heldInside, roomInside } from './elsewhere.js';
 import { fold, type GameEvent, type GameState } from './events.js';
 import { distanceBetween, positionOf, type Point } from './positioning.js';
 import { createRollIssuer } from './rolls.js';
@@ -457,6 +457,28 @@ function aBogWhereTheGoblinIsHeld(): Table {
   throw new Error('no seed held the goblin');
 }
 
+/**
+ * SRD Ooze Cube: "the cube can hold one Large creature or up to four Medium or
+ * Small creatures inside itself at a time" — the "or" exclusive, and Large the
+ * most it takes.
+ */
+describe('the room a hold has', () => {
+  const cube = { large: 1, mediumOrSmaller: 4 } as const;
+  it('takes one Large creature into an empty hold, and nothing bigger', () => {
+    expect(roomInside(cube, [], 'large')).toBe(true);
+    expect(roomInside(cube, [], 'huge')).toBe(false);
+    expect(roomInside(cube, [], 'gargantuan')).toBe(false);
+    expect(roomInside(cube, ['small'], 'large')).toBe(false);
+  });
+  it('takes four smaller creatures, and none beside a Large one', () => {
+    expect(roomInside(cube, ['medium', 'small', 'medium'], 'tiny')).toBe(true);
+    expect(roomInside(cube, ['medium', 'small', 'medium', 'medium'], 'small')).toBe(false);
+    expect(roomInside(cube, ['large'], 'small')).toBe(false);
+    expect(roomInside({ creatures: 1 }, [], 'gargantuan')).toBe(true);
+    expect(roomInside({ creatures: 1 }, ['medium'], 'tiny')).toBe(false);
+  });
+});
+
 describe("a Shambling Mound's Engulf", () => {
   it('grapples the goblin into its space, Blinded and Restrained, with 3d6 Lightning at the start of the goblin’s turns', () => {
     const table = aBogWhereTheGoblinIsHeld();
@@ -511,6 +533,8 @@ describe("a Shambling Mound's Engulf", () => {
       if (out.success) {
         table.log.push(...out.events);
         freed = true;
+        // Free and still inside, and told which door steps it out.
+        expect(out.unverified.join(' ')).toContain('returnFromElsewhere');
       }
     }
     expect(freed).toBe(true);

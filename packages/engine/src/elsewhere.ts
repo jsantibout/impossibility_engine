@@ -234,8 +234,9 @@ export function heldInside(state: GameState, host: CharacterId): readonly Charac
  * the same shape over a grapple. A bare count is a count; the sized shape
  * reads the book's "or" as exclusive — a Large creature needs the hold empty,
  * and a smaller one needs no Large creature already in it and a place among
- * the smaller ones. The sizes are whatever the caller measured, so an
- * enlarged prisoner counts as what it is now.
+ * the smaller ones. A creature bigger than Large has no room at all: the
+ * book names Large as the most the hold takes. The sizes are whatever the
+ * caller measured, so an enlarged prisoner counts as what it is now.
  */
 export function roomInside(
   capacity: PrintedHoldCapacity,
@@ -245,7 +246,9 @@ export function roomInside(
   if ('creatures' in capacity) return held.length < capacity.creatures;
   const bigHeld = held.filter((size) => !sizeAtMost(size, 'medium')).length;
   const smallHeld = held.length - bigHeld;
-  if (!sizeAtMost(newcomer, 'medium')) return held.length === 0 && capacity.large >= 1;
+  if (!sizeAtMost(newcomer, 'medium')) {
+    return sizeAtMost(newcomer, 'large') && held.length === 0 && capacity.large >= 1;
+  }
   return bigHeld === 0 && smallHeld < capacity.mediumOrSmaller;
 }
 

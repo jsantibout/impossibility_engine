@@ -29,7 +29,9 @@ import { distanceBetween } from './positioning.js';
 import { createRollIssuer } from './rolls.js';
 
 const id = (s: string) => asCharacterId(s);
-const ETTERCAP = id('ettercap');
+// An id with colons in it, as a summoned creature's has, so the web's own id
+// (`web:<spinner>:<webbed>:<use>`) is read whole rather than split.
+const ETTERCAP = id('summon:ettercap:1');
 const BREN = id('bren');
 const SABLE = id('sable');
 const SEEDS = Array.from({ length: 12 }, (_, i) => `strand-${i}`);

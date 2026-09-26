@@ -2181,17 +2181,21 @@ export function resolveAttack(
     // before anything is spent: a line barred while the hold stands is
     // refused whoever it is aimed at, and a hold with no room for this target
     // is refused where the hold is what the swing is for.
-    if (printedGrapple !== undefined && (takingTheHold || printedGrapple.insteadOfDamage !== true)) {
+    if (printedGrapple !== undefined) {
       const holding = (Object.keys(state.creatures) as CharacterId[])
         .sort()
         .filter((who) => grapplesOn(state, who).some((grapple) => grapple.grappler === id));
+      // "can't take this action" — whichever half of the line is wanted, the
+      // blow as much as the hold.
       if (printedGrapple.whileHolding?.forbidsThisLine === true && holding.length > 0) {
         return err(
           'line_forbidden_while_holding',
           `${id} can't take ${attackName} while it is grappling ${holding.join(', ')}`,
         );
       }
+      // The cap only where the hold is what the swing is for.
       if (
+        (takingTheHold || printedGrapple.insteadOfDamage !== true) &&
         printedGrapple.capacity !== undefined &&
         !roomInside(
           printedGrapple.capacity,

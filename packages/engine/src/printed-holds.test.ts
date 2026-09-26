@@ -181,6 +181,9 @@ describe("the Animated Rug of Smothering's hold", () => {
     for (const step of ['rug', 'bren', 'sable', 'third']) endTurn(table, `${step} is done`);
     const again = swing(table, 'Smother', { target: SABLE, hold: true, commandId: 'again' });
     expect(isErr(again) && again.code === 'line_forbidden_while_holding').toBe(true);
+    // "can't take this action" — the blow as much as the hold.
+    const blow = swing(table, 'Smother', { target: SABLE, commandId: 'the blow' });
+    expect(isErr(blow) && blow.code === 'line_forbidden_while_holding').toBe(true);
     // Nothing was spent for the refusal.
     expect(table.state.combat!.budgets[BEAST]!.action).toBe(true);
   });
@@ -449,6 +452,30 @@ describe("the Allosaurus's charge", () => {
     expect(table.state.combat!.budgets[BEAST]!.grantedAttacks?.remaining).toBe(0);
     // And no second one.
     expect(swing(table, 'Bite', { commandId: 'bite again' }).ok).toBe(false);
+  });
+
+  it('leaves a turn that already holds wider attacks alone, and says so', () => {
+    // An attack some other rule handed this turn, open to any swing: the Bite
+    // at Bren may not narrow it, and it may not widen the Bite.
+    const table = field('allosaurus', 35);
+    table.log.push({
+      type: 'turn-budget-granted',
+      id: BEAST,
+      source: 'a borrowed haste',
+      // Two, so one is still standing after the Claws, whichever pool the
+      // Claws is spent from.
+      attacks: { remaining: 2, unarmedOnly: false },
+    });
+    table.did('the charge', (s) =>
+      resolveMove(s, BEAST, { placement: { from: { creature: BEAST }, feet: 30, bearing: 0 }, commandId: 'charge' }, table.supply()),
+    );
+    const clawed = unwrap(swing(table, 'Claws'), 'the claws');
+    table.log.push(...clawed.events);
+    const standing = table.state.combat!.budgets[BEAST]!.grantedAttacks;
+    expect(standing?.remaining).toBeGreaterThan(0);
+    expect(standing?.unarmedOnly).toBe(false);
+    expect([standing?.line, standing?.against]).toEqual([undefined, undefined]);
+    expect(clawed.unverified.some((line) => line.includes('already holds attacks under another rule'))).toBe(true);
   });
 
   it('buys nothing where the charge was short', () => {

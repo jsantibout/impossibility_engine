@@ -1742,6 +1742,18 @@ function spendExtraAction(
 }
 
 /**
+ * Whether two grants of attacks say the same thing about what may be swung —
+ * the Unarmed-only gate, and — W7-B10 — the one printed line at the one
+ * creature a hit narrowed them to. Two that differ cannot share one pool: a
+ * narrowed grant added to a wide one would narrow the lot, and a wide one
+ * added to a narrowed one would widen "one Bite at Bren" to any swing.
+ */
+export const sameSwingRule = (
+  a: Pick<GrantedAttacks, 'unarmedOnly' | 'line' | 'against'>,
+  b: Pick<GrantedAttacks, 'unarmedOnly' | 'line' | 'against'>,
+): boolean => a.unarmedOnly === b.unarmedOnly && a.line === b.line && a.against === b.against;
+
+/**
  * Add to what this turn may be spent on: an action, or attacks outside an
  * Attack action.
  *
@@ -1771,7 +1783,7 @@ export function grantTurnBudget(
     grant.attacks !== undefined &&
     standing !== null &&
     standing.remaining > 0 &&
-    standing.unarmedOnly !== grant.attacks.unarmedOnly
+    !sameSwingRule(standing, grant.attacks)
   ) {
     return err(
       'attacks_outstanding',

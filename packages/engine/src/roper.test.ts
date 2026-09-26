@@ -34,9 +34,11 @@ import { hasCondition } from './conditions.js';
 import { createRng, type Rng } from './dice.js';
 import { fold, type GameEvent, type GameState } from './events.js';
 import { readPrintedRiders } from './monster.js';
+import { conditionInstanceId } from './conditions.js';
+import { schedule } from './commands/conditions.js';
 import { distanceBetween } from './positioning.js';
 import { createRollIssuer } from './rolls.js';
-import { grapplesOn } from './commands/unarmed.js';
+import { grappleSource, grapplerOf, grapplesOn } from './commands/unarmed.js';
 
 const id = (s: string) => asCharacterId(s);
 const ROPER = id('roper');
@@ -128,6 +130,19 @@ describe("the Roper's Tentacle, read", () => {
   });
 });
 
+describe('a hold filed with the limb it was made with', () => {
+  /**
+   * `grapple:<who>/held-by:<limb>` names both, and the grappler is read up to
+   * the limb — not up to the first slash, because a creature id is free text.
+   */
+  it('reads the grappler whole, slash and all, and the limb apart', () => {
+    const orc = id('orc/1');
+    expect(grapplerOf(grappleSource(orc))).toBe(orc);
+    expect(grapplerOf(`${grappleSource(ROPER)}/held-by:tentacle:${ROPER}:${BREN}:1`)).toBe(ROPER);
+    expect(grapplerOf(`${grappleSource(orc)}/held-by:tentacle:${orc}:${BREN}:1`)).toBe(orc);
+  });
+});
+
 describe("the Roper's Tentacle, swung", () => {
   it('grapples the knight with Poisoned, raises a tentacle with the printed numbers, and deals the knight no damage', () => {
     const table = cavern();
@@ -185,6 +200,7 @@ describe("the Roper's Multiattack", () => {
     for (const who of [BREN, SABLE]) {
       expect(distanceBetween(table.state.scene!, who, ROPER)).toEqual({ ok: true, value: 5 });
     }
+    expect(reeled.events.find((e) => e.type === 'attack-made')).toMatchObject({ use: 'Reel' });
     // A second Reel is not what is left either.
     const again = takePrintedPull(table.state, ROPER, { line: 'Reel', commandId: 'reel again' });
     expect(isErr(again) && again.code === 'not_in_multiattack').toBe(true);
@@ -253,3 +269,43 @@ describe("the Wight's Multiattack", () => {
     expect(isErr(late) && late.code).toBe('not_in_multiattack');
   });
 });
+
+/**
+ * A use spent out of the Attack action makes no attack roll, so nothing that
+ * ends "immediately after the target makes an attack roll" ends on it — SRD
+ * Invisibility's sentence, hung here on the roper by hand.
+ */
+describe('a use inside the Attack action is not an attack', () => {
+  it("leaves the roper's Invisibility standing through a Reel, and a Tentacle ends it", () => {
+    const table = cavern();
+    const source = 'a borrowed Invisibility';
+    const invisible = (): boolean => hasCondition(table.state.creatures[ROPER]!.conditions, 'invisible');
+    const hang = (): void => {
+      table.log.push({ type: 'condition-applied', id: ROPER, condition: 'invisible', source });
+      table.log.push(unwrapSchedule(table.state, source));
+    };
+    hang();
+    expect(invisible()).toBe(true);
+    // A Tentacle is an attack roll, and ends it.
+    table.log.push(...unwrap(swing(table, 'Tentacle', BREN, 't1'), 'the tentacle').events);
+    expect(invisible()).toBe(false);
+    // Hung again by hand, the Reel after it leaves it standing.
+    hang();
+    table.log.push(...unwrap(takePrintedPull(table.state, ROPER, { line: 'Reel' }), 'the reel').events);
+    expect(invisible()).toBe(true);
+  });
+});
+
+function unwrapSchedule(state: GameState, source: string): GameEvent {
+  return unwrap(
+    schedule(
+      state,
+      { kind: 'condition', on: ROPER, instance: conditionInstanceId('invisible', source) },
+      { kind: 'seconds', seconds: 60 },
+      undefined,
+      undefined,
+      ['target-attacks'],
+    ),
+    'the span',
+  );
+}

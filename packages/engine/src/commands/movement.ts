@@ -315,8 +315,8 @@ export interface MoveCommand extends CommandIdentity {
    * to a space adjacent to its own destination — the one stated, the single
    * qualifying space where none is, or `carry_space_required` where several
    * do. The held creature's move is forced: it spends none of their Speed,
-   * provokes nobody, and a barrier in its way is reported rather than refused,
-   * as every forced move's is.
+   * provokes nobody, and a barrier that bars it stops it where it stood — as
+   * a spell's shove is stopped — and is reported.
    *
    * A creature **attached** to the mover that its line says moves with it
    * (SRD Darkmantle) is carried unasked into the mover's own space, because
@@ -1072,9 +1072,13 @@ function cutByTheGround(
  * to their head.
  *
  * Every passenger's move is forced — nobody's Speed, nobody's Opportunity
- * Attack — and a barrier in its way is reported rather than refused, which is
- * what a forced move through a barrier has always earned. Riders on the mover
- * are not passengers here: the scene already moves them with their mount.
+ * Attack — and **a barrier stops it**, as `stopAtBarriers` stops a spell's
+ * shove: a passenger whose way to its landing crosses a boundary that bars it
+ * (SRD Tiny Hut, Magic Circle, Wind Wall) is not carried, stays where it
+ * stood, and is named in `unverified`; a held one's grapple then lapses as
+ * `lapsedGrapples` says. The mover's own move is not refused for it — the
+ * mover is not the one barred. Riders on the mover are not passengers here:
+ * the scene already moves them with their mount.
  * Measured over the scene **after** the mover has moved and after each earlier
  * passenger has landed, so two held creatures cannot be dragged into one
  * square.
@@ -1099,6 +1103,9 @@ function holdsCarried(
   const named = new Set<CharacterId>();
   for (const entry of command.carrying ?? []) {
     const who = entry.held;
+    // The scene before this passenger lands, kept for the one case below that
+    // leaves it standing: a barrier in its way.
+    const unmoved = scene;
     if (named.has(who)) {
       return err('carry_repeated', `${who} is named twice in what ${id} carries, and lands in one space`);
     }
@@ -1150,11 +1157,13 @@ function holdsCarried(
       if (!placed.ok) return placed;
       scene = placed.value.state;
     }
-    // A barrier the held creature is dragged through is a forced move's
-    // report, never a refusal: the mover paid for the move and made it.
-    const landed = positionOf(scene, who)!;
-    const wall = checkBarriers(state, before, who, stood, landed, undefined, 'walk', 'none');
-    if (wall.ok) unverified.push(...wall.value.unverified);
+    // A barrier stops the carried creature short of it, as it stops a shove.
+    const barred = barredPassenger(state, before, id, who, stood, positionOf(scene, who)!);
+    if (barred !== null) {
+      scene = unmoved;
+      unverified.push(barred);
+      continue;
+    }
     carrying.push({ who, placement });
   }
 
@@ -1172,11 +1181,36 @@ function holdsCarried(
       unverified.push(`${clinger} moves with ${id} and could not follow: ${placed.reason}`);
       continue;
     }
+    const barred = barredPassenger(state, before, id, clinger, positionOf(before, clinger)!, destination);
+    if (barred !== null) {
+      unverified.push(barred);
+      continue;
+    }
     scene = placed.value.state;
     carrying.push({ who: clinger, placement });
   }
 
   return ok({ carrying, unverified });
+}
+
+/**
+ * Why a barrier keeps a passenger from being carried, or null where none does
+ * — W7-B10. The walk's own reading of a crossing ({@link checkBarriers}, asked
+ * as a move that spends, so a crossing is a refusal rather than a report),
+ * between where the passenger stood and where it would land.
+ */
+function barredPassenger(
+  state: GameState,
+  before: PositionState,
+  mover: CharacterId,
+  who: CharacterId,
+  stood: Point,
+  landing: Point,
+): string | null {
+  const wall = checkBarriers(state, before, who, stood, landing, undefined, 'walk', 'spend');
+  return wall.ok
+    ? null
+    : `${who} is not carried along with ${mover}: ${wall.reason}; it stays where it stood`;
 }
 
 /**

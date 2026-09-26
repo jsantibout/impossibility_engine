@@ -234,7 +234,7 @@ function stillAlongWith(creature: GameState['creatures'][string], mover: Charact
     creature.conditions.instances.some(
       (instance) =>
         instance.condition === 'grappled' &&
-        (instance.source === grapple || instance.source.startsWith(`${grapple}/`)),
+        (instance.source === grapple || instance.source.startsWith(`${grapple}/held-by:`)),
     ) || creature.attachments.some((one) => one.to === mover)
   );
 }

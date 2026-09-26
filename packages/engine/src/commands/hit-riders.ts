@@ -35,7 +35,7 @@ import {
   spellSaveDcWith,
   type CharacterSheet,
 } from '../character.js';
-import { canUseFeatureThisTurn, currentCombatant } from '../combat.js';
+import { canUseFeatureThisTurn, currentCombatant, sameSwingRule } from '../combat.js';
 import { conditionInstanceId } from '../conditions.js';
 import { applyEvent, type GameEvent, type GameState, grantSourcesOf } from '../events.js';
 import { featureSource } from '../progression.js';
@@ -594,7 +594,15 @@ export function applyHitRider(
       unverified.push(
         `${option.name} buys ${hit.attacker} one ${option.grantsAttack.line} attack against ${hit.target}, and it is not their turn, so there is no turn budget to hand it to`,
       );
-    } else if (standing !== null && standing.remaining > 0 && standing.unarmedOnly) {
+    } else if (
+      standing !== null &&
+      standing.remaining > 0 &&
+      !sameSwingRule(standing, {
+        unarmedOnly: false,
+        line: option.grantsAttack.line,
+        against: hit.target,
+      })
+    ) {
       unverified.push(
         `${option.name} buys ${hit.attacker} one ${option.grantsAttack.line} attack against ${hit.target}, and their turn already holds attacks under another rule; the swing is the table's`,
       );

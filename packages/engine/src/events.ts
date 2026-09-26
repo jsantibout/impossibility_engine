@@ -2652,6 +2652,15 @@ export type GameEvent =
        */
       readonly swing?: { readonly line: string; readonly against: CharacterId };
       /**
+       * The printed line a slot of the Attack action was spent on, where the
+       * slot went on a **use** rather than a swing — W7-B10: SRD Roper's
+       * "uses Reel", SRD Wight's "a use of Life Drain". No attack roll was
+       * made, so nothing that ends when its creature attacks reads this one
+       * (`fold/endings.ts`); the budget is spent exactly as a swing's is.
+       * Absent on every swing.
+       */
+      readonly use?: string;
+      /**
        * The catalogue id of the **Light** weapon this swing used, where it
        * used one.
        *

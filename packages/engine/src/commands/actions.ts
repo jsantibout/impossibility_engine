@@ -2738,7 +2738,7 @@ export function takePrintedPull(
               const object = heldByObject(instance.source);
               return (
                 object !== null &&
-                isSpunBy(object, id) &&
+                isSpunBy(object, id, who) &&
                 state.creatures[object] !== undefined &&
                 !state.creatures[object]!.vitals.dead
               );
@@ -2887,7 +2887,9 @@ function spendLineSlot(
     );
     if (!spent.ok) return spent;
     return ok([
-      { type: 'attack-made', id },
+      // Marked as a use, so an Invisibility or a Sanctuary that ends when its
+      // creature attacks is not ended by a line that rolled no attack.
+      { type: 'attack-made', id, use: line.name },
       {
         type: 'feature-used',
         id,
@@ -2906,12 +2908,16 @@ function spendLineSlot(
 /**
  * Whether a printed object was raised by this creature — W7-B10.
  *
- * `printedObjectId` writes `<noun>:<by>:<target>:<use>`, so the second segment
- * is the spinner; a web the ettercap spun is one whose id names the ettercap
- * there. Read off the id rather than off a record, because the id is the one
- * fact both the web's raising and this pull have in common.
+ * `printedObjectId` writes `<noun>:<by>:<target>:<use>`, so a web the
+ * ettercap spun round this creature is one whose id names the two of them
+ * after its noun. Read off the id rather than off a record, because the id is
+ * the one fact both the web's raising and this pull have in common.
  */
-const isSpunBy = (object: CharacterId, by: CharacterId): boolean => object.split(':')[1] === by;
+const isSpunBy = (object: CharacterId, by: CharacterId, held: CharacterId): boolean =>
+  // The noun is the one segment with no colon in it; after it come the spinner
+  // and the creature webbed, each a free-text id that may carry colons of its
+  // own (a summon's does), so both are matched whole rather than split out.
+  object.slice(object.indexOf(':') + 1).startsWith(`${by}:${held}:`);
 
 /**
  * The uses and swings of the Attack action so far this turn, by name — W7-B10.
