@@ -24,6 +24,10 @@ import {
   type MonsterCastLine,
   type MonsterDamage,
   type MonsterDash,
+  MonsterRampageSchema,
+  type MonsterRampage,
+  MonsterLightToggleSchema,
+  type MonsterLightToggle,
   type MonsterJump,
   type MonsterTreeStride,
   type MonsterForm,
@@ -749,6 +753,26 @@ const MAGIC_RESISTANCE = new RegExp(
 );
 
 /**
+ * SRD Legendary Resistance, printed word for word wherever it appears and on
+ * one block at CR 5 or below: "If the unicorn fails a saving throw, it can
+ * choose to succeed instead."
+ *
+ * **A bare kind for {@link MAGIC_RESISTANCE}'s reason.** Nothing in the
+ * sentence varies: one family of roll, one outcome replaced, and the *how
+ * often* is the heading's `(3/Day)` rather than the sentence's. A block that
+ * printed some other count would carry it in the heading and be read by
+ * `parsePerDay` exactly as this one is.
+ *
+ * Anchored end to end, which is what refuses the rakshasa's "automatically
+ * succeeds on saving throws against spells": that is a different rule about a
+ * narrower set of saves with no count at all, and a sentence read down to the
+ * words the two share would be a monster the book did not print. (W7-B11)
+ */
+const CHOOSES_TO_SUCCEED = new RegExp(
+  `^If ${SUBJECT} fails a saving throw, it can choose to succeed instead\\.$`,
+);
+
+/**
  * SRD Blood Frenzy: "The sahuagin has Advantage on attack rolls against any
  * creature that doesn't have all its Hit Points."
  *
@@ -921,6 +945,42 @@ const HELD_CREATURE_DAMAGE = new RegExp(
  */
 const SPEED_CUT_BY_A_TYPE = new RegExp(
   `^If ${SUBJECT} takes (\\w+) damage, its Speed decreases by (\\d+) feet until the end of its next turn\\.$`,
+);
+
+/**
+ * SRD Night Hag, Soul Bag: six sentences under one heading, of which the engine
+ * holds three.
+ *
+ * "The hag has a soul bag. While holding or carrying the bag, the hag can use
+ * its Nightmare Haunting action. The bag has AC 15, HP 20, and Resistance to all
+ * damage. The bag turns to dust if reduced to 0 Hit Points. If the bag is
+ * destroyed, any souls the bag is holding are released. The hag can create a new
+ * bag after 7 days."
+ *
+ * **What is read**: the thing exists and is the block's own from the moment it
+ * arrives; its three statistics; and that it turns to dust at 0 Hit Points,
+ * which is what `raisePrintedObject` gives every printed object anyway and is
+ * therefore consumed rather than carried. The gate on Nightmare Haunting is read
+ * a second time from the *heading* — "Requires Soul Bag" — which is where the
+ * engine acts on it, so this sentence is consumed too: two readings of one rule
+ * that agree by construction, rather than a field the door would have to look
+ * up by prose.
+ *
+ * **What goes back to the table**: the souls, and the seven days. A soul is not
+ * a thing the engine holds and "after 7 days" is a permission rather than a
+ * timer anything reads. Both are carried on the trait's own `handedOver`, the
+ * way {@link SWARM_TRAIT} carries its two space clauses, rather than taking the
+ * heading down with them.
+ *
+ * Anchored sentence by sentence and end to end, so a block printing some other
+ * run of clauses is refused whole. (W7-B11)
+ */
+const CARRIED_OBJECT_TRAIT = new RegExp(
+  `^The ${SUBJECT} has a ([a-z][a-z ]*)\\. ` +
+    `While holding or carrying the [a-z][a-z ]*, the ${SUBJECT} can use its ([A-Z][A-Za-z' -]*) action\\. ` +
+    `The [a-z][a-z ]* has AC (\\d+), HP (\\d+), and Resistance to all damage\\. ` +
+    `The [a-z][a-z ]* turns to dust if reduced to 0 Hit Points\\. ` +
+    `(If the [a-z][a-z ]* is destroyed[^.]*\\.) (The ${SUBJECT} can create a new [a-z][a-z ]* after \\d+ days\\.)$`,
 );
 
 /**
@@ -1454,6 +1514,7 @@ export function parseTraitShape(text: string): MonsterTrait | null {
 
   if (UNDEAD_FORTITUDE.test(text)) return { kind: 'undead-fortitude' };
   if (MAGIC_RESISTANCE.test(text)) return { kind: 'magic-resistance' };
+  if (CHOOSES_TO_SUCCEED.test(text)) return { kind: 'chooses-to-succeed-on-a-failed-save' };
 
   // Asked **after** the bloodied sentence, which is belt and braces rather
   // than a dependency: both are Advantage on attack rolls and each is anchored
@@ -1539,6 +1600,24 @@ export function parseTraitShape(text: string): MonsterTrait | null {
     return {
       kind: 'regains-no-hit-points',
       handedOver: [`${swarm[1]!}.`, `${swarm[2]!}.`],
+    };
+  }
+
+  // SRD Night Hag's Soul Bag: an object the block arrives holding — see
+  // {@link CARRIED_OBJECT_TRAIT} for which of its six sentences are read and
+  // which two go back to the table. **Asked of `oneLine`**, because the book
+  // prints this trait as two paragraphs and the transcription carries the break
+  // between them; every pattern above it is one paragraph and asks of the text
+  // as it stands. (W7-B11)
+  const carried = CARRIED_OBJECT_TRAIT.exec(oneLine(text));
+  if (carried !== null) {
+    return {
+      kind: 'carries-printed-object',
+      noun: carried[1]!,
+      armorClass: Number(carried[3]),
+      hitPoints: Number(carried[4]),
+      resistsAllDamage: true,
+      handedOver: [carried[5]!, carried[6]!],
     };
   }
 
@@ -1760,21 +1839,51 @@ export function parseSpellcastingLine(text: string): MonsterSpellcasting | null 
  * is typesetting rather than content — the reading `spellIdOf` already takes
  * of the Druid's "Long-strider".
  *
+ * **A fifth clause varies, and it is the other end of the fourth.** SRD
+ * Unicorn's Blessing: "The unicorn touches another creature with its horn and
+ * casts _Cure Wounds_ or _Lesser Restoration_ **on that creature**". Where "on
+ * itself" fixes the target to the caster, this one fixes it to somebody *else*
+ * — one flag again and no second shape. The **touch** it is delivered by is
+ * read and consumed rather than carried, for the reason the object clauses'
+ * ceilings are: both spells the menu offers print a Range of Touch already, so
+ * a field for the horn would be a second copy of a rule the spell states, and a
+ * homebrew line delivering a longer spell by touch would be shortening a range
+ * the book printed. What the clause *does* say that the menu cannot is "another
+ * creature", and that is the flag. (W7-B11)
+ *
  * **What the anchors refuse is the point of them.** SRD Vampire's Beguile and
  * SRD Mummy's Dread Command each print a second sentence about a second rule;
- * SRD Unicorn's Blessing touches a creature first and names a target; SRD
- * Lich's Protective Magic casts "in response to the spell's trigger". Every
+ * SRD Lich's Protective Magic casts "in response to the spell's trigger". Every
  * one of those is a clause this shape has no field for, and a line read down
  * to the part that fits is a creature doing something nobody printed — which
- * is why the target clause is anchored to the two words the book prints and
- * not to a target at all.
+ * is why the target clause is anchored to the words the book prints and not to
+ * a target at all.
  */
 const CAST_LINE = new RegExp(
-  `^The ${SUBJECT} casts (?:the )?(.+?)(?: spell)?( on itself)?,? ` +
+  `^The ${SUBJECT} casts (?:the )?(.+?)(?: spell)?( on itself| on that creature)?,? ` +
     `(?:requiring no [A-Za-z ]+ components and )?` +
     `using (?:(the same) spellcasting ability as Spellcasting` +
     `|(Strength|Dexterity|Constitution|Intelligence|Wisdom|Charisma) as (?:the )?spell-?casting ability)` +
     `(?: \\(spell save DC (\\d+)\\))?\\.$`,
+);
+
+/**
+ * The clause "on that creature" refers **back** to, asked separately.
+ *
+ * {@link SUBJECT} is deliberately loose — a noun matched by its characters —
+ * and it will happily swallow "unicorn touches another creature with its horn
+ * and" on its way to the word "casts". That is harmless where the reader asks
+ * nothing of the prefix and wrong the moment a clause *depends* on it: "on that
+ * creature" with no antecedent is a referent to nothing, and reading it as "not
+ * the caster" would be inventing a target rule out of a dangling pronoun.
+ *
+ * So the antecedent is asked for as its own anchored question rather than
+ * carried as a group of the pattern above, which would have to make `SUBJECT`
+ * lazy to be reached at all and would change what every other line in this file
+ * matches. (W7-B11)
+ */
+const TOUCH_DELIVERED = new RegExp(
+  `^The ${SUBJECT} touches (?:another|one) creature with its [A-Za-z' -]+ and casts `,
 );
 
 /**
@@ -1840,7 +1949,8 @@ function readCastMenu(menu: string): string[] | null {
  * this one's.
  */
 export function parseCastLine(text: string): MonsterCastLine | null {
-  const matched = CAST_LINE.exec(text.replace(/\s+/g, ' ').trim());
+  const words = text.replace(/\s+/g, ' ').trim();
+  const matched = CAST_LINE.exec(words);
   if (matched === null) return null;
 
   const spells = readCastMenu(matched[1]!);
@@ -1849,12 +1959,22 @@ export function parseCastLine(text: string): MonsterCastLine | null {
   const stated = matched[4] === undefined ? undefined : ABILITY_KEYS[matched[4]];
   if (matched[4] !== undefined && stated === undefined) return null;
 
+  // **"on that creature" without the creature is a referent to nothing.** The
+  // clause is the far end of a touch the same sentence printed, so the line is
+  // refused whole where that clause is absent rather than read down to a target
+  // rule the book did not state. See {@link TOUCH_DELIVERED}.
+  const onAnother = matched[2] === ' on that creature';
+  if (onAnother && !TOUCH_DELIVERED.test(words)) return null;
+
   const line = {
     spells,
     ability: stated ?? ('spellcasting' as const),
     // "on itself" — the two words the book prints, and the whole of what they
     // say. A target this line fixes is not a target the caller offers.
-    ...(matched[2] === undefined ? {} : { selfOnly: true as const }),
+    ...(matched[2] === ' on itself' ? { selfOnly: true as const } : {}),
+    // And its mirror: "on that creature", which fixes the target to somebody
+    // who is **not** the caster.
+    ...(onAnother ? { notSelf: true as const } : {}),
     ...(matched[5] === undefined ? {} : { saveDc: Number(matched[5]) }),
   };
 
@@ -2057,6 +2177,80 @@ const DASH_LINE = new RegExp(
     `(?:(without provoking Opportunity Attacks)|(straight toward an enemy it can (?:see|sense)))\\.` +
     `( At the end of this movement, the ${SUBJECT} can take the Hide action\\.)?$`,
 );
+
+/**
+ * SRD Gnoll Warrior, Rampage (1/Day): "Immediately after dealing damage to a
+ * creature that is already Bloodied, the gnoll moves up to half its Speed, and
+ * it makes one Rend attack." SRD Giant Hyena prints the same with "was already
+ * Bloodied", "can move" and a Bite.
+ *
+ * **The trigger clause is what this reads and {@link DASH_LINE} cannot**: the
+ * move is conditional on a fact about somebody else's hit points a moment ago,
+ * where a dash is conditional on nothing. Both tenses the book prints and both
+ * verbs are alternatives inside one anchored pattern, because a sentence is the
+ * same sentence whichever of them it chose.
+ *
+ * Anchored end to end, which is what refuses SRD Unicorn's Charging Horn: that
+ * is a move *and* an attack with no trigger at all, printed as a legendary
+ * action, and reading it here would be a unicorn rampaging. (W7-B11)
+ */
+const RAMPAGE_LINE = new RegExp(
+  `^Immediately after dealing damage to a creature that (?:is|was) already Bloodied, ` +
+    `the ${SUBJECT} (?:can move|moves) up to (half )?its Speed, ` +
+    `and it makes (one|two|three) ([A-Z][A-Za-z' -]*) attacks?\\.$`,
+);
+
+/** The counts the book writes out in words, which is how it writes every one. */
+const WRITTEN_COUNTS: Readonly<Record<string, number>> = { one: 1, two: 2, three: 3 };
+
+/**
+ * SRD Magmin, Ignited Illumination, under **Bonus Actions**: "The magmin sets
+ * itself ablaze or extinguishes its flames. While ablaze, the magmin sheds
+ * Bright Light in a 10-foot radius and Dim Light for an additional 10 feet."
+ *
+ * **A light a use turns on and the next use turns off**, which is the one thing
+ * the six Illumination traits are not: those glow always and are read straight
+ * off the sheet, and this one has a *state*. The engine's word for that state is
+ * already there — a `light` standing grant gated on a `feature-active`
+ * requirement, which is how SRD Sacred Weapon's glow is compiled and what
+ * `activatedLight` reads — so the line needs no light machinery of its own. What
+ * it needs is the two radii and the fact that a use flips the switch.
+ *
+ * Anchored end to end over both sentences, so a line that turned something else
+ * on, or shed some other run of light, stays prose. The second sentence's radii
+ * are the shape's; the first is consumed, because "sets itself ablaze or
+ * extinguishes its flames" *is* the toggle and there is nothing else in it.
+ * (W7-B11)
+ */
+const TOGGLES_LIGHT_LINE = new RegExp(
+  `^The ${SUBJECT} sets itself ablaze or extinguishes its flames\\. ` +
+    `While ablaze, the ${SUBJECT} sheds Bright Light in a (\\d+)-foot radius ` +
+    `and Dim Light for an additional (\\d+) feet\\.$`,
+);
+
+/** The light a use switches on and off, or null for every other line. */
+export function parseLightToggleLine(text: string): MonsterLightToggle | null {
+  const matched = TOGGLES_LIGHT_LINE.exec(oneLine(text));
+  if (matched === null) return null;
+  const checked = MonsterLightToggleSchema.safeParse({
+    brightRadiusFeet: Number(matched[1]),
+    dimBeyondFeet: Number(matched[2]),
+  });
+  return checked.success ? checked.data : null;
+}
+
+/** The move and the swing this line takes after a blow, or null for every other line. */
+export function parseRampageLine(text: string): MonsterRampage | null {
+  const matched = RAMPAGE_LINE.exec(oneLine(text));
+  if (matched === null) return null;
+  const [, half, count, attack] = matched;
+  const checked = MonsterRampageSchema.safeParse({
+    fraction: half === undefined ? 'whole' : 'half',
+    attack: attack!.trim(),
+    attacks: WRITTEN_COUNTS[count!]!,
+  });
+  return checked.success ? checked.data : null;
+}
 
 const DASH_MODES: Readonly<Record<string, MonsterDash['modes'][number]>> = {
   Speed: 'walk',
@@ -2271,6 +2465,29 @@ export function parseFormQualification(name: string): readonly string[] | null {
   const matched = /\(([A-Za-z]+(?: or [A-Za-z]+)*) Form Only\)\s*$/.exec(name);
   if (matched === null) return null;
   return matched[1]!.split(' or ').map((word) => word.toLowerCase());
+}
+
+/**
+ * SRD Night Hag: "Nightmare Haunting (1/Day; **Requires Soul Bag**)". The thing
+ * a heading says its line may not be taken without, or null.
+ *
+ * {@link parseFormQualification}'s sibling and read the same way and in the same
+ * place: the book prints the clause inside the heading, which is exactly what
+ * nothing downstream may branch on, so it is read here once into a word the
+ * engine can act on.
+ *
+ * **Two headings in the book carry it, and they are not the same case.** The
+ * Night Hag's names the noun of her own `carries-printed-object` trait — a thing
+ * with an Armour Class and Hit Points that the arrival raises beside her. The
+ * Erinyes' "Requires Magic Rope" names a rope no trait, no Gear line and no item
+ * record puts anywhere. This reader reads the word for both, because the word is
+ * what the book printed; which of them becomes a **gate** is the adapter's
+ * question, and `carryingRequirement` refuses to compile one for a thing the
+ * engine cannot see. (W7-B11)
+ */
+export function parseObjectRequirement(name: string): string | null {
+  const matched = /\(?(?:.*; )?Requires ([A-Z][A-Za-z' -]*)\)\s*$/.exec(name);
+  return matched === null ? null : matched[1]!.trim();
 }
 
 /**
@@ -2991,6 +3208,10 @@ function parseFeatures(
       // the reason the recharge and the day's count are.
       const forms = parseFormLine(text);
       const onlyInForms = parseFormQualification(current.name);
+      // And the object a heading says its line may not be taken without — SRD
+      // Night Hag's "Requires Soul Bag", read off the name for the reason the
+      // form clause above it is. (W7-B11)
+      const requiresObject = parseObjectRequirement(current.name);
       // And the sixth: a line that drags toward itself what it is already
       // holding, which is `pullToward` at a heading's price.
       const pulls = parsePullLine(text);
@@ -3002,6 +3223,10 @@ function parseFeatures(
       // step between two trees. Read on every section like everything else.
       const jumps = parseJumpLine(text);
       const dashes = parseDashLine(text);
+      // And the move-and-swing a blow on a Bloodied creature buys — W7-B11.
+      const rampages = parseRampageLine(text);
+      // And the light a use switches on and the next switches off — W7-B11.
+      const togglesLight = parseLightToggleLine(text);
       const treeStride = parseTreeStrideLine(text);
       const addsToRoll = parseRollAddendLine(text);
       // The Reactions section's other two templates, read off the sentence for
@@ -3030,11 +3255,14 @@ function parseFeatures(
         ...(teleports === null ? {} : { teleports }),
         ...(forms === null ? {} : { forms }),
         ...(onlyInForms === null ? {} : { onlyInForms: [...onlyInForms] }),
+        ...(requiresObject === null ? {} : { requiresObject }),
         ...(pulls === null ? {} : { pulls }),
         ...(swallows === null ? {} : { swallows }),
         ...(shiftsPlane === null ? {} : { shiftsPlane }),
         ...(jumps === null ? {} : { jumps }),
         ...(dashes === null ? {} : { dashes }),
+        ...(rampages === null ? {} : { rampages }),
+        ...(togglesLight === null ? {} : { togglesLight }),
         ...(treeStride === null ? {} : { treeStride }),
         ...(addsToRoll === null ? {} : { addsToRoll }),
         ...(addsToAc === null ? {} : { addsToAc }),

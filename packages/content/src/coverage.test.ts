@@ -592,7 +592,16 @@ describe('the bestiary row counts blocks, and the prose it cannot read', () => {
       'perDay',
       // What SRD Roper's Reel drags toward it, read out of the sentence.
       'pulls',
+      // The move and the swing a blow on an already-Bloodied creature buys —
+      // W7-B11, read out of the sentence like the moves above it, and out of the
+      // trigger clause a `dashes` line has none of.
+      'rampages',
       'recharge',
+      // What a heading says its line may not be taken without — SRD Night Hag's
+      // "Requires Soul Bag", read off the **name** for `recharge`'s reason and
+      // changing nothing about what "read" counts, exactly as that one does.
+      // (W7-B11)
+      'requiresObject',
       'save',
       // The two roads into the second place, read out of the sentence: SRD
       // Phase Spider's Ethereal Jaunt and SRD Giant Frog's Swallow.
@@ -601,6 +610,9 @@ describe('the bestiary row counts blocks, and the prose it cannot read', () => {
       'swallows',
       'teleports',
       'text',
+      // The light a use switches on and the next switches off — W7-B11, read out
+      // of the sentence like the moves above it.
+      'togglesLight',
       'trait',
       'treeStride',
       'usesLine',

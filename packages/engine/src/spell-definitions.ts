@@ -3477,6 +3477,37 @@ export type SpellEffect =
    */
   | { readonly kind: 'sense'; readonly sense: SenseName; readonly feet: number }
   /**
+   * The casting **repairs** a thing its target is wearing or holding — SRD
+   * *Mending*, and the one clause of it the engine can carry out.
+   *
+   * Three bestiary lines end with "The penalty can be removed by casting the
+   * _Mending_ spell on the armor or weapon" — SRD Rust Monster's Antennae, SRD
+   * Black Pudding's Dissolving Pseudopod, SRD Gray Ooze's Pseudopod. The
+   * penalty is executed: it lands on `EquippedItem.penalty`, the two ceilings
+   * break the thing, and `armorClassOf` and `heldWeaponPenalty` read it. So
+   * the sentence that *lifts* it is the only half that was missing, and this is
+   * it.
+   *
+   * **`clears` is a word rather than an amount**, and there is exactly one of
+   * them, because the sentence names a kind of harm rather than a quantity:
+   * "the penalty can be removed" removes all of it, however many pseudopods
+   * put it there. A number here would be a spell deciding how much rust it
+   * eats, which the book does not print.
+   *
+   * **What it does not touch is most of the spell.** Which break was mended,
+   * the foot it may not exceed, the ban on restoring magic to a magic item:
+   * the engine holds nothing about the *condition* of an object, and those stay
+   * `dmDecides`. This reaches the one fact about an object the engine does
+   * hold.
+   *
+   * The object is {@link CastSpellRequest.object} — SRD Heat Metal's and SRD
+   * Remove Curse's own field — and the target is the creature wearing or
+   * holding it, which is what the touch is measured to. A copy nobody has
+   * equipped carries no penalty for the same reason it carries no Armour
+   * Class: the record is the equipped one. (W7-B11)
+   */
+  | { readonly kind: 'repairs'; readonly clears: 'printed-penalty' }
+  /**
    * The casting takes a **fall's** cost away from its target entirely — SRD
    * *Feather Fall*: "If a creature lands before the spell ends, the creature
    * takes no damage from the fall, and the spell ends for that creature."
@@ -7891,11 +7922,11 @@ export function breaksAttunement(definition: SpellDefinition): boolean {
 /**
  * Whether this spell has to be told which object it is aimed at.
  *
- * Two clauses ask, and they are different sentences about the same fact: SRD
- * Remove Curse breaks an Attunement to an object, and SRD Heat Metal heats one
- * and makes its holder drop it. Both name a thing out of what the target has,
- * neither can be picked by the engine, and both are refused before a slot is
- * spent when the caster names none.
+ * Three clauses ask, and they are different sentences about the same fact: SRD
+ * Remove Curse breaks an Attunement to an object, SRD Heat Metal heats one and
+ * makes its holder drop it, and SRD Mending repairs one. All three name a thing
+ * out of what the target has, none can be picked by the engine, and each is
+ * refused before a slot is spent when the caster names none.
  *
  * **The casting's own list and its activation**, because Heat Metal's Bonus
  * Action deals the damage again to the same object — the record pins it, so
@@ -7903,7 +7934,25 @@ export function breaksAttunement(definition: SpellDefinition): boolean {
  * spell ever name one".
  */
 export function namesAnObject(definition: SpellDefinition): boolean {
-  return breaksAttunement(definition) || dropsAnObject(definition);
+  return breaksAttunement(definition) || dropsAnObject(definition) || repairsAnObject(definition);
+}
+
+/**
+ * Whether this spell **repairs** the object it names — SRD Mending.
+ *
+ * {@link namesAnObject}'s third half, asked on its own by the pre-flight that
+ * checks the relation a repair needs: the target is wearing or holding the
+ * thing, which is the same relation a drop needs and a different one from an
+ * Attunement. The lists are the same three a drop reads, for the same reason.
+ * (W7-B11)
+ */
+export function repairsAnObject(definition: SpellDefinition): boolean {
+  const lists = [
+    definition.effects,
+    definition.activation?.effects ?? [],
+    ...optionEffectLists(definition),
+  ];
+  return lists.some((effects) => effects.some((effect) => effect.kind === 'repairs'));
 }
 
 /**
@@ -8518,6 +8567,9 @@ export function numbersRead(definition: SpellDefinition): NumbersRead {
       // is the caster's own choice, stated at the casting, and no number about
       // them decides anything.
       case 'end-attunement':
+      // Nor does a repair: which object is the caster's own choice and how much
+      // rust came off is the record's, not the caster's.
+      case 'repairs':
       // A mask reads nothing of the caster either: which type is the caster's
       // own choice, stated at the casting, and no number about them decides it.
       case 'creature-type-override':

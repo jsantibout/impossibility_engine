@@ -760,6 +760,17 @@ export interface CastingPlan {
    */
   readonly weapon?: string;
   /**
+   * The object a spell aimed at a thing was pointed at, by catalogue id.
+   *
+   * The weapon's neighbour and its reason exactly: SRD Mending is a rite of a
+   * **minute**, so it is always declared and always settled, and a Mending
+   * declared at the rusted blade must not settle at the mail. `PendingCasting`
+   * has held the field since Remove Curse landed and the plan had no way to
+   * put it there — a hole nothing reached until a spell that names an object
+   * also took a minute to cast. (W7-B11)
+   */
+  readonly object?: string;
+  /**
    * The stat block a summoning spell that leaves the form to its caster was
    * told to raise, by its id in content. Beside the weapon and for its reason:
    * a Find Familiar declared as a Cat must not settle as an Owl an hour later.
@@ -1206,6 +1217,9 @@ function castSpellWith(
         // And which weapon it was aimed at, which a settlement could no more
         // work out again than it could the destination.
         ...(command.hold.weapon === undefined ? {} : { weapon: command.hold.weapon }),
+        // And which object it was pointed at, for the same reason — SRD
+        // Mending, the one spell that names one and takes a minute. (W7-B11)
+        ...(command.hold.object === undefined ? {} : { object: command.hold.object }),
         // And which form it was told to raise, for the same reason.
         ...(command.hold.form === undefined ? {} : { form: command.hold.form }),
         // And where the bones lie, for the same reason.

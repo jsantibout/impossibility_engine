@@ -153,11 +153,13 @@ describe('a save whose failure is knowledge', () => {
 describe('a save aimed at an object somebody is wearing or holding', () => {
   /**
    * SRD Rust Monster's Antennae: the prelude names the object, the failure
-   * wears it down, the second sentence states the two ceilings the executor
-   * keeps and is consumed, and the Mending sentence is carried — the spells
-   * side's, not this reader's.
+   * wears it down, and the two sentences after it are both rules about *that*
+   * penalty — the ceilings the executor keeps, and the Mending that lifts it.
+   * Both are consumed and neither is stored, because each states a rule the
+   * engine holds rather than a field this line carries. The spell's own
+   * `repairs` effect is the second one. (W7-B11)
    */
-  it('reads the Antennae: the object the prelude names, the penalty, the ceilings, and hands the Mending over', () => {
+  it('reads the Antennae: the object the prelude names, the penalty, and the two rules about it', () => {
     expect(lineOf('rust-monster', 'Antennae').save).toEqual({
       ability: 'dex',
       dc: 11,
@@ -165,7 +167,6 @@ describe('a save aimed at an object somebody is wearing or holding', () => {
       targetsObject: true,
       onSuccess: 'none',
       onFailure: [{ kind: 'object-penalty', points: 1 }],
-      handedOver: ['The penalty can be removed by casting the _Mending_ spell on the armor or weapon.'],
     });
   });
 

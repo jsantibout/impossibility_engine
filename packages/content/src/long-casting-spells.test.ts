@@ -60,6 +60,20 @@ const TWELVE: readonly (readonly [string, number])[] = [
   ['mending', 60],
 ];
 
+/**
+ * The eleven of them that are still **tracked**, which is the twelve less
+ * Mending.
+ *
+ * SRD Mending grew the one clause the engine can carry out — `repairs`, which
+ * lifts the penalty three bestiary lines say a Mending removes — so it is
+ * executed-partial and can neither be swept for "no effects" nor cast at
+ * nobody. Its own two tests below drive it here, and `mending.test.ts` is where
+ * the clause itself is proved. (W7-B11)
+ */
+const TRACKED: readonly (readonly [string, number])[] = TWELVE.filter(
+  ([spellId]) => spellId !== 'mending',
+);
+
 /** The six of them the book prints a Ritual tag for. */
 const RITUALS: readonly string[] = [
   'alarm',
@@ -203,7 +217,7 @@ describe('the twelve are definitions, and every one of them is a long casting', 
    * definition says *something* about what it does not do, and both lists say
    * it; which of them it lands in is the claim being made.
    */
-  it.each(TWELVE)('tracks %s rather than executing it', (spellId) => {
+  it.each(TRACKED)('tracks %s rather than executing it', (spellId) => {
     const definition = defined(spellId);
     expect(definition.effects).toEqual([]);
     expect(definition.areaTrigger).toBeUndefined();
@@ -224,7 +238,7 @@ describe('a catalogue spell of a minute or more is declared, not cast', () => {
    * **declaration**, spends no slot, and leaves a casting open until the clock
    * catches up. Before IE-034 every one of them was refused outright.
    */
-  it.each(TWELVE)('declares %s and settles it when the clock arrives', (spellId, seconds) => {
+  it.each(TRACKED)('declares %s and settles it when the clock arrives', (spellId, seconds) => {
     const definition = defined(spellId);
     const declared = unwrap(declare(spellId), spellId);
     expect(declared.events.some((e) => e.type === 'spell-declared')).toBe(true);
@@ -252,7 +266,7 @@ describe('a catalogue spell of a minute or more is declared, not cast', () => {
   });
 
   /** And settling a minute early is refused, so the span means something. */
-  it.each(TWELVE)('refuses to settle %s a second early', (spellId, seconds) => {
+  it.each(TRACKED)('refuses to settle %s a second early', (spellId, seconds) => {
     const declared = unwrap(declare(spellId), spellId);
     const open = world(declared.events);
     const castingId = pendingCastingsOf(open)[0]!.castingId;
@@ -453,14 +467,33 @@ describe('the clauses the engine still owns', () => {
    * SRD Mending is a **cantrip** with a casting time of 1 minute, which is the
    * only combination of the two in the book among these twelve. It declares
    * and settles like the rest and no slot moves in either direction.
+   *
+   * **And it is the one of the twelve that is no longer merely tracked**, so it
+   * is cast the way it is cast: at the creature holding the thing, naming the
+   * thing. The staff goes into the wizard's hand with two plain events, because
+   * what this test is about is the minute rather than the repair —
+   * `mending.test.ts` drives the penalty coming off. (W7-B11)
    */
   it('runs Mending as a cantrip that takes a minute', () => {
     expect(defined('mending').level).toBe(0);
-    const declared = unwrap(declare('mending'), 'mending');
-    const open = world(declared.events);
+    const armed: readonly GameEvent[] = [
+      ...SETUP,
+      {
+        type: 'items-gained',
+        id: WIZARD,
+        items: [{ id: 'quarterstaff', quantity: 1 }],
+        source: 'the test',
+      },
+      { type: 'item-equipped', id: WIZARD, item: 'quarterstaff', armor: null },
+    ];
+    const declared = unwrap(
+      declare('mending', { targets: [WIZARD], object: 'quarterstaff' }, armed),
+      'mending',
+    );
+    const open = fold('seed', [...armed, ...declared.events]);
     const castingId = pendingCastingsOf(open)[0]!.castingId;
     const tick = unwrap(advanceTime(open, 60, 'the mending'), 'tick');
-    const log = [...SETUP, ...declared.events, ...tick];
+    const log = [...armed, ...declared.events, ...tick];
     const settled = unwrap(resolveDeclaredCast(fold('seed', log), castingId, supply()), 'settle');
 
     expect(settled.events.find((e) => e.type === 'spell-cast')).toMatchObject({

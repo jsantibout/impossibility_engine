@@ -1361,7 +1361,16 @@ export interface StatBlockLine {
   readonly name: string;
   readonly text: string;
   readonly attack?: unknown;
-  readonly trait?: unknown;
+  /**
+   * The mechanic the parser read out of the line's sentence, if it read one.
+   *
+   * `unknown` but for the **kind**, which two predicates here read: a trait's
+   * kind is what decides whether anything spends it, and one of them —
+   * `chooses-to-succeed-on-a-failed-save` — is compiled into a Reaction rather
+   * than into a standing effect, which is a fact about the kind and not about
+   * the section. (W7-B11)
+   */
+  readonly trait?: { readonly kind: string } | undefined;
   readonly save?: unknown;
   readonly multiattack?: unknown;
   /** The spells a Spellcasting line declares, where the parser read them. */
@@ -1382,6 +1391,10 @@ export interface StatBlockLine {
   readonly jumps?: unknown;
   /** The move a line grants its creature — SRD Giant Seahorse's Bubble Dash, SRD Troll's Charge. */
   readonly dashes?: unknown;
+  /** The move and the swing a blow on an already-Bloodied creature buys — SRD Rampage. */
+  readonly rampages?: unknown;
+  /** The light a use switches on and the next switches off — SRD Ignited Illumination. */
+  readonly togglesLight?: unknown;
   /** The step between two trees a line makes — SRD Dryad's Tree Stride. */
   readonly treeStride?: unknown;
   /** The flat addend a Reaction line puts on somebody's D20 Test. */
@@ -1390,9 +1403,37 @@ export interface StatBlockLine {
   readonly addsToAc?: unknown;
   /** The printed line a Reaction's whole response performs, by its heading. */
   readonly usesLine?: string | undefined;
+  /**
+   * Whether the engine **performs** the line {@link usesLine} names, rather
+   * than handing its heading to the table.
+   *
+   * Derived in {@link statBlockLines} rather than read off the line, because
+   * the answer is about a *sibling* line of the same block: the response is
+   * performed exactly where the named heading is one the printed-save reader
+   * got a saving throw out of, which is what `takeAttackReaction` rolls. A
+   * line is the wrong place to hold a fact about its neighbour, so it is
+   * computed where the neighbours are in scope and nowhere else. (W7-B11)
+   */
+  readonly responsePerformed?: boolean;
   /** What a legendary action line does — SRD Unicorn's Charging Horn and Shimmering Shield. */
   readonly legendary?: unknown;
 }
+
+/**
+ * Whether one block performs the heading a Reaction's response names.
+ *
+ * SRD Reflexive Antennae's response is "uses Antennae", and Antennae is a line
+ * of the same block whose saving throw the printed-save reader read — so the
+ * Reaction's own road rolls it. A response naming a heading the reader got
+ * nothing out of is still a name handed to the table. (W7-B11)
+ */
+const performsNamedLine = (
+  monster: (typeof SRD_CONTENT.monsters)[number],
+  heading: string,
+): boolean =>
+  [...monster.actions, ...monster.bonusActions].some(
+    (line) => line.name === heading && line.save !== undefined,
+  );
 
 /** Every line of every section of one block, which is what the shapes count over. */
 export const statBlockLines = (
@@ -1401,7 +1442,11 @@ export const statBlockLines = (
   ...monster.traits,
   ...monster.actions,
   ...monster.bonusActions,
-  ...monster.reactions,
+  ...monster.reactions.map((line) =>
+    line.usesLine === undefined
+      ? line
+      : { ...line, responsePerformed: performsNamedLine(monster, line.usesLine) },
+  ),
   ...monster.legendaryActions,
 ];
 
@@ -1427,6 +1472,10 @@ export const isReadLine = (line: StatBlockLine): boolean =>
   line.jumps !== undefined ||
   line.dashes !== undefined ||
   line.treeStride !== undefined ||
+  // And the move a blow on an already-Bloodied creature buys, and the light a
+  // use switches on — W7-B11.
+  line.rampages !== undefined ||
+  line.togglesLight !== undefined ||
   line.addsToRoll !== undefined ||
   line.addsToAc !== undefined ||
   line.usesLine !== undefined ||
@@ -1563,6 +1612,16 @@ export const TRAIT_KINDS_WITH_A_READER: readonly string[] = [
   'advantage-while-bloodied',
   'allies-in-emanation-have-advantage',
   'carries-as-a-larger-creature',
+  // SRD Night Hag's Soul Bag, whose reader is the arrival: `raisePrintedObject`
+  // raises the thing beside the hag with the line's own three statistics, and
+  // the heading's "Requires Soul Bag" is a `while-carrying` requirement both
+  // doors on that heading ask. (W7-B11)
+  'carries-printed-object',
+  // SRD Legendary Resistance, whose reader is the `test-rolled` window: the
+  // adapter compiles the trait into a Reaction that costs no Reaction, and
+  // `takeTestReaction` turns the failure into a success out of the day's pool.
+  // (W7-B11)
+  'chooses-to-succeed-on-a-failed-save',
   'climbs-without-a-check',
   'damages-creatures-in-an-emanation',
   'damages-creatures-it-is-holding',
@@ -1645,7 +1704,6 @@ export const TRAIT_KINDS_WITH_A_READER: readonly string[] = [
  * | Berserk ×2 | a creature somebody else is playing: a d6 at the start of a turn and a compulsion that picks the golem's target for it. `a-creature-somebody-else-is-playing` |
  * | Vampire Spawn's Sunlight | a start-of-turn read against a light level. The light model states sunlight; what is missing is the boundary reader, and its second sentence is already `disadvantage-in-sunlight` |
  * | Succubus Form, Incubus Form, Troll Spawn | one stat block replaced by another, at a Long Rest or on a 24-hour timer. `assumeStatBlock` is the mechanism and Wild Shape is its one caller; what is missing is the door a *creature's own printed line* comes through, and the Troll Limb's d12 besides |
- * | Soul Bag | an object a block is born holding. `declareObject` holds a thing with an Armour Class, Hit Points and a Resistance that can be broken; nothing gives one to a creature when its stat block arrives, and the hag's Nightmare Haunting is gated on carrying it |
  * | Spider Climb (the Swarm's) | a **gate** on a kind that already has a reader: "If the swarm has a Climb Speed, the swarm can climb…". `climbs-without-a-check` is spent by `climbCheck`, so this is a field on that kind rather than a third answer — and a gate read away would be a rule nobody printed |
  * | Split ×2 | a stat block created mid-fight — two creatures in the Initiative order that did not exist a moment ago, sharing the original's Hit Points. The catalogue names the same shape for the summoning spells |
  * | Redirect Attack | a Reaction window on **being attacked**, before the roll is decided, whose response retargets the attack at somebody else. Every window the engine holds opens on a hit, and nothing can re-aim an attack that has been declared |
@@ -1880,6 +1938,19 @@ export const isExecutedLine = (line: StatBlockLine): boolean =>
   line.jumps !== undefined ||
   line.dashes !== undefined ||
   line.treeStride !== undefined ||
+  // **And the move-and-swing a blow buys is spent** — W7-B11. SRD Rampage's
+  // trigger is read off `LastDamage.wasBloodied`, which the fold derives from
+  // the creature as it stood *before* the blow, and the two grants are the ones
+  // a Tactical Shift and a Flurry of Blows already hand a turn. Which heading
+  // the swing should be made with is reported rather than enforced, because
+  // `GrantedAttacks` narrows by `unarmedOnly` and by nothing else.
+  line.rampages !== undefined ||
+  // **And a light a use switches on is spent** — W7-B11. The two radii are a
+  // `light` standing grant gated on this very line being active, which is the
+  // shape `activatedLight` reads and SRD Sacred Weapon's glow already compiles
+  // to, and the spender flips `activeFeatures`. No patch is written: `lightAt`
+  // derives it off the sheet on every read.
+  line.togglesLight !== undefined ||
   // **SRD Parry, executed at the window SRD *Shield* already answered.** The
   // number goes onto the Armour Class the held attack was measured against and
   // the hit is re-decided, which is the whole of what the sentence says — so
@@ -1900,7 +1971,20 @@ export const isExecutedLine = (line: StatBlockLine): boolean =>
   // claiming a Reaction no sheet carries. No SRD line reaches it today, which
   // is exactly why the two readings have to be written down together rather
   // than left to agree by luck.
-  (line.addsToRoll !== undefined && !line.addsToRoll.tests.includes('attack-roll'));
+  (line.addsToRoll !== undefined && !line.addsToRoll.tests.includes('attack-roll')) ||
+  // **And a trait the adapter compiles into a Reaction is spent** — W7-B11. SRD
+  // Legendary Resistance is printed under **Traits** and names an instant the
+  // engine holds: `printedSucceedInsteadReaction` compiles it onto the sheet at
+  // the `test-rolled` window with `costsReaction: false`, and
+  // `takeTestReaction` turns the failure into a success out of the heading's own
+  // `dawn` pool. Where a line is printed says what it *costs*, so a row that
+  // went on calling this a use nothing spends would be making a false claim
+  // about thirty-two headings.
+  //
+  // **The kind rather than the section**, because that is what decides it: a
+  // trait the adapter compiles into nothing is still a debt, and this names the
+  // one kind that becomes a Reaction. A second such kind joins this arm.
+  line.trait?.kind === 'chooses-to-succeed-on-a-failed-save';
 
 /**
  * **The row a cast line used to have is gone**, and this is where it was.
@@ -1925,25 +2009,34 @@ export const isExecutedLine = (line: StatBlockLine): boolean =>
  * SRD Rust Monster, Reflexive Antennae: "_Trigger:_ An attack roll hits the
  * rust monster. _Response:_ The rust monster uses Antennae."
  *
- * {@link SAVE_HANDOVER_SHAPE}'s sibling and on the ledger's over-read list for
- * its reason: the line **is** read — the trigger is `hit-by-attack`, the
- * window the engine holds, and the name of the response is structure on the
- * sheet — and it is not **paid**, because the engine performs no printed line
- * as a Reaction's response. What it does instead is offer the Reaction and
- * hand the response to the table by name, which is a handover with a debt
- * behind it rather than a finished sentence. **The response is a line the
- * engine spends now**: the rust monster's Antennae is read — the object the
- * prelude names, the penalty, the two ceilings — and `force_printed_save`
- * rolls it with the weapon that hit named as the object. What is left is the
- * Reaction's own road performing it in place of handing the name over, which
- * is a seam in `commands/reactions.ts` and not in the line.
+ * **The row "A Reaction whose printed response is handed over" is gone, and this
+ * is where it was** (W7-B11) — written down rather than deleted, because a row
+ * that leaves a report is a claim somebody may want to check.
  *
- * It retires when a response is performed rather than named — the same way the
- * Multiattack and Spellcasting rows shrank when their sentences became
- * something the engine runs.
+ * It was on the ledger's over-read list for {@link SAVE_HANDOVER_SHAPE}'s
+ * reason: the line **is** read — the trigger is `hit-by-attack`, the window the
+ * engine holds, and the name of the response is structure on the sheet — and it
+ * was not **paid**, because the engine performed no printed line as a Reaction's
+ * response. `takeAttackReaction` performs it now: the named heading is looked up
+ * on the reactor's own sheet and, where the printed-save reader got a saving
+ * throw out of it, rolled through the same body the Action-priced door goes
+ * through, with the weapon that hit as the object the prelude names. That is the
+ * one fact a DM had to state, and the trigger already held it.
+ *
+ * SRD prints one such line and it is executed, so the row came to `0 / 0` — and
+ * a row that counts nothing is a claim the report should not be printing, which
+ * is exactly what `coverage.test.ts` asserts of every shape. So the row retires
+ * the way the Multiattack, Spellcasting, cast-line and legendary-economy rows
+ * did.
+ *
+ * **The predicate stays**, and that is the half that is not bookkeeping: a
+ * homebrew block whose named response the reader gets nothing out of is a
+ * sentence still handed over, and `ledger.ts`'s `unpaid` asks this so such a
+ * line is counted unpaid rather than passing for executed. The day one exists,
+ * the row comes back with it.
  */
-export const REACTION_USE_SHAPE = 'A Reaction whose printed response is handed over';
-export const hasHandedOverResponse = (line: StatBlockLine): boolean => line.usesLine !== undefined;
+export const hasHandedOverResponse = (line: StatBlockLine): boolean =>
+  line.usesLine !== undefined && line.responsePerformed !== true;
 
 /**
  * The shapes a printed stat-block line waits on, over the whole bestiary and
@@ -2011,7 +2104,6 @@ export const MONSTER_LINE_SHAPES: readonly (readonly [
   ['A save a line forces', (line) => line.attack === undefined && /Saving Throw:_/.test(line.text)],
   // The rows above are held to the catalogue by {@link UNREAD_SAVE_SEAMS}.
   [SAVE_HANDOVER_SHAPE, hasHandedOverSave],
-  [REACTION_USE_SHAPE, hasHandedOverResponse],
   [RIDER_SHAPE, hasUnappliedRider],
   [RIDER_HANDOVER_SHAPE, hasHandedOverRider],
   [UNEXECUTED_TRAIT_SHAPE, hasUnexecutedTrait],
@@ -2075,8 +2167,6 @@ export const MONSTER_LINE_SHAPES: readonly (readonly [
 export const LINE_RESIDUE_SEAMS: Readonly<Record<string, string>> = {
   'ettercap/Reel':
     'a pull whose **gate** is a hold. The web is a thing the engine keeps a record of now — the Web Strand save raises an object and files the Restrained under `held-by:<it>` — and the Roper\'s Reel under the same heading is executed. What is left is the clause between the two: "one creature within 30 feet of itself **that is Restrained by its Web Strand**" is a printed pull narrowed to whoever this creature\'s own web is holding, and `takePrintedPull` drags whoever it is holding by a *grapple*. It lands the day a printed pull may say which hold it reads.',
-  'magmin/Ignited Illumination':
-    'a light a use turns on and off. `sheds-light` exists and `carriedLight` derives a patch that moves with its holder — but the magmin\'s block prints no such trait: the radii are printed on this Bonus Action and nowhere else, so what is missing is a *toggle*, a light patch a use hangs and a second use takes away, rather than a reader for a trait the block does not have.',
   'will-o-wisp/Vanish':
     'Concentration on something that is not a casting. "The wisp and its light have the Invisible condition until the wisp\'s Concentration ends on this effect, which ends early immediately after the wisp makes an attack roll or uses Consume Life." Every clause but the first is machinery the engine holds — the condition, the trigger that ends it, the light — and all of it hangs off `CreatureState.concentration`, which only a casting may occupy.',
   'succubus/Charm':

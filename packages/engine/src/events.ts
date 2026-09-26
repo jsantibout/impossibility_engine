@@ -1759,6 +1759,36 @@ export type GameEvent =
       readonly command?: CommandStamp;
     }
   /**
+   * The two events above, undone — SRD Rust Monster's Antennae and both
+   * Pseudopods: "The penalty can be removed by casting the _Mending_ spell on
+   * the armor or weapon."
+   *
+   * **One event for the two**, because what it undoes is one record: the
+   * penalty on the copy, whichever sentence put it there and whichever kind of
+   * object it is. The two writers are two events only because the log should
+   * say whether it was acid on a suit or rust on a blade; nothing is asked of
+   * *this* one but which copy stopped being worn down.
+   *
+   * **It carries the points it cleared**, so the fold moves a number rather
+   * than replacing a record — the discipline the two penalising events keep,
+   * pointed the other way — and so a log reads "the −3 came off the mail"
+   * rather than leaving a reader to work out what was there. The number is the
+   * penalty the command read, which is rule 5 asked of a record instead of a
+   * catalogue.
+   *
+   * The record goes entirely at zero, so a copy nothing has eaten and a copy
+   * that has been mended are the same copy again. (W7-B11)
+   */
+  | {
+      readonly type: 'item-penalty-cleared';
+      readonly id: CharacterId;
+      /** The catalogue id of the thing being worn or held. */
+      readonly item: string;
+      /** The penalty that came off, which is all of it. */
+      readonly points: number;
+      readonly command?: CommandStamp;
+    }
+  /**
    * SRD Magic Items: attuning to one, which takes a Short Rest focused on it.
    *
    * Keyed on the catalogue id, because that is all an inventory can say: two

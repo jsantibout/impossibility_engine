@@ -12,6 +12,7 @@ import type {
   RecoveryFeature,
   SelfHealFeature,
   StandingEffect,
+  StandingRequirement,
   StrikeStyle,
   TradeFeature,
 } from './standing.js';
@@ -29,6 +30,8 @@ import type {
   MonsterForms,
   MonsterMultiattack,
   MonsterDash,
+  MonsterLightToggle,
+  MonsterRampage,
   MonsterJump,
   MonsterPlaneShift,
   MonsterTreeStride,
@@ -237,6 +240,33 @@ export interface StatedBonusAction {
    */
   readonly dashes?: MonsterDash;
   /**
+   * The move and the swing a blow on a Bloodied creature buys — see
+   * {@link StatedAction.rampages}, the same field. **SRD prints both of them
+   * under this heading**: the Gnoll Warrior's Rampage and the Giant Hyena's.
+   */
+  readonly rampages?: MonsterRampage;
+  /**
+   * The light this line switches on, and which its next use switches off — see
+   * {@link StatedAction.togglesLight}, the same field. **SRD prints the one line
+   * in the book under this heading**: the Magmin's Ignited Illumination.
+   */
+  readonly togglesLight?: MonsterLightToggle;
+  /**
+   * What must hold of this creature for the line to be taken — see
+   * {@link StatedAction.requires}, the same field. **No SRD Bonus Action prints
+   * the clause**, and the field is here because a heading says what a use
+   * *costs* and nothing else this adapter can see — the reading every field
+   * beside it takes. Until W7-B11 the adapter set it on this record and the
+   * record had no such field, so a spread dropped it silently: the kind of hole
+   * an excess-property check cannot see.
+   */
+  readonly requires?: readonly StandingRequirement[];
+  /**
+   * The word the heading's "Requires X" clause printed — see
+   * {@link StatedAction.requiresObject}, the same field.
+   */
+  readonly requiresObject?: string;
+  /**
    * The step between two trees this line makes — see
    * {@link StatedAction.treeStride}. SRD Dryad prints it under this heading.
    */
@@ -383,6 +413,36 @@ export interface StatedAction {
    */
   readonly onlyInForms?: readonly string[];
   /**
+   * What must hold of this creature for the line to be taken at all, where its
+   * **heading** says something.
+   *
+   * SRD Night Hag: "Nightmare Haunting (1/Day; **Requires Soul Bag**)", the one
+   * heading in the book that carries such a clause. The parser reads the word
+   * and the adapter compiles it into a `while-carrying` requirement — the same
+   * vocabulary a standing effect and a granted spell route are gated by, asked
+   * through the one reader `requirementsHold`, so there is no second evaluation
+   * of "does this creature still have the thing".
+   *
+   * **Not `onlyInForms` beside it**, which is the other clause a heading prints
+   * and is a different question: a form is a fact somebody *stated* about this
+   * creature, and this is a fact about something else in the room. (W7-B11)
+   */
+  readonly requires?: readonly StandingRequirement[];
+  /**
+   * The word the heading's "Requires X" clause printed, whether or not a gate
+   * was compiled from it.
+   *
+   * **Two fields for two different statements**, which is the whole reason this
+   * one exists beside {@link requires}: the word is what the *book* printed, and
+   * the requirement is the half the engine can check. SRD prints the clause on
+   * two headings and only one of them names a thing the engine holds — the Night
+   * Hag's own Soul Bag — so the Erinyes' "Requires Magic Rope" carries this and
+   * no `requires`, and the door that spends the line reports it as a fact about
+   * the heading the engine did not check rather than refusing a printed action
+   * for ever. See `carryingRequirement`. (W7-B11)
+   */
+  readonly requiresObject?: string;
+  /**
    * What this line drags toward its creature, where its sentence is the
    * book's pull template — see `MonsterPullSchema`.
    *
@@ -433,6 +493,30 @@ export interface StatedAction {
    * line names and provoking nothing where the line says so.
    */
   readonly dashes?: MonsterDash;
+  /**
+   * The move and the swing this line takes **immediately after a blow on a
+   * creature that was already Bloodied** — see `MonsterRampageSchema`.
+   *
+   * SRD Gnoll Warrior's Rampage and SRD Giant Hyena's. The spender hands the
+   * turn the printed fraction of its Speed as a `GrantedMove` and one attack
+   * outside the Attack action as `GrantedAttacks`; what it will not do is
+   * narrow *which* attack, because `GrantedAttacks` narrows by `unarmedOnly`
+   * and by nothing else. The name the line printed is reported instead of
+   * enforced, which is the honest half. (W7-B11)
+   */
+  readonly rampages?: MonsterRampage;
+  /**
+   * The light this line switches **on**, and which its next use switches off —
+   * see `MonsterLightToggleSchema`.
+   *
+   * SRD Magmin's Ignited Illumination, the one line in the book of that shape.
+   * The spender flips `activeFeatures`, and the light itself is a `light`
+   * standing grant on the sheet gated on this very line being active — the shape
+   * `activatedLight` reads and SRD Sacred Weapon's glow is already compiled as,
+   * so a magmin ablaze and a paladin's blade shed light through one reader.
+   * (W7-B11)
+   */
+  readonly togglesLight?: MonsterLightToggle;
   /**
    * The step between two trees this line makes — see
    * `MonsterTreeStrideSchema`. SRD Dryad's Tree Stride; `takePrintedTeleport`

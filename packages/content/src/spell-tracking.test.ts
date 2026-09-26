@@ -872,6 +872,13 @@ describe('a tracked spell may not hide a rule the engine owns', () => {
     'gentle-repose',
     'light',
     'magic-weapon',
+    // And the ninth kind: SRD Mending's paragraph is a break, a tear, a foot
+    // and a magic item, and the marker list knows none of those words — yet the
+    // sentence it cannot see is the one the engine executes, because "the
+    // penalty can be removed by casting the _Mending_ spell" is printed on
+    // three stat blocks rather than in the spell, and `repairs` lifts it.
+    // (W7-B11)
+    'mending',
     // And the eighth kind: SRD Nondetection's paragraph is a school of magic,
     // a scrying sensor, a place and an object, and the marker list knows none
     // of those words — yet "can't be targeted by any Divination spell" is a

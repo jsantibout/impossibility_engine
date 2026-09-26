@@ -5186,6 +5186,20 @@ function checkEffect(
     case 'preserves':
       return;
 
+    // SRD Mending's one executable clause. The word is the whole of it — there
+    // is one kind of harm the engine records on an object and one sentence that
+    // lifts it — so what is checked is that the word is that word. A number
+    // here would be a spell deciding how much rust it eats.
+    case 'repairs':
+      if (effect.clears !== 'printed-penalty') {
+        found.push({
+          field: `${path}.clears`,
+          code: 'bad_repair',
+          reason: `"${String(effect.clears)}" is not a harm the engine records on an object; the one it does is a printed penalty`,
+        });
+      }
+      return;
+
     // **Its own arm rather than a third name on the fall-through above**,
     // because it is the only one of the three with fields to check. A
     // percentage is a number a die is thrown against, so the range is the
@@ -10416,6 +10430,7 @@ export const EFFECT_KINDS: ReadonlySet<string> = new Set([
   'speed',
   'light',
   'sense',
+  'repairs',
   'damage-reduction',
   'fall-ward',
   'jump-allowance',

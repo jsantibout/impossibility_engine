@@ -126,7 +126,12 @@ const HANDOVERS: readonly string[] = [
   'locate-animals-or-plants',
   'locate-object',
   'mage-hand',
-  'mending',
+  // **Mending has left this list by being paid.** Its entry said the engine
+  // tracks nothing about an object's condition, and the one fact it does track —
+  // a printed penalty on a copy, the thing SRD Rust Monster's Antennae and both
+  // Pseudopods leave — is lifted by a `repairs` effect now, so the spell is
+  // executed-partial rather than a handover. What is still fiction is on its own
+  // `dmDecides`. (W7-B11)
   'message',
   'purify-food-and-drink',
   // Rope Trick stood here until the second place was built: its climb, its
@@ -260,6 +265,13 @@ const EXECUTES: readonly string[] = [
   // Both directions of ground are written — `AreaTerrain.clears` and a branch's
   // own terrain over an immobile Emanation — so the debt this list filed is paid.
   'speak-with-plants',
+  // And the one that came here off {@link HANDOVERS}: the reading that filed
+  // Mending as fiction was right about the object's *condition* and wrong about
+  // the object's *record*. Three bestiary lines print "the penalty can be
+  // removed by casting the _Mending_ spell", the penalty is a number on the
+  // equipped copy, and `repairs` lifts it — so the spell is executed and the
+  // break, the foot and the magic item are its own `dmDecides`. (W7-B11)
+  'mending',
 ];
 
 /**

@@ -524,9 +524,13 @@ describe('a Reaction a stat block prints against the blow that triggered it', ()
  * SRD Rust Monster, Reflexive Antennae: "_Trigger:_ An attack roll hits the
  * rust monster. _Response:_ The rust monster uses Antennae." The trigger is
  * the window above; the response is a printed line, and the rust monster's
- * Antennae is a save nothing has read yet. So the Reaction is offered, the
- * Reaction is spent, and the response is handed to the table **by name** —
- * which is what a handover is, rather than half a sentence performed.
+ * Antennae is a printed save. So the Reaction is offered and spent, and
+ * `performPrintedResponse` rolls the named line where it can reach what the
+ * line wants — see `reflexive-antennae.test.ts`, which is the performance's own
+ * test. What is tested *here* is the other half: a blow struck with a **stat
+ * block's own** attack puts no copy of a weapon in the trigger, and Antennae's
+ * prelude reaches "an object worn or carried", so the line is handed to the
+ * table by name rather than half performed. (W7-B11)
  */
 describe('a Reaction whose response is another printed line', () => {
   const RUST = id('rust');
@@ -607,7 +611,7 @@ describe('a Reaction whose response is another printed line', () => {
     ]);
   });
 
-  it('spends the Reaction and hands the response over by name', () => {
+  it('spends the Reaction and hands the response over by name where it reaches nothing', () => {
     const table = facingOff();
     const held = table.do('the swing', () => ({ ok: true, value: heldHit(table) }));
     const taken = unwrap(

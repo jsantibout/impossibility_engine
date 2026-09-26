@@ -172,11 +172,41 @@ export interface AdaptedMonster {
    */
   readonly pools: readonly PoolDeclaration[];
   /**
+   * The objects this block **arrives holding** — SRD Night Hag's Soul Bag.
+   *
+   * Not on the sheet, and that is the reading rather than an oversight: the bag
+   * is a *thing in the game* with an Armour Class and Hit Points of its own, so
+   * it is a creature-shaped record raised beside the hag rather than a field on
+   * the hag. What the sheet carries is the **gate** — the heading's "Requires
+   * Soul Bag", compiled into a `while-carrying` requirement — and the two meet
+   * at `carriedObjectId`, which derives one id from the block's own noun.
+   *
+   * Empty for every other block in the book. (W7-B11)
+   */
+  readonly carries: readonly CarriedPrintedObject[];
+  /**
    * Entries that carried a caveat the engine cannot enforce, kept verbatim so
    * narration and the DM still have them — "Charmed (except from its vampire
    * master)" is a real restriction that no boolean captures.
    */
   readonly caveats: readonly string[];
+}
+
+/**
+ * One object a stat block arrives holding, as the line printed it.
+ *
+ * SRD Night Hag, Soul Bag: "The bag has AC 15, HP 20, and Resistance to all
+ * damage." The three numbers and the noun, and nothing derived from any of them:
+ * `raisePrintedObject` takes exactly this and pins it, which is rule 5 asked of
+ * a thing the book has already given statistics to. (W7-B11)
+ */
+export interface CarriedPrintedObject {
+  /** The line's own word for it: "soul bag". */
+  readonly noun: string;
+  readonly armorClass: number;
+  readonly hitPoints: number;
+  /** "Resistance to all damage" — the phrase the book prints, as a flag. */
+  readonly resistsAllDamage: boolean;
 }
 
 const DAMAGE_SET = new Set<string>(DAMAGE_TYPES);
@@ -1604,8 +1634,11 @@ const SUNLIT_ROLL: Readonly<Record<'ability-check' | 'attack-roll' | 'saving-thr
  * the two strings the stat block supplied. It is a label rather than a lookup:
  * only `while-worn` and `while-attuned` read `StandingEffect.feature` as an
  * item's id, and neither is a requirement any of these carries.
+ *
+ * Exported so a test names the key the adapter minted rather than retyping the
+ * rule that mints it — the same reason `printedLinePoolKey` is. (W7-B11)
  */
-const printedTraitKey = (monsterId: string, name: string): string =>
+export const printedTraitKey = (monsterId: string, name: string): string =>
   `${monsterId}:${name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')}`;
 
 /**
@@ -1942,6 +1975,76 @@ type MonsterLine = Monster['traits'][number];
  * and compiles nothing outside Bonus Actions. Nothing else here is told,
  * because nothing else depends on it.
  */
+/**
+ * SRD Magmin's Ignited Illumination, onto the sheet as the light it is.
+ *
+ * "The magmin sets itself ablaze or extinguishes its flames. While ablaze, the
+ * magmin sheds Bright Light in a 10-foot radius and Dim Light for an additional
+ * 10 feet."
+ *
+ * **A `light` grant gated on this very line being active**, which is exactly how
+ * SRD Sacred Weapon's glow is compiled and exactly what `activatedLight` reads
+ * off a sheet — so the magmin ablaze and the paladin's blade shed light through
+ * one reader, and the toggle is `activeFeatures` rather than a second record.
+ * That is why nothing about light is new: `lightAt` already carries a patch
+ * whose origin is a creature, and it was already reading this shape.
+ *
+ * The two radii are the line's own. The level is Bright because the sentence
+ * says Bright; the dim run beyond it is what `AreaLight.dimBeyond` is, laid as
+ * the wider patch `carriedLight` derives. (W7-B11)
+ */
+function printedToggledLight(line: MonsterLine, key: string): readonly StandingEffect[] {
+  const shed = line.togglesLight;
+  if (shed === undefined) return [];
+  return [
+    {
+      feature: key,
+      name: line.name,
+      reach: { kind: 'self' },
+      grant: {
+        kind: 'light',
+        level: 'bright',
+        radius: shed.brightRadiusFeet,
+        ...(shed.dimBeyondFeet === 0 ? {} : { dimBeyond: shed.dimBeyondFeet }),
+      },
+      // The switch, and the one shape `activatedLight` honours besides an
+      // unconditional glow.
+      requires: [{ kind: 'feature-active', feature: key }],
+    },
+  ];
+}
+
+/**
+ * The requirement a heading's "Requires X" clause compiles to, or null.
+ *
+ * SRD prints the clause on **two** headings, and only one of them is a thing
+ * this engine can see: the Night Hag's "Requires Soul Bag" names the noun of her
+ * own `carries-printed-object` trait, and the Erinyes' "Requires Magic Rope"
+ * names a rope no trait, no Gear line and no item record puts anywhere. A gate
+ * compiled for the second would be a printed action nothing could ever take —
+ * a rule the book did not print, which is worse than a rule it did print and the
+ * engine does not check.
+ *
+ * So the gate is compiled **only where the same block carries the thing**, folded
+ * the way `carriedObjectId` folds it, and the clause is otherwise left on the
+ * line as the word the parser read — reported at the door that spends the line,
+ * where every other unenforceable fact about a heading is reported. See
+ * `unenforcedRequirementOf`. (W7-B11)
+ */
+function carryingRequirement(
+  monster: Monster,
+  line: MonsterLine,
+): readonly StandingRequirement[] | null {
+  const wanted = line.requiresObject;
+  if (wanted === undefined) return null;
+  const fold = (noun: string): string => noun.trim().toLowerCase();
+  const carried = monster.traits.some(
+    (trait) =>
+      trait.trait?.kind === 'carries-printed-object' && fold(trait.trait.noun) === fold(wanted),
+  );
+  return carried ? [{ kind: 'while-carrying', object: wanted }] : null;
+}
+
 function printedStanding(monster: Monster): { readonly standing?: readonly StandingEffect[] } {
   const sections: readonly (readonly [readonly MonsterLine[], boolean])[] = [
     [monster.traits, false],
@@ -1963,6 +2066,7 @@ function printedStanding(monster: Monster): { readonly standing?: readonly Stand
         ...printedBlur(line, key),
         ...printedCarryingCapacity(line, key),
         ...printedBonusActionAllowance(line, key, costsABonusAction),
+        ...printedToggledLight(line, key),
       ];
     }),
   );
@@ -2131,8 +2235,13 @@ function printedAcAddendReaction(monster: Monster, line: MonsterLine): ReactionF
  * monster uses Antennae." The trigger is the window above and the response is
  * the **name** of another line of this same block — carried as a name for
  * `AttackCommand.action`'s reason, so what the response is stays that line's
- * business and a line nothing reads is handed to the table rather than half
- * performed.
+ * business.
+ *
+ * **The name is what the Reaction's own road looks up and rolls** (W7-B11):
+ * `takeAttackReaction` finds the heading on this very sheet and, where the
+ * printed-save reader got a saving throw out of it, performs it. A heading the
+ * reader read nothing out of is still handed to the table rather than half
+ * performed, which is what a name rather than a compiled effect keeps possible.
  */
 function printedLineUseReaction(monster: Monster, line: MonsterLine): ReactionFeature | null {
   if (line.usesLine === undefined) return null;
@@ -2149,6 +2258,44 @@ function printedLineUseReaction(monster: Monster, line: MonsterLine): ReactionFe
 }
 
 /**
+ * SRD Legendary Resistance, onto the sheet as the Reaction it is — though the
+ * book prints it under **Traits**.
+ *
+ * "If the unicorn fails a saving throw, it can choose to succeed instead."
+ * Where the heading is does not decide what a sentence *is*: this one names an
+ * instant the engine holds (`test-rolled`), a thing a creature may choose to do
+ * at it, and a pool it comes out of. The Reactions section is where the book
+ * puts the lines that spend the Reaction, and this one spends none — which is
+ * exactly what `costsReaction: false` is for, and why reading it as a Reaction
+ * feature grants nothing the sentence withheld.
+ *
+ * The count is the heading's `(3/Day)`, on the `dawn` clock every printed
+ * per-day limit is on; a block printing the sentence with no count at all gets
+ * `pool: null`, which is a permission with no limit — what the sentence then
+ * says. (W7-B11)
+ */
+function printedSucceedInsteadReaction(
+  monster: Monster,
+  line: MonsterLine,
+): ReactionFeature | null {
+  if (line.trait?.kind !== 'chooses-to-succeed-on-a-failed-save') return null;
+
+  return {
+    feature: printedTraitKey(monster.id, line.name),
+    name: line.name,
+    window: 'test-rolled',
+    // The book limits it with a pool and says nothing whatever about the
+    // action economy, so a unicorn that has already spent its Reaction may
+    // still turn a save.
+    costsReaction: false,
+    pool: line.perDay === undefined ? null : printedLinePoolKey(line.name),
+    // "If the unicorn fails a saving throw" — its own, and nobody else's.
+    reach: { kind: 'self' },
+    does: { kind: 'succeed-instead' },
+  };
+}
+
+/**
  * Every Reaction the block prints that this adapter can compile, and the pools
  * they come out of.
  *
@@ -2161,6 +2308,15 @@ function printedLineUseReaction(monster: Monster, line: MonsterLine): ReactionFe
  * Attack — and the others are each a different sentence, from an octopus's ink
  * to the Stone Giant's deflection. Those stay prose and stay on the ledger,
  * named there rather than argued about here.
+ *
+ * **And a fourth shape that is not printed under that heading at all** — SRD
+ * Legendary Resistance, printed under **Traits**, which answers the
+ * `test-rolled` window and spends no Reaction. Where a line is printed says
+ * what it *costs* and nothing else this adapter can see, which is the reading
+ * `forcePrintedSave` already takes of a save printed under two headings; a
+ * sentence that costs nothing is the case that makes the reading plainest. So
+ * the walk is over the Traits section as well, and `costsReaction: false` is
+ * what keeps it from granting anything the sentence withheld. (W7-B11)
  */
 function printedReactions(monster: Monster): {
   readonly reactions: readonly ReactionFeature[];
@@ -2169,8 +2325,14 @@ function printedReactions(monster: Monster): {
   const reactions: ReactionFeature[] = [];
   const pools: PoolDeclaration[] = [];
 
-  for (const line of monster.reactions) {
+  // **The Traits section is read too**, and for one sentence: SRD Legendary
+  // Resistance answers a window this engine holds and spends no Reaction, so
+  // the heading it is printed under says what it *costs* and nothing else the
+  // engine can see — the reading `forcePrintedSave` already takes of a save
+  // printed under two different headings. (W7-B11)
+  for (const line of [...monster.traits, ...monster.reactions]) {
     const reaction =
+      printedSucceedInsteadReaction(monster, line) ??
       printedRollAddendReaction(monster, line) ??
       printedAcAddendReaction(monster, line) ??
       printedLineUseReaction(monster, line);
@@ -2532,9 +2694,21 @@ export function adaptMonster(printed: Monster, id: CharacterId): AdaptedMonster 
       // takes the stride.
       ...(line.jumps === undefined ? {} : { jumps: line.jumps }),
       ...(line.dashes === undefined ? {} : { dashes: line.dashes }),
+      ...(line.rampages === undefined ? {} : { rampages: line.rampages }),
+      ...(line.togglesLight === undefined ? {} : { togglesLight: line.togglesLight }),
       ...(line.treeStride === undefined ? {} : { treeStride: line.treeStride }),
       // And the forms the heading gates the line to, where it names any.
       ...(line.onlyInForms === undefined ? {} : { onlyInForms: [...line.onlyInForms] }),
+      // And the thing the heading says the line may not be taken without — SRD
+      // Night Hag's "Requires Soul Bag", compiled into the requirement
+      // vocabulary a standing effect is already gated by. **The word is carried
+      // whether or not a gate was compiled**, because the two say different
+      // things: the word is what the heading printed, and the gate is the half
+      // the engine can check. See `carryingRequirement`. (W7-B11)
+      ...(line.requiresObject === undefined ? {} : { requiresObject: line.requiresObject }),
+      ...(carryingRequirement(monster, line) === null
+        ? {}
+        : { requires: carryingRequirement(monster, line)! }),
     }));
 
   // **The Bonus Actions section, carried whole and executed not at all.** A
@@ -2580,10 +2754,22 @@ export function adaptMonster(printed: Monster, id: CharacterId): AdaptedMonster 
     // Dryad's Tree Stride are printed here.
     ...(line.jumps === undefined ? {} : { jumps: line.jumps }),
     ...(line.dashes === undefined ? {} : { dashes: line.dashes }),
+    // **Both Rampages are printed here**, which is why the field is read on
+    // this section as well as the other — W7-B11.
+    ...(line.rampages === undefined ? {} : { rampages: line.rampages }),
+    // **The one line in the book is printed here** — W7-B11.
+    ...(line.togglesLight === undefined ? {} : { togglesLight: line.togglesLight }),
     ...(line.treeStride === undefined ? {} : { treeStride: line.treeStride }),
     // And the forms the heading gates it to: SRD Weretiger's Prowl is the one
     // Bonus Action in the book that prints the clause.
     ...(line.onlyInForms === undefined ? {} : { onlyInForms: [...line.onlyInForms] }),
+    // And the thing the heading requires, on this section for the reason
+    // everything else here is: a heading says what a use costs. No SRD Bonus
+    // Action prints the clause. (W7-B11)
+    ...(line.requiresObject === undefined ? {} : { requiresObject: line.requiresObject }),
+    ...(carryingRequirement(monster, line) === null
+      ? {}
+      : { requires: carryingRequirement(monster, line)! }),
   }));
 
   const stated: StatedValues = {
@@ -2671,6 +2857,22 @@ export function adaptMonster(printed: Monster, id: CharacterId): AdaptedMonster 
     // one block agree about the order and a log compares byte for byte.
     pools: [...spellPools, ...reactionPools, ...legendaryPools].sort((a, b) =>
       a.key < b.key ? -1 : a.key > b.key ? 1 : 0,
+    ),
+    // The objects the block arrives holding — SRD Night Hag's Soul Bag, and
+    // nothing else in the book. Read straight off the trait the parser read,
+    // because the numbers are the line's own and the arrival pins them.
+    // (W7-B11)
+    carries: monster.traits.flatMap((line) =>
+      line.trait?.kind === 'carries-printed-object'
+        ? [
+            {
+              noun: line.trait.noun,
+              armorClass: line.trait.armorClass,
+              hitPoints: line.trait.hitPoints,
+              resistsAllDamage: line.trait.resistsAllDamage,
+            },
+          ]
+        : [],
     ),
     // And the cast lines the adapter refused whole, for the reason it refused
     // them: an ability the block never stated, or a spell it already casts by
@@ -3641,6 +3843,28 @@ const PRINTED_ARMOR_PENALTY =
 const ARMOR_DESTROYED_AT_TEN = /^The armor is destroyed if the penalty reduces its AC to 10\.$/;
 
 /**
+ * The sentence after that one — SRD Black Pudding's Dissolving Pseudopod and
+ * SRD Gray Ooze's Pseudopod: "The penalty can be removed by casting the
+ * _Mending_ spell on the armor."
+ *
+ * **Consumed for {@link ARMOR_DESTROYED_AT_TEN}'s reason, now that something
+ * removes it.** SRD Mending carries a `repairs` effect that clears the recorded
+ * penalty from the copy the caster names, so the sentence states a rule the
+ * engine keeps rather than a promise it cannot honour — and, like the ceiling
+ * above it, the rule belongs to the *penalty* rather than to any one line, so
+ * there is nothing on the rider to store. A clause with no penalty in front of
+ * it is a rule about nothing and goes back to the table, which is the reading
+ * the ceiling already takes.
+ *
+ * The object word is the line's: the two hits say "the armor" where the Rust
+ * Monster's save says "the armor or weapon", and the two Corrosive Forms say
+ * "the weapon". All three are the same rule, so all three are matched here and
+ * whichever reader holds the penalty consumes it. (W7-B11)
+ */
+const MENDING_LIFTS_PENALTY =
+  /^The penalty can be removed by casting the _Mending_ spell on the (?:armor|weapon|armor or weapon)\.$/;
+
+/**
  * SRD Shadow's Draining Swipe: "and the target's Strength score decreases by
  * 1d4."
  *
@@ -4244,7 +4468,9 @@ function readClause(text: string): ClauseRead | null {
   const corroded = PRINTED_ARMOR_PENALTY.exec(text);
   if (corroded !== null) return one({ kind: 'armor-penalty', points: Number(corroded[1]) });
 
-  if (ARMOR_DESTROYED_AT_TEN.test(text)) return { kind: 'armor-detail' };
+  if (ARMOR_DESTROYED_AT_TEN.test(text) || MENDING_LIFTS_PENALTY.test(text)) {
+    return { kind: 'armor-detail' };
+  }
 
   // SRD Shadow: the drain, and the sentence about it that states the rule the
   // swing keeps.
@@ -4590,9 +4816,11 @@ export function readPrintedRiders(text: string): PrintedRidersRead {
 
     if (read.kind === 'armor-detail') {
       const host = riders.at(-1);
-      // The ceiling belongs to the penalty before it, and the swing already
-      // keeps it. Nothing is stored; a clause with no penalty in front of it
-      // names a rule about nothing, and it goes back to the table.
+      // The ceiling and the Mending that lifts it both belong to the penalty
+      // before them: the swing already keeps the one and SRD Mending's
+      // `repairs` effect keeps the other. Nothing is stored; a clause with no
+      // penalty in front of it names a rule about nothing, and it goes back to
+      // the table.
       if (host === undefined || host.kind !== 'armor-penalty') handedOver.push(clause);
       continue;
     }

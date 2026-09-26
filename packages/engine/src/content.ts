@@ -1303,6 +1303,13 @@ export const REQUIREMENT_KINDS: ReadonlySet<string> = new Set([
   // casting, so a benefit fenced by it would never hold rather than always.
   // (W7-S19)
   'within-feet-of',
+  // And the printed object a stat block arrived holding — SRD Night Hag's Soul
+  // Bag. Here for `in-sunlight`'s reason, which is the rule this set keeps: it
+  // is held equal to the union rather than curated, so a member that exists is
+  // a member content may write. What it derives is an id off the *holder* and a
+  // noun, which is exactly as expressible by a homebrew item ("while you carry
+  // the reliquary") as by the hag's own block. (W7-B11)
+  'while-carrying',
 ]);
 
 /** The one requirement only a spell's grant can carry — see `StandingRequirement.within-feet-of`. */

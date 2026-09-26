@@ -26,8 +26,10 @@ import { createRollIssuer } from './rolls.js';
  * be removed by casting the _Mending_ spell on the armor."
  *
  * The equipped record is where it lands — it is already pinned and already
- * carries the copy — and `armorClassOf` is the one reader. The Mending half is
- * the spells side's and is handed to the table.
+ * carries the copy — and `armorClassOf` is the reader that spends it. **The
+ * Mending half is the engine's now** (W7-B11): SRD Mending carries a `repairs`
+ * effect that clears the recorded penalty, so the sentence is consumed beside
+ * the ceiling above it rather than handed over, and `mending.test.ts` drives it.
  */
 
 const id = (s: string) => asCharacterId(s);
@@ -228,12 +230,16 @@ describe('armour a hit wears down', () => {
 
   /**
    * "The penalty can be removed by casting the _Mending_ spell on the armor" is
-   * the spells side's, so it goes back to the table with the line's own words.
+   * a rule about the penalty above it, exactly as the ceiling beside it is — and
+   * the engine keeps it now: SRD Mending carries a `repairs` effect that clears
+   * the recorded penalty from the copy the caster names. So the sentence is
+   * consumed rather than carried, and the hit reports nothing about it.
+   * `mending.test.ts` is where the other half is driven. (W7-B11)
    */
-  it('hands the Mending sentence back', () => {
+  it('keeps the Mending sentence rather than handing it back', () => {
     const table = field('black-pudding');
     const out = swing(table, 'Dissolving Pseudopod');
 
-    expect(out.unverified.join(' ')).toContain('Mending');
+    expect(out.unverified.join(' ')).not.toContain('Mending');
   });
 });

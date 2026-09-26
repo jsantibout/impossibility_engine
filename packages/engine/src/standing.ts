@@ -73,7 +73,7 @@ import {
 } from './positioning.js';
 import type { CreatureState, GameState } from './events.js';
 import { typeMagicSees } from './creature-type.js';
-import type { EquippedItem } from './state.js';
+import { carriedObjectId, type EquippedItem } from './state.js';
 import {
   castingIdOf,
   creaturesStandingInCastingArea,
@@ -1964,7 +1964,29 @@ export type StandingRequirement =
    * and a `damage-defense`, because those are the three readers that ask it,
    * and a requirement a reader never asks is a benefit quietly granted whole.
    */
-  | { readonly kind: 'within-feet-of'; readonly creature: 'caster'; readonly feet: number };
+  | { readonly kind: 'within-feet-of'; readonly creature: 'caster'; readonly feet: number }
+  /**
+   * SRD Night Hag: "Nightmare Haunting (1/Day; **Requires Soul Bag**)", and the
+   * trait behind it — "While holding or carrying the bag, the hag can use its
+   * Nightmare Haunting action."
+   *
+   * **The thing is a printed object the block arrived holding**, raised by
+   * `raisePrintedObject` under the id `carriedObjectId` derives from the noun
+   * and the creature — so this member carries the *noun* and derives the id at
+   * the moment of the question, exactly as `in-sunlight` derives the light. The
+   * requirement holds while that object is in the game and has not been
+   * destroyed, which is the whole of what the engine can see about holding it:
+   * the bag turns to dust at 0 Hit Points through the ordinary death every
+   * printed object dies by, and there is nothing else to remember.
+   *
+   * **What it deliberately does not check is a hand.** SRD says "holding or
+   * carrying", the engine holds no relation between a creature and an object it
+   * arrived with beyond the id that names the pair, and a check on `equipped`
+   * would refuse the hag the book gives the bag to. A bag somebody has taken
+   * away is a fiction the table states by destroying it or by not, which is the
+   * same answer `declareObject` gives every other thing in the room. (W7-B11)
+   */
+  | { readonly kind: 'while-carrying'; readonly object: string };
 
 /** One benefit a feature grants, with its reach already resolved to feet. */
 export interface StandingEffect {
@@ -3545,6 +3567,15 @@ export function requirementsHold(
     }
     if (requirement.kind === 'while-bloodied' && !isBloodied(creature)) {
       return false;
+    }
+    // The printed object the block arrived holding, derived rather than
+    // remembered: the id is what `carriedObjectId` mints out of the noun and
+    // this creature, and the question is whether that thing is still in the
+    // game and not destroyed. A bag the log never raised and a bag turned to
+    // dust answer the same way, which is what the sentence says.
+    if (requirement.kind === 'while-carrying') {
+      const bag = state.creatures[carriedObjectId(who, requirement.object)];
+      if (bag === undefined || bag.vitals.dead) return false;
     }
     // SRD Warding Bond's "while the target is within 60 feet of you": the
     // caster is found through the source's casting, and the distance is read

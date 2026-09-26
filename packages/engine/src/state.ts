@@ -147,10 +147,18 @@ export interface EquippedItem {
    * Absent is no wear at all, which is what every log written before acid
    * could bite says — so both frozen fixtures fold unchanged.
    *
-   * Read by `armorClassOf` alone. The armour is *destroyed* rather than
-   * penalised once the penalty would take what it offers to 10, and that is
-   * the command's arithmetic rather than a state this can hold: a destroyed
-   * suit leaves the inventory through the door every lost item leaves by.
+   * **Three readers**, and the docstring said one until W7-B11 counted them:
+   * `armorClassOf` subtracts it from what a suit offers, `heldWeaponPenalty`
+   * turns it into the named subtraction a swing carries, and
+   * `clearPrintedPenalty` takes it off again — SRD Mending, the one sentence in
+   * the book that undoes acid or rust.
+   *
+   * The armour is *destroyed* rather than penalised once the penalty would take
+   * what it offers to 10, and that is the command's arithmetic rather than a
+   * state this can hold: a destroyed suit leaves the inventory through the door
+   * every lost item leaves by. A **mended** copy is this field gone entirely
+   * rather than a zero in it, so a copy nothing ever ate and a copy somebody
+   * mended are the same record again.
    */
   readonly penalty?: number;
 }
@@ -438,6 +446,33 @@ export const heldByObjectSource = (object: CharacterId): string => `held-by:${ob
 /** Which thing holds a condition, read back out of the source. Null for any other cause. */
 export const heldByObject = (source: string): CharacterId | null =>
   source.startsWith('held-by:') ? (source.slice('held-by:'.length) as CharacterId) : null;
+
+/**
+ * What the engine calls an object a **stat block arrived holding**.
+ *
+ * SRD Night Hag, Soul Bag: "The hag has a soul bag." Every other thing in a game
+ * is named by whoever described it or derived from the use that made it
+ * (`printedObjectId`); this one is named by the block and the creature, because
+ * there is one of it per creature and no use to count — the hag is born with the
+ * bag and the seven days before a second one are the table's.
+ *
+ * **Derived rather than minted**, the rule every id the engine issues keeps: a
+ * replay raises the same bag under the same name, and the requirement that gates
+ * Nightmare Haunting works the name out again instead of remembering it.
+ *
+ * **Case-folded, because the book prints the noun twice in two cases**: the
+ * trait says "a soul bag" and the heading says "Requires Soul Bag", and they are
+ * the same thing typeset two ways. What is *not* folded is the wording — a
+ * heading naming some other noun than the trait's derives a different id and the
+ * gate withholds, which is the conservative direction and the right one: two
+ * names is a block that has not said the two clauses are about one thing.
+ *
+ * Here, beside the other derivations, for their reason: the **fold** raises the
+ * object at the arrival and `standing.ts` asks after it at the gate, and nothing
+ * under `fold/` may reach a command. (W7-B11)
+ */
+export const carriedObjectId = (holder: CharacterId, noun: string): CharacterId =>
+  `${noun.trim().toLowerCase().replace(/\s+/g, '-')}:${holder}` as CharacterId;
 
 export interface CreatureState {
   readonly id: CharacterId;
@@ -1274,6 +1309,23 @@ export interface LastDamage {
   readonly by: CharacterId;
   readonly turn: number | null;
   readonly elapsed: number;
+  /**
+   * Whether this creature was **already** Bloodied when the blow landed.
+   *
+   * SRD Gnoll Warrior's Rampage: "Immediately after dealing damage to a
+   * creature that is **already** Bloodied" — before the damage, not after it.
+   * `isBloodied` asked now cannot answer that: a creature the blow *took* to
+   * half its Hit Points is Bloodied and was not, and the sentence excludes it.
+   *
+   * **Derived by the reducer from the state it is reducing, and carried on no
+   * event.** The fold holds the creature as it stood before the `damage-taken`
+   * it is applying, so the answer is arithmetic on a record it already has —
+   * the same kind of derivation `turn` and `elapsed` beside it are, and nothing
+   * a command could tell it better. Absent means "not Bloodied, or a log
+   * written before the field", which read the same way then and reads the same
+   * way now: no Rampage. Both frozen fixtures fold unchanged. (W7-B11)
+   */
+  readonly wasBloodied?: true;
 }
 
 /**

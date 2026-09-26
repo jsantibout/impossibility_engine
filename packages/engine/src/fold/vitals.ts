@@ -17,6 +17,7 @@ import {
 } from '../conditions.js';
 import { ABILITY_NAMES } from '@ie/shared';
 import { printedLineSource, triggeredSavesOf } from '../monster.js';
+import { isBloodied } from '../standing.js';
 import { creaturesInArea } from '../positioning.js';
 import {
   pendingSaveKey,
@@ -259,6 +260,14 @@ function reduceVitals({ state, next }: Applying, event: VitalsEvent): GameState 
                   by: event.by,
                   turn: state.combat?.turnsTaken ?? null,
                   elapsed: state.elapsed,
+                  // **Asked of the creature as it stood before this blow**,
+                  // which is the only moment the answer exists: SRD Rampage
+                  // reaches "a creature that is **already** Bloodied", and one
+                  // the blow took past half was not. `creature` is the
+                  // pre-event record, so this is arithmetic on what the fold
+                  // already holds rather than a fact any event carries.
+                  // (W7-B11)
+                  ...(isBloodied(creature) ? { wasBloodied: true as const } : {}),
                 },
               }),
         },

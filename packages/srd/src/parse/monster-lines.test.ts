@@ -107,10 +107,13 @@ describe('a line that casts', () => {
         'The pit fiend casts _Fireball_ (level 5 version) twice, requiring no Material components and using Charisma as the spellcasting ability (spell save DC 21). It can replace one _Fireball_ with _Hold Monster_ (level 7 version) or _Wall of Fire_.',
       ),
     ).toBeNull();
-    // SRD Unicorn's Blessing: a touch, and a target the shape cannot hold.
+    // **SRD Unicorn's Blessing left this list by being read** (W7-B11): the
+    // touch is consumed, because both spells print a Range of Touch already,
+    // and "on that creature" is the `notSelf` flag. What stays refused is the
+    // dangling form of it — the clause with nothing to refer back to.
     expect(
       parseCastLine(
-        "The unicorn touches another creature with its horn and casts _Cure Wounds_ or _Lesser Restoration_ on that creature, using the same spellcasting ability as Spellcasting.",
+        'The lich casts _Cure Wounds_ on that creature, using the same spellcasting ability as Spellcasting.',
       ),
     ).toBeNull();
     // A name the SRD's own spell index does not hold.
@@ -517,6 +520,10 @@ describe('the corpus', () => {
       'quasit/Invisibility',
       'sprite/Invisibility',
       'stone-golem/Slow (Recharge 5–6)',
+      // W7-B11: the menu of two, the ability borrowed off the block's own
+      // Spellcasting line, and the target the touch clause fixes to somebody
+      // other than the caster.
+      "unicorn/Unicorn's Blessing (3/Day)",
     ]);
 
     // Asserted over the corpus rather than assumed, which is how every other

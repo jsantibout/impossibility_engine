@@ -1621,6 +1621,24 @@ export const MonsterCastLineSchema = z.object({
    * the spell's own rule and the caller's answer.
    */
   selfOnly: z.literal(true).optional(),
+  /**
+   * The line casts on **another** creature, and never on its own caster.
+   *
+   * SRD Unicorn's Blessing: "The unicorn touches another creature with its horn
+   * and casts _Cure Wounds_ or _Lesser Restoration_ **on that creature**."
+   * {@link selfOnly}'s mirror, and the same kind of fact: a target the sentence
+   * fixes rather than one the caller chooses. Where that one narrows the list to
+   * the caster, this one takes the caster out of it.
+   *
+   * The touch itself is read and consumed rather than carried: both spells the
+   * menu offers print a Range of Touch, so a field for the horn would be a
+   * second copy of the spell's own rule. What "another creature" says is the
+   * whole of what this holds.
+   *
+   * Never set beside `selfOnly`, which would be one sentence saying two
+   * opposite things; the pattern that reads them can match only one. (W7-B11)
+   */
+  notSelf: z.literal(true).optional(),
 });
 export type MonsterCastLine = z.infer<typeof MonsterCastLineSchema>;
 
@@ -1876,6 +1894,66 @@ export const MonsterDashSchema = z.object({
 export type MonsterDash = z.infer<typeof MonsterDashSchema>;
 
 /**
+ * One line a creature takes **immediately after damaging a creature that was
+ * already Bloodied**.
+ *
+ * SRD Gnoll Warrior, Rampage (1/Day): "Immediately after dealing damage to a
+ * creature that is already Bloodied, the gnoll moves up to half its Speed, and
+ * it makes one Rend attack." SRD Giant Hyena prints the same with a Bite and
+ * with "can move" where the gnoll's says "moves".
+ *
+ * **The trigger is the whole reason this is its own shape rather than a
+ * `dashes` with an attack bolted on.** A `dashes` line is a move a creature
+ * takes because it spent the slot; this one is a move it may take *only* if a
+ * fact about somebody else's hit points was true a moment ago — "already
+ * Bloodied", which is Bloodied **before** the blow and not after it. That fact
+ * is `LastDamage.wasBloodied`, read at the door.
+ *
+ * The attack is a **name**, for `AttackCommand.action`'s reason: the block
+ * printed which of its own lines, and a door that took an attack bonus is a
+ * door a model-authored +12 walks through. What the engine grants is one
+ * attack outside the Attack action, and the name it should be swung with is
+ * reported — `GrantedAttacks` narrows by `unarmedOnly` and by nothing else,
+ * which is the SRD's own narrowing and the only one printed anywhere else.
+ * (W7-B11)
+ */
+export const MonsterRampageSchema = z.object({
+  /** "up to half its Speed" — both printed lines say half. */
+  fraction: z.enum(['whole', 'half']),
+  /** The attack the line names, by the heading the block prints it under. */
+  attack: z.string().min(1),
+  /** How many of it: "one Rend attack" is 1. */
+  attacks: z.number().int().min(1),
+});
+export type MonsterRampage = z.infer<typeof MonsterRampageSchema>;
+
+/**
+ * One line that switches a light **on**, and which the next use switches off.
+ *
+ * SRD Magmin, Ignited Illumination: "The magmin sets itself ablaze or
+ * extinguishes its flames. While ablaze, the magmin sheds Bright Light in a
+ * 10-foot radius and Dim Light for an additional 10 feet."
+ *
+ * The two radii and nothing else, for the reason `sheds-light` carries its two:
+ * the blocks that print this shape would differ in the numbers and in nothing
+ * the engine can see. **The toggle is not a field**, because it is the whole of
+ * what the shape *is* — a line that has this record is a line a use flips.
+ *
+ * `sheds-light`'s sibling and the difference is a *state*: that trait glows
+ * always and is read straight off the sheet, and this glows while the creature
+ * has switched it on. What the engine already had for "while switched on" is a
+ * `feature-active` requirement over a `light` grant, which is how SRD Sacred
+ * Weapon's glow is compiled, so nothing about light is new here. (W7-B11)
+ */
+export const MonsterLightToggleSchema = z.object({
+  /** The radius of Bright Light while it is on, in feet. */
+  brightRadiusFeet: z.number().int().min(0),
+  /** The Dim Light **beyond** that radius, in feet, as the book adds it. */
+  dimBeyondFeet: z.number().int().min(0),
+});
+export type MonsterLightToggle = z.infer<typeof MonsterLightToggleSchema>;
+
+/**
  * One line that teleports its creature from beside one tree to beside another.
  *
  * SRD Dryad, Tree Stride: "If within 5 feet of a Large or bigger tree, the
@@ -2102,6 +2180,36 @@ const MonsterTraitMechanicSchema = z.discriminatedUnion('kind', [
   }),
   z.object({
     /**
+     * SRD Night Hag, Soul Bag: "The hag has a soul bag. … The bag has AC 15,
+     * HP 20, and Resistance to all damage."
+     *
+     * **An object a block is born holding.** Every other thing in a game exists
+     * because somebody described it or because a use spun it; this one arrives
+     * with the stat block, and the hag's Nightmare Haunting is gated on still
+     * having it. The numbers are the line's own, pinned rather than read off a
+     * table, for `raisePrintedObject`'s reason: the book has already given this
+     * thing statistics and reading a table for it would be the engine overruling
+     * the page.
+     *
+     * **The noun is the line's own word**, so nothing here names a catalogue and
+     * a homebrew block printing "reliquary" gets a reliquary. The souls inside
+     * it and the seven days before a new one are the table's, carried in
+     * `handedOver`. (W7-B11)
+     */
+    kind: z.literal('carries-printed-object'),
+    /** The line's own noun for the thing: "soul bag". */
+    noun: z.string().min(1),
+    armorClass: z.number().int().min(1),
+    hitPoints: z.number().int().min(1),
+    /**
+     * "Resistance to all damage", which the book writes as a phrase rather than
+     * a list. A flag, because there is one phrase and a list would be thirteen
+     * copies of it free to fall out of step with the glossary.
+     */
+    resistsAllDamage: z.boolean(),
+  }),
+  z.object({
+    /**
      * SRD Shadow Stealth, printed under **Bonus Actions**: "While in Dim Light
      * or Darkness, the shadow takes the Hide action."
      *
@@ -2189,6 +2297,21 @@ const MonsterTraitMechanicSchema = z.discriminatedUnion('kind', [
      * fits.
      */
     kind: z.literal('magic-resistance'),
+  }),
+  z.object({
+    /**
+     * SRD Legendary Resistance: "If the unicorn fails a saving throw, it can
+     * choose to succeed instead."
+     *
+     * **A bare kind for `magic-resistance`'s reason.** Nothing in the sentence
+     * varies: one family of roll, one outcome replaced, and *how often* is the
+     * heading's `(3/Day)` — read by `parsePerDay` exactly as every other
+     * printed count is, so a block printing a different number needs nothing
+     * here. The rakshasa's "automatically succeeds on saving throws against
+     * spells" is a different rule about a narrower set of saves with no count
+     * at all, and the anchored pattern refuses it whole. (W7-B11)
+     */
+    kind: z.literal('chooses-to-succeed-on-a-failed-save'),
   }),
   z.object({
     /**
@@ -3028,6 +3151,21 @@ export const FeatureSchema = z.object({
    */
   dashes: MonsterDashSchema.optional(),
   /**
+   * The move and the swing this line takes after a blow on a creature that was
+   * already Bloodied — see {@link MonsterRampageSchema}.
+   *
+   * SRD prints both under Bonus Actions, and it is read on every section for
+   * the reason everything here is: the heading says what a use costs. (W7-B11)
+   */
+  rampages: MonsterRampageSchema.optional(),
+  /**
+   * The light this line switches on, and which its next use switches off — see
+   * {@link MonsterLightToggleSchema}. SRD prints the one line under Bonus
+   * Actions, and it is read on every section for the reason everything here is.
+   * (W7-B11)
+   */
+  togglesLight: MonsterLightToggleSchema.optional(),
+  /**
    * The teleport between two trees this line makes — see
    * {@link MonsterTreeStrideSchema}. SRD prints the one line under Bonus
    * Actions.
@@ -3047,6 +3185,19 @@ export const FeatureSchema = z.object({
    * downstream may branch on.
    */
   onlyInForms: z.array(z.string().regex(/^[a-z][a-z-]*$/)).min(1).optional(),
+  /**
+   * The thing this line may not be taken without, where its **heading** says so.
+   *
+   * SRD Night Hag: "Nightmare Haunting (1/Day; **Requires Soul Bag**)", and SRD
+   * Erinyes: "Entangling Rope (Requires Magic Rope)" — the two headings in the
+   * book that carry the clause. The hag's names the noun of a
+   * `carries-printed-object` trait on the same block, which is where that
+   * thing's statistics are; the Erinyes' names a rope nothing in the game holds.
+   * This field is the **word**, for both, because the word is what the book
+   * printed; whether the engine can gate on it is the adapter's question. Read
+   * off the name for {@link onlyInForms}' reason. (W7-B11)
+   */
+  requiresObject: z.string().min(1).optional(),
   /**
    * The flat addend this Reaction line puts on somebody's D20 Test — see
    * {@link MonsterRollAddendSchema}.

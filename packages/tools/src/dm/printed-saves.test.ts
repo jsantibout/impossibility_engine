@@ -243,8 +243,9 @@ describe('the door that rolls a printed line’s saving throw', () => {
       expect(one!['object']).toEqual({ item: 'longsword', penalty: 1, destroyed: false });
       expect(out.events.some((event) => event.type === 'weapon-penalised')).toBe(true);
     }
-    // The Mending sentence is the spells side's, and comes back as the table's.
-    expect(out.unverified.join(' ')).toContain('Mending');
+    // The Mending sentence is a rule about the penalty and the engine keeps it
+    // — SRD Mending's `repairs` effect — so nothing about it comes back.
+    expect(out.unverified.join(' ')).not.toContain('Mending');
     expect(out.events.some((event) => event.type === 'action-spent')).toBe(true);
   });
 
