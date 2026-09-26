@@ -309,6 +309,12 @@ export function lift(
   source: string,
   /** What the log calls the thing that lifted them: the spell's name. */
   name: string,
+  /**
+   * SRD Levitate's "up to 20 feet in either direction on your turn", read off
+   * the definition's activation and pinned onto the hold — see
+   * `GrantedLift.altitudePerTurn`. Absent for a spell that prints none.
+   */
+  altitudePerTurn?: number,
 ): PushOutcome {
   const scene = state.scene;
   if (scene === null) {
@@ -344,7 +350,11 @@ export function lift(
   return {
     events: [
       { type: 'creature-moved', id: target, placement, forced: true },
-      { type: 'creature-lifted', id: target, lift: { source } },
+      {
+        type: 'creature-lifted',
+        id: target,
+        lift: { source, ...(altitudePerTurn === undefined ? {} : { altitudePerTurn }) },
+      },
     ],
     unverified: [
       ...reach.unverified,

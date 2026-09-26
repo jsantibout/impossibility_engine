@@ -130,6 +130,21 @@ export interface MoveCommand extends CommandIdentity {
    */
   readonly forced?: boolean;
   /**
+   * SRD Levitate: "The target can move only by pushing or pulling against a
+   * fixed object or surface within reach (such as a wall or a ceiling), which
+   * allows it to move as if it were climbing."
+   *
+   * That there is a wall within reach is a fact about the room, which the
+   * engine holds nothing of — so a creature something is holding off the
+   * ground moves only as a climb (`mode: 'climb'`) and only when the move
+   * states the surface it pulls along, here. Absent, the move is asked for it
+   * (`surface_required`); stated, the climb goes through at the unaided
+   * climb's own doubled cost and the surface is reported in `unverified` as
+   * the table's. Ignored for a creature nothing is holding up, which is what
+   * every move written before the field existed says by saying nothing.
+   */
+  readonly alongSurface?: true;
+  /**
    * Feet a feature handed this turn, spent instead of the mover's own Speed.
    *
    * SRD Tactical Shift: "Whenever you activate your Second Wind with a Bonus
@@ -378,9 +393,19 @@ export function moveWithin(
     const ascent = checkRise(id, mode, command, rise);
     if (!ascent.ok) return ascent;
 
+    // — a creature something is holding up (W7-S19) —————————————————————————
+    //
+    // SRD Levitate's own half of the movement sentence: a held-up creature
+    // moves only as a climb, only along a surface the table has said is
+    // there, and — where it is holding *itself* up — only so many vertical
+    // feet a turn as the spell prints. Asked after the mode and the rise,
+    // because a walk it cannot make at all is refused before a climb it can.
+    const levitating = checkLevitating(state, id, command, mode, rise);
+    if (!levitating.ok) return levitating;
+
     // The one decision a climb leaves to the table, and the printed sentence
     // that answers it for the creatures whose blocks carry one.
-    const climbing = climbCheck(id, mode, command, sheet);
+    const climbing = [...climbCheck(id, mode, command, sheet), ...levitating.value];
 
     // **A carried area sweeps, and a move of more than one space does not say
     // what it swept.** Checked before any cost, any budget and any Opportunity
@@ -1054,6 +1079,94 @@ function checkRise(
     'cannot_rise',
     `${id} would end this move ${rise} feet higher than it started, and nothing is holding them up: fly it, climb it, or jump it`,
   );
+}
+
+/**
+ * What a creature something is holding off the ground may do with its own
+ * Speed — SRD Levitate's sentence, read off `CreatureState.lifts`.
+ *
+ * > "The target can move only by pushing or pulling against a fixed object or
+ * > surface within reach (such as a wall or a ceiling), which allows it to
+ * > move as if it were climbing. You can change the target's altitude by up
+ * > to 20 feet in either direction on your turn. If you are the target, you
+ * > can move up or down as part of your move."
+ *
+ * Three rules and three answers, in the order the sentence prints them:
+ *
+ * - **only as a climb** — every other mode is refused
+ *   (`levitating_cannot_walk`); the climb's surcharge is `wayOf`'s ordinary one,
+ *   because "as if it were climbing" is exactly the unaided climb;
+ * - **only along a surface within reach** — a fact about the room the engine
+ *   cannot see, so the move states it (`MoveCommand.alongSurface`) and is asked
+ *   for it otherwise (`surface_required`), and having stated it the surface is
+ *   reported as the table's;
+ * - **so many vertical feet a turn** — for a caster holding *themself* up, the
+ *   feet this move rises or falls plus the feet already altered this turn
+ *   (`GrantedLift.altered`, stamped by the fold off every altitude change) may
+ *   not pass the twenty the hold pinned (`altitude_spent`). A creature held up
+ *   by somebody else's casting is capped by nothing here: the twenty is the
+ *   caster's, and the caster spends it through the activation.
+ *
+ * A shove is exempt, for the reason it is exempt from everything else here:
+ * it is not the creature's movement. A creature nothing is holding up is not
+ * this rule's business at all.
+ */
+function checkLevitating(
+  state: GameState,
+  id: CharacterId,
+  command: MoveCommand,
+  mode: MovementMode,
+  rise: number,
+): Result<readonly string[]> {
+  if (command.forced === true) return ok([]);
+  const held = state.creatures[id]?.lifts ?? [];
+  if (held.length === 0) return ok([]);
+
+  if (mode !== 'climb') {
+    return err(
+      'levitating_cannot_walk',
+      `${id} is being held off the ground and can move only by pushing or pulling against a fixed object or surface within reach, as if climbing; send the move with mode: 'climb'`,
+    );
+  }
+  if (command.alongSurface !== true) {
+    return needsContext(
+      'surface_required',
+      `${id} is being held off the ground and can move only along a fixed object or surface within reach, and nobody has said there is one`,
+      [
+        {
+          kind: 'route',
+          subject: id,
+          need: `that a wall, a ceiling or another fixed surface is within ${id}'s reach to pull along`,
+          because:
+            'SRD Levitate lets a held-up creature move only by pushing or pulling against a fixed object or surface within reach, and whether one is there is a fact about the room only the table can declare',
+          satisfyWith: `the same resolveMove command with alongSurface: true`,
+        },
+      ],
+    );
+  }
+
+  // The twenty, for a caster holding themself up: the hold pinned it, the
+  // fold stamped what this turn has already spent of it, and the mover is the
+  // caster of the casting the hold names.
+  const turn = state.combat?.turnsTaken ?? null;
+  for (const lift of held) {
+    if (lift.altitudePerTurn === undefined) continue;
+    const castingId = castingIdOf(lift.source);
+    if (castingId === null || state.ongoing[castingId]?.caster !== id) continue;
+    const already = turn !== null && lift.altered?.turn === turn ? lift.altered.feet : 0;
+    const asked = Math.abs(rise);
+    if (asked === 0) continue;
+    if (already + asked > lift.altitudePerTurn) {
+      return err(
+        'altitude_spent',
+        `${id} may change their own altitude by up to ${lift.altitudePerTurn} feet a turn under ${lift.source}, has moved ${already} of them, and this move would move ${asked} more`,
+      );
+    }
+  }
+
+  return ok([
+    `${id} is being held off the ground and moved by pulling along a fixed object or surface the caller says is within reach; that it is there is the table's`,
+  ]);
 }
 
 /**

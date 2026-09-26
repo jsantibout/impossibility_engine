@@ -676,9 +676,22 @@ export function applyRiders(
   // Absent is a push, which is what every definition written before the field
   // existed meant and still means.
   if (riders.movement !== undefined) {
+    // The twenty a self-lifted caster's own move is capped at is the same
+    // twenty the activation prints, pinned onto the hold — see
+    // `GrantedLift.altitudePerTurn`. (W7-S19)
+    const altitudePerTurn = definition.activation?.effects.find(
+      (effect) => effect.kind === 'change-altitude',
+    );
     const moved =
       riders.movement.kind === 'lift'
-        ? lift(current, target, riders.movement, source, definition.name)
+        ? lift(
+            current,
+            target,
+            riders.movement,
+            source,
+            definition.name,
+            altitudePerTurn?.kind === 'change-altitude' ? altitudePerTurn.upTo : undefined,
+          )
         : shoveAwayFrom(current, target, casterId, riders.movement, definition.name);
     // **The casting is holding them**, which a push never is: `spellOn` is what
     // Dispel Magic reads, and a levitated creature the record did not know

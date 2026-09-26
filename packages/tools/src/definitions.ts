@@ -2227,6 +2227,12 @@ const MOVE = tool({
         .describe(
           'Which Speed this move uses. Leave it out for walking. Climbing and swimming cost double for a creature without the matching Speed, and Difficult Terrain doubles again; flying or burrowing without one is refused, because there is no unaided version. Going up at all needs a flight, a climb or a High Jump.',
         ),
+      alongSurface: z
+        .boolean()
+        .optional()
+        .describe(
+          'True when a creature something is holding off the ground — Levitate’s target — is pulling itself along a wall, a ceiling or another fixed surface within its reach. Such a creature can move only that way, as a climb, so send `mode: "climb"` with it; whether the surface is there is yours to say, and the engine reports that it took your word. Left out for a levitating creature, the move comes back `surface_required`.',
+        ),
       jump: z
         .object({
           kind: z
@@ -2272,6 +2278,7 @@ const MOVE = tool({
         {
           placement: placementOf(args),
           ...(args.forced === true ? { forced: true } : {}),
+          ...(args.alongSurface === true ? { alongSurface: true as const } : {}),
           ...(args.using_grant === undefined ? {} : { usingGrant: args.using_grant }),
           ...(args.mode === undefined ? {} : { mode: args.mode }),
           ...(args.jump === undefined

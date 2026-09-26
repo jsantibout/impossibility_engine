@@ -7289,8 +7289,14 @@ export const LEVITATE: SpellDefinition = {
     effects: [{ kind: 'change-altitude', upTo: 20 }],
   },
   durationSeconds: 600,
+  // "The target can move only by pushing or pulling against a fixed object or
+  // surface within reach … which allows it to move as if it were climbing" and
+  // "If you are the target, you can move up or down as part of your move" are
+  // the move command's: a held-up creature moves only as a climb along a
+  // surface the move states (`alongSurface`), and a caster holding themself up
+  // spends their own vertical feet against the twenty the activation prints,
+  // which the hold pins (`GrantedLift.altitudePerTurn`).
   unmodelled: [
-    'what the levitating creature may do with its own Speed is the DM’s, and it is a gap this spell opens: "The target can move only by pushing or pulling against a fixed object or surface within reach" is the whole of SRD’s answer, and the engine refuses only a **rise** — a creature holding station twenty feet up may still walk its thirty feet sideways through the air and come down for nothing, because gravity is not a Speed and no rule asks what is under a creature that is already off the ground. The **half of the altitude sentence a creature spends on its own movement** is the same absence: "If you are the target, you can move up or down as part of your move" would have to count the feet this creature has already risen under the lift **this turn**, and a `GrantedLift` holds only whose magic it is — so `checkRise` goes on refusing a rise nothing else granted rather than allowing one it could not cap. The Magic action that moves somebody else is built; the climbing along a wall is fiction',
     'the object the spell may target instead, and its 500-pound limit, are the DM’s: objects are not modelled',
   ],
 };

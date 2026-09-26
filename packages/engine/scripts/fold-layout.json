@@ -208,6 +208,7 @@
     "SCENE_EVENTS",
     "SceneEvent",
     "isSceneEvent",
+    "stampAltitudeAltered",
     "applyScene"
   ],
   "fold/elsewhere.ts": [

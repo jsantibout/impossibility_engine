@@ -6,8 +6,10 @@
  * carried into an area. A declared move is an intent rather than an arrival
  * and is `holds.ts`.
  */
+import type { CharacterId } from '@ie/shared';
 import {
   addLandmark,
+  altitudeOf,
   declareCover,
   declareDifficultPatch,
   declareLightPatch,
@@ -22,7 +24,7 @@ import {
 } from '../positioning.js';
 import type { GameEvent } from '../events.js';
 import type { GameState } from '../state.js';
-import { must, sceneOf, seamOf, unhandledEvent, type Applying } from './common.js';
+import { must, sceneOf, seamOf, unhandledEvent, withCreature, type Applying } from './common.js';
 import { raiseAfterMovement } from './areas.js';
 
 /** The event types this seam owns. Every one of them, and no other seam's. */
@@ -46,6 +48,45 @@ export type SceneEvent = Extract<GameEvent, { type: (typeof SCENE_EVENTS)[number
 
 /** Whether an event is this seam's. Built from the same list, so the two cannot drift. */
 export const isSceneEvent = seamOf(SCENE_EVENTS);
+
+/**
+ * SRD Levitate: "You can change the target's altitude by up to 20 feet in
+ * either direction on your turn. If you are the target, you can move up or
+ * down as part of your move."
+ *
+ * The feet a held-up creature was moved vertically on the current turn,
+ * stamped onto every hold it carries — see `GrantedLift.altered`. **The turn
+ * is read here and not carried**, on `jump-allowance-spent`'s rule: the fold
+ * has the order in front of it, and an event stating a turn number would be a
+ * second answer to what turn it is. Outside combat there is no turn and
+ * nothing is written, which leaves the altitude uncapped — the reading every
+ * once-per-turn rule in this engine takes. A move that changed no altitude,
+ * or a creature nothing is holding up, is left alone; the *first* lift's own
+ * rise arrives before the hold does and so is stamped on nothing, which is
+ * right: the casting's twenty feet up are the casting's, not the turn's.
+ *
+ * Every hold is stamped and the **reader** decides whose cap it is:
+ * `commands/movement.ts` caps a mover only against a hold whose casting is
+ * the mover's own, because the twenty is the caster's to spend.
+ */
+function stampAltitudeAltered(
+  state: GameState,
+  id: CharacterId,
+  before: number | null,
+  after: number | null,
+): GameState {
+  if (before === null || after === null || before === after) return state;
+  const creature = state.creatures[id];
+  if (creature === undefined || creature.lifts.length === 0) return state;
+  const turn = state.combat?.turnsTaken ?? null;
+  if (turn === null) return state;
+  const feet = Math.abs(after - before);
+  const lifts = creature.lifts.map((held) => ({
+    ...held,
+    altered: { turn, feet: (held.altered?.turn === turn ? held.altered.feet : 0) + feet },
+  }));
+  return withCreature(state, id, { lifts }, creature);
+}
 
 /**
  * Reduce one of this seam's events.
@@ -82,7 +123,15 @@ export function applyScene({ state, next }: Applying, event: SceneEvent): GameSt
       // declared move is an intent an Opportunity Attack can end; this is the
       // creature actually arriving. Forced movement lands here too, because a
       // creature shoved into a Web has entered it.
-      return raiseAfterMovement({ ...next, scene: outcome.state }, state.scene);
+      //
+      // And the vertical feet a held-up creature was moved, stamped onto the
+      // hold — see {@link stampAltitudeAltered}.
+      return stampAltitudeAltered(
+        raiseAfterMovement({ ...next, scene: outcome.state }, state.scene),
+        event.id,
+        altitudeOf(sceneOf(state, event), event.id),
+        altitudeOf(outcome.state, event.id),
+      );
     }
 
     case 'creature-unplaced':
