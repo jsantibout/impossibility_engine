@@ -71,10 +71,14 @@ describe('the item blocked-on map covers the untranscribed population', () => {
 
   /** And the other direction: a line for an entry somebody has since transcribed. */
   it('reports a line for an entry that has since been transcribed', () => {
-    // The case the next brief will really cause: it transcribes from the ready
-    // list, and the line it leaves behind has to go with the record it wrote.
-    const transcribed = new Set([...TRANSCRIBED, 'elixir-of-health']);
-    expect(itemCoverageGaps(PARSED, transcribed).stale).toEqual(['elixir-of-health']);
+    // The case every transcribing brief really causes: it writes a record, and
+    // the line it leaves behind has to go with it. Whichever entry the map
+    // lists first stands in for it, so the case stays real however many of
+    // the map's entries later briefs transcribe.
+    const lined = Object.keys(ITEM_BLOCKED_ON).sort()[0];
+    expect(lined).toBeDefined();
+    const transcribed = new Set([...TRANSCRIBED, lined!]);
+    expect(itemCoverageGaps(PARSED, transcribed).stale).toEqual([lined]);
   });
 
   /** Neither synthetic case is vacuous: the real book has no gap either way. */
@@ -510,11 +514,15 @@ describe('the two shapes the re-derivation was sent to check', () => {
  * claimed by somebody else or retired.
  */
 describe('the entries blocked by nothing', () => {
+  /**
+   * **None, today.** The two this pinned — the Elixir of Health and the
+   * Potion of Invulnerability — were transcribed by the brief that read them,
+   * and their lines went with the records. An entry that lands here again has
+   * to be named here, which is the point of pinning the set rather than its
+   * size.
+   */
   it('are these, read sentence by sentence and waiting on nobody', () => {
-    expect(itemPiles(PARSED, TRANSCRIBED).ready).toEqual([
-      'elixir-of-health',
-      'potion-of-invulnerability',
-    ]);
+    expect(itemPiles(PARSED, TRANSCRIBED).ready).toEqual([]);
   });
 
   it('each name a clause the grant vocabulary can actually write down', () => {
