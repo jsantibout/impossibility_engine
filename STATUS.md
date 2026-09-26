@@ -22,12 +22,11 @@ homebrew.
   lifetime, death saves, exhaustion. Every ability a roll reads comes off
   `sheetAsItStands`.
 - **Space and sight** — a cube lattice, distance between volumes, declared
-  sight and cover, seven area shapes, persistent and carried areas that may
-  impose a Speed, a bonus, a condition, a defence or a silence on whoever
-  stands inside, teleportation, the glossary's senses, mounting. **Light and obscurement
-  are patches on the lattice**, declared by the table or laid by a casting;
-  magical darkness beats Darkvision and nonmagical light, Devil's Sight beats
-  that, and an undeclared scene answers as it always did. A spell can push or lift a creature; a fall has a landing (1d6 per ten
+  sight and cover, seven area shapes, persistent and carried areas that may impose a Speed, a bonus, a
+  condition, a defence or a silence on whoever stands inside, bar passage,
+  ward other magic or deflect arrows, teleportation, the glossary's senses, mounting. **Light and obscurement are patches on the lattice**, declared by the
+  table or laid by a casting; magical darkness beats Darkvision, Devil's
+  Sight beats that. A spell can push or lift a creature; a fall has a landing (1d6 per ten
   feet to 20d6, and Prone); going up needs a way up.
 - **Combat and time** — Initiative and Alert's swap, the action budget, an
   extra action a running effect grants each turn, a slot of somebody else's

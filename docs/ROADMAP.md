@@ -2492,3 +2492,36 @@ Appended after wave seven's first spells track (2026-09-24):
   re-arming deadline has no member in `timers.ts` or `Deadline`; the two rest
   denials have no record) — `a-clock-that-runs-for-days` stands. Main
   re-ingested.
+- **A barrier that blocks passage, and the magic an area wards.** Five new
+  `AreaStanding` kinds, each one SRD sentence: `bars-passage` (to all, to
+  stated types, to Small fliers, to the gaseous; a crossing in, out or either;
+  those inside at the cast excepted; `saveToCross` — named for the reverse
+  circle's save to *leave*), `wards-magic` (a casting at or below the level
+  is refused across the boundary, `warded`, before anything is spent, and an
+  area effect's catch drops a creature the ward separates), `deflects-projectiles`
+  (a ranged weapon attack whose line crosses the wall misses automatically,
+  the die thrown and recorded; a stat block's printed missile is reported, a
+  Giant's rock being unaffected), and an `attack-mode` and a
+  `condition-immunity` narrowed by the attacker's type, with an `outside`
+  marker for the reversed circle. A spell may state a **list** of types
+  (`typesStated`, beside `choiceStated`'s one value), a branch may carry its
+  own area clauses, an emanation may `stay` where it was cast, and a casting
+  ends when its caster leaves the area it filled (`caster-leaves-the-area`, a
+  derived fact — no event written). Tiny Hut and Magic Circle execute; Wind
+  Wall's wall stops Small fliers and arrows; Knock is handed over whole.
+  **Nondetection is not**: the brief said no Divination the engine defines can
+  be aimed at a creature, and Mind Spike and Hunter's Mark are two — the
+  correction was already in the shape map. **Merge reconciliation:** the
+  barriers track matched the gaseous cloud on a `replaces` flag it named
+  because the odds-and-ends track had not landed; that track wrote `change:
+  'only'`, so `isGaseousOn` reads that and the flag is gone. **Rulings
+  surfaced, not taken:** a barrier printing no save lets a teleport by (Tiny
+  Hut prints none); the reversed circle's `outside` clauses are the literal
+  complement, so a chosen-type creature standing outside also has Disadvantage
+  against anyone outside — an `attackerInside` narrowing would say the likely
+  meaning; and a spell's push or lift rider moves a creature without asking
+  the barriers, so a Thunderwave shove into a Tiny Hut is neither refused nor
+  reported — both handed to the standing-up brief. Objects are not in the
+  scene, so Wind Wall stays partial. The track's review ran on Fable before
+  the model-balancing rule arrived; the fix commit is small and was not
+  re-reviewed.

@@ -42,7 +42,7 @@ for exactly this reason.
 
 | Ledger | Size | Waits on an engine shape | Waits on a definition | Waits on none | Read to the end, handed over whole |
 |---|---|---|---|---|---|
-| Spells in reach, not executed | 44 spells | 44 | 0 | 0 | 34 |
+| Spells in reach, not executed | 41 spells | 41 | 0 | 0 | 35 |
 | Features manual, or a pool with nothing to buy | 0 features | 0 | 0 | 0 | 0 |
 | Items a level 1–5 party can buy | 157 items | 0 | 0 | 157 | 0 |
 | Glossary general rules nothing executes | 23 rules | 0 | 0 | 23 | 0 |
@@ -69,15 +69,15 @@ exactly the silently-missing entry this report’s header refuses.
 
 | Shape | Blocks | Finishes |
 |---|---|---|
-| `an-effect-that-suppresses-other-magic` | 5 | 2 |
 | `a-fact-only-the-table-can-declare` | 4 | 2 |
 | `an-action-a-spell-compels-or-forbids` | 2 | 2 |
 | `difficult-terrain-an-area-creates` | 2 | 2 |
-| `a-casting-ended-by-a-trigger` | 5 | 1 |
-| `a-barrier-that-blocks-passage` | 3 | 1 |
+| `a-casting-ended-by-a-trigger` | 4 | 1 |
 | `a-stat-block-created-mid-fight` | 3 | 1 |
 | `a-target-rule-the-format-cannot-state` | 3 | 1 |
 | `a-choice-made-at-the-casting` | 2 | 1 |
+| `a-duration-the-slot-changes` | 2 | 1 |
+| `an-effect-that-suppresses-other-magic` | 2 | 1 |
 | `movement-modes` | 2 | 1 |
 | `a-creature-somebody-else-is-playing` | 1 | 1 |
 | `a-mode-on-the-save-a-spell-forces` | 1 | 1 |
@@ -97,14 +97,11 @@ exactly the silently-missing entry this report’s header refuses.
 | `a-bonus-narrowed-to-a-skill` | 1 | 0 |
 | `a-condition-a-spell-suppresses` | 1 | 0 |
 | `a-condition-benefit-an-effect-takes-away` | 1 | 0 |
-| `a-condition-immunity-narrowed-to-its-source` | 1 | 0 |
 | `a-creature-fact-an-effect-overrides` | 1 | 0 |
 | `a-creature-type-predicate-an-area-reads` | 1 | 0 |
 | `a-damage-penalty-a-spell-grants` | 1 | 0 |
 | `a-die-behaviour-a-spell-asks-for` | 1 | 0 |
 | `a-distance-a-creature-travels-inside-an-area` | 1 | 0 |
-| `a-duration-the-slot-changes` | 1 | 0 |
-| `a-filter-on-the-attackers-creature-type` | 1 | 0 |
 | `a-repeat-save-raised-by-a-trigger` | 1 | 0 |
 | `a-selector-for-every-d20-test` | 1 | 0 |
 | `an-activation-that-forces-a-saving-throw` | 1 | 0 |
@@ -119,14 +116,6 @@ exactly the silently-missing entry this report’s header refuses.
 **finishes** is what it is the *only* blocker for — the column a tranche
 is planned from. A spell can need more than one shape, so neither column
 sums to the population.
-
-#### `an-effect-that-suppresses-other-magic` — blocks 5, finishes 2
-
-- **Knock** (level 2) — tracked
-- **Magic Circle** (level 3) — tracked — also waits on 3
-- **Nondetection** (level 3) — tracked
-- **Sending** (level 3) — no-definition — also waits on 2
-- **Tiny Hut** (level 3) — tracked — also waits on 2
 
 #### `a-fact-only-the-table-can-declare` — blocks 4, finishes 2
 
@@ -145,19 +134,12 @@ sums to the population.
 - **Gust of Wind** (level 2) — executed-partial
 - **Speak with Plants** (level 3) — tracked
 
-#### `a-casting-ended-by-a-trigger` — blocks 5, finishes 1
+#### `a-casting-ended-by-a-trigger` — blocks 4, finishes 1
 
 - **Unseen Servant** (level 1) — tracked — also waits on 1
 - **Invisibility** (level 2) — executed-partial
 - **Phantasmal Force** (level 2) — no-definition — also waits on 2
 - **Warding Bond** (level 2) — tracked — also waits on 1
-- **Tiny Hut** (level 3) — tracked — also waits on 2
-
-#### `a-barrier-that-blocks-passage` — blocks 3, finishes 1
-
-- **Magic Circle** (level 3) — tracked — also waits on 3
-- **Tiny Hut** (level 3) — tracked — also waits on 2
-- **Wind Wall** (level 3) — executed-partial
 
 #### `a-stat-block-created-mid-fight` — blocks 3, finishes 1
 
@@ -175,6 +157,16 @@ sums to the population.
 
 - **Glyph of Warding** (level 3) — tracked — also waits on 1
 - **Plant Growth** (level 3) — executed-partial
+
+#### `a-duration-the-slot-changes` — blocks 2, finishes 1
+
+- **Bestow Curse** (level 3) — executed-partial — also waits on 1
+- **Magic Circle** (level 3) — executed-partial
+
+#### `an-effect-that-suppresses-other-magic` — blocks 2, finishes 1
+
+- **Nondetection** (level 3) — tracked
+- **Sending** (level 3) — no-definition — also waits on 2
 
 #### `movement-modes` — blocks 2, finishes 1
 
@@ -264,10 +256,6 @@ sums to the population.
 
 - **Shining Smite** (level 2) — executed-partial — also waits on 1
 
-#### `a-condition-immunity-narrowed-to-its-source` — blocks 1, finishes 0
-
-- **Magic Circle** (level 3) — tracked — also waits on 3
-
 #### `a-creature-fact-an-effect-overrides` — blocks 1, finishes 0
 
 - **Enlarge/Reduce** (level 2) — tracked — also waits on 3
@@ -287,14 +275,6 @@ sums to the population.
 #### `a-distance-a-creature-travels-inside-an-area` — blocks 1, finishes 0
 
 - **Spike Growth** (level 2) — executed-partial — also waits on 1
-
-#### `a-duration-the-slot-changes` — blocks 1, finishes 0
-
-- **Bestow Curse** (level 3) — executed-partial — also waits on 1
-
-#### `a-filter-on-the-attackers-creature-type` — blocks 1, finishes 0
-
-- **Magic Circle** (level 3) — tracked — also waits on 3
 
 #### `a-repeat-save-raised-by-a-trigger` — blocks 1, finishes 0
 
@@ -339,7 +319,7 @@ reading, or one the existing kinds already say and nobody has written — and
 both are work, which is why they are no longer printed as finished business.
 
 
-#### Read to the end, handed over whole — 34
+#### Read to the end, handed over whole — 35
 
 Somebody read every printed sentence of each of these against the
 definition and the blocker map, and every clause left is the table’s to
@@ -368,6 +348,7 @@ being asked for — which is the whole of what these spells are.
 - **Speak with Animals** (level 1) — tracked
 - **Arcane Lock** (level 2) — tracked
 - **Find Traps** (level 2) — tracked
+- **Knock** (level 2) — tracked
 - **Locate Animals or Plants** (level 2) — tracked
 - **Locate Object** (level 2) — tracked
 - **Magic Mouth** (level 2) — tracked
