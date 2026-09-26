@@ -110,7 +110,6 @@ import {
   multiattackUses,
   perDayTallyKey,
   printedLineSource,
-  printedSaveOf,
   statedActionOf,
   statedBonusActionOf,
   statedBonusActionsUsed,
@@ -125,6 +124,13 @@ import { OBJECT_CREATURE_TYPE } from '../objects.js';
 import type { MonsterTreeStride } from '@ie/srd';
 import { castSpell, chooseRoute, type Supply, nextCastingId } from './casting.js';
 import { creatureOf, reachedBy, sceneFor, unknownCreature } from './command.js';
+import {
+  catchesByAim,
+  catchesWithoutAim,
+  printedLineReached,
+  type PrintedLineReached,
+  printedSaveLineOf,
+} from './printed-catch.js';
 import { filedFor, reportFiled } from './filed-handovers.js';
 import { routeLabel } from './item-casting.js';
 import { applyConditionTo, schedule } from './conditions.js';
@@ -1190,17 +1196,27 @@ export function takeStatedAction(
 export interface PrintedSaveCommand extends CommandIdentity {
   readonly line: string;
   /**
-   * The creatures the line reached, named by the caller.
+   * The creatures the line reached, named by the caller — the **head count**.
    *
-   * **The one fact the table supplies, and it is not a number the engine
-   * owns.** "Each creature in a 15-foot Cone" wants an origin and a facing
-   * nobody has declared, and a Cone measured out of a sentence would be the
-   * Engine inventing a fact rather than adjudicating one. So the head count
-   * is the DM's decision — the kind their door is *for* — and everything a
-   * die decides stays here. Absent or empty is asked about rather than
-   * refused, because a missing fact is not a wrong one.
+   * **The table's statement, kept open beside the aim.** A DM keeps "the
+   * three goblins in the doorway", and a game with no scene has nothing to
+   * measure. So a list is taken as said and reported `unverified` where
+   * nothing measured it; a ruler to one creature, a space and a hold the
+   * engine holds are checked against it before anything is spent. Absent or
+   * empty, with no {@link aim}, is asked about rather than refused, because a
+   * missing fact is not a wrong one. Refused beside an aim.
    */
   readonly targets?: readonly CharacterId[];
+  /**
+   * Where a line whose clause is a template is aimed — I-E9. A Cone or a Line
+   * takes `towards`; a Sphere takes `at`, a point within the line's printed
+   * feet. The engine lays the spells' own template there and rolls for exactly
+   * whom `printedLineCatch` says it catches; the tools resolve a creature or a
+   * landmark into the point. An Emanation, a space and a hold take an empty
+   * aim or none. A point on a line whose catch takes none is refused
+   * `not_directional`.
+   */
+  readonly aim?: { readonly towards?: Point; readonly at?: Point };
   /**
    * The creatures named here **consent** to the line.
    *
@@ -1332,41 +1348,23 @@ export function forcePrintedSave(
       // `packages/srd/src/parse/monster-saves.test.ts` rather than assumed
       // here, because Actions winning a collision silently would refuse a
       // savable Bonus Action line with `line_states_no_save`.
-      const action = statedActionOf(creature.sheet, command.line);
-      const bonus = action === null ? statedBonusActionOf(creature.sheet, command.line) : null;
-      const line: StatedAction | StatedBonusAction | null = action ?? bonus;
-      if (line === null) {
-        // **A trait's heading is looked up before the refusal is written**, so
-        // a caller who names a Death Burst is told *why* rather than told the
-        // block does not print it. The block does print it; it is a line
-        // nobody spends, which is the next refusal down and a different
-        // instruction to the caller.
-        if (printedSaveOf(creature.sheet, command.line) !== null) {
-          return err(
-            'save_is_triggered',
-            `${command.line} is forced by a moment rather than by a use — the engine raises it when that moment comes and rolls it with the saves a boundary owes; nobody spends it`,
-          );
-        }
-        return err(
-          'no_such_line',
-          `no line called ${command.line} is printed under this creature's Actions or Bonus Actions with nothing the engine could read beneath it; a heading the parser did read as an attack, and a heading printed under another section, are each taken by the command that owns them`,
-        );
-      }
-
-      // **And what the heading requires**, before the save and before the
-      // economy: this is the door the Erinyes' Entangling Rope actually comes
-      // through, and four doors on one heading must not disagree about whether
-      // it may be taken. (W7-B11)
-      const missingHere = missingRequirementFor(state, id, line);
-      if (missingHere !== null) return err('requirement_unmet', missingHere);
-
-      const printed = line.save;
-      if (printed === undefined) {
-        return err(
-          'line_states_no_save',
-          `${line.name} states no saving throw this engine could read; take it with the door that hands the sentence over, and a DM applies what it says`,
-        );
-      }
+      //
+      // **The lookup is `printedLineCatch`'s too** — I-E9: a trait's heading is
+      // looked up before the refusal is written, so a caller who names a Death
+      // Burst is told *why*, and a triggered line and a line with no save are
+      // refused in the same words whichever door was asked.
+      const found = printedSaveLineOf(creature.sheet, command.line, (named) => {
+        // **And what the heading requires**, before the save and before the
+        // economy: this is the door the Erinyes' Entangling Rope actually
+        // comes through, and four doors on one heading must not disagree about
+        // whether it may be taken. (W7-B11)
+        const missingHere = missingRequirementFor(state, id, named);
+        return missingHere === null ? null : err('requirement_unmet', missingHere);
+      });
+      if (!found.ok) return found;
+      const line: StatedAction | StatedBonusAction = found.value.line;
+      const action = found.value.action ? line : null;
+      const printed = found.value.save;
 
       // **A line that moves first is not a save over a head count** — W7-B9.
       // SRD Bulette's Deadly Leap and SRD Centaur Trooper's Trampling Charge
@@ -1380,19 +1378,11 @@ export function forcePrintedSave(
         );
       }
 
-      // **A line whose save a *moment* forces is not a line a creature takes.**
-      // SRD Magmin's Death Burst goes off when the magmin dies and SRD Ghast's
-      // Stench catches whoever begins a turn in it; a door that spent an Action
-      // to set either off would be a creature detonating itself on purpose.
-      // The fold raises those and `resolvePendingSaves` rolls them, which is
-      // the split this whole family is built on: raising is derived, rolling is
-      // commanded.
-      if (printed.trigger !== undefined) {
-        return err(
-          'save_is_triggered',
-          `${line.name} is forced by a moment rather than by a use — the engine raises it when that moment comes and rolls it with the saves a boundary owes; nobody spends it`,
-        );
-      }
+      // (A line whose save a *moment* forces — SRD Magmin's Death Burst, SRD
+      // Ghast's Stench — was refused `save_is_triggered` by the lookup above:
+      // a door that spent an Action to set either off would be a creature
+      // detonating itself on purpose. The fold raises those and
+      // `resolvePendingSaves` rolls them.)
 
       // **The one word the block declined to print**, asked for before
       // anything is spent: a refusal after the Action is gone is a refusal
@@ -1402,28 +1392,119 @@ export function forcePrintedSave(
       if (!withType.ok) return withType;
       const answered = withType.value;
 
-      // Who it caught, which is the table's to say. Asked for rather than
-      // refused: a head count nobody has stated is a fact that is missing
-      // rather than a call that is wrong.
-      const targets = command.targets ?? [];
+      // **Who it caught** — I-E9. Two roads, and the caller takes one:
+      //
+      // - **An aim.** A line whose clause the parser read into a template is
+      //   measured by `printedLineReached`, the function `printedLineCatch`
+      //   answers with, so the query's shortlist is the list rolled for. A
+      //   list beside it is refused, as a spell's area refuses one.
+      // - **A head count**, the table's statement, as every line took before
+      //   the engine measured any: kept open, because a DM keeps "the three
+      //   goblins in the doorway" and a game with no scene needs it.
+      //
+      // And a line whose catch is "each" with no aim to take — an Emanation,
+      // "each creature in the elemental's space", "each creature Grappled by
+      // the otyugh" — is measured with neither, where there is a room to
+      // measure it in.
+      const named = command.targets ?? [];
+      const aimless = named.length === 0 && command.aim === undefined && catchesWithoutAim(printed);
+      const measurable =
+        aimless && (printed.catches?.kind === 'held' || state.scene !== null);
+      let reached: PrintedLineReached | null = null;
+      if (command.aim !== undefined || measurable) {
+        if (named.length > 0) {
+          return err(
+            'area_picks_its_own_targets',
+            `${line.name} is aimed, and catches whoever its aim catches; it does not take a target list beside an aim`,
+          );
+        }
+        const measuredHere = printedLineReached(state, id, found.value, command.aim ?? {});
+        if (!measuredHere.ok) return measuredHere;
+        if (measuredHere.value.needs.length > 0) {
+          return needsContext(
+            'undeclared_targets',
+            `${line.name} reads "${printed.targets}", and what it needs to be measured has not been established`,
+            measuredHere.value.needs,
+          );
+        }
+        if (measuredHere.value.reached.length === 0) {
+          const why = measuredHere.value.excluded.map((one) => one.reason);
+          return err(
+            'nobody_caught',
+            `${line.name} aimed so catches nobody${why.length === 0 ? '' : ` — ${why.join('; ')}`}; nothing was spent`,
+          );
+        }
+        reached = measuredHere.value;
+      }
+      const targets: readonly CharacterId[] = reached?.reached ?? named;
+
+      // Who it caught, where nothing measured it: the table's to say. Asked
+      // for rather than refused, because a head count nobody has stated is a
+      // fact that is missing rather than a call that is wrong — and a line
+      // the engine *can* measure names the aim that would measure it.
       if (targets.length === 0) {
+        const aimed = catchesByAim(printed);
         return needsContext(
           'undeclared_targets',
-          `${line.name} reads "${printed.targets}", and nobody has said which creatures that is`,
+          `${line.name} reads "${printed.targets}", and nobody has said which creatures that is${aimed ? ' or where it is aimed' : ''}`,
           [
-            {
-              kind: 'creature',
-              subject: id,
-              need: `the creatures ${line.name} caught — the line reads "${printed.targets}"`,
-              because:
-                'an area is measured from an origin and a facing the engine has not been told; the saving throws are its own',
-              satisfyWith: 'forcePrintedSave again with its targets filled in',
-            },
+            aimed
+              ? {
+                  kind: 'creature',
+                  subject: id,
+                  need: `where ${line.name} is aimed — its \`aim\`, ${printed.catches?.kind === 'sphere' ? '`at` a point' : '`towards` a point'} — or the creatures it caught; the line reads "${printed.targets}"`,
+                  because:
+                    'the engine lays the template where it is aimed and measures who stands in it, or takes the head count the table states; the saving throws are its own',
+                  satisfyWith: 'forcePrintedSave again with its aim or its targets filled in',
+                }
+              : {
+                  kind: 'creature',
+                  subject: id,
+                  need: `the creatures ${line.name} caught — the line reads "${printed.targets}"`,
+                  because:
+                    'an area is measured from an origin and a facing the engine has not been told; the saving throws are its own',
+                  satisfyWith: 'forcePrintedSave again with its targets filled in',
+                },
           ],
         );
       }
       for (const target of targets) {
         if (state.creatures[target] === undefined) return unknownCreature(target);
+      }
+
+      // **The creature's own space and whom it holds, checked on a head
+      // count** — I-E9, B13's reading one catch along. "Each creature in the
+      // elemental's space" and "one creature Grappled by the chuul" are facts
+      // the engine holds, so a named creature outside the space or not held
+      // is refused before anything is spent — measured by the same function
+      // the aim road measures with.
+      const heldOrHere = printed.catches?.kind === 'own-space' || printed.catches?.kind === 'held';
+      /** Whether the head count was held against a space or a hold the engine measured. */
+      let checkedHere = false;
+      if (reached === null && heldOrHere) {
+        const count =
+          printed.catches?.kind === 'own-space' || printed.catches?.kind === 'held'
+            ? printed.catches.count
+            : undefined;
+        if (count !== undefined && targets.length > count) {
+          return err(
+            'too_many_targets',
+            `${line.name} reaches "${printed.targets}", and ${targets.length} creatures were named`,
+          );
+        }
+        const shortlist = printedLineReached(state, id, found.value);
+        if (shortlist.ok && shortlist.value.measured) {
+          checkedHere = true;
+          for (const target of targets) {
+            if (shortlist.value.reached.includes(target)) continue;
+            const why = shortlist.value.excluded.find((one) => one.target === target)?.reason;
+            return err(
+              'target_not_eligible',
+              why ??
+                `${line.name} reaches "${printed.targets}", and ${target} is not ${printed.catches?.kind === 'held' ? `held by ${id}` : `in ${id}'s space`}`,
+            );
+          }
+        }
       }
 
       // **How many, how far, and of what kind** — W7-B13. SRD Wight's Life
@@ -1468,6 +1549,24 @@ export function forcePrintedSave(
             'target_not_eligible',
             `${line.name} reaches only ${types.join(' or ')}, and ${wrong
               .map((target) => `${target} is ${state.creatures[target]!.creatureType}`)
+              .join(', ')}`,
+          );
+        }
+      }
+      // **The largest size the line reaches** — I-E9. SRD Ettercap's Web
+      // Strand: "one Large or smaller creature". A size the engine holds and
+      // that is too big is refused; one nothing gave is said below.
+      const largest = printed.onlyIfTargetSize;
+      if (largest !== undefined) {
+        const tooBig = targets.filter((target) => {
+          const size = effectiveSizeOf(state, target);
+          return size !== null && !sizeAtMost(size, largest);
+        });
+        if (tooBig.length > 0) {
+          return err(
+            'target_not_eligible',
+            `${line.name} reaches "${printed.targets}", and ${tooBig
+              .map((target) => `${target} is ${effectiveSizeOf(state, target)}`)
               .join(', ')}`,
           );
         }
@@ -1726,19 +1825,23 @@ export function forcePrintedSave(
         events,
         outcomes,
         // The clause the engine did not settle, said out loud in the channel
-        // the whole sentence used to come back in. The caller named who was
-        // caught; nothing here checked that answer against a map.
+        // the whole sentence used to come back in.
         unverified: [
-          // **Only where the engine measured nothing** — W7-B13. A line that
-          // reaches one creature at a distance was measured above, against a
-          // scene that places both, and a note saying it was not would be a
-          // debt the ruler had already paid. An area, or a reach with no scene
-          // to measure it in, is still the table's and is still said.
-          ...(reach !== undefined && state.scene !== null
+          // **Only where the engine measured nothing** — W7-B13, and I-E9. A
+          // line that reaches one creature at a distance was measured above,
+          // against a scene that places both; an aimed template was laid, and
+          // a space or a hold was read. A note saying otherwise would be a
+          // debt the ruler had already paid. A head count over an area, or a
+          // reach with no scene to measure it in, is still the table's and is
+          // still said.
+          ...((reach !== undefined && state.scene !== null) || reached !== null || checkedHere
             ? []
             : [
                 `${line.name} reads "${printed.targets}" — the engine rolled the save for the creatures named and measured no area; who stands in it is the table's`,
               ]),
+          // What the measurement could not settle — a sight line, a type, a
+          // size nobody declared — caught and said, as the catch said it.
+          ...(reached?.unverified ?? []),
           // "one creature **the ghost can see**": the sight is a question the
           // engine answers three ways, and the one it cannot is said.
           ...(reach?.seen === true

@@ -63,7 +63,8 @@ import {
 import { canSpendSlot } from './combat.js';
 import { createRng, type Rng } from './dice.js';
 import { applyEvent, fold, type GameEvent, type GameState } from './events.js';
-import { distanceBetween } from './positioning.js';
+import { printedSaveOf } from './monster.js';
+import { distanceBetweenPoints, positionOf } from './positioning.js';
 import { grantedRollModes } from './roll-modifiers.js';
 import { createRollIssuer } from './rolls.js';
 import { actionRulesOn, speedOf } from './standing.js';
@@ -203,11 +204,24 @@ const SEEDS = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l'];
 /** The line forced under one seed: the outcome and the world after it. */
 function forced(monster: string, line: string, seed: string, targets: readonly CharacterId[] = [BREN], extra?: readonly { id: CharacterId; monster: string; nearFoe?: true }[]) {
   const table = inTheWoods(monster, extra);
+  // **Where the line says its targets are** — I-E9. "Each creature in the
+  // elemental's space" and "one creature Grappled by the chuul" are facts the
+  // door checks a head count against since the parser read them, so the
+  // targets stand in the foe's space, or are held by it, before it acts.
+  const catches = printedSaveOf(table.state.creatures[FOE]!.sheet, line)?.catches;
+  const placed: GameEvent[] = targets.flatMap((target): GameEvent[] =>
+    catches?.kind === 'own-space'
+      ? [{ type: 'creature-moved', id: target, placement: { from: { creature: FOE }, feet: 0 }, intoOccupied: true }]
+      : catches?.kind === 'held'
+        ? [{ type: 'condition-applied', id: target, condition: 'grappled', source: `grapple:${FOE}` }]
+        : [],
+  );
+  const ready = after(table.state, placed);
   const out = unwrap(
-    forcePrintedSave(table.state, FOE, { line, targets, commandId: `use-${seed}` }, supply(seed)),
+    forcePrintedSave(ready, FOE, { line, targets, commandId: `use-${seed}` }, supply(seed)),
     `${monster} uses ${line}`,
   );
-  return { before: table.state, out, state: after(table.state, out.events), log: [...table.log, ...out.events] };
+  return { before: ready, out, state: after(ready, out.events), log: [...table.log, ...placed, ...out.events] };
 }
 
 const has = (state: GameState, who: CharacterId, condition: string): boolean =>
@@ -303,11 +317,28 @@ describe('a grapple, a push, a Speed cut and a lowered maximum', () => {
   it("pushes the target straight away from the Air Elemental and knocks it Prone", () => {
     const seen: { success: boolean }[] = [];
     for (const seed of SEEDS) {
-      const { before, out, state } = forced('air-elemental', 'Whirlwind (Recharge 4–6)', seed);
+      // "one Medium or smaller creature **in the elemental's space**" — which
+      // the door checks since I-E9 read it. Bren stands in the far half of the
+      // Large elemental's ten feet rather than on its anchor, so "straight
+      // away from the elemental" has a bearing to push along; two creatures on
+      // one point have none, and the push says so rather than guessing north.
+      const table = inTheWoods('air-elemental');
+      const inside = applyEvent(table.state, {
+        type: 'creature-moved',
+        id: BREN,
+        placement: { from: { creature: FOE }, feet: 5, bearing: 90 },
+        intoOccupied: true,
+      });
+      const out = unwrap(
+        forcePrintedSave(inside, FOE, { line: 'Whirlwind (Recharge 4–6)', targets: [BREN], commandId: `use-${seed}` }, supply(seed)),
+        'the whirlwind',
+      );
+      const before = inside;
+      const state = after(inside, out.events);
       const [one] = out.outcomes;
       seen.push({ success: one!.save!.success });
-      const was = unwrap(distanceBetween(before.scene!, FOE, BREN));
-      const now = unwrap(distanceBetween(state.scene!, FOE, BREN));
+      const was = distanceBetweenPoints(positionOf(before.scene!, FOE)!, positionOf(before.scene!, BREN)!);
+      const now = distanceBetweenPoints(positionOf(state.scene!, FOE)!, positionOf(state.scene!, BREN)!);
       if (one!.save!.success) {
         // "Half damage only": halved, and nothing else — no push, no Prone
         // from the line (a Bren the damage dropped is Prone by being

@@ -1147,8 +1147,7 @@ interface CaughtBy {
   readonly condition?: ConditionEffect['condition'];
 }
 
-const sizeWord = (word: string | undefined): CreatureSize | undefined =>
-  word === undefined ? undefined : (word.toLowerCase() as CreatureSize);
+const sizeWord = (word: string): CreatureSize => word.toLowerCase() as CreatureSize;
 
 /**
  * Who a spent line catches, read **whole or not at all** — I-E9.

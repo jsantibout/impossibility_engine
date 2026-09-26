@@ -382,6 +382,15 @@ describe("the Water Elemental's cap on what it holds", () => {
     for (const who of [BREN, SABLE]) {
       table.log.push({ type: 'condition-applied', id: who, condition: 'grappled', source: `grapple:${BEAST}` });
     }
+    // The third stands in the elemental's space — "each creature in the
+    // elemental's space", which the door checks since I-E9 read it — so what
+    // refuses it is the room the hold has left, and nothing else.
+    table.log.push({
+      type: 'creature-moved',
+      id: THIRD,
+      placement: { from: { creature: BEAST }, feet: 0 },
+      intoOccupied: true,
+    });
     const refused = forcePrintedSave(table.state, BEAST, { line: 'Whelm (Recharge 4–6)', targets: [THIRD] }, table.supply());
     expect(isErr(refused) && refused.code === 'holding_enough').toBe(true);
     expect(table.state.combat!.budgets[BEAST]!.action).toBe(true);

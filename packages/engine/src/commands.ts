@@ -220,6 +220,8 @@ export { relocateCreature } from './commands/teleport.js';
 export type { RelocateCommand, RelocateOutcome } from './commands/teleport.js';
 export { takePrintedMove } from './commands/printed-move.js';
 export type { PrintedMoveCommand, PrintedMoveOutcome } from './commands/printed-move.js';
+export { printedLineCatch } from './commands/printed-catch.js';
+export type { PrintedAim, PrintedLineCatch } from './commands/printed-catch.js';
 export {
   borrowSenses,
   dismissKeptSummons,
