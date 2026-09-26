@@ -610,10 +610,15 @@ describe('the two doors a printed line grew this batch', () => {
     expect(reel?.name).toBe('Reel');
 
     const out = expectOk(t.call('pull_printed_line', { who: 'rope', line: reel!.name }));
-    // Nobody is Grappled, so the Action goes and nobody moves — which is the
-    // sentence's own "each creature" over an empty list.
+    // Nobody is Grappled, so the slot goes and nobody moves — which is the
+    // sentence's own "each creature" over an empty list. **A slot of the
+    // Attack action rather than the Action itself** — W7-B10: the roper's
+    // Multiattack prints "uses Reel" in the middle of its sequence, so the
+    // Reel is one of the five things that action holds, and the first of them
+    // taken is what takes the action.
     expect(out.resolution['pulled']).toEqual([]);
-    expect(out.events.some((event) => event.type === 'action-spent')).toBe(true);
+    expect(out.events.some((event) => event.type === 'attack-made')).toBe(true);
+    expect(out.events.some((event) => event.type === 'action-spent')).toBe(false);
   });
 
   it('are the DM’s doors and not the model’s', () => {

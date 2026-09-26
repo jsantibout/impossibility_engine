@@ -49,7 +49,13 @@ import { type SpellcastingState } from './spellcasting.js';
 import type { RestBenefit, RestKind } from './rest.js';
 import { type Deadline } from './time.js';
 import { type GrantedHealingRule, type GrantedHitPointMaximum } from './vitals.js';
-import type { ElsewhereDamage, ElsewhereKind, ElsewhereReturn } from './elsewhere.js';
+import type {
+  ElsewhereDamage,
+  ElsewhereEscape,
+  ElsewhereKind,
+  ElsewherePullOut,
+  ElsewhereReturn,
+} from './elsewhere.js';
 import {
   type EffectEndCause,
   type EffectTarget,
@@ -2639,6 +2645,22 @@ export type GameEvent =
       readonly id: CharacterId;
       readonly unarmed?: boolean;
       /**
+       * What the swing was and whom it was at, where the turn held a granted
+       * attack narrowed to a line and a creature — W7-B10, SRD Allosaurus's
+       * "one Bite attack against it". Only the command knew, and the fold
+       * spends the grant by the same rule; absent on every other swing.
+       */
+      readonly swing?: { readonly line: string; readonly against: CharacterId };
+      /**
+       * The printed line a slot of the Attack action was spent on, where the
+       * slot went on a **use** rather than a swing — W7-B10: SRD Roper's
+       * "uses Reel", SRD Wight's "a use of Life Drain". No attack roll was
+       * made, so nothing that ends when its creature attacks reads this one
+       * (`fold/endings.ts`); the budget is spent exactly as a swing's is.
+       * Absent on every swing.
+       */
+      readonly use?: string;
+      /**
        * The catalogue id of the **Light** weapon this swing used, where it
        * used one.
        *
@@ -2797,8 +2819,17 @@ export type GameEvent =
          */
         readonly attacksCap?: number;
       };
-      /** SRD Flurry of Blows: "two Unarmed Strikes". */
-      readonly attacks?: { readonly remaining: number; readonly unarmedOnly: boolean };
+      /**
+       * SRD Flurry of Blows: "two Unarmed Strikes". And — W7-B10 — SRD
+       * Allosaurus's "one Bite attack against it": a grant narrowed to one
+       * printed line at one creature, which `GrantedAttacks` carries.
+       */
+      readonly attacks?: {
+        readonly remaining: number;
+        readonly unarmedOnly: boolean;
+        readonly line?: string;
+        readonly against?: CharacterId;
+      };
       /**
        * Which purchase sold them, as `budgetPurchaseSlot`'s `<feature>/<id>`.
        *
@@ -2909,6 +2940,15 @@ export type GameEvent =
       readonly source: string;
       readonly returns: ElsewhereReturn;
       readonly damage?: ElsewhereDamage;
+      /**
+       * The two ways out a printed line offers, and the one bar it puts on
+       * the creature inside — W7-B10. Pinned for the reason `returns` is: an
+       * escape a round later opens no book. Absent on every record written
+       * before, which fold as they always did.
+       */
+      readonly escape?: ElsewhereEscape;
+      readonly pullOut?: ElsewherePullOut;
+      readonly noVerbalCasting?: true;
       readonly command?: CommandStamp;
     }
   /**

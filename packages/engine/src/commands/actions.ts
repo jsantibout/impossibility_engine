@@ -39,7 +39,9 @@ import {
   disengage,
   permitsGrantedAction,
   refuseObjectHandling,
+  MULTIATTACK_LEDGER,
   spendAction,
+  spendAttack,
   spendBonusAction,
   spendReaction,
   useFreeInteraction,
@@ -53,7 +55,8 @@ import { type StatedAction, type StatedBonusAction } from '../character.js';
 import { formNamed, wrongFormFor } from '../forms.js';
 import { grapplesOn } from './unarmed.js';
 import { pullToward } from './spell-effect-movement.js';
-import type { CreatureSize } from '@ie/srd';
+import type { CreatureSize, PrintedSaveEffect } from '@ie/srd';
+import { roomInside } from '../elsewhere.js';
 import { rollAbilityCheck, type D20TestResult } from '../checks.js';
 import { isDown } from '../vitals.js';
 import {
@@ -95,18 +98,25 @@ import {
 import { effectiveSizeOf } from '../size.js';
 import {
   affectedByPrintedLine,
+  attacksInAction,
+  describeMultiattack,
   describePerDay,
   describeRecharge,
   LEGENDARY_MOMENT,
   LEGENDARY_POOL,
   legendaryLineOf,
+  multiattackAllows,
+  multiattackOf,
+  multiattackUses,
   perDayTallyKey,
   printedLineSource,
   printedSaveOf,
   statedActionOf,
   statedBonusActionOf,
+  statedBonusActionsUsed,
   withFormSpeeds,
 } from '../monster.js';
+import { heldByObject } from '../state.js';
 import { remaining, tallied, type SlotKind } from '../resources.js';
 import { type Content } from '../content.js';
 import { durationSecondsAt, untilDispelledAt } from '../spell-definitions.js';
@@ -1426,6 +1436,34 @@ export function forcePrintedSave(
       // would go with it — no SRD line that grants this immunity prints
       // either, and a homebrew one that did would be spending on a room that
       // had already learned to look away, which is what the book describes.
+      // **A hold already as full as the line allows** — W7-B10. SRD Shambling
+      // Mound's Engulf: "can have only one creature Grappled by this action at
+      // a time." SRD Water Elemental's Whelm: "one Large creature or up to two
+      // Medium or smaller creatures at a time." Refused here, before anything
+      // is spent, where the hold could reach *nobody* named; a line that could
+      // hold some of those named is rolled, and the clause executor leaves the
+      // rest unheld and says so.
+      const capped = (answered.onFailure ?? []).find(
+        (clause): clause is Extract<PrintedSaveEffect, { kind: 'condition' }> =>
+          clause.kind === 'condition' && clause.escapeDc !== undefined && clause.capacity !== undefined,
+      );
+      if (capped?.capacity !== undefined) {
+        const capacity = capped.capacity;
+        const held = (Object.keys(state.creatures) as CharacterId[])
+          .sort()
+          .filter((who) => grapplesOn(state, who).some((grapple) => grapple.grappler === id))
+          .map((who) => effectiveSizeOf(state, who) ?? 'medium');
+        const roomFor = targets.some((target) =>
+          roomInside(capacity, held, effectiveSizeOf(state, target) ?? 'medium'),
+        );
+        if (!roomFor) {
+          return err(
+            'holding_enough',
+            `${id} already holds as many creatures as ${line.name} allows${held.length === 0 ? '' : ` (${held.length})`}, and none of ${targets.join(', ')} could be held`,
+          );
+        }
+      }
+
       const shielded = printedLineSource(id, line.name);
       const immune = targets.filter((target) =>
         (state.creatures[target]?.lineImmunities ?? []).some((held) => held.source === shielded),
@@ -1470,21 +1508,14 @@ export function forcePrintedSave(
       }
 
       // The slot the **heading** names: one Action on a turn, or the one
-      // Bonus Action, each refused by the primitive that owns its rule.
-      const spent =
-        action !== null
-          ? spendAction(state.combat, id, creature.conditions, {
-              rules: actionRulesOn(state, id),
-            })
-          : spendBonusAction(state.combat, id, creature.conditions, {
-              rules: actionRulesOn(state, id),
-            });
-      if (!spent.ok) return spent;
+      // Bonus Action, each refused by the primitive that owns its rule — or,
+      // where the block's Multiattack names this line as a use, a slot of the
+      // Attack action (SRD Wight's Life Drain; W7-B10). See {@link spendLineSlot}.
+      const slotSpent = spendLineSlot(state, state.combat, id, line, action !== null);
+      if (!slotSpent.ok) return slotSpent;
 
       const events: GameEvent[] = [
-        action !== null
-          ? { type: 'action-spent', id }
-          : { type: 'bonus-action-spent' as const, id },
+        ...slotSpent.value,
         // SRD *Monsters*: "a monster can use the stat block part once."
         ...(recharge === null
           ? []
@@ -2575,6 +2606,12 @@ export function takePrintedForm(
 
 export interface PrintedPullCommand extends CommandIdentity {
   readonly line: string;
+  /**
+   * Whom to pull, for a line that pulls **one** creature its own web holds —
+   * W7-B10, SRD Ettercap's Reel. Asked about where several are webbed and
+   * nobody said; ignored by a line that pulls "each creature".
+   */
+  readonly target?: CharacterId;
 }
 
 export interface PrintedPullOutcome {
@@ -2598,9 +2635,10 @@ export interface PrintedPullOutcome {
  *
  * **The fifth door on one printed line**, and it refuses `line_pulls_nothing`
  * for a line whose sentence says something else. The Ettercap prints the same
- * heading over a different hold — "Restrained by its Web Strand" — and the
- * parser reads nothing out of it, so it lands on that refusal rather than
- * dragging somebody by a web the engine has no record of.
+ * heading over a different hold — "Restrained by its Web Strand" — and since
+ * W7-B10 that is the `restrained-by-object` kind: one creature, within the
+ * printed reach, held by an object this creature raised, the caller naming
+ * which where several are.
  *
  * **Every creature, in roster order, and nothing is rolled.** The book says
  * "each creature", so there is no choice for a caller to make and none is
@@ -2684,20 +2722,70 @@ export function takePrintedPull(
         );
       }
 
-      const spent =
-        action !== null
-          ? spendAction(state.combat, id, creature.conditions, {
-              rules: actionRulesOn(state, id),
-            })
-          : spendBonusAction(state.combat, id, creature.conditions, {
-              rules: actionRulesOn(state, id),
-            });
-      if (!spent.ok) return spent;
+      // **Whom a web-keyed pull reaches, before anything is spent** — W7-B10.
+      // SRD Ettercap's Reel: "one creature within 30 feet of itself that is
+      // Restrained by its Web Strand." A creature held by an object *this*
+      // creature spun — the object's id names its spinner — and within the
+      // printed reach. One, and the caller says which where several qualify.
+      let webbed: CharacterId | null = null;
+      if (printed.of === 'restrained-by-object') {
+        const scene = sceneFor(state, id, `${id} to reel from`);
+        if (!scene.ok) return scene;
+        const held = (Object.keys(state.creatures) as CharacterId[])
+          .sort()
+          .filter((who) =>
+            state.creatures[who]!.conditions.instances.some((instance) => {
+              const object = heldByObject(instance.source);
+              return (
+                object !== null &&
+                isSpunBy(object, id, who) &&
+                state.creatures[object] !== undefined &&
+                !state.creatures[object]!.vitals.dead
+              );
+            }),
+          )
+          .filter((who) => {
+            const apart = distanceBetween(scene.value, who, id);
+            return apart.ok && apart.value <= (printed.within ?? 0);
+          });
+        if (command.target !== undefined) {
+          if (!held.includes(command.target)) {
+            return err(
+              'not_held_by_web',
+              `${line.name} pulls a creature within ${printed.within} feet that ${id}'s ${printed.heldBy} is holding, and ${command.target} is not one`,
+            );
+          }
+          webbed = command.target;
+        } else if (held.length === 1) webbed = held[0]!;
+        else if (held.length === 0) {
+          return err(
+            'not_held_by_web',
+            `${line.name} pulls a creature within ${printed.within} feet that ${id}'s ${printed.heldBy} is holding, and it is holding nobody in reach`,
+          );
+        } else {
+          return needsContext(
+            'undeclared_pull_target',
+            `${line.name} pulls one creature ${id}'s ${printed.heldBy} is holding, and ${held.join(', ')} qualify; nobody has said which`,
+            [
+              {
+                kind: 'creature',
+                subject: id,
+                need: `the creature ${id} reels in`,
+                because: 'the book offers the choice to whoever runs the creature, and the engine makes none of them',
+                satisfyWith: 'takePrintedPull again with its target filled in',
+              },
+            ],
+          );
+        }
+      }
 
-      const events: GameEvent[] = [
-        action !== null
-          ? { type: 'action-spent', id }
-          : { type: 'bonus-action-spent' as const, id },
+      // **A use the Attack action holds**, or the slot the heading names —
+      // see {@link spendLineSlot}.
+      const slotSpent = spendLineSlot(state, state.combat, id, line, action !== null);
+      if (!slotSpent.ok) return slotSpent;
+      const events: GameEvent[] = [...slotSpent.value];
+
+      events.push(
         ...(recharge === null
           ? []
           : [{ type: 'printed-line-expended' as const, id, line: line.name }]),
@@ -2721,17 +2809,21 @@ export function takePrintedPull(
               turn: state.combat.turnsTaken,
               ...(stamp === null ? {} : { command: stamp }),
             },
-      ];
+      );
 
       // **Sorted, and each pull measured over the world the last one left.**
       // Two creatures dragged toward one roper end up in different spaces
       // depending on the order they are dragged in, so the order is the
       // roster's rather than whatever `Object.keys` happened to give — the
-      // same reason `settleSizes` walks a sorted list.
-      const held = Object.keys(state.creatures)
-        .sort()
-        .map((key) => asCharacterId(key))
-        .filter((who) => grapplesOn(state, who).some((grapple) => grapple.grappler === id));
+      // same reason `settleSizes` walks a sorted list. A web-keyed line pulls
+      // the one creature settled above.
+      const held =
+        webbed !== null
+          ? [webbed]
+          : Object.keys(state.creatures)
+              .sort()
+              .map((key) => asCharacterId(key))
+              .filter((who) => grapplesOn(state, who).some((grapple) => grapple.grappler === id));
 
       const unverified: string[] = [];
       const pulled: CharacterId[] = [];
@@ -2747,6 +2839,104 @@ export function takePrintedPull(
       return ok({ events, pulled, unverified, duplicate: false });
     },
   );
+}
+
+/**
+ * Spend what taking a printed line costs, and say so in events — W7-B10.
+ *
+ * **A use the Attack action holds.** SRD Roper: "makes two Tentacle attacks,
+ * uses Reel, and makes two Bite attacks"; SRD Wight: "It can replace one
+ * attack with a use of Life Drain." Where the block's sequence names this
+ * Actions line as a use, taking it spends a slot of the Attack action rather
+ * than the Action itself, is held to the composition exactly as a swing is
+ * (`not_in_multiattack`), and is written into the same ledger a swing is — so
+ * the fold spends the same slot off the same `attack-made`, and the swings
+ * after it are measured against a sequence that already holds the use.
+ *
+ * Otherwise the slot the **heading** names: one Action on a turn, or the one
+ * Bonus Action, each refused by the primitive that owns its rule. One body
+ * for every door that takes a line and spends it, so a pull and a save named
+ * by the same sequence cannot come to cost two different things.
+ */
+function spendLineSlot(
+  state: GameState,
+  combat: NonNullable<GameState['combat']>,
+  id: CharacterId,
+  line: StatedAction | StatedBonusAction,
+  isAction: boolean,
+): Result<readonly GameEvent[]> {
+  const creature = state.creatures[id]!;
+  const sequence = multiattackOf(creature.sheet);
+  if (isAction && sequence !== null && multiattackUses(sequence, line.name)) {
+    const budget = combat.budgets[id];
+    const linesUsed = statedBonusActionsUsed(budget?.featureUsedOnTurn ?? {}, combat.turnsTaken);
+    const made = usesMadeThisTurn(combat, id);
+    const next = { ...made, [line.name]: (made[line.name] ?? 0) + 1 };
+    if (budget?.attacksRemaining != null && !multiattackAllows(sequence, next, linesUsed)) {
+      return err(
+        'not_in_multiattack',
+        `${id}'s block prints ${describeMultiattack(sequence)} in one action, and a use of ${line.name} is not what is left of it`,
+      );
+    }
+    const spent = spendAttack(
+      combat,
+      id,
+      attacksInAction(creature.sheet, creature.heads, linesUsed),
+      creature.conditions,
+      { rules: actionRulesOn(state, id) },
+    );
+    if (!spent.ok) return spent;
+    return ok([
+      // Marked as a use, so an Invisibility or a Sanctuary that ends when its
+      // creature attacks is not ended by a line that rolled no attack.
+      { type: 'attack-made', id, use: line.name },
+      {
+        type: 'feature-used',
+        id,
+        feature: `${MULTIATTACK_LEDGER}${line.name}#${next[line.name]!}`,
+        turn: combat.turnsTaken,
+      },
+    ]);
+  }
+  const spent = isAction
+    ? spendAction(combat, id, creature.conditions, { rules: actionRulesOn(state, id) })
+    : spendBonusAction(combat, id, creature.conditions, { rules: actionRulesOn(state, id) });
+  if (!spent.ok) return spent;
+  return ok([isAction ? { type: 'action-spent', id } : { type: 'bonus-action-spent', id }]);
+}
+
+/**
+ * Whether a printed object was raised by this creature — W7-B10.
+ *
+ * `printedObjectId` writes `<noun>:<by>:<target>:<use>`, so a web the
+ * ettercap spun round this creature is one whose id names the two of them
+ * after its noun. Read off the id rather than off a record, because the id is
+ * the one fact both the web's raising and this pull have in common.
+ */
+const isSpunBy = (object: CharacterId, by: CharacterId, held: CharacterId): boolean =>
+  // The noun is the one segment with no colon in it; after it come the spinner
+  // and the creature webbed, each a free-text id that may carry colons of its
+  // own (a summon's does), so both are matched whole rather than split out.
+  object.slice(object.indexOf(':') + 1).startsWith(`${by}:${held}:`);
+
+/**
+ * The uses and swings of the Attack action so far this turn, by name — W7-B10.
+ *
+ * `attacksMadeThisTurn`'s reading in `commands/attacks.ts`, off the same
+ * ledger and the same key, so a use the sequence names and a swing it names
+ * are counted against one composition.
+ */
+function usesMadeThisTurn(
+  combat: NonNullable<GameState['combat']>,
+  id: CharacterId,
+): Readonly<Record<string, number>> {
+  const made: Record<string, number> = {};
+  for (const [key, turn] of Object.entries(combat.budgets[id]?.featureUsedOnTurn ?? {})) {
+    if (turn !== combat.turnsTaken || !key.startsWith(MULTIATTACK_LEDGER)) continue;
+    const name = key.slice(MULTIATTACK_LEDGER.length, key.lastIndexOf('#'));
+    made[name] = (made[name] ?? 0) + 1;
+  }
+  return made;
 }
 
 /**

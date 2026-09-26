@@ -1935,17 +1935,22 @@ const SHAPE_SHIFT_PRINTED_LINE = tool({
 const PULL_PRINTED_LINE = tool({
   name: 'pull_printed_line',
   description:
-    'Have the engine take the pull a creature’s stat block prints — the Roper’s Reel. Name the heading as the block prints it; the engine reads the distance off the block, drags every creature that creature is Grappling straight toward it, stops each at the gap rather than through it, and spends whichever slot the heading names along with any recharge or daily limit. You state no distance and choose nobody: the line says "each creature". Only some printed lines can be taken this way: `look` says which, under `engineMakesThePull` on `printed.actions[]` and `printed.bonusActions[]` alike. The Ettercap’s line under the same heading pulls by a web rather than a grapple and is refused here — take it with `take_printed_action` and rule it yourself.',
+    'Have the engine take the pull a creature’s stat block prints — the Roper’s Reel, the Ettercap’s. Name the heading as the block prints it; the engine reads the distance off the block, drags what the line says the creature is holding straight toward it, stops each at the gap rather than through it, and spends whichever slot the heading names along with any recharge or daily limit — or, where the block’s Multiattack names the line as a use, a slot of the Attack action already taken. You state no distance. A line that pulls "each creature" it is Grappling chooses nobody; a line that pulls "one creature" its own web holds takes `target` where several are webbed, and the engine says whom it holds when you omit it. Only some printed lines can be taken this way: `look` says which, under `engineMakesThePull` on `printed.actions[]` and `printed.bonusActions[]` alike.',
   mutates: true,
+  selfAnswers: ['creature'],
   input: z.strictObject({
     who: creatureId.describe('Which creature is taking the line.'),
     line: printedLineName,
+    target: creatureId
+      .optional()
+      .describe('For a line that pulls one creature its web holds: whom. Omit it and the engine takes the one it holds, or says which qualify.'),
   }),
   run: (context, args) =>
     settle(
       context,
       takePrintedPull(context.campaign.state(), who(args.who), {
         line: args.line,
+        ...(args.target === undefined ? {} : { target: who(args.target) }),
         ...identity(context),
       }),
       (value) => value.events,
@@ -2143,6 +2148,20 @@ const MOVE_PRINTED_LINE = tool({
       route: routeSchema
         .optional()
         .describe('For a charge: the 5-foot spaces crossed, in order, ending where the run ends. Leave the placement fields out.'),
+      // Where each creature that saves steps to, for a line whose success
+      // relocates it — W7-B10. Stated before the dice because the dice decide
+      // who needs one; an entry for a creature that fails is ignored.
+      landings: z
+        .array(
+          z.object({
+            who: creatureId.describe('The creature this landing is for.'),
+            to: placementSchema.describe('Where it steps to if it saves.'),
+          }),
+        )
+        .optional()
+        .describe(
+          'For a line whose success moves the creature clear — the Gelatinous Cube’s Engulf, "the target moves to an unoccupied space within 5 feet of the cube" — where each creature in the way steps to if it saves. A creature that fails ignores its entry; a creature that saves with none takes the one qualifying space, or is reported among several for you to place with `move_creature`.',
+        ),
       // The placement fields, each optional here because a charge states a
       // route instead and a caller asked `undeclared_destination` sends
       // neither the first time. Their own rule — exactly one anchor — holds
@@ -2172,6 +2191,13 @@ const MOVE_PRINTED_LINE = tool({
         {
           line: args.line,
           ...(args.route === undefined ? {} : { route: args.route.map(aPoint) }),
+          ...(args.landings === undefined
+            ? {}
+            : {
+                landings: Object.fromEntries(
+                  args.landings.map((landing) => [who(landing.who), placementOf(landing.to)]),
+                ),
+              }),
           ...(args.feet === undefined || (args.fromLandmark === undefined && args.fromCreature === undefined)
             ? {}
             : {

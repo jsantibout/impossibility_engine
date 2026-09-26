@@ -250,20 +250,21 @@ describe('the door that rolls a printed line’s saving throw', () => {
   });
 
   it('refuses a line whose sentence it could not structure, naming the other door', () => {
-    // SRD Gelatinous Cube's Engulf: a save whose failure puts the target
-    // *inside* the cube, which the printed-save reader has no arm for, so the
-    // line stays prose and this door refuses it whole — a save the engine
-    // rolls and then does nothing with is a die thrown for no reason. (The
-    // Bulette's Deadly Leap, which used to stand here, is read now — W7-B9 —
-    // and refused for a different reason below; the Gold Dragon Wyrmling's
-    // Weakening Breath before it is read too, as the Brass Dragon Wyrmling's
+    // SRD Harpy's Luring Song: a save whose failure is a compulsion — "it must
+    // move on its turn toward the harpy by the most direct route" — which the
+    // doctrine puts at the table, so the line stays prose and this door refuses
+    // it whole — a save the engine rolls and then does nothing with is a die
+    // thrown for no reason. (The Gelatinous Cube's Engulf, which used to stand
+    // here, is read now — W7-B10 — and refused for a different reason below,
+    // as the Bulette's Deadly Leap was before it; the Gold Dragon Wyrmling's
+    // Weakening Breath before that is read too, as the Brass Dragon Wyrmling's
     // Sleep Breath was before that.)
-    const t = fight('engulfing', 'gelatinous-cube');
+    const t = fight('luring', 'harpy');
     turnOf(t, 'fang');
 
     const out = t.call('force_printed_save', {
       who: 'fang',
-      line: 'Engulf',
+      line: 'Luring Song',
       targets: ['grish'],
     });
     expect(out.status).toBe('refused');

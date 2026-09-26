@@ -400,6 +400,19 @@ export interface Attachment {
    * of a number the book does print.
    */
   readonly detachDc?: number;
+  /**
+   * What the line says the attached creature may and may not do while it
+   * holds on — W7-B10. SRD Darkmantle: "can attack only the target", "can't
+   * benefit from any bonus to its Speed", "moves with the target"; SRD Stirge:
+   * "can't make Proboscis attacks". Pinned here from the hit that made the
+   * attach, so the swing and the move read the record and open no book.
+   */
+  readonly whileAttached?: {
+    readonly attacksOnly?: true;
+    readonly forbidsLine?: string;
+    readonly movesWithTarget?: true;
+    readonly noSpeedBonus?: true;
+  };
 }
 
 /**
@@ -444,8 +457,15 @@ export const attachedTo = (source: string): CharacterId | null =>
 export const heldByObjectSource = (object: CharacterId): string => `held-by:${object}`;
 
 /** Which thing holds a condition, read back out of the source. Null for any other cause. */
-export const heldByObject = (source: string): CharacterId | null =>
-  source.startsWith('held-by:') ? (source.slice('held-by:'.length) as CharacterId) : null;
+export const heldByObject = (source: string): CharacterId | null => {
+  // **Anywhere in the source, not only at its head** — W7-B10. A grapple made
+  // with a limb that is a thing of its own is filed under
+  // `grapple:<who>/held-by:<limb>`, so the grappler's half is read by
+  // `grapplerOf` and this reads the limb's; a web's own `held-by:<web>` is the
+  // whole source and reads as it always did.
+  const at = source.indexOf('held-by:');
+  return at === -1 ? null : (source.slice(at + 'held-by:'.length) as CharacterId);
+};
 
 /**
  * What the engine calls an object a **stat block arrived holding**.
@@ -1594,6 +1614,18 @@ export interface PendingMove {
    * already measured against and already paid Speed to reach.
    */
   readonly destination: Point;
+  /**
+   * The creatures this move brings along, and where each lands — W7-B10.
+   *
+   * SRD Grappled, *Movable*: "The grappler can drag or carry you when it
+   * moves." A held creature the mover named, or a creature attached to the
+   * mover that moves with it (SRD Darkmantle), each with the placement the
+   * command settled before the move was declared — so a move held open for
+   * an Opportunity Attack completes with the same carry it declared, and a
+   * mover killed by that attack carries nobody. Absent on every move written
+   * before the field, and on every move that carries nobody.
+   */
+  readonly carrying?: readonly { readonly who: CharacterId; readonly placement: Placement }[];
   /** Who was offered an Opportunity Attack and has not yet answered. */
   readonly provoked: readonly { readonly reactor: CharacterId; readonly reach: number }[];
 }

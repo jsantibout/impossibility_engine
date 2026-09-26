@@ -263,6 +263,12 @@ export function applyCombat({ state, next }: Applying, event: CombatEvent): Game
             // Unarmed Strike never does; a weapon swing says so or says
             // nothing, which is what every log written before the field says.
             event.type === 'unarmed-strike-made' ? null : (event.light ?? null),
+            // And what the swing was and whom at, where the command pinned it
+            // — W7-B10 — so a grant narrowed to one line at one creature is
+            // spent here exactly as the command spent it.
+            event.type === 'attack-made' && event.swing !== undefined
+              ? { name: event.swing.line, target: event.swing.against }
+              : null,
           ),
         ).state,
       );

@@ -49,7 +49,7 @@ import {
   type ParseProblem,
 } from '../schemas.js';
 import { ABILITY_OVERRIDES } from './overrides.js';
-import { parsePrintedSave, parseRiderSave } from './printed-save.js';
+import { parsePrintedSave, parseRiderSave, readPullOut } from './printed-save.js';
 /**
  * The spell list, for one job: turning a printed spell **name** into the id
  * the rest of the system knows that spell by.
@@ -300,6 +300,9 @@ const CONDITIONAL = /^\s+(?:if|unless|when|while)\b/i;
 /** `, plus` and ` plus` — the only continuation that adds damage. */
 const PLUS = /^\s*(?:,\s*)?plus\s+/;
 
+/** The one thing a hit that deals no damage may do instead: impose a condition — W7-B10. */
+const HIT_IMPOSES_A_CONDITION = /^\s*The target has the [A-Z][a-z]+ condition/;
+
 /**
  * Two lines whose markup the source got wrong, corrected the way
  * `overrides.ts` corrects three ability tables: by naming the exact string.
@@ -363,7 +366,12 @@ export function parseAttackLine(text: string): MonsterAttack | null {
   if (kind !== 'melee' && range === null) return null;
 
   const { damage, rest } = parseDamageChain(afterHit.join('_Hit:_'));
-  if (damage.length === 0) return null;
+  // **A hit that deals nothing is an attack only where it imposes something**
+  // — W7-B10. SRD Roper's Tentacle: "_Hit:_ The target has the Grappled
+  // condition (escape DC 14) …" is the one line in the book whose chain is
+  // empty, and its rider is the whole of what the hit does. A hit with neither
+  // is a die thrown for nothing, and stays prose.
+  if (damage.length === 0 && !HIT_IMPOSES_A_CONDITION.test(rest)) return null;
 
   const qualified = qualification?.trim() ?? '';
 
@@ -1048,6 +1056,28 @@ const ABDUCT = new RegExp(
 );
 
 /**
+ * SRD Ooze Cube, on the Gelatinous Cube — W7-B10: "The cube fills its entire
+ * space and is transparent. Other creatures can enter that space, but a
+ * creature that does so is subjected to the cube's Engulf and has Disadvantage
+ * on the saving throw. Creatures inside the cube have Total Cover, and the
+ * cube can hold one Large creature or up to four Medium or Small creatures
+ * inside itself at a time. As an action, a creature within 5 feet of the cube
+ * can pull a creature or an object out of the cube by succeeding on a DC 12
+ * Strength (Athletics) check, and the puller takes 10 (3d6) Acid damage."
+ *
+ * Four sentences and one shape: the line an entrant is subjected to, the two
+ * counts the hold has room for, and the neighbour's pull — which is the same
+ * sentence SRD Water Elemental's Whelm prints on a line, read by the same
+ * reader. The Total Cover is what `inside` already means. The noun is
+ * back-referenced so the four sentences are about one creature, and the
+ * whole is anchored so a block that said one more thing stays prose.
+ */
+const OOZE_CUBE = new RegExp(
+  `^The ([a-z' -]+) fills its entire space and is transparent\\. Other creatures can enter that space, but a creature that does so is subjected to the \\1['’]s ([A-Z][A-Za-z' -]+?) and has Disadvantage on the saving throw\\. Creatures inside the \\1 have Total Cover, and the \\1 can hold (one|two|three|four) Large creatures? or up to (one|two|three|four|five|six) Medium or Small creatures inside itself at a time\\. (As an action, .+\\.)$`,
+);
+const COUNT_WORD: Readonly<Record<string, number>> = { one: 1, two: 2, three: 3, four: 4, five: 5, six: 6 };
+
+/**
  * The sentences the parser reads so that the **table** gets them, and that no
  * rule will ever consult.
  *
@@ -1629,6 +1659,20 @@ export function parseTraitShape(text: string): MonsterTrait | null {
   // cost a drag does not charge.
   if (JUMPER.test(text)) return { kind: 'jumps-by-dexterity' };
   if (ABDUCT.test(text)) return { kind: 'drags-for-free' };
+  // What a creature holds inside itself, and the neighbour's pull — W7-B10.
+  const oozeCube = OOZE_CUBE.exec(oneLine(text));
+  if (oozeCube !== null) {
+    const pullOutBy = readPullOut(oozeCube[5]!);
+    // A pull this cannot read leaves the heading prose: the capacity without
+    // the way out would be a hold nothing but the cube's death opens.
+    if (pullOutBy === null) return null;
+    return {
+      kind: 'holds-creatures-inside',
+      capacity: { large: COUNT_WORD[oozeCube[3]!]!, mediumOrSmaller: COUNT_WORD[oozeCube[4]!]! },
+      pullOutBy,
+      entrantsSubjectedTo: { line: oozeCube[2]!, disadvantage: true },
+    };
+  }
 
   // Last, because every sentence above states a mechanic and these state
   // none: a handover that matched first would be a rule read as fiction.
@@ -2021,11 +2065,36 @@ const PULL_LINE = new RegExp(
   `^The ${SUBJECT} pulls each creature Grappled by it up to (\\d+) feet straight toward it\\.$`,
 );
 
+/**
+ * SRD Ettercap, Reel: "The ettercap pulls one creature within 30 feet of
+ * itself that is Restrained by its Web Strand up to 25 feet straight toward
+ * itself." — W7-B10.
+ *
+ * The same heading over the other hold: one creature, within a reach, held by
+ * an object a named line of this block spun. The heading is captured so the
+ * engine can ask which object is *its* web; the reach and the distance are
+ * both the line's.
+ */
+const WEB_PULL_LINE = new RegExp(
+  `^The ${SUBJECT} pulls one creature within (\\d+) feet of itself that is Restrained by its ([A-Z][A-Za-z' -]+?) up to (\\d+) feet straight toward itself\\.$`,
+);
+
 /** What this line drags toward its creature, or null for every other line. */
 export function parsePullLine(text: string): MonsterPull | null {
-  const matched = PULL_LINE.exec(text.replace(/\s+/g, ' ').trim());
-  if (matched === null) return null;
-  const checked = MonsterPullSchema.safeParse({ feet: Number(matched[1]!), of: 'grappled' });
+  const flat = text.replace(/\s+/g, ' ').trim();
+  const matched = PULL_LINE.exec(flat);
+  if (matched !== null) {
+    const checked = MonsterPullSchema.safeParse({ feet: Number(matched[1]!), of: 'grappled' });
+    return checked.success ? checked.data : null;
+  }
+  const webbed = WEB_PULL_LINE.exec(flat);
+  if (webbed === null) return null;
+  const checked = MonsterPullSchema.safeParse({
+    feet: Number(webbed[3]!),
+    of: 'restrained-by-object',
+    within: Number(webbed[1]!),
+    heldBy: webbed[2]!,
+  });
   return checked.success ? checked.data : null;
 }
 
@@ -2654,7 +2723,17 @@ const MAKES = /^The (?:[A-Za-z'’-]+ ){1,3}makes /;
 const NAME = "[A-Z][A-Za-z'’-]*";
 const NAMES = `${NAME}(?: ${NAME})*`;
 const COUNT = '(one|two|three|four|five|six)';
-const CLAUSE = new RegExp(`^${COUNT} (${NAMES}(?: or ${NAMES})*) (attack|attacks)$`);
+const CLAUSE = new RegExp(`^(?:makes )?${COUNT} (${NAMES}(?: or ${NAMES})*) (attack|attacks)$`);
+
+/**
+ * "uses Reel" — a **use** inside the sequence, which is an entry of its own —
+ * W7-B10. SRD Roper: "makes two Tentacle attacks, uses Reel, and makes two
+ * Bite attacks." Anchored to a bare name, for {@link NAMED_USE_CLAUSE}'s
+ * reason: a count, a qualification or a choice is a rule this grammar does not
+ * read. The verb the book resumes the sequence with afterwards — "and makes
+ * two Bite attacks" — is admitted by {@link CLAUSE}'s optional opening.
+ */
+const USE_CLAUSE = new RegExp(`^uses (${NAMES})$`);
 
 /**
  * "three attacks" and the Tarrasque's "three other attacks" — a count whose
@@ -2770,7 +2849,7 @@ const alreadyNamed = (
   name: string,
 ): boolean =>
   branch.some((entry) =>
-    (entry.attacks ?? [entry.attack!]).some(
+    (entry.attacks ?? [entry.attack ?? entry.uses!]).some(
       (printed) => printed.toLowerCase() === name.toLowerCase(),
     ),
   );
@@ -2794,6 +2873,12 @@ function parseSequence(text: string): MonsterMultiattackEntry[] | null {
   // attack" is a pure named sequence that ` and ` alone could not see.
   for (const raw of body.split(/,\s+and\s+|\s+and\s+|,\s+/)) {
     const part = raw.trim();
+    // A use in the middle of the sequence — W7-B10 — is an entry of one.
+    const use = USE_CLAUSE.exec(part);
+    if (use !== null) {
+      entries.push({ count: 1, uses: use[1]! });
+      continue;
+    }
     const clause = CLAUSE.exec(part);
     const bare = clause === null ? BARE.exec(part) : null;
     if (clause === null && bare === null) return null;
@@ -2843,6 +2928,28 @@ function withOneReplaced(
 }
 
 /**
+ * The same trade where what comes in is a **use** rather than a swing — SRD
+ * Wight: "It can replace one attack with a use of Life Drain." — W7-B10.
+ *
+ * {@link withOneReplaced}'s rules, and **one swing for one use only**. SRD
+ * Young Brass Dragon's "replace two attacks with a use of Sleep Breath" is one
+ * breath in the place of two swings: a branch smaller than the other, which
+ * the Attack action's single size cannot say — so it stays the hand-over it
+ * was rather than being read as two breaths or as a branch of the wrong size.
+ */
+function withOneUsed(
+  entries: readonly MonsterMultiattackEntry[],
+  count: number,
+  line: string,
+): MonsterMultiattackEntry[] | null {
+  if (count !== 1 || entries.length !== 1) return null;
+  const only = entries[0]!;
+  if (only.count <= count) return null;
+  if (alreadyNamed(entries, line)) return null;
+  return [{ ...only, count: only.count - count }, { count: 1, uses: line }];
+}
+
+/**
  * What a Multiattack line states, or null where it states something this
  * grammar still cannot read.
  *
@@ -2865,11 +2972,19 @@ function withOneReplaced(
  * it always was. The default is the empty list, which is the reading this
  * parser gave before the argument existed: nothing binds, so every use is
  * prose. It can only ever refuse a swing, never invent one.
+ *
+ * `printedUses` is the third, and the same kind of fact — W7-B10: the headings
+ * of the Actions lines this block prints a **save** for that a creature
+ * spends. "It can replace one attack with a use of X", where X is one of
+ * them, is a branch holding a `uses` entry the door that forces the save
+ * spends out of the Attack action. Anything else a use names stays the
+ * hand-over it was.
  */
 export function parseMultiattack(
   text: string,
   printedAttacks: readonly string[] = [],
   printedBonusActions: readonly string[] = [],
+  printedUses: readonly string[] = [],
 ): MonsterMultiattack | null {
   const clean = text.replace(/[_*]/g, '').trim();
   if (!clean.endsWith('.')) return null;
@@ -2945,8 +3060,16 @@ export function parseMultiattack(
       // same swap in the book's other words.
       const use = REPLACEMENT_USE.exec(second);
       const used = use === null ? null : boundName(printedAttacks, use[2]!);
+      // And "a use of X" where X is a save line the block prints is a use the
+      // Attack action holds — W7-B10, bound to the printed heading.
+      const usedLine =
+        use === null || used !== null ? null : boundLine(printedUses, use[2]!);
       const swapped =
-        used === null ? null : withOneReplaced(branches[0]!, COUNT_WORDS[use![1]!]!, used);
+        used !== null
+          ? withOneReplaced(branches[0]!, COUNT_WORDS[use![1]!]!, used)
+          : usedLine !== null
+            ? withOneUsed(branches[0]!, COUNT_WORDS[use![1]!]!, usedLine)
+            : null;
       if (swapped !== null) {
         branches.push(swapped);
         gates.push(null);
@@ -3141,6 +3264,8 @@ function parseFeatures(
   lines: readonly string[],
   printedAttacks: readonly string[] = [],
   printedBonusActions: readonly string[] = [],
+  /** The Actions headings a sequence may name as a use — see {@link parseMultiattack}. */
+  printedUses: readonly string[] = [],
   /**
    * Whether a line under this heading is one a creature *spends* — Actions
    * and Bonus Actions. See {@link spendableSave}, which is what reads it.
@@ -3180,7 +3305,7 @@ function parseFeatures(
       // evaluate the qualification.
       const multiattack =
         current.name === 'Multiattack'
-          ? parseMultiattack(text, printedAttacks, printedBonusActions)
+          ? parseMultiattack(text, printedAttacks, printedBonusActions, printedUses)
           : null;
       // The two things read out of the *name* rather than the sentence, and
       // both ride on the **line**, which is what the book prints them on:
@@ -3493,6 +3618,17 @@ function parseEntry(
   // heading is what a gate names and what a spend records.
   const printedBonusActions = parseFeatures(sections.bonusActions).map((line) => line.name);
 
+  // **The third** — W7-B10: the Actions headings whose line is a save a
+  // creature spends, which a Multiattack's "replace one attack with a use of
+  // X" may name as a slot of the Attack action. Read as the spendable section
+  // it is; a save a moment forces, or one that moves first, is taken by a
+  // door that is not the one that spends the slot, and is left out.
+  const printedUses = parseFeatures(sections.actions, [], [], [], true).flatMap((line) =>
+    line.save === undefined || line.save.trigger !== undefined || line.save.movesThen !== undefined
+      ? []
+      : [line.name],
+  );
+
   const monster = {
     id,
     name: entry.name,
@@ -3525,13 +3661,14 @@ function parseEntry(
     proficiencyBonus,
 
     traits: parseFeatures(sections.traits, printedAttacks, printedBonusActions),
-    actions: parseFeatures(sections.actions, printedAttacks, printedBonusActions, true),
-    bonusActions: parseFeatures(sections.bonusActions, printedAttacks, printedBonusActions, true),
+    actions: parseFeatures(sections.actions, printedAttacks, printedBonusActions, printedUses, true),
+    bonusActions: parseFeatures(sections.bonusActions, printedAttacks, printedBonusActions, [], true),
     reactions: parseFeatures(sections.reactions, printedAttacks, printedBonusActions),
     legendaryActions: parseFeatures(
       sections.legendaryActions,
       printedAttacks,
       printedBonusActions,
+      [],
       false,
       true,
     ),

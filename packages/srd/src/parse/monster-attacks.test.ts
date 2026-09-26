@@ -186,13 +186,16 @@ describe('parseTraitShape', () => {
 
   it('is null for a trait whose sentence nothing reads', () => {
     // A trait with a mechanic somebody has matched is `monster-traits.test.ts`'s
-    // subject; this is the other half. The Gelatinous Cube's Ooze Cube is one
-    // of the many the reader still says nothing about — a creature inside
-    // another creature, with Total Cover there and a check to pull it out — and
-    // it stays prose because it states a mechanic rather than a fact about the
-    // world. The Giant Spider's Web Walker used to stand here and is now read
-    // and handed over; see `HANDOVER_TRAIT_KINDS` for why the two differ.
-    expect(parseTraitShape(trait('gelatinous-cube', 'Ooze Cube').text)).toBeNull();
+    // subject; this is the other half. The Troll Limb's Troll Spawn is one of
+    // the many the reader still says nothing about — a limb that may become a
+    // whole troll on a die a day later — and it stays prose because it states
+    // a mechanic rather than a fact about the world. The Giant Spider's Web
+    // Walker used to stand here and is now read and handed over; the
+    // Gelatinous Cube's Ooze Cube stood here after it and is read since
+    // W7-B10 (`holds-creatures-inside`), and the Night Hag's Soul Bag since
+    // W7-B11. See `HANDOVER_TRAIT_KINDS` for why the read-and-handed-over
+    // differ from the read.
+    expect(parseTraitShape(trait('troll-limb', 'Troll Spawn').text)).toBeNull();
   });
 });
 
@@ -207,10 +210,11 @@ describe('the bestiary, read through the parser', () => {
    * Named rather than counted: a threshold would go on passing while a whole
    * family of lines quietly stopped being read. The Roper's Tentacle is the
    * one line in the book that makes an attack roll and deals **no damage** on
-   * a hit — it grapples — so there is nothing for an attack to carry, and it
-   * stays the prose it always was.
+   * a hit — it grapples — and since W7-B10 it is read: a hit whose chain deals
+   * nothing is an attack when its rider imposes a condition, and the tentacle
+   * the hold hangs on is an object the rider raises.
    */
-  it('structures every printed attack line but the one that deals no damage', () => {
+  it('structures every printed attack line, the one that deals no damage included', () => {
     const unread = bestiary.flatMap((m) =>
       [...m.actions, ...m.bonusActions, ...m.reactions, ...m.legendaryActions].flatMap((a) =>
         /Attack Roll:_/.test(a.text) && a.attack === undefined ? [`${m.id}: ${a.name}`] : [],
@@ -218,7 +222,14 @@ describe('the bestiary, read through the parser', () => {
     );
 
     expect(attacks.length).toBeGreaterThan(400);
-    expect(unread).toEqual(['roper: Tentacle']);
+    expect(unread).toEqual([]);
+    const tentacle = action('roper', 'Tentacle').attack;
+    expect(tentacle).toMatchObject({ kind: 'melee', modifier: 7, reach: 60, damage: [] });
+    expect(tentacle?.rider).toContain('Grappled condition (escape DC 14)');
+  });
+
+  it('still refuses a hit that deals no damage and imposes nothing', () => {
+    expect(parseAttackLine('_Melee Attack Roll:_ +7, reach 60 ft. _Hit:_ The target is startled.')).toBeNull();
   });
 
   /**
@@ -336,8 +347,8 @@ describe('parseMultiattack', () => {
       'The ghoul makes two Bite attack.',
       // A condition on a branch that the engine cannot evaluate.
       'The golem makes two Slam attacks, or it makes three Slam attacks if it used Hasten this turn.',
-      // A use in the middle of the sequence rather than trailing it.
-      'The roper makes two Tentacle attacks, uses Reel, and makes two Bite attacks.',
+      // A use in the middle of the sequence that says more than a name.
+      'The roper makes two Tentacle attacks, uses Reel twice, and makes two Bite attacks.',
     ]) {
       expect(parseMultiattack(text), text).toBeNull();
     }
@@ -422,8 +433,15 @@ describe('parseMultiattack', () => {
         if (parsed === undefined) continue;
         read += 1;
         const printed = monster.actions.map((a) => a.name.toLowerCase());
+        // A use names a line under Actions or Bonus Actions — W7-B10, the
+        // Roper's Reel — and is held to the block the same way a swing is.
+        const lines = [...monster.actions, ...monster.bonusActions].map((a) => a.name.toLowerCase());
         for (const branch of parsed.alternatives ?? [parsed.entries ?? []]) {
           for (const entry of entriesOfBranch(branch)) {
+            if (entry.uses !== undefined) {
+              expect(lines, `${monster.id}: uses ${entry.uses}`).toContain(entry.uses.toLowerCase());
+              continue;
+            }
             for (const name of entry.attacks ?? [entry.attack!]) {
               expect(printed, `${monster.id}: ${name}`).toContain(name.toLowerCase());
             }
@@ -703,18 +721,32 @@ describe('parseMultiattack reads the rest of the sentence', () => {
     // The third Slam is gated on a Bonus Action; told nothing about the block's,
     // there is nothing to bind the gate to.
     expect(parseMultiattack(action('clay-golem', 'Multiattack').text)).toBeNull();
-    // "uses Reel" sits in the middle of the sequence rather than trailing it,
-    // and Reel is an action line with no damage on it.
-    expect(parseMultiattack(action('roper', 'Multiattack').text)).toBeNull();
     // A count that reads off a fact nobody has declared.
     expect(parseMultiattack(action('hydra', 'Multiattack').text)).toBeNull();
+  });
+
+  /**
+   * SRD Roper: "The roper makes two Tentacle attacks, uses Reel, and makes two
+   * Bite attacks." — W7-B10. A **use** in the middle of the sequence, which is
+   * an entry of its own: a slot the Attack action holds that is spent by
+   * taking the line rather than by swinging it. The name is bound by the
+   * engine against the block's own lines, as an attack's is.
+   */
+  it('reads a use in the middle of a sequence as an entry of its own', () => {
+    expect(parseMultiattack(action('roper', 'Multiattack').text)).toEqual({
+      entries: [
+        { count: 2, attack: 'Tentacle' },
+        { count: 1, uses: 'Reel' },
+        { count: 2, attack: 'Bite' },
+      ],
+    });
   });
 
   /**
    * The counts, because a grammar that quietly stopped reading something would
    * report no problems at all.
    */
-  it('reads every Multiattack in the book but two', () => {
+  it('reads every Multiattack in the book but one', () => {
     let read = 0;
     const prose: string[] = [];
     for (const monster of bestiary) {
@@ -724,8 +756,10 @@ describe('parseMultiattack reads the rest of the sentence', () => {
         else read += 1;
       }
     }
-    expect(prose.sort()).toEqual(['hydra', 'roper']);
-    expect(read).toBe(175);
+    // The roper's left this list in W7-B10: a use inside the sequence is an
+    // entry the engine spends.
+    expect(prose.sort()).toEqual(['hydra']);
+    expect(read).toBe(176);
   });
 
   /**
@@ -743,7 +777,8 @@ describe('parseMultiattack reads the rest of the sentence', () => {
         for (const branch of parsed.alternatives ?? [parsed.entries ?? []]) {
           const seen = new Set<string>();
           for (const entry of entriesOfBranch(branch)) {
-            for (const name of entry.attacks ?? [entry.attack!]) {
+            // A use spends a line by name too, and is held to the same rule.
+            for (const name of entry.attacks ?? [entry.attack ?? entry.uses!]) {
               expect(seen.has(name.toLowerCase()), `${monster.id}: ${name}`).toBe(false);
               seen.add(name.toLowerCase());
             }
@@ -767,6 +802,8 @@ describe('parseMultiattack reads the rest of the sentence', () => {
         const printed = monster.actions.map((a) => a.name.toLowerCase());
         for (const branch of parsed.alternatives ?? [parsed.entries ?? []]) {
           for (const entry of entriesOfBranch(branch)) {
+            // A use is bound the sweep above; this one is about the swings.
+            if (entry.uses !== undefined) continue;
             for (const name of entry.attacks ?? [entry.attack!]) {
               if (!printed.includes(name.toLowerCase())) unbound.add(monster.id);
             }
@@ -809,7 +846,9 @@ describe('parseMultiattack reads the rest of the sentence', () => {
         }
       }
     }
-    expect(alternations).toBe(11);
+    // Thirteen more since W7-B10: "It can replace one attack with a use of X",
+    // where X is a save line the block prints, is a branch holding a use.
+    expect(alternations).toBe(24);
     expect(gated).toBe(1);
   });
 });
@@ -915,6 +954,59 @@ describe('a use that names an attack the block prints', () => {
   });
 
   /**
+   * And a use of a line the block prints a **save** for is a use the Attack
+   * action holds — W7-B10, the Roper's `uses` entry reached by the book's
+   * other wording. SRD Wight: "The wight makes two attacks, using Necrotic
+   * Sword or Necrotic Bow in any combination. It can replace one attack with
+   * a use of Life Drain." One swing for one use, bound to the printed
+   * heading, recharge and all; a use that takes the place of two swings — SRD
+   * Young Brass Dragon's Sleep Breath — is a branch of another size, and stays
+   * prose.
+   */
+  it('reads a replacement whose use names a save line the block prints', () => {
+    const text =
+      'The wight makes two attacks, using Necrotic Sword or Necrotic Bow in any combination. It can replace one attack with a use of Life Drain.';
+    const swings = ['Necrotic Sword', 'Necrotic Bow'];
+    expect(parseMultiattack(text, swings)?.handOver).toBe('It can replace one attack with a use of Life Drain.');
+    expect(parseMultiattack(text, swings, [], ['Life Drain'])).toEqual({
+      alternatives: [
+        [{ count: 2, attacks: swings }],
+        [
+          { count: 1, attacks: swings },
+          { count: 1, uses: 'Life Drain' },
+        ],
+      ],
+    });
+    expect(
+      parseMultiattack(
+        'The dragon makes three Rend attacks. It can replace one attack with a use of Paralyzing Breath.',
+        ['Rend'],
+        [],
+        ['Paralyzing Breath (Recharge 5–6)'],
+      ),
+    ).toEqual({
+      alternatives: [
+        [{ count: 3, attack: 'Rend' }],
+        [
+          { count: 2, attack: 'Rend' },
+          { count: 1, uses: 'Paralyzing Breath (Recharge 5–6)' },
+        ],
+      ],
+    });
+    const two =
+      'The dragon makes three Rend attacks. It can replace two attacks with a use of Sleep Breath.';
+    expect(parseMultiattack(two, ['Rend'], [], ['Sleep Breath (Recharge 5–6)'])?.handOver).toBe(
+      'It can replace two attacks with a use of Sleep Breath.',
+    );
+    // A use of Spellcasting is not a line with a save, and stays prose.
+    const cast =
+      'The mage makes three Arcane Burst attacks. It can replace one attack with a use of Spellcasting.';
+    expect(parseMultiattack(cast, ['Arcane Burst'], [], ['Life Drain'])?.handOver).toBe(
+      'It can replace one attack with a use of Spellcasting.',
+    );
+  });
+
+  /**
    * Shapes that name a printed attack and are still not one swing of it. Each
    * stays exactly the hand-over it was, because reading it would be the grammar
    * deciding something the sentence does not say.
@@ -997,7 +1089,8 @@ describe('a use that names an attack the block prints', () => {
       }
     }
     expect(binding).toEqual([]);
-    expect(clauses).toBe(55);
+    // Thirteen fewer since W7-B10, for the thirteen alternations above.
+    expect(clauses).toBe(42);
   });
 });
 
@@ -1177,7 +1270,10 @@ describe('what a stat block’s sections print, and what is read', () => {
       // And the Night Hag's Soul Bag with it — W7-B11: an object the block
       // arrives holding, with the three statistics the line prints, and the two
       // sentences about souls and seven days on the trait's own `handedOver`.
-      traits: { printed: 337, read: 278 },
+      // And one more with the Gelatinous Cube's Ooze Cube — W7-B10: the room a
+      // creature has inside itself and the neighbour's pull, read the day the
+      // save reader learned an engulf.
+      traits: { printed: 337, read: 279 },
       // Fifty-three more than before the save template was read, and the
       // Clay Golem's Multiattack before them. Forty-seven more again with the
       // Spellcasting line, which is the book's third opening and is read
@@ -1232,7 +1328,13 @@ describe('what a stat block’s sections print, and what is read', () => {
       // And one more with a save a **move** precedes — W7-B9: the Bulette's
       // Deadly Leap, whose prelude is a jump into other creatures' spaces and
       // whose success is half damage *and* a push, both read.
-      actions: { printed: 811, read: 770 },
+      // And two more with a failure that puts the target **inside** — W7-B10:
+      // the Gelatinous Cube's Engulf (a walk through other creatures' spaces,
+      // then an engulf with its escape) and the Shambling Mound's (a grapple
+      // that pulls its target into the mound's space, capped at one).
+      // And two more with the Roper — W7-B10: a Tentacle whose hit deals no
+      // damage and grapples, and the Multiattack that uses Reel in the middle.
+      actions: { printed: 811, read: 774 },
       // **Not one prints an attack roll**, which is what the zero here used
       // to say. Three print the save template — the Trample of the Gorgon,
       // the Elephant and the Mammoth, the last of which is CR 6 — and those

@@ -181,6 +181,8 @@ import {
   dismissStrandedSummons,
   dismountRider,
   enterElsewhere,
+  escapeFromInside,
+  pullOutOfCreature,
   recallKeptSummons,
   returnFromElsewhere,
   eligibleTargets,
@@ -1186,6 +1188,93 @@ const CLIMB_INTO_SPACE = tool({
       }),
       (value) => value.events,
       (value) => ({ entered: args.who, castingId: args.castingId, duplicate: value.duplicate }),
+      (value) => value.unverified,
+    ),
+});
+
+/**
+ * SRD Gelatinous Cube's Engulf: "An engulfed target can try to escape by
+ * taking an action to make a DC 12 Strength (Athletics) check. On a successful
+ * check, the target escapes and enters the nearest unoccupied space." — W7-B10.
+ *
+ * The creature's own act, on the player's surface for `escape_grapple`'s
+ * reason: nothing here is a decision the rules leave open. The ability, the
+ * skill and the DC are the record's, pinned when the creature was taken in;
+ * the caller names the space where several qualify, as every return does.
+ */
+const ESCAPE_FROM_INSIDE = tool({
+  name: 'escape_from_inside',
+  description:
+    'Spend a creature’s action on the check a stat-block line offers to climb out of the creature holding it inside — a Gelatinous Cube’s engulfed target’s DC 12 Strength (Athletics) check. The engine reads the ability, skill and DC off what the line pinned when the creature was taken in, rolls the check, and on a success stands the creature in an unoccupied space beside the host: name the space with `to`, or omit it to take the one space that qualifies or be asked which. Refused for a creature that is not inside another, and for one whose line offers no such check — a swallowed creature waits on the swallower.',
+  mutates: true,
+  selfAnswers: ['position'],
+  input: z.object({
+    who: creatureId.describe('The creature trying to get out.'),
+    to: placementSchema.optional().describe('Where it stands on a success. Omit it to take the one qualifying space or be asked.'),
+  }),
+  run: (context, args) =>
+    settle(
+      context,
+      escapeFromInside(
+        context.campaign.state(),
+        who(args.who),
+        { ...(args.to === undefined ? {} : { to: placementOf(args.to) }), ...identity(context) },
+        context.campaign.supply(),
+      ),
+      (value) => value.events,
+      (value) => ({
+        success: value.success,
+        check: value.check === null ? null : { total: value.check.total, natural: value.check.natural },
+        at: value.at,
+        duplicate: value.duplicate,
+      }),
+      (value) => value.unverified,
+    ),
+});
+
+/**
+ * SRD Ooze Cube: "As an action, a creature within 5 feet of the cube can pull
+ * a creature or an object out of the cube by succeeding on a DC 12 Strength
+ * (Athletics) check, and the puller takes 10 (3d6) Acid damage." — W7-B10.
+ *
+ * A neighbour's act, and the same door as the escape from the other side: the
+ * reach, the check and the price are the record's, and the caller names whom
+ * where the host holds several and where the freed creature stands.
+ */
+const PULL_OUT_OF_CREATURE = tool({
+  name: 'pull_out_of_creature',
+  description:
+    'Spend a creature’s action pulling somebody out of the creature holding them inside — the Ooze Cube’s "a creature within 5 feet of the cube can pull a creature out". Name the puller and the host; name the target where the host holds more than one, and where the freed creature stands with `to` (omit it to take the one qualifying space or be asked). The engine checks the puller is within the printed reach of the host, rolls the printed check, stands the target beside the host on a success and deals the puller the printed price — the cube’s 3d6 Acid. Refused for a host holding nobody, a target not inside it, a puller out of reach, and a line that offers no such pull.',
+  mutates: true,
+  selfAnswers: ['position', 'creature'],
+  input: z.object({
+    who: creatureId.describe('The creature doing the pulling.'),
+    host: creatureId.describe('The creature being pulled out of.'),
+    target: creatureId.optional().describe('Whom to pull out, where the host holds more than one. Omit it and the engine says whom it holds.'),
+    to: placementSchema.optional().describe('Where the freed creature stands. Omit it to take the one qualifying space or be asked.'),
+  }),
+  run: (context, args) =>
+    settle(
+      context,
+      pullOutOfCreature(
+        context.campaign.state(),
+        who(args.who),
+        {
+          host: who(args.host),
+          ...(args.target === undefined ? {} : { target: who(args.target) }),
+          ...(args.to === undefined ? {} : { to: placementOf(args.to) }),
+          ...identity(context),
+        },
+        context.campaign.supply(),
+      ),
+      (value) => value.events,
+      (value) => ({
+        success: value.success,
+        target: value.target,
+        check: value.check === null ? null : { total: value.check.total, natural: value.check.natural },
+        at: value.at,
+        duplicate: value.duplicate,
+      }),
       (value) => value.unverified,
     ),
 });
@@ -2327,6 +2416,21 @@ const MOVE = tool({
         .describe(
           'Carry one of your own castings\u2019 areas along with this move \u2014 SRD Conjure Animals is "when you move on your turn, you can also move the pack up to 30 feet to an unoccupied space you can see". It costs nothing and rides on the move because the book writes one sentence about both; a turn you stand still is a turn the pack stays put. The engine owns the allowance and refuses a space beyond it, one outside the room, one somebody is standing in and one you have been declared unable to see \u2014 all before a foot of movement is spent.',
         ),
+      carrying: z
+        .array(
+          z.object({
+            held: creatureId.describe('A creature this mover is grappling.'),
+            to: placementSchema
+              .optional()
+              .describe(
+                'Where it lands: a space beside the mover’s destination. Leave it out and the engine takes the one space that qualifies, or asks.',
+              ),
+          }),
+        )
+        .optional()
+        .describe(
+          'The creatures this mover is grappling that it drags along — SRD Grappled: "The grappler can drag or carry you when it moves." Each lands in an unoccupied space beside where the mover ends, and the hold stands; the dragged creature spends none of its own Speed. A held creature you leave out stays where it is and the grapple ends once the mover is out of reach. The extra foot per foot of dragging is charged whether or not you name anybody, and a creature clinging to the mover whose line says it moves with it comes along without being named. Refused `carry_space_required` where several spaces qualify and nobody said which — send the same move again with `to` filled in.',
+        ),
       using_grant: z
         .string()
         .min(1)
@@ -2355,6 +2459,15 @@ const MOVE = tool({
           ...(args.alongSurface === true ? { alongSurface: true as const } : {}),
           ...(args.using_grant === undefined ? {} : { usingGrant: args.using_grant }),
           ...(args.using_line === undefined ? {} : { usingLine: args.using_line }),
+          // And whom it drags — SRD Grappled's "drag or carry you".
+          ...(args.carrying === undefined
+            ? {}
+            : {
+                carrying: args.carrying.map((entry) => ({
+                  held: who(entry.held),
+                  ...(entry.to === undefined ? {} : { to: placementOf(entry.to) }),
+                })),
+              }),
           // And the area this move carries along — SRD Conjure Animals' pack.
           ...(args.also_moves === undefined
             ? {}
@@ -5906,6 +6019,8 @@ export const TOOLS: readonly ToolDefinition[] = [
   REGAIN_USES,
   RELEASE_READY,
   RETURN_FROM_ELSEWHERE,
+  ESCAPE_FROM_INSIDE,
+  PULL_OUT_OF_CREATURE,
   REVERT_SHAPE,
   RESOLVE_DECLARED_CAST,
   ROLL_INITIATIVE,

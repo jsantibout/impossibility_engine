@@ -110,8 +110,8 @@ describe('reading a printed rider as a sequence', () => {
     expect(readPrintedRiders(trike).riders[0]).toMatchObject({ ifNoLargerThan: 'huge' });
   });
 
-  /** SRD Allosaurus: a charge, and a free Bite the engine does not grant. */
-  it('hands back the extra attack a charge line appends', () => {
+  /** SRD Allosaurus: a charge, and a free Bite the hit buys — W7-B10. */
+  it('reads the extra attack a charge line appends as a swing the hit grants', () => {
     const read = readPrintedRiders(
       'If the target is a Large or smaller creature and the allosaurus moved 30+ feet straight toward it immediately before the hit, the target has the Prone condition, and the allosaurus can make one Bite attack against it.',
     );
@@ -122,8 +122,15 @@ describe('reading a printed rider as a sequence', () => {
         ifNoLargerThan: 'large',
         when: { kind: 'charged', feet: 30 },
       },
+      { kind: 'grants-attack', line: 'Bite', when: { kind: 'charged', feet: 30 } },
     ]);
-    expect(read.handedOver).toEqual(['the allosaurus can make one Bite attack against it']);
+    expect(read.handedOver).toEqual([]);
+    // A tail saying anything else is still handed back with the charge kept.
+    const other = readPrintedRiders(
+      'If the target is a Large or smaller creature and the allosaurus moved 30+ feet straight toward it immediately before the hit, the target has the Prone condition, and the allosaurus roars.',
+    );
+    expect(other.riders).toHaveLength(1);
+    expect(other.handedOver).toEqual(['the allosaurus roars']);
   });
 
   /** SRD Goat: the charge as a gate on the damage the line rolls *instead*. */
@@ -343,31 +350,46 @@ describe('reading a printed rider as a sequence', () => {
     ]);
   });
 
-  /** SRD Giant Crocodile: the implication, and a targeting rule nobody built. */
-  it('hands back the clause a while-held sentence carries beyond the condition', () => {
+  /** SRD Giant Crocodile: the implication, and an immunity to one of the holder's own lines — W7-B10. */
+  it('reads the line a held creature cannot be targeted by, beyond the condition', () => {
     const read = readPrintedRiders(
       "If the target is a Large or smaller creature, it has the Grappled condition (escape DC 15). While Grappled, the target has the Restrained condition and can't be targeted by the crocodile's Tail.",
     );
     expect(read.riders).toEqual([
-      { kind: 'grapple', escapeDc: 15, ifNoLargerThan: 'large', whileHeld: ['restrained'] },
+      {
+        kind: 'grapple',
+        escapeDc: 15,
+        ifNoLargerThan: 'large',
+        whileHeld: ['restrained'],
+        immuneToLine: 'Tail',
+      },
     ]);
-    expect(read.handedOver).toEqual(["can't be targeted by the crocodile's Tail"]);
+    expect(read.handedOver).toEqual([]);
+    // Any other tail is handed back as it always was.
+    const other = readPrintedRiders(
+      'If the target is a Large or smaller creature, it has the Grappled condition (escape DC 15). While Grappled, the target has the Restrained condition and glows.',
+    );
+    expect(other.handedOver).toEqual(['glows']);
   });
 
   /**
-   * SRD Mimic's Pseudopod. The Disadvantage is a mode on an **ability check**
-   * narrowed to the condition it would end, and `RollSelector.condition` is
-   * legal only on a saving throw today — so the grapple is made and the
-   * sentence is handed back rather than half-read.
+   * SRD Mimic's Pseudopod — W7-B10. The Disadvantage is a mode on an **ability
+   * check** about the Grappled condition, which is the axis the escape check
+   * already reports (`aboutConditions`), so it is read as a detail of the
+   * grapple and granted under the grapple's own instance.
    */
-  it('hands back the Disadvantage on a Mimic escape and still makes the grapple', () => {
+  it('reads the Disadvantage on a Mimic escape as a detail of the grapple', () => {
     const read = readPrintedRiders(
       'If the target is a Large or smaller creature, it has the Grappled condition (escape DC 13). Ability checks made to escape this grapple have Disadvantage.',
     );
-    expect(read.riders).toEqual([{ kind: 'grapple', escapeDc: 13, ifNoLargerThan: 'large' }]);
-    expect(read.handedOver).toEqual([
-      'Ability checks made to escape this grapple have Disadvantage.',
+    expect(read.riders).toEqual([
+      { kind: 'grapple', escapeDc: 13, ifNoLargerThan: 'large', escapeMode: 'disadvantage' },
     ]);
+    expect(read.handedOver).toEqual([]);
+    // A grapple detail with no grapple in front of it names a hold that is not there.
+    const alone = readPrintedRiders('Ability checks made to escape this grapple have Disadvantage.');
+    expect(alone.riders).toEqual([]);
+    expect(alone.handedOver).toHaveLength(1);
   });
 
   /** SRD Bearded Devil's Beard: an anchored Poisoned, and no healing while it runs. */
@@ -527,11 +549,12 @@ describe('reading a printed rider as a sequence', () => {
           at: 'start-of-turn',
           onTurnOf: 'attacker',
         },
+        // W7-B10: which of its own printed lines the holder may not take while
+        // attached, read by the swing.
+        forbidsLine: 'Proboscis',
       },
     ]);
-    // The one half of the line nothing here executes: which of its own printed
-    // actions a creature may take while attached.
-    expect(read.handedOver).toEqual(["the stirge can't make Proboscis attacks"]);
+    expect(read.handedOver).toEqual([]);
   });
 
   /**
@@ -553,13 +576,15 @@ describe('reading a printed rider as a sequence', () => {
           ifNoLargerThan: 'medium',
           ifAttackHadAdvantage: true,
         },
+        // W7-B10: the three sentences about the holder, read.
+        attacksOnlyTarget: true,
+        advantageAgainstTarget: true,
+        noSpeedBonus: true,
+        movesWithTarget: true,
       },
     ]);
-    expect(read.handedOver).toEqual([
-      'is suffocating',
-      'While attached to a target, the darkmantle can attack only the target but has Advantage on its attack rolls.',
-      "it can't benefit from any bonus to its Speed, and it moves with the target",
-    ]);
+    // Suffocation is the one clause left, and it stays a handover.
+    expect(read.handedOver).toEqual(['is suffocating']);
   });
 
   /** An attach clause with nothing in front of it names a hold that is not there. */
@@ -577,7 +602,7 @@ describe('reading a printed rider as a sequence', () => {
    */
   it('reads a grapple taken instead of damage, and what it costs each turn', () => {
     const read = readPrintedRiders(
-      'If the target is a Medium or smaller creature, the rug can give it the Grappled condition (escape DC 13) instead of dealing damage. Until the grapple ends, the target has the Blinded and Restrained conditions, is suffocating, and takes 10 (2d6 + 3) Bludgeoning damage at the start of each of its turns. The rug can smother only one creature at a time.',
+      "If the target is a Medium or smaller creature, the rug can give it the Grappled condition (escape DC 13) instead of dealing damage. Until the grapple ends, the target has the Blinded and Restrained conditions, is suffocating, and takes 10 (2d6 + 3) Bludgeoning damage at the start of each of its turns. The rug can smother only one creature at a time. &emsp;While grappling the target, the rug can't take this action, the rug halves the damage it takes (round down), and the target takes the same amount of damage.",
     );
     expect(read.riders).toEqual([
       {
@@ -593,12 +618,13 @@ describe('reading a printed rider as a sequence', () => {
           at: 'start-of-turn',
           onTurnOf: 'target',
         },
+        // W7-B10: the cap on what the rug holds, and what binds it while it holds.
+        capacity: { creatures: 1 },
+        whileHolding: { forbidsThisLine: true, halvesDamageTaken: true, sharesDamageWithHeld: true },
       },
     ]);
-    expect(read.handedOver).toEqual([
-      'is suffocating',
-      'The rug can smother only one creature at a time.',
-    ]);
+    // Suffocation is the one clause left, and it stays a handover.
+    expect(read.handedOver).toEqual(['is suffocating']);
   });
 
   /** The reader's own refusals, unchanged: a sentence it cannot read is the DM's. */

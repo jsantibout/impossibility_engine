@@ -972,6 +972,8 @@ describe('the reader claims only the sentences it can execute', () => {
     // Magmin's Touch — where the hazard is the whole of the rule and the 1d4
     // is the glossary's. SRD Barbed Devil's Hurl Flame is **not** among them:
     // its sentence catches only a flammable object, and is still the table's.
-    expect(read).toBe(76);
+    // And one more with the Roper's Tentacle — W7-B10 — whose whole hit is an
+    // ungated grapple, read now that a hit with no damage is an attack.
+    expect(read).toBe(77);
   });
 });

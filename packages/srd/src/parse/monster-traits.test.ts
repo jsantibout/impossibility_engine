@@ -758,7 +758,9 @@ describe('the sentences that describe a world the lattice does not hold', () => 
    * retire a debt by renaming it.
    */
   it.each([
-    ['gelatinous-cube', 'Ooze Cube'],
+    // The Gelatinous Cube's Ooze Cube left this list in W7-B10: the second
+    // place holds a creature inside another, and `holds-creatures-inside` is
+    // the room the cube has and the neighbour's pull out of it.
     // **The Night Hag's Soul Bag left this list in W7-B11**: the thing the
     // sentence describes is an object with an Armour Class, Hit Points and a
     // Resistance, and `raisePrintedObject` raises it beside the hag at her

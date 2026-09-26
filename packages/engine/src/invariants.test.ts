@@ -149,6 +149,8 @@ import {
   commandSummons,
   dismissKeptSummons,
   enterElsewhere,
+  escapeFromInside,
+  pullOutOfCreature,
   recallKeptSummons,
   returnFromElsewhere,
   takePrintedPlaneShift,
@@ -2033,6 +2035,28 @@ const AWAY: readonly GameEvent[] = [
   { type: 'creature-sent-elsewhere', id: B, kind: 'ethereal', source: 'Gone#cast:9', returns: { within: 10 } },
 ];
 
+/**
+ * B inside A on the terms a printed engulf pins — W7-B10: the way back five
+ * feet from A, the check B's own action buys, and the check a neighbour's does.
+ * Written as events for `HELD`'s reason: a fixture that had to fail a save to
+ * exist would depend on the generator.
+ */
+const INSIDE: readonly GameEvent[] = [
+  ...SETUP,
+  {
+    type: 'creature-sent-elsewhere',
+    id: B,
+    kind: 'inside',
+    host: A,
+    source: 'line:a/A Printed Line',
+    returns: { within: 5, near: A },
+    escape: { ability: 'str', skill: 'athletics', dc: 12 },
+    pullOut: { within: 5, ability: 'str', skill: 'athletics', dc: 12 },
+  },
+];
+/** And with the turn passed to B, so the escape has an Action to spend. */
+const INSIDE_THEIR_TURN: readonly GameEvent[] = [...INSIDE, { type: 'turn-advanced' }];
+
 /** A's Rope Trick hanging beside B, with room inside for B to climb. */
 const ROPED: readonly GameEvent[] = (() => {
   const roped: readonly GameEvent[] = [
@@ -2430,6 +2454,28 @@ const GUARDED: readonly Guarded[] = [
     name: 'enterElsewhere',
     log: ROPED,
     run: (s, commandId) => enterElsewhere(s, B, SRD_CONTENT, { castingId: 'cast:1', commandId }),
+  },
+  // The two ways out of a creature a printed line offers — W7-B10. A retry
+  // that was not guarded would roll a second check and, on a success, stand
+  // B in the scene twice.
+  {
+    name: 'escapeFromInside',
+    log: INSIDE_THEIR_TURN,
+    run: (s, commandId) =>
+      escapeFromInside(s, B, { to: { from: { landmark: 'here' }, feet: 5, bearing: 90 }, commandId }, supply()),
+  },
+  {
+    // A pulls B out of itself: the reach is measured to the host, and the
+    // host is within reach of the host. The guard is what is under test.
+    name: 'pullOutOfCreature',
+    log: INSIDE,
+    run: (s, commandId) =>
+      pullOutOfCreature(
+        s,
+        A,
+        { host: A, target: B, to: { from: { landmark: 'here' }, feet: 5, bearing: 90 }, commandId },
+        supply(),
+      ),
   },
   {
     name: 'dismissKeptSummons',
@@ -3983,6 +4029,9 @@ const SPENDERS: readonly Spender[] = [
   { name: 'takePrintedPlaneShift', run: (s) => takePrintedPlaneShift(s, B, { line: 'A Printed Line' }) },
   // And the door on a line that moves first, refused for the debt before the line is read.
   { name: 'takePrintedMove', run: (s) => takePrintedMove(s, B, { line: 'A Printed Line' }, supply()) },
+  // And the two ways out of a creature — W7-B10 — refused for the debt before the record is read.
+  { name: 'escapeFromInside', run: (s) => escapeFromInside(s, B, {}, supply()) },
+  { name: 'pullOutOfCreature', run: (s) => pullOutOfCreature(s, B, { host: A }, supply()) },
   { name: 'takeDisengage', run: (s) => takeDisengage(s, B, {}) },
   // Movement rather than a slot, and guarded all the same: the debt is asked
   // before the Prone is, so a creature standing on its feet is still refused

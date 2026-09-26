@@ -441,6 +441,13 @@ const SELF_ANSWERED_FIELDS: Readonly<Record<string, readonly string[]>> = {
   'end_turn:position': ['returns'],
   'recall_familiar:position': ['to'],
   'return_from_elsewhere:position': ['to'],
+  // And the two ways out of a creature a printed line offers — W7-B10: the
+  // engulfed creature's own check and a neighbour's pull, each carrying the
+  // space the freed creature stands in, and the pull carrying whom where the
+  // host holds more than one.
+  'escape_from_inside:position': ['to'],
+  'pull_out_of_creature:position': ['to'],
+  'pull_out_of_creature:creature': ['target'],
 };
 
 describe('every kind a tool answers on itself has a field to carry it', () => {
@@ -870,6 +877,10 @@ const ANSWERS: Readonly<Record<string, Answer>> = {
   return_space_required: {
     fields: ['end_turn.returns', 'return_from_elsewhere.to', 'recall_familiar.to'],
   },
+  // The same question about a creature dragged along rather than coming back:
+  // SRD Grappled's "drag or carry you", to a space beside the grappler that
+  // the grappler chooses. (W7-B10)
+  carry_space_required: { fields: ['move.carrying'] },
   destination_required: {
     fields: [
       'activate_spell.to',

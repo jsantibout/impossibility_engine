@@ -84,6 +84,9 @@ export function applyHolds({ state, next }: Applying, event: HoldsEvent): GameSt
           placement: event.move.placement,
           destination: event.move.destination,
           provoked: event.move.provoked,
+          // Whom the move brings along — W7-B10 — settled by the command and
+          // read back by `completeIfSettled` when every Reaction is answered.
+          ...(event.move.carrying === undefined ? {} : { carrying: event.move.carrying }),
         },
       };
     }

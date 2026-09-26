@@ -45,8 +45,8 @@ import { spendAction, spendAttack, spendMovement } from '../combat.js';
 import { conditionInstanceId, isIncapacitated } from '../conditions.js';
 import { applyEvent, type CommandStamp, type GameEvent, type GameState } from '../events.js';
 import { type CommandIdentity, once } from '../idempotency.js';
-import { attacksInAction, statedBonusActionsUsed } from '../monster.js';
-import { attachSource, type CreatureState } from '../state.js';
+import { attacksInAction, readPrintedRiders, statedBonusActionsUsed, type PrintedWhileHolding } from '../monster.js';
+import { attachSource, type Attachment, type CreatureState } from '../state.js';
 import {
   apartFrom,
   bearingBetween,
@@ -117,9 +117,21 @@ const ESCAPE_SKILL = { str: 'athletics', dex: 'acrobatics' } as const;
  */
 export const grappleSource = (grappler: CharacterId): string => `grapple:${grappler}`;
 
+/** What joins a grapple's source to the limb it was made with — see {@link grapplerOf}. */
+const GRAPPLE_LIMB = '/held-by:';
+
 /** Who is doing the grappling, read back out of the source. Null for any other cause. */
 export const grapplerOf = (source: string): CharacterId | null =>
-  source.startsWith('grapple:') ? (source.slice('grapple:'.length) as CharacterId) : null;
+  // **Up to the limb**, where there is one — W7-B10. A hold made with a limb
+  // that is a thing of its own is filed under `grapple:<who>/held-by:<limb>`,
+  // so the grappler is still read here and the limb is read by `heldByObject`,
+  // and a destroyed limb frees the creature through the pass that already
+  // frees what a broken web held. See `makeTheGrapple`. Cut at the whole
+  // `/held-by:` rather than at a slash, because a creature id is free text
+  // and may carry one of its own.
+  source.startsWith('grapple:')
+    ? (source.slice('grapple:'.length).split(GRAPPLE_LIMB)[0] as CharacterId)
+    : null;
 
 /**
  * The escape a grapple offers, as the {@link EffectCheck} it is pinned as.
@@ -691,6 +703,13 @@ export interface EscapeResolution {
   /** The check, or null when this command id had already been applied. */
   readonly check: D20TestResult | null;
   readonly success: boolean;
+  /**
+   * What the escape leaves for somebody to do — W7-B10: a creature that tore
+   * free of a hold that pulled it **inside** its grappler (SRD Shambling
+   * Mound's Engulf) is free and still inside, and where it steps out to is a
+   * choice `returnFromElsewhere` takes.
+   */
+  readonly unverified: readonly string[];
   readonly duplicate: boolean;
 }
 
@@ -721,7 +740,7 @@ export function escapeGrapple(
     state,
     `escape-grapple:${who}`,
     command,
-    () => ({ events: [], check: null, success: false, duplicate: true }),
+    () => ({ events: [], check: null, success: false, unverified: [], duplicate: true }),
     (stamp) => {
       // A mandatory effect this creature has been caught by, or a turn whose
       // start has not arrived. **After the duplicate check, never before it.**
@@ -825,10 +844,18 @@ export function escapeGrapple(
         },
       );
 
+      // Free of a hold that had pulled it inside the grappler, and still
+      // inside: the way out is a space, and a space is a choice. (W7-B10)
+      const stillInside = rolled.value.success && creature.elsewhere?.host === grapple.grappler;
       return ok({
         events,
         check: rolled.value,
         success: rolled.value.success,
+        unverified: stillInside
+          ? [
+              `${who} is free of ${grapple.grappler}'s grapple and still inside its space; where it steps out is a choice — returnFromElsewhere, naming the space`,
+            ]
+          : [],
         duplicate: false,
       });
     },
@@ -864,6 +891,8 @@ export interface HeldAttachment {
   readonly name: string;
   /** SRD Darkmantle's "DC 13 Strength (Athletics) check", where the line prints one. */
   readonly detachDc?: number;
+  /** What the line says the holder may and may not do while it holds on — W7-B10. */
+  readonly whileAttached?: Attachment['whileAttached'];
 }
 
 /** Everything this creature is attached to. */
@@ -874,7 +903,41 @@ export function attachmentsOf(state: GameState, holder: CharacterId): readonly H
     source: attachSource(held.to),
     name: held.name,
     ...(held.detachDc === undefined ? {} : { detachDc: held.detachDc }),
+    ...(held.whileAttached === undefined ? {} : { whileAttached: held.whileAttached }),
   }));
+}
+
+/**
+ * What binds a creature **while it holds somebody** with a printed grapple —
+ * W7-B10. SRD Animated Rug of Smothering: "While grappling the target, the rug
+ * … halves the damage it takes (round down), and the target takes the same
+ * amount of damage."
+ *
+ * Derived rather than pinned, because a grapple is a condition instance and a
+ * timer and has no record of its own to carry a clause: the holder's own block
+ * says what its hold binds it with, and `grapplesOn` says whether it holds
+ * anybody. Null where it holds nobody or its block prints no such clause, which
+ * is every creature in the book but one.
+ */
+export function holdBindsOn(
+  state: GameState,
+  holder: CharacterId,
+): { readonly binds: PrintedWhileHolding; readonly held: readonly CharacterId[] } | null {
+  const sheet = state.creatures[holder]?.sheet;
+  if (sheet === undefined) return null;
+  const held = (Object.keys(state.creatures) as CharacterId[])
+    .sort()
+    .filter((who) => grapplesOn(state, who).some((grapple) => grapple.grappler === holder));
+  if (held.length === 0) return null;
+  for (const attack of sheet.stated?.attacks ?? []) {
+    if (attack.rider === null) continue;
+    for (const rider of readPrintedRiders(attack.rider).riders) {
+      if (rider.kind === 'grapple' && rider.whileHolding !== undefined) {
+        return { binds: rider.whileHolding, held };
+      }
+    }
+  }
+  return null;
 }
 
 /**

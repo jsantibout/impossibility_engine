@@ -158,8 +158,9 @@ export interface ObservedPrintedLine {
    * or the sentence is the caller's to adjudicate.
    *
    * {@link engineTeleports}'s sibling, read the same way. SRD Roper's Reel
-   * reads `true`; SRD Ettercap's line under the same heading reads `false`,
-   * because it pulls by a web rather than by a grapple.
+   * reads `true`, and since W7-B10 so does SRD Ettercap's line under the same
+   * heading: a pull may say which hold it reads, and the Ettercap's is the
+   * web its own Web Strand spun.
    */
   readonly engineMakesThePull: boolean;
   /**

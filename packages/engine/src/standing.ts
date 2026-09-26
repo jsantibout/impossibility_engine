@@ -16,8 +16,11 @@ import {
   type ModeSource,
   type StandingBonusApplies,
 } from './bonuses.js';
-import type { CreatureSize } from '@ie/srd';
+import type { CreatureSize, PrintedHoldCapacity } from '@ie/srd';
 import type { HazardName } from './hazards.js';
+// Type-only, so the cycle with `monster.ts` (which imports this file's types)
+// is erased: the shape a printed hold binds its holder with — W7-B10.
+import type { PrintedHeldObject, PrintedWhileHolding } from './monster.js';
 import type { TurnAnchor, TurnMoment } from './time.js';
 import {
   grantedRollModes,
@@ -2969,6 +2972,16 @@ export interface HitOption {
    */
   readonly attaches?: HitAttach;
   /**
+   * A swing the hit buys — SRD Allosaurus's Claws: "and the allosaurus can
+   * make one Bite attack against it." — W7-B10.
+   *
+   * One printed line, at the creature just struck, this turn: a
+   * `GrantedAttacks` entry narrowed to a line and a target, spent by the next
+   * swing that matches and by nothing else. Beside {@link grapples} for its
+   * reason — it is about the turn's budget rather than about the target.
+   */
+  readonly grantsAttack?: { readonly line: string };
+  /**
    * A shove the blow itself delivers — SRD Satyr: "the satyr pushes the target
    * up to 10 feet straight away from itself"; SRD Merrow pulls fifteen.
    *
@@ -3237,6 +3250,37 @@ export interface HitGrapple {
   readonly insteadOfDamage?: true;
   /** What the hold costs at each of somebody's turn boundaries, where it costs one. */
   readonly payout?: HitHoldPayout;
+  /**
+   * SRD Giant Crocodile: "While Grappled, the target … can't be targeted by
+   * the crocodile's Tail." — W7-B10. Granted to the held creature as a
+   * line immunity under the grapple's own instance, so it lifts with the hold
+   * and the attack path refuses `immune_to_line` while it stands.
+   */
+  readonly immuneToLine?: string;
+  /**
+   * SRD Mimic's Pseudopod: "Ability checks made to escape this grapple have
+   * Disadvantage." — W7-B10. Granted to the held creature as a modifier on
+   * ability checks about the Grappled condition, under the grapple's instance.
+   */
+  readonly escapeMode?: 'disadvantage';
+  /**
+   * SRD Animated Rug of Smothering: "The rug can smother only one creature at
+   * a time." — W7-B10. Refused `holding_enough` at the swing that would take
+   * the hold past it, before anything is spent.
+   */
+  readonly capacity?: PrintedHoldCapacity;
+  /**
+   * What binds the **holder** while the hold stands — SRD Animated Rug of
+   * Smothering's three clauses — W7-B10. Read off the holder's sheet and the
+   * standing hold rather than pinned; see `PrintedWhileHolding`.
+   */
+  readonly whileHolding?: PrintedWhileHolding;
+  /**
+   * SRD Roper's Tentacle — W7-B10: the thing the hold is made with, raised at
+   * the hit with the numbers the line prints and filed with the grapple so
+   * destroying it frees the creature. See `PrintedHeldObject`.
+   */
+  readonly heldByObject?: PrintedHeldObject;
 }
 
 /**
@@ -3273,6 +3317,21 @@ export interface HitAttach {
   readonly coverNeedsAdvantage?: true;
   /** What the attach takes out of somebody at each of somebody's boundaries. */
   readonly payout?: HitHoldPayout;
+  /**
+   * SRD Darkmantle: "While attached to a target, the darkmantle can attack only
+   * the target but has Advantage on its attack rolls." — W7-B10. The
+   * restriction is pinned on the `Attachment` record and read at the swing;
+   * the Advantage is a granted modifier with the target as its counterpart,
+   * filed under the attach so a detach lifts it.
+   */
+  readonly attacksOnly?: true;
+  readonly advantageAgainstTarget?: true;
+  /** SRD Stirge: "While attached, the stirge can't make Proboscis attacks." — W7-B10. */
+  readonly forbidsLine?: string;
+  /** SRD Darkmantle: "it moves with the target" — pinned on the record, read by the move. — W7-B10. */
+  readonly movesWithTarget?: true;
+  /** SRD Darkmantle: "it can't benefit from any bonus to its Speed". — W7-B10. */
+  readonly noSpeedBonus?: true;
 }
 
 /**
@@ -6571,6 +6630,17 @@ function areaConditionsOn(
 export function silencedBy(state: GameState, who: CharacterId): string | null {
   for (const { spell, standing } of areaStandingOn(state, who)) {
     if (standing.kind === 'no-verbal-casting') return spell;
+  }
+  // **And the record a printed line pinned** — W7-B10. SRD Gelatinous Cube:
+  // an engulfed target "can't cast spells with a Verbal component", which is
+  // Silence's sentence about a place the size of one creature. Read off the
+  // creature's own second-place record, so the bar lifts with the return and
+  // nothing has to remember it; the heading comes back off the source the
+  // record was filed under, which is what the refusal quotes.
+  const record = state.creatures[who]?.elsewhere;
+  if (record?.noVerbalCasting === true) {
+    const slash = record.source.lastIndexOf('/');
+    return slash === -1 ? record.source : record.source.slice(slash + 1);
   }
   return null;
 }

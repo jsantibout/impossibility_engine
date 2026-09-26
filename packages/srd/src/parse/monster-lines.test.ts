@@ -625,8 +625,13 @@ describe('a line that pulls what it is holding', () => {
     expect(lineOf('roper', 'Reel').pulls).toEqual({ feet: 30, of: 'grappled' });
   });
 
-  it('refuses the ettercap’s, whose hold is a web rather than a grapple', () => {
-    expect(lineOf('ettercap', 'Reel').pulls).toBeUndefined();
+  it('reads the ettercap’s, whose hold is a web its own line spun — W7-B10', () => {
+    expect(lineOf('ettercap', 'Reel').pulls).toEqual({
+      feet: 25,
+      of: 'restrained-by-object',
+      within: 30,
+      heldBy: 'Web Strand',
+    });
   });
 
   it('refuses a sentence that moves any of its clauses', () => {
@@ -635,13 +640,17 @@ describe('a line that pulls what it is holding', () => {
     expect(parsePullLine(printed.replace('Grappled by it', 'Restrained by it'))).toBeNull();
     expect(parsePullLine(printed.replace('each creature', 'one creature'))).toBeNull();
     expect(parsePullLine(printed.replace(' straight toward it', ''))).toBeNull();
+    const webbed =
+      'The ettercap pulls one creature within 30 feet of itself that is Restrained by its Web Strand up to 25 feet straight toward itself.';
+    expect(parsePullLine(webbed.replace('Restrained', 'Grappled'))).toBeNull();
+    expect(parsePullLine(webbed.replace('one creature', 'each creature'))).toBeNull();
   });
 
-  it('is the only line in the bestiary that prints it', () => {
+  it('is printed on two lines in the bestiary, one over each hold', () => {
     const printed = bestiary.flatMap((block) =>
       [...block.actions, ...block.bonusActions].filter((line) => line.pulls !== undefined),
     );
-    expect(printed.length).toBe(1);
+    expect(printed.map((line) => line.pulls!.of).sort()).toEqual(['grappled', 'restrained-by-object']);
   });
 });
 
@@ -984,5 +993,133 @@ describe('two traits about moving', () => {
   it('reads the bugbears’ Abduct as a drag that costs no extra', () => {
     expect(lineOf('bugbear-stalker', 'Abduct').trait).toEqual({ kind: 'drags-for-free' });
     expect(lineOf('bugbear-warrior', 'Abduct').trait).toEqual({ kind: 'drags-for-free' });
+  });
+});
+
+/**
+ * A save whose failure puts the target **inside** the creature that forced it,
+ * and the holds around it — W7-B10.
+ *
+ * SRD Gelatinous Cube's Engulf is a walk through other creatures' spaces and
+ * then a save per creature entered, whose failure engulfs; SRD Shambling
+ * Mound's is a grapple that pulls the target into the mound's space. The
+ * Ooze Cube trait says what the cube holds and how a neighbour pulls somebody
+ * out, and SRD Water Elemental's Whelm prints the same two sentences on the
+ * line itself.
+ */
+describe('a save whose failure puts the target inside', () => {
+  it("reads the Gelatinous Cube's Engulf: the move first, the engulf and what it hangs, the escape, and a success that steps clear", () => {
+    const engulf = lineOf('gelatinous-cube', 'Engulf').save;
+    // The prelude: a walk through the spaces of Large or smaller creatures,
+    // gated on the room the cube has inside itself.
+    expect(engulf?.movesThen).toEqual({
+      kind: 'move-through',
+      upToSpeed: true,
+      noOpportunityAttacks: true,
+      throughSpacesOf: 'large',
+      ifRoomInside: true,
+    });
+    expect(engulf?.ability).toBe('dex');
+    expect(engulf?.dc).toBe(12);
+    expect(engulf?.targets).toBe(
+      'each creature whose space the cube enters for the first time during this move',
+    );
+    expect(engulf?.damage).toEqual({ dice: '3d6', flat: 0, type: 'acid', average: 10 });
+    expect(engulf?.onSuccess).toBe('half');
+    expect(engulf?.onFailure).toEqual([
+      {
+        kind: 'engulfs',
+        whileInside: ['restrained'],
+        noVerbalCasting: true,
+        payout: {
+          damage: { dice: '3d6', flat: 0, type: 'acid', average: 10 },
+          at: 'start',
+          // "each of **the cube's** turns" — the host's boundary.
+          onTurnOf: 'source',
+        },
+        escape: { ability: 'str', skill: 'athletics', dc: 12 },
+      },
+    ]);
+    // "Half damage, and the target moves to an unoccupied space within 5 feet
+    // of the cube. If there is no unoccupied space, the target fails the save
+    // instead."
+    expect(engulf?.onSuccessEffects).toEqual([{ kind: 'steps-clear', within: 5, otherwiseFails: true }]);
+    // The one clause the engine holds no rule for, carried under the book's
+    // own opening so a table reads a sentence rather than a fragment.
+    expect(engulf?.handedOver).toEqual(['An engulfed target is suffocating.']);
+  });
+
+  it("reads the Shambling Mound's Engulf: a grapple that pulls the target into its space, its two conditions, its payout and its cap", () => {
+    const engulf = lineOf('shambling-mound', 'Engulf').save;
+    expect(engulf?.ability).toBe('str');
+    expect(engulf?.dc).toBe(15);
+    expect(engulf?.damage).toBeUndefined();
+    expect(engulf?.onSuccess).toBe('none');
+    expect(engulf?.onFailure).toEqual([
+      {
+        kind: 'condition',
+        condition: 'grappled',
+        escapeDc: 14,
+        // "pulled into the shambling mound's space"
+        inside: true,
+        implies: ['blinded', 'restrained'],
+        payout: {
+          damage: { dice: '3d6', flat: 0, type: 'lightning', average: 10 },
+          at: 'start',
+          // "each of **its** turns" — the target's own boundary.
+          onTurnOf: 'target',
+        },
+        // "can have only one creature Grappled by this action at a time"
+        capacity: { creatures: 1 },
+      },
+    ]);
+    // "When the shambling mound moves, the Grappled target moves with it,
+    // costing it no extra movement" is the rule the second place already
+    // keeps — a creature inside another moves with it and costs the mover no
+    // drag — so it is read and consumed rather than carried.
+    expect(engulf?.handedOver).toBeUndefined();
+  });
+
+  it("reads the Ooze Cube trait: what the cube holds inside itself, and the neighbour's pull at a price", () => {
+    expect(lineOf('gelatinous-cube', 'Ooze Cube').trait).toEqual({
+      kind: 'holds-creatures-inside',
+      capacity: { large: 1, mediumOrSmaller: 4 },
+      pullOutBy: {
+        within: 5,
+        ability: 'str',
+        skill: 'athletics',
+        dc: 12,
+        damage: { dice: '3d6', flat: 0, type: 'acid', average: 10 },
+      },
+      // "a creature that does so is subjected to the cube's Engulf and has
+      // Disadvantage on the saving throw" — the line's own heading, and a
+      // fact reported rather than enforced: nothing in this engine lets a
+      // creature willingly end a move in another's space.
+      entrantsSubjectedTo: { line: 'Engulf', disadvantage: true },
+    });
+  });
+
+  it("reads the Water Elemental's Whelm to the end: the cap on what it holds and the neighbour's pull", () => {
+    const whelm = lineOf('water-elemental', 'Whelm (Recharge 4–6)').save;
+    expect(whelm?.onFailure).toEqual([
+      {
+        kind: 'condition',
+        condition: 'grappled',
+        escapeDc: 14,
+        ifNoLargerThan: 'large',
+        implies: ['restrained'],
+        payout: {
+          damage: { dice: '2d8', flat: 0, type: 'bludgeoning', average: 9 },
+          at: 'start',
+          onTurnOf: 'source',
+        },
+        capacity: { large: 1, mediumOrSmaller: 2 },
+        pullOutBy: { within: 5, ability: 'str', skill: 'athletics', dc: 14 },
+      },
+    ]);
+    // Suffocation is the one clause left, and it stays a handover.
+    expect(whelm?.handedOver).toEqual([
+      'Until the grapple ends, the target is suffocating unless it can breathe water.',
+    ]);
   });
 });

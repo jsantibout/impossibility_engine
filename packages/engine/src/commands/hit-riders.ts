@@ -35,13 +35,14 @@ import {
   spellSaveDcWith,
   type CharacterSheet,
 } from '../character.js';
-import { canUseFeatureThisTurn, currentCombatant } from '../combat.js';
+import { canUseFeatureThisTurn, currentCombatant, sameSwingRule } from '../combat.js';
 import { conditionInstanceId } from '../conditions.js';
 import { applyEvent, type GameEvent, type GameState, grantSourcesOf } from '../events.js';
 import { featureSource } from '../progression.js';
 import { sizeAtMost } from '../positioning.js';
 import { effectiveSizeOf } from '../size.js';
-import { attachSource } from '../state.js';
+import { attachSource, heldByObjectSource } from '../state.js';
+import { printedObjectId, raisePrintedObject } from './objects.js';
 import { remaining } from '../resources.js';
 import {
   abilityScoresOf,
@@ -561,7 +562,7 @@ export function applyHitRider(
   // it is neither: it hangs no condition the option's own span is about — SRD
   // ends a grapple on facts about the grappler and never on the clock — and it
   // must see the world the effects left.
-  const grabbed = makeTheGrapple(resolved.value.state, hit, option, unverified);
+  const grabbed = makeTheGrapple(resolved.value.state, hit, option, unverified, supply.issuer.count);
   if (!grabbed.ok) return grabbed;
   events.push(...grabbed.value);
 
@@ -577,6 +578,43 @@ export function applyHitRider(
   );
   if (!fixed.ok) return fixed;
   events.push(...fixed.value);
+
+  // **The swing the hit buys** — W7-B10. SRD Allosaurus's Claws: "the
+  // allosaurus can make one Bite attack against it." A `GrantedAttacks` entry
+  // narrowed to that line at that creature, spent by the next swing that
+  // matches. Only on the holder's own turn, for the reason `handsMove` below
+  // gives: a grant belongs to a turn budget, and a swing on somebody else's
+  // turn has none to hand it to. A budget already holding attacks under a
+  // different rule about what may be swung is left alone and said so, because
+  // the fold would refuse the grant and a `CorruptLogError` is nobody's answer.
+  if (option.grantsAttack !== undefined) {
+    const theirs = state.combat !== null && currentCombatant(state.combat).id === hit.attacker;
+    const standing = state.combat?.budgets[hit.attacker]?.grantedAttacks ?? null;
+    if (!theirs) {
+      unverified.push(
+        `${option.name} buys ${hit.attacker} one ${option.grantsAttack.line} attack against ${hit.target}, and it is not their turn, so there is no turn budget to hand it to`,
+      );
+    } else if (
+      standing !== null &&
+      standing.remaining > 0 &&
+      !sameSwingRule(standing, {
+        unarmedOnly: false,
+        line: option.grantsAttack.line,
+        against: hit.target,
+      })
+    ) {
+      unverified.push(
+        `${option.name} buys ${hit.attacker} one ${option.grantsAttack.line} attack against ${hit.target}, and their turn already holds attacks under another rule; the swing is the table's`,
+      );
+    } else {
+      events.push({
+        type: 'turn-budget-granted',
+        id: hit.attacker,
+        source: option.name,
+        attacks: { remaining: 1, unarmedOnly: false, line: option.grantsAttack.line, against: hit.target },
+      });
+    }
+  }
 
   const held = [...grabbed.value, ...fixed.value].reduce(applyEvent, resolved.value.state);
 
@@ -834,16 +872,46 @@ function makeTheGrapple(
   hit: { readonly attacker: CharacterId; readonly target: CharacterId },
   option: HitOption,
   unverified: string[],
+  /** The roll issuer's position, which names the limb a hold is made with — see `printedObjectId`. */
+  useTag: number,
 ): Result<readonly GameEvent[]> {
   const grapple = option.grapples;
   if (grapple === undefined) return ok([]);
 
+  // **The thing the hold is made with** — W7-B10. SRD Roper's Tentacle: "The
+  // tentacle can be damaged, freeing a creature it has Grappled when destroyed
+  // (AC 20, HP 10, …)." Raised first with the line's own numbers, exactly as
+  // a web is on the save side, and the Grappled is filed under the grapple
+  // *and* the limb — `grapple:<who>/held-by:<limb>` — so `grapplerOf` still
+  // finds the roper, `heldByObject` finds the tentacle, and the pass that
+  // frees what a broken web held frees this creature the moment the tentacle
+  // is destroyed. A blow at the tentacle lands on the tentacle, which is what
+  // "Damaging the tentacle deals no damage to the roper" says.
+  const raised: GameEvent[] = [];
+  let limb: CharacterId | null = null;
+  if (grapple.heldByObject !== undefined) {
+    const printed = grapple.heldByObject;
+    limb = printedObjectId(printed.noun, hit.attacker, hit.target, useTag);
+    const thing = raisePrintedObject(world, limb, {
+      name: `${hit.attacker}'s ${printed.noun}`,
+      armorClass: printed.armorClass,
+      hitPoints: printed.hitPoints,
+      ...(printed.vulnerabilities === undefined ? {} : { vulnerabilities: printed.vulnerabilities }),
+      ...(printed.resistances === undefined ? {} : { resistances: printed.resistances }),
+      ...(printed.immunities === undefined ? {} : { immunities: printed.immunities }),
+    });
+    if (!thing.ok) return thing;
+    raised.push(...thing.value);
+  }
+  const source =
+    limb === null ? grappleSource(hit.attacker) : `${grappleSource(hit.attacker)}/${heldByObjectSource(limb)}`;
+
   const landed = conditionLanding(
     applyConditionTo(
-      world,
+      raised.reduce(applyEvent, world),
       hit.target,
       'grappled',
-      grappleSource(hit.attacker),
+      source,
       [],
       undefined,
       undefined,
@@ -861,15 +929,52 @@ function makeTheGrapple(
     unverified.push(
       `${option.featureName} grapples, and ${hit.target} cannot be given the Grappled condition at all`,
     );
-    return ok([]);
+    // A limb raised for a hold that never took is a thing in the room holding
+    // nothing; it stands, as a web spun at a creature immune to Restrained
+    // would, and the table is told.
+    if (raised.length > 0) {
+      unverified.push(`${hit.attacker}'s ${grapple.heldByObject!.noun} (${limb}) was raised for the hold and holds nobody`);
+    }
+    return ok(raised);
+  }
+  // **Filed under the grapple's own instance** — W7-B10 — so both lift the
+  // moment the hold ends, through `releaseInstanceGrants`, whichever of the
+  // hold's endings arrives. SRD Giant Crocodile: "can't be targeted by the
+  // crocodile's Tail" is an immunity to one of the holder's lines; SRD Mimic:
+  // "Ability checks made to escape this grapple have Disadvantage" is a mode
+  // on the one check the escape rolls, keyed to the condition it would end,
+  // which is the axis `escapeGrapple` and `resolveEffectCheck` both report.
+  const instance = conditionInstanceId('grappled', source);
+  const bound: GameEvent[] = [];
+  if (grapple.immuneToLine !== undefined) {
+    bound.push({
+      type: 'printed-line-immunity-granted',
+      id: hit.target,
+      immunity: { source: instance, by: hit.attacker, line: grapple.immuneToLine },
+    });
+  }
+  if (grapple.escapeMode !== undefined) {
+    bound.push({
+      type: 'roll-modifier-granted',
+      id: hit.target,
+      modifier: {
+        source: instance,
+        modifier: {
+          mode: grapple.escapeMode,
+          selector: { roll: 'ability-check', relation: 'roller', condition: 'grappled' },
+        },
+      },
+    });
   }
   return ok([
+    ...raised,
     ...landed.value.events,
     // SRD Animated Rug of Smothering: "takes 10 (2d6 + 3) Bludgeoning damage
     // at the start of each of its turns" — an arrangement the hold makes,
     // filed under the hold's own source so the boundary can read it and
     // `holdStillStands` can stop reading it the moment the escape succeeds.
-    ...payoutEvents(grapple.payout, grappleSource(hit.attacker), hit),
+    ...payoutEvents(grapple.payout, source, hit),
+    ...bound,
   ]);
 }
 
@@ -897,6 +1002,17 @@ function makeTheAttach(
   if (attach === undefined) return ok([]);
 
   const source = attachSource(hit.target);
+  // What the attached creature may then do — W7-B10 — pinned on the record
+  // so the swing and the move read it and open no book. `noSpeedBonus` is
+  // carried for the record's sake and needs no reader of its own: the Speed
+  // the attach sets to 0 is zeroed after every bonus is summed
+  // (`combineSpeed`), so nothing added ever reaches it.
+  const whileAttached = {
+    ...(attach.attacksOnly === undefined ? {} : { attacksOnly: true as const }),
+    ...(attach.forbidsLine === undefined ? {} : { forbidsLine: attach.forbidsLine }),
+    ...(attach.movesWithTarget === undefined ? {} : { movesWithTarget: true as const }),
+    ...(attach.noSpeedBonus === undefined ? {} : { noSpeedBonus: true as const }),
+  };
   const events: GameEvent[] = [
     {
       type: 'creature-attached',
@@ -905,9 +1021,28 @@ function makeTheAttach(
         to: hit.target,
         name: option.name,
         ...(attach.detachDc === undefined ? {} : { detachDc: attach.detachDc }),
+        ...(Object.keys(whileAttached).length === 0 ? {} : { whileAttached }),
       },
     },
   ];
+
+  // SRD Darkmantle: "but has Advantage on its attack rolls" — against the
+  // creature it is attached to, which is the only creature it may attack.
+  // `RollSelector.counterpart` is the "against this one creature" axis, and
+  // the grant is filed under the attach so `creature-detached` lifts it.
+  if (attach.advantageAgainstTarget === true) {
+    events.push({
+      type: 'roll-modifier-granted',
+      id: hit.attacker,
+      modifier: {
+        source,
+        modifier: {
+          mode: 'advantage',
+          selector: { roll: 'attack', relation: 'roller', counterpart: hit.target },
+        },
+      },
+    });
+  }
 
   // SRD Darkmantle: "Its Speed becomes 0." The grant the engine already writes
   // for Hypnotic Pattern's own sentence, filed under the attach so it comes

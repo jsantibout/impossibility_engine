@@ -35,11 +35,13 @@ import { type CommandIdentity, once } from '../idempotency.js';
 import {
   describePerDay,
   describeRecharge,
+  insideRoomOf,
   perDayTallyKey,
   printedLineSource,
   statedActionOf,
   statedBonusActionOf,
 } from '../monster.js';
+import { heldInside, roomInside } from '../elsewhere.js';
 import type { CharacterSheet, StatedAction, StatedBonusAction } from '../character.js';
 import {
   canPassThrough,
@@ -56,7 +58,7 @@ import {
 } from '../positioning.js';
 import { tallied } from '../resources.js';
 import { effectiveSizeOf } from '../size.js';
-import { actionRulesOn, speedOf } from '../standing.js';
+import { actionRulesOn, sheetAsItStands, speedOf } from '../standing.js';
 import type { Supply } from './casting.js';
 import { anchorNeeded, creatureOf, ROUTE_REQUIRED, sceneFor, spendFor, unknownCreature } from './command.js';
 import { mayAct } from './holds.js';
@@ -83,6 +85,16 @@ export interface PrintedMoveCommand extends CommandIdentity {
    * and here it is also who saves. Absent is asked about.
    */
   readonly route?: readonly Point[];
+  /**
+   * Where each creature that **saves** steps to, where the line relocates one
+   * — W7-B10. SRD Gelatinous Cube's Engulf: "_Success:_ Half damage, and the
+   * target moves to an unoccupied space within 5 feet of the cube." Keyed by
+   * the creature, stated before the dice because the dice decide who needs
+   * one; a creature that fails ignores its entry, and a creature that
+   * succeeds with none stated takes the one space that qualifies or is
+   * reported among several.
+   */
+  readonly landings?: Readonly<Record<string, Placement>>;
 }
 
 export interface PrintedMoveOutcome {
@@ -322,6 +334,29 @@ export function takePrintedMove(
           );
         }
 
+        // **"if it has room inside itself to contain them"** — W7-B10. SRD
+        // Gelatinous Cube's walk is gated on the room its Ooze Cube trait
+        // prints, and every creature whose space it enters may end up inside
+        // — so the room is asked for all of them, in id order, before a foot
+        // is moved. A block printing the gate and no capacity has no limit
+        // the engine may invent, and walks.
+        if (move.ifRoomInside === true) {
+          const room = insideRoomOf(sheetAsItStands(state, id) ?? creature.sheet);
+          if (room !== null) {
+            const held = heldInside(state, id).map((who) => sizeHere(who));
+            for (const who of enteredBy(crossings)) {
+              const size = sizeHere(who);
+              if (!roomInside(room.capacity, held, size)) {
+                return err(
+                  'no_room_inside',
+                  `${line.name} moves ${id} through the spaces of creatures it has room inside itself to contain, and ${id} has no room for ${who}${held.length === 0 ? '' : ` beside ${held.length} already inside`}`,
+                );
+              }
+              held.push(size);
+            }
+          }
+        }
+
         // The walk ends in an unoccupied space: the last point named, at the
         // ordinary rule, so a route that stops on somebody is refused.
         placement = { from: { point: last }, feet: 0, bearing: 0 };
@@ -394,7 +429,17 @@ export function takePrintedMove(
       const unverified: string[] = [];
       for (const target of entered) {
         if (world.creatures[target]?.vitals.dead === true) continue;
-        const landed = forcePrintedSaveOn(world, id, target, line.name, save.value, supply);
+        // The space this creature steps to if it saves, where the caller said — W7-B10.
+        const landing = command.landings?.[target];
+        const landed = forcePrintedSaveOn(
+          world,
+          id,
+          target,
+          line.name,
+          save.value,
+          supply,
+          landing === undefined ? {} : { landing },
+        );
         if (!landed.ok) return landed;
         events.push(...landed.value.events);
         world = landed.value.events.reduce(applyEvent, world);

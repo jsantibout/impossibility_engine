@@ -1171,6 +1171,19 @@ export interface GrantedAttacks {
    * turn attacks without selling them.
    */
   readonly from?: string;
+  /**
+   * The one printed line the attacks may be, and the one creature they may be
+   * at — SRD Allosaurus's Claws: "the allosaurus can make one Bite attack
+   * against it." — W7-B10.
+   *
+   * Two narrowings beside {@link unarmedOnly}, and read the same way: a swing
+   * that does not match falls through to the ordinary price rather than being
+   * refused, so a Bite at somebody else still costs what a Bite costs. Absent
+   * is every grant written before the fields, and every grant that narrows
+   * nothing.
+   */
+  readonly line?: string;
+  readonly against?: CharacterId;
 }
 
 /**
@@ -1729,6 +1742,18 @@ function spendExtraAction(
 }
 
 /**
+ * Whether two grants of attacks say the same thing about what may be swung —
+ * the Unarmed-only gate, and — W7-B10 — the one printed line at the one
+ * creature a hit narrowed them to. Two that differ cannot share one pool: a
+ * narrowed grant added to a wide one would narrow the lot, and a wide one
+ * added to a narrowed one would widen "one Bite at Bren" to any swing.
+ */
+export const sameSwingRule = (
+  a: Pick<GrantedAttacks, 'unarmedOnly' | 'line' | 'against'>,
+  b: Pick<GrantedAttacks, 'unarmedOnly' | 'line' | 'against'>,
+): boolean => a.unarmedOnly === b.unarmedOnly && a.line === b.line && a.against === b.against;
+
+/**
  * Add to what this turn may be spent on: an action, or attacks outside an
  * Attack action.
  *
@@ -1758,7 +1783,7 @@ export function grantTurnBudget(
     grant.attacks !== undefined &&
     standing !== null &&
     standing.remaining > 0 &&
-    standing.unarmedOnly !== grant.attacks.unarmedOnly
+    !sameSwingRule(standing, grant.attacks)
   ) {
     return err(
       'attacks_outstanding',
@@ -1786,6 +1811,10 @@ export function grantTurnBudget(
                 // `unarmedOnly` above follows: the refusal one block up keeps
                 // two rules about what may be swung from standing at once.
                 ...(grant.attacks.from === undefined ? {} : { from: grant.attacks.from }),
+                // And the line and the creature a printed hit narrows them to
+                // — W7-B10 — by the same rule: the newest grant names them.
+                ...(grant.attacks.line === undefined ? {} : { line: grant.attacks.line }),
+                ...(grant.attacks.against === undefined ? {} : { against: grant.attacks.against }),
               },
             }),
       },
@@ -1900,6 +1929,12 @@ export function spendAttack(
   spend?: Spend,
   unarmed = false,
   light: string | null = null,
+  /**
+   * What this swing is and whom it is at, for a granted attack narrowed to a
+   * line and a creature — W7-B10. Absent, no narrowed grant is spent, which is
+   * what every caller written before the field means.
+   */
+  swing: { readonly name: string; readonly target: CharacterId } | null = null,
 ): Result<{ readonly state: CombatState; readonly tookAction: boolean }> {
   const budget = requireTheirTurn(state, id);
   if (!budget.ok) return budget;
@@ -1922,7 +1957,15 @@ export function spendAttack(
   // Point bought and keeps the action. Taking the cheaper price first is never
   // worse — the action is still there afterwards either way.
   const granted = budget.value.grantedAttacks;
-  if (granted !== null && granted.remaining > 0 && (!granted.unarmedOnly || unarmed)) {
+  // SRD Allosaurus: "one Bite attack against it" — W7-B10. A grant narrowed
+  // to a line and a creature is spent only by a swing that is that line at
+  // that creature; any other swing falls through to the ordinary price.
+  const narrowedTo =
+    granted === null ||
+    ((granted.line === undefined ||
+      (swing !== null && swing.name.toLowerCase() === granted.line.toLowerCase())) &&
+      (granted.against === undefined || (swing !== null && swing.target === granted.against)));
+  if (granted !== null && granted.remaining > 0 && (!granted.unarmedOnly || unarmed) && narrowedTo) {
     return ok({
       state: withBudget(
         state,

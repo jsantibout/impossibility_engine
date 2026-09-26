@@ -124,6 +124,7 @@ import type {
   MonsterPrintedMove,
   MonsterSave,
   PrintedAuraCondition,
+  PrintedPullOut,
   PrintedSaveClause,
   PrintedSaveEffect,
   PrintedSaveTrigger,
@@ -659,8 +660,150 @@ const HP_MAX_CUT =
  * refuses the sentence and it is carried entire.
  */
 const HELD_AND_PAID = new RegExp(
-  `^Until the grapple ends, the target has the ([A-Z][a-z]+) condition(?:, (.+?))?,? and takes (\\d+) \\((\\d+)d(\\d+)(?:\\s*([+−–-])\\s*(\\d+))?\\) ([A-Za-z]+) damage at the (start|end) of each of (its|the [a-z'-]+(?: [a-z'-]+)*'s) turns$`,
+  // **Two conditions where the book prints two** — W7-B10: SRD Shambling
+  // Mound's "has the Blinded and Restrained conditions, and it takes 10 (3d6)
+  // Lightning damage at the start of each of its turns." The second name and
+  // the plural are optional, so the elemental's singular reads as it did.
+  `^Until the grapple ends, the target has the ([A-Z][a-z]+)(?: and ([A-Z][a-z]+))? conditions?(?:, (.+?))?,? and (?:it )?takes (\\d+) \\((\\d+)d(\\d+)(?:\\s*([+−–-])\\s*(\\d+))?\\) ([A-Za-z]+) damage at the (start|end) of each of (its|the [a-z'-]+(?: [a-z'-]+)*'s) turns$`,
 );
+
+// — the holds around a creature, and the second place a save may send it — W7-B10
+
+/**
+ * SRD Shambling Mound's Engulf: "The target is pulled into the shambling
+ * mound's space and has the Grappled condition (escape DC 14)."
+ *
+ * The rest of the sentence is read by the grammar below it, and the grapple it
+ * reads is then marked `inside`: the hold puts its target in the second place.
+ * A rest that reads no grapple has nothing to put inside, and refuses.
+ */
+const PULLED_INTO_SPACE = new RegExp(
+  `^(?:[Tt]he target|[Ii]t) is pulled into the [a-z' -]+${APOSTROPHE}s space and (.+)$`,
+);
+/** SRD Shambling Mound: "The shambling mound can have only one creature Grappled by this action at a time." */
+const HOLDS_ONE = /^The [a-z' -]+ can have only one creature Grappled by this action at a time$/;
+/**
+ * SRD Water Elemental's Whelm: "The elemental can grapple one Large creature
+ * or up to two Medium or smaller creatures at a time with Whelm."
+ *
+ * The two sizes are matched literally, because the record has exactly those
+ * two slots — a Large creature fills the hold alone, and smaller ones share it.
+ */
+const HOLDS_BY_SIZE =
+  /^The [a-z' -]+ can grapple (one|two|three|four) Large creatures? or up to (one|two|three|four|five|six) Medium or smaller creatures at a time(?: with [A-Z][A-Za-z' -]+)?$/;
+const COUNT_WORDS: Readonly<Record<string, number>> = {
+  one: 1,
+  two: 2,
+  three: 3,
+  four: 4,
+  five: 5,
+  six: 6,
+};
+/**
+ * SRD Water Elemental's Whelm: "As an action, a creature within 5 feet of the
+ * elemental can pull a creature out of it by succeeding on a DC 14 Strength
+ * (Athletics) check." SRD Ooze Cube: "…can pull a creature or an object out of
+ * the cube by succeeding on a DC 12 Strength (Athletics) check, and the puller
+ * takes 10 (3d6) Acid damage."
+ */
+const PULL_OUT_BY = new RegExp(
+  `^As an action, a creature within (\\d+) feet of the [a-z' -]+ can pull a creature(?: or an object)? out of (?:it|the [a-z' -]+) by succeeding on a DC (\\d+) ${ABILITY_WORD} \\(([A-Za-z]+)\\) check(?:, and the puller takes (\\d+) \\((\\d+)d(\\d+)(?:\\s*([+−–-])\\s*(\\d+))?\\) ([A-Za-z]+) damage)?$`,
+);
+/**
+ * SRD Shambling Mound: "When the shambling mound moves, the Grappled target
+ * moves with it, costing it no extra movement." SRD Gelatinous Cube: "When the
+ * cube moves, the engulfed target moves with it."
+ *
+ * The rule the second place already keeps — a creature inside another moves
+ * with it and costs the mover no drag — stated, and consumed rather than
+ * carried: onto a grapple that puts its target inside, or onto an engulf, and
+ * refused where neither stands before it.
+ */
+const MOVES_WITH_HOLDER =
+  /^When the [a-z' -]+ moves, the (?:Grappled|engulfed) target moves with it(?:, costing it no extra movement)?$/;
+/** SRD Gelatinous Cube: "10 (3d6) Acid damage, and the target is engulfed." */
+const IS_ENGULFED = /^(?:[Tt]he target|[Ii]t) is engulfed$/;
+/**
+ * SRD Gelatinous Cube: "An engulfed target can try to escape by taking an
+ * action to make a DC 12 Strength (Athletics) check."
+ */
+const ENGULFED_ESCAPES = new RegExp(
+  `^An engulfed target can try to escape by taking an action to make a DC (\\d+) ${ABILITY_WORD} \\(([A-Za-z]+)\\) check$`,
+);
+/** SRD Gelatinous Cube: "On a successful check, the target escapes and enters the nearest unoccupied space." */
+const ESCAPES_TO_NEAREST =
+  /^On a successful check, the target escapes and enters the nearest unoccupied space$/;
+/**
+ * SRD Gelatinous Cube: "An engulfed target is suffocating, can't cast spells
+ * with a Verbal component, has the Restrained condition, and takes 10 (3d6)
+ * Acid damage at the start of each of the cube's turns."
+ *
+ * A list about the engulf before it, read item by item: a condition, the
+ * Verbal-casting bar, the payout, and the suffocation — which is the one item
+ * nothing in the engine drowns, carried under the book's own opening.
+ */
+const ENGULFED_TARGET_IS = /^An engulfed target (.+)$/;
+const ENGULFED_PAYS = new RegExp(
+  `^takes (\\d+) \\((\\d+)d(\\d+)(?:\\s*([+−–-])\\s*(\\d+))?\\) ([A-Za-z]+) damage at the (start|end) of each of (its|the [a-z'-]+(?: [a-z'-]+)*'s) turns$`,
+);
+const ENGULFED_HAS = /^has the ([A-Z][a-z]+) condition$/;
+const NO_VERBAL_CASTING = /^can't cast spells with a Verbal component$/;
+/** SRD Gelatinous Cube's success: "the target moves to an unoccupied space within 5 feet of the cube". */
+const STEPS_CLEAR = /^(?:[Tt]he target|[Ii]t) moves to an unoccupied space within (\d+) feet of the [a-z' -]+$/;
+/** SRD Gelatinous Cube's success: "If there is no unoccupied space, the target fails the save instead." */
+const NO_SPACE_FAILS = /^If there is no unoccupied space, the target fails the save instead$/;
+
+type EngulfsEffect = Extract<PrintedSaveEffect, { kind: 'engulfs' }>;
+type StepsClearEffect = Extract<PrintedSaveEffect, { kind: 'steps-clear' }>;
+
+/** Replace the last engulf in the list with a re-reading of it, or fail where there is none. */
+function amendEngulf(
+  into: PrintedSaveEffect[],
+  amend: (last: EngulfsEffect) => EngulfsEffect | null,
+): boolean {
+  for (let i = into.length - 1; i >= 0; i -= 1) {
+    const effect = into[i]!;
+    if (effect.kind !== 'engulfs') continue;
+    const amended = amend(effect);
+    if (amended === null) return false;
+    into[i] = amended;
+    return true;
+  }
+  return false;
+}
+
+/**
+ * The neighbour's pull a sentence states, or null where it states none.
+ *
+ * Exported because the same sentence is printed on a **trait** (SRD Ooze
+ * Cube) and on a **line** (SRD Water Elemental's Whelm), and one reader keeps
+ * the two from disagreeing about what a pull is.
+ */
+export function readPullOut(sentence: string): PrintedPullOut | null {
+  const pull = PULL_OUT_BY.exec(sentence.replace(/\.$/, '').trim());
+  if (pull === null) return null;
+  const ability = ABILITY_KEYS[pull[3]!];
+  if (ability === undefined) return null;
+  const type = pull[10]?.toLowerCase();
+  if (type !== undefined && !DAMAGE_TYPES.has(type)) return null;
+  const sign = pull[8] === undefined ? 1 : pull[8] === '+' ? 1 : -1;
+  return {
+    within: Number(pull[1]),
+    ability,
+    skill: pull[4]!.toLowerCase(),
+    dc: Number(pull[2]),
+    ...(type === undefined
+      ? {}
+      : {
+          damage: {
+            dice: `${pull[6]}d${pull[7]}`,
+            flat: pull[9] === undefined ? 0 : sign * Number(pull[9]),
+            type,
+            average: Number(pull[5]),
+          },
+        }),
+  };
+}
 /**
  * SRD Brass Dragon Wyrmling's second rung: "This effect ends for the target if
  * it takes damage or a creature within 5 feet of it takes an action to wake
@@ -1409,23 +1552,25 @@ function readClause(clause: string, into: Scratch, where: Reading): boolean {
   const heldAndPaid = HELD_AND_PAID.exec(words);
   if (heldAndPaid !== null) {
     const name = CONDITIONS[heldAndPaid[1]!];
-    const type = heldAndPaid[8]!.toLowerCase();
+    const second = heldAndPaid[2] === undefined ? null : (CONDITIONS[heldAndPaid[2]] ?? null);
+    const type = heldAndPaid[9]!.toLowerCase();
     if (name === undefined || !DAMAGE_TYPES.has(type)) return false;
-    const sign = heldAndPaid[6] === undefined ? 1 : heldAndPaid[6] === '+' ? 1 : -1;
+    if (heldAndPaid[2] !== undefined && second === null) return false;
+    const sign = heldAndPaid[7] === undefined ? 1 : heldAndPaid[7] === '+' ? 1 : -1;
     const hung = amendCondition(
       into.effects,
       (effect) => effect.escapeDc !== undefined,
       (last) => ({
-        ...alsoImplies(last, name),
+        ...(second === null ? alsoImplies(last, name) : alsoImplies(alsoImplies(last, name), second)),
         payout: {
           damage: {
-            dice: `${heldAndPaid[4]}d${heldAndPaid[5]}`,
-            flat: heldAndPaid[7] === undefined ? 0 : sign * Number(heldAndPaid[7]),
+            dice: `${heldAndPaid[5]}d${heldAndPaid[6]}`,
+            flat: heldAndPaid[8] === undefined ? 0 : sign * Number(heldAndPaid[8]),
             type,
-            average: Number(heldAndPaid[3]),
+            average: Number(heldAndPaid[4]),
           },
-          at: heldAndPaid[9] as 'start' | 'end',
-          onTurnOf: heldAndPaid[10] === 'its' ? ('target' as const) : ('source' as const),
+          at: heldAndPaid[10] as 'start' | 'end',
+          onTurnOf: heldAndPaid[11] === 'its' ? ('target' as const) : ('source' as const),
         },
       }),
     );
@@ -1434,10 +1579,149 @@ function readClause(clause: string, into: Scratch, where: Reading): boolean {
     // spend — SRD's "is suffocating unless it can breathe water", which is a
     // rule about breathing nothing in the engine holds. Carried under the
     // book's own opening, so a table reads a sentence rather than a fragment.
-    if (heldAndPaid[2] !== undefined) {
-      into.carried.push(`Until the grapple ends, the target ${heldAndPaid[2]}.`);
+    if (heldAndPaid[3] !== undefined) {
+      into.carried.push(`Until the grapple ends, the target ${heldAndPaid[3]}.`);
     }
     return true;
+  }
+
+  // — the holds around a creature, and the second place — W7-B10 ————————————
+  //
+  // Before `HAS_CONDITION`, which would read the grapple out of the mound's
+  // sentence and drop the half that puts the target inside.
+  const pulledIn = PULLED_INTO_SPACE.exec(words);
+  if (pulledIn !== null) {
+    const before = into.effects.length;
+    if (!readClause(pulledIn[1]!, into, where)) return false;
+    // The rest must have read a grapple, and it is that grapple that puts the
+    // target inside: a sentence that read anything else has no hold to mark.
+    let marked = false;
+    for (let i = before; i < into.effects.length; i += 1) {
+      const effect = into.effects[i]!;
+      if (effect.kind === 'condition' && effect.escapeDc !== undefined) {
+        into.effects[i] = { ...effect, inside: true };
+        marked = true;
+      }
+    }
+    return marked;
+  }
+  if (HOLDS_ONE.test(words)) {
+    return amendCondition(
+      into.effects,
+      (effect) => effect.escapeDc !== undefined,
+      (last) => ({ ...last, capacity: { creatures: 1 } }),
+    );
+  }
+  const holdsBySize = HOLDS_BY_SIZE.exec(words);
+  if (holdsBySize !== null) {
+    return amendCondition(
+      into.effects,
+      (effect) => effect.escapeDc !== undefined,
+      (last) => ({
+        ...last,
+        capacity: { large: COUNT_WORDS[holdsBySize[1]!]!, mediumOrSmaller: COUNT_WORDS[holdsBySize[2]!]! },
+      }),
+    );
+  }
+  if (PULL_OUT_BY.test(words)) {
+    const pullOut = readPullOut(words);
+    if (pullOut === null) return false;
+    return amendCondition(
+      into.effects,
+      (effect) => effect.escapeDc !== undefined,
+      (last) => ({ ...last, pullOutBy: pullOut }),
+    );
+  }
+  if (MOVES_WITH_HOLDER.test(words)) {
+    // Stated and consumed: the record moves with its host. Only where a hold
+    // that puts its target inside, or an engulf, stands before it.
+    return into.effects.some(
+      (effect) =>
+        effect.kind === 'engulfs' || (effect.kind === 'condition' && effect.inside === true),
+    );
+  }
+  if (IS_ENGULFED.test(words)) {
+    into.effects.push({ kind: 'engulfs' });
+    return true;
+  }
+  const escapes = ENGULFED_ESCAPES.exec(words);
+  if (escapes !== null) {
+    const ability = ABILITY_KEYS[escapes[2]!];
+    if (ability === undefined) return false;
+    return amendEngulf(into.effects, (last) => ({
+      ...last,
+      escape: { ability, skill: escapes[3]!.toLowerCase(), dc: Number(escapes[1]) },
+    }));
+  }
+  if (ESCAPES_TO_NEAREST.test(words)) {
+    // The rule the way back already keeps — the nearest unoccupied space —
+    // stated about the escape above it; with none there it is about nothing.
+    return into.effects.some((effect) => effect.kind === 'engulfs' && effect.escape !== undefined);
+  }
+  const engulfedIs = ENGULFED_TARGET_IS.exec(words);
+  if (engulfedIs !== null) {
+    const items = engulfedIs[1]!.split(/,? and |, /).map((item) => item.trim());
+    return amendEngulf(into.effects, (last) => {
+      let amended: EngulfsEffect = last;
+      const carried: string[] = [];
+      for (const item of items) {
+        if (item === 'is suffocating') {
+          carried.push(`An engulfed target ${item}.`);
+          continue;
+        }
+        if (NO_VERBAL_CASTING.test(item)) {
+          amended = { ...amended, noVerbalCasting: true };
+          continue;
+        }
+        const has = ENGULFED_HAS.exec(item);
+        if (has !== null) {
+          const name = CONDITIONS[has[1]!];
+          if (name === undefined) return null;
+          amended = { ...amended, whileInside: [...(amended.whileInside ?? []), name] };
+          continue;
+        }
+        const pays = ENGULFED_PAYS.exec(item);
+        if (pays !== null) {
+          const type = pays[6]!.toLowerCase();
+          if (!DAMAGE_TYPES.has(type)) return null;
+          const sign = pays[4] === undefined ? 1 : pays[4] === '+' ? 1 : -1;
+          amended = {
+            ...amended,
+            payout: {
+              damage: {
+                dice: `${pays[2]}d${pays[3]}`,
+                flat: pays[5] === undefined ? 0 : sign * Number(pays[5]),
+                type,
+                average: Number(pays[1]),
+              },
+              at: pays[7] as 'start' | 'end',
+              onTurnOf: pays[8] === 'its' ? 'target' : 'source',
+            },
+          };
+          continue;
+        }
+        // An item this cannot read refuses the sentence whole, which is the
+        // rule every list here is read under.
+        return null;
+      }
+      into.carried.push(...carried);
+      return amended;
+    });
+  }
+  const steps = STEPS_CLEAR.exec(words);
+  if (steps !== null) {
+    into.effects.push({ kind: 'steps-clear', within: Number(steps[1]) });
+    return true;
+  }
+  if (NO_SPACE_FAILS.test(words)) {
+    for (let i = into.effects.length - 1; i >= 0; i -= 1) {
+      const effect = into.effects[i]!;
+      if (effect.kind !== 'steps-clear') continue;
+      const amended: StepsClearEffect = { ...effect, otherwiseFails: true };
+      into.effects[i] = amended;
+      return true;
+    }
+    return false;
   }
 
   const condition = HAS_CONDITION.exec(words);
@@ -2014,6 +2298,20 @@ const JUMPS_TO =
 const MOVES_THROUGH =
   /^The ([a-z' -]+) moves up to its Speed without provoking Opportunity Attacks and can move through the spaces of (Tiny|Small|Medium|Large|Huge|Gargantuan) or smaller creatures\. Each creature whose space the \1 enters is targeted once by the following effect\.$/;
 
+/**
+ * SRD Gelatinous Cube's Engulf: "The cube moves up to its Speed without
+ * provoking Opportunity Attacks. The cube can move through the spaces of Large
+ * or smaller creatures if it has room inside itself to contain them (see the
+ * Ooze Cube trait)." — W7-B10.
+ *
+ * {@link MOVES_THROUGH}'s walk with one more gate — the room the mover has
+ * inside itself, which is its own trait's — and no targeting clause of its own,
+ * because the cube's template prints one. The trait's heading is not captured:
+ * the room is read off the block by kind, not by name.
+ */
+const MOVES_THROUGH_IF_ROOM =
+  /^The ([a-z' -]+) moves up to its Speed without provoking Opportunity Attacks\. The \1 can move through the spaces of (Tiny|Small|Medium|Large|Huge|Gargantuan) or smaller creatures if it has room inside itself to contain them \(see the [A-Z][A-Za-z' -]+ trait\)\.$/;
+
 function readPrelude(before: string): Prelude | null {
   const text = before.trim();
   if (text === '') return { kind: 'none' };
@@ -2045,6 +2343,19 @@ function readPrelude(before: string): Prelude | null {
       // The book's own words, lower-cased at the head as every targeting
       // clause the template prints already is.
       targets: `each creature whose space the ${charge[1]!} enters`,
+    };
+  }
+  const engulfing = MOVES_THROUGH_IF_ROOM.exec(text);
+  if (engulfing !== null) {
+    return {
+      kind: 'moves-then',
+      move: {
+        kind: 'move-through',
+        upToSpeed: true,
+        noOpportunityAttacks: true,
+        throughSpacesOf: SIZES[engulfing[2]!]!,
+        ifRoomInside: true,
+      },
     };
   }
   return null;

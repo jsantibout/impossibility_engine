@@ -1543,6 +1543,14 @@ export const hasUnappliedRider = (line: StatBlockLine): boolean => {
  * | Salamander's Flame Spear | fiction. "The spear magically returns to the salamander's hand" — nothing tracks where a thrown weapon went, and nothing would read the answer |
  * | Barbed Devil's Hurl Flame | a flammable object. The creature half of the glossary's Burning is executed on the two lines that print one; this line catches **only** "a flammable object that isn't being worn or carried", and a declared object is a substance and a size with nothing on it that takes light |
  * | Black Pudding's Dissolving Pseudopod, Gray Ooze's Pseudopod | a spell that repairs an item. The penalty and the destruction are executed; "The penalty can be removed by casting the _Mending_ spell on the armor" is the spells side's, and no casting reaches an item's record |
+ * | Roper's Tentacle | a limb that grows back. The hold, the Poisoned it carries, the tentacle as a thing with the printed Armour Class and Hit Points, and the cap of six are executed (W7-B10); "a destroyed tentacle regrows at the start of the roper's next turn" is a dead object the fold would have to forget at a turn boundary, and the cap counts the tentacles that hold somebody — so a destroyed one is treated as regrown at once and the sentence is handed over |
+ *
+ * **Four lines left this table in W7-B10** — the Stirge's Proboscis, the
+ * Mimic's Pseudopod, the Allosaurus's Claws and the Giant Crocodile's Bite,
+ * each read to the end. The Rug's Smother and the Darkmantle's Crush are read
+ * to the end as well but for one clause each, "is suffocating", which is a
+ * handover kind and keeps both on the row; the Roper's Tentacle joined it the
+ * same day, read for the first time and carrying its regrowth.
  */
 export const RIDER_HANDOVER_SHAPE = 'A hit whose line says more than the engine applies';
 export const hasHandedOverRider = (line: StatBlockLine): boolean => {
@@ -1633,6 +1641,7 @@ export const TRAIT_KINDS_WITH_A_READER: readonly string[] = [
   'drags-for-free',
   'emanation-is-difficult-terrain',
   'hides-in-dim-light-or-darkness',
+  'holds-creatures-inside',
   'jumps-by-dexterity',
   'jumps-without-a-running-start',
   'long-jump-with-a-running-start',
@@ -1697,7 +1706,6 @@ export const TRAIT_KINDS_WITH_A_READER: readonly string[] = [
  *
  * | Lines | The one seam each waits on |
  * |---|---|
- * | Ooze Cube | `a-second-place-to-put-a-creature`: the cube holds a Large creature or four Medium ones **inside itself**, they have Total Cover there, and a neighbour pulls one out on a check. The narrow-gap half of its paragraph is the movement family below; the rest is not, and reading the whole as fiction would lose four rules |
  * | Regeneration ×2 | a marker on a creature saying a trait does not function on its next turn — a grant with a turn-order deadline that a boundary reads |
  * | Corrosive Form | a hit that knows it was melee, which only the attack path can answer |
  * | Coven Magic ×3 | a cast line gated on two allies within thirty feet; the cast line is read and the gate is not |
@@ -2058,9 +2066,11 @@ export const MONSTER_LINE_SHAPES: readonly (readonly [
   // Still the predicate it was, with the half that is now read taken out of
   // it: a Multiattack whose sentence states a named sequence is structure
   // the engine spends, so what is left here is the sentences that say
-  // something else — an alternative, a free choice from a menu, a use that
-  // is not an attack. The row shrinks rather than going quiet, which is what
-  // this table was built to do.
+  // something else — an alternative, a free choice from a menu, a count read
+  // off a fact nobody declared. A use inside the sequence left this row in
+  // W7-B10 (the Roper's "uses Reel" is a slot the Attack action holds). The
+  // row shrinks rather than going quiet, which is what this table was built
+  // to do.
   [
     'How many attacks the Attack action holds',
     (line) => line.name === 'Multiattack' && line.multiattack === undefined,
@@ -2073,11 +2083,18 @@ export const MONSTER_LINE_SHAPES: readonly (readonly [
    *
    * | Lines | The kind, and the seam |
    * |---|---|
-   * | Gelatinous Cube's Engulf, Shambling Mound's Engulf | a creature inside another one — a position the lattice has a word for now, `inside`, which the Giant Frog's and Giant Toad's Swallow are executed on. What these two wait on is the **save reader**: each is a saving throw whose failure puts the target inside, the cube's per space entered during a move and the mound's under a grapple, and the printed-save reader has no arm that hands its failure to the second place |
    * | Ghost's Possession, Harpy's Luring Song | `a-creature-somebody-else-is-playing`. A body somebody else drives and a compulsion that walks a creature toward a cliff are the same want, and the doctrine puts both at the table |
    *
    * The table is pinned to the catalogue by {@link UNREAD_SAVE_SEAMS}, so a
    * row that has been built comes out in the same commit.
+   *
+   * **The Gelatinous Cube's Engulf and the Shambling Mound's Engulf left this
+   * table in W7-B10**: the save reader grew the arm the row said they waited
+   * on — an `engulfs` clause whose failure sends the target `inside` with its
+   * escape, its payout at the host's boundary and the Verbal-casting bar
+   * pinned on the record, and a grapple clause marked `inside` for the
+   * mound's — and the Ooze Cube trait is read as `holds-creatures-inside`,
+   * the room the cube has and the neighbour's pull out of it.
    *
    * **The Bulette's Deadly Leap and the Centaur Trooper's Trampling Charge
    * left this table in W7-B9**: the save reader grew a `movesThen` prelude —
@@ -2149,12 +2166,18 @@ export const MONSTER_LINE_SHAPES: readonly (readonly [
  * for the third half, and `coverage.test.ts` holds it to the catalogue so an
  * entry that has been built, renamed or retired fails rather than rotting.
  *
- * **Read against the book, not against a summary.** Four of the entries below
+ * **Read against the book, not against a summary.** Three of the entries below
  * correct a claim that had been made about them from a heading alone: the
- * Ettercap's Reel pulls by a **web** and not by a grapple, the Magmin's block
- * prints no `sheds-light` trait for its Bonus Action to toggle, the Wisp's
- * Vanish is Concentration on something that is not a spell, and the Succubus's
- * Charm is a **cast** line at a fixed level rather than a save.
+ * Magmin's block prints no `sheds-light` trait for its Bonus Action to toggle,
+ * the Wisp's Vanish is Concentration on something that is not a spell, and the
+ * Succubus's Charm is a **cast** line at a fixed level rather than a save.
+ *
+ * **The Ettercap's Reel and the Roper's Tentacle left this table in W7-B10**:
+ * a printed pull may say which hold it reads (`MonsterPull.of:
+ * 'restrained-by-object'`, the creature a web this creature spun is
+ * holding), and a hit whose chain deals no damage is read where its rider
+ * imposes a condition — the tentacle the hold is made with is an object the
+ * hit raises, filed with the grapple so destroying it frees the creature.
  *
  * Keyed `<block id>/<heading>`, because two blocks print one heading over two
  * rules and the pair is what a reader needs.
@@ -2165,16 +2188,12 @@ export const MONSTER_LINE_SHAPES: readonly (readonly [
  * answered for twice in two places that could come to disagree.
  */
 export const LINE_RESIDUE_SEAMS: Readonly<Record<string, string>> = {
-  'ettercap/Reel':
-    'a pull whose **gate** is a hold. The web is a thing the engine keeps a record of now — the Web Strand save raises an object and files the Restrained under `held-by:<it>` — and the Roper\'s Reel under the same heading is executed. What is left is the clause between the two: "one creature within 30 feet of itself **that is Restrained by its Web Strand**" is a printed pull narrowed to whoever this creature\'s own web is holding, and `takePrintedPull` drags whoever it is holding by a *grapple*. It lands the day a printed pull may say which hold it reads.',
   'will-o-wisp/Vanish':
     'Concentration on something that is not a casting. "The wisp and its light have the Invisible condition until the wisp\'s Concentration ends on this effect, which ends early immediately after the wisp makes an attack roll or uses Consume Life." Every clause but the first is machinery the engine holds — the condition, the trigger that ends it, the light — and all of it hangs off `CreatureState.concentration`, which only a casting may occupy.',
   'succubus/Charm':
     'a cast line at a **fixed level**. "The succubus casts Dominate Person (level 8 version), requiring no spell components and using Charisma as the spellcasting ability (spell save DC 15)" is the book\'s cast template with one clause the reader has no field for, and `parseCastLine` refuses it whole rather than casting the spell at its own level. `a-duration-the-slot-changes` is the shape beside it; what this needs is a slot level a printed route states.',
   'wraith/Create Specter':
     'a-stat-block-created-mid-fight, at a door the summoning spells do not use. The raising itself is `summonCreature`, `Vitals.diedAt` answers the minute, and a cap of seven is a count a sheet can hold; what is missing is a *printed line* reaching the road a casting reaches, and a corpse being a thing the scene holds — the line targets "a Humanoid corpse within 10 feet", and a dead creature is a creature here rather than an object with a space.',
-  'roper/Tentacle':
-    'the same second place, reached the other way: the tendril the Reel pulls on is an object with its own Armour Class and Hit Points that a creature may attack, which is `declareObject` given to a creature as part of its body.',
   'sea-hag/Illusory Appearance':
     'fiction. "The hag covers herself and anything she is wearing or carrying with a magical illusion" — what somebody looks like is the table\'s, and the Investigation check to see through it is one a DM calls for.',
 };
@@ -2200,10 +2219,6 @@ export const LINE_RESIDUE_SEAMS: Readonly<Record<string, string>> = {
 export const UNREAD_SAVE_SEAMS: Readonly<Record<string, string>> = {
   'otherworldly-steed/Fell Glare (Fiend Only; Recharges after a Long Rest)':
     'a span anchored on a **third** creature\'s turn — "The target has the Frightened condition until the end of **your** next turn", the summoner\'s, where `PrintedSpan` names the target\'s turn or the source\'s and no other. The DC is read ("DC equals your spell save DC" is `dcFromSummoner`, resolved from the casting that raised the steed); the span is what keeps the line prose, and the heading\'s type gate and its rest recharge wait on the same reading.',
-  'gelatinous-cube/Engulf':
-    '`a-second-place-to-put-a-creature`: a creature inside another one, with its own escape, its own damage at the swallower\'s boundary and a way out when the cube dies. The Shambling Mound\'s Engulf, the Giant Frog\'s Swallow and the Giant Toad\'s are the same want.',
-  'shambling-mound/Engulf':
-    'the same second place — a creature inside the mound, Blinded and Restrained there, damaged at the mound\'s turn boundary and free when the mound dies. One seam for the four lines that print it.',
   'ghost/Possession (Recharge 6)':
     '`a-creature-somebody-else-is-playing`: "the ghost disappears, and the target is possessed by the ghost" — a body one creature drives and another owns, which the doctrine puts at the table rather than in a record the engine would have to invent a driver for.',
   'harpy/Luring Song':
