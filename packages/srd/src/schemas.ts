@@ -1621,6 +1621,24 @@ export const MonsterCastLineSchema = z.object({
    * the spell's own rule and the caller's answer.
    */
   selfOnly: z.literal(true).optional(),
+  /**
+   * The line casts on **another** creature, and never on its own caster.
+   *
+   * SRD Unicorn's Blessing: "The unicorn touches another creature with its horn
+   * and casts _Cure Wounds_ or _Lesser Restoration_ **on that creature**."
+   * {@link selfOnly}'s mirror, and the same kind of fact: a target the sentence
+   * fixes rather than one the caller chooses. Where that one narrows the list to
+   * the caster, this one takes the caster out of it.
+   *
+   * The touch itself is read and consumed rather than carried: both spells the
+   * menu offers print a Range of Touch, so a field for the horn would be a
+   * second copy of the spell's own rule. What "another creature" says is the
+   * whole of what this holds.
+   *
+   * Never set beside `selfOnly`, which would be one sentence saying two
+   * opposite things; the pattern that reads them can match only one. (W7-B11)
+   */
+  notSelf: z.literal(true).optional(),
 });
 export type MonsterCastLine = z.infer<typeof MonsterCastLineSchema>;
 

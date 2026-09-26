@@ -1781,21 +1781,51 @@ export function parseSpellcastingLine(text: string): MonsterSpellcasting | null 
  * is typesetting rather than content — the reading `spellIdOf` already takes
  * of the Druid's "Long-strider".
  *
+ * **A fifth clause varies, and it is the other end of the fourth.** SRD
+ * Unicorn's Blessing: "The unicorn touches another creature with its horn and
+ * casts _Cure Wounds_ or _Lesser Restoration_ **on that creature**". Where "on
+ * itself" fixes the target to the caster, this one fixes it to somebody *else*
+ * — one flag again and no second shape. The **touch** it is delivered by is
+ * read and consumed rather than carried, for the reason the object clauses'
+ * ceilings are: both spells the menu offers print a Range of Touch already, so
+ * a field for the horn would be a second copy of a rule the spell states, and a
+ * homebrew line delivering a longer spell by touch would be shortening a range
+ * the book printed. What the clause *does* say that the menu cannot is "another
+ * creature", and that is the flag. (W7-B11)
+ *
  * **What the anchors refuse is the point of them.** SRD Vampire's Beguile and
  * SRD Mummy's Dread Command each print a second sentence about a second rule;
- * SRD Unicorn's Blessing touches a creature first and names a target; SRD
- * Lich's Protective Magic casts "in response to the spell's trigger". Every
+ * SRD Lich's Protective Magic casts "in response to the spell's trigger". Every
  * one of those is a clause this shape has no field for, and a line read down
  * to the part that fits is a creature doing something nobody printed — which
- * is why the target clause is anchored to the two words the book prints and
- * not to a target at all.
+ * is why the target clause is anchored to the words the book prints and not to
+ * a target at all.
  */
 const CAST_LINE = new RegExp(
-  `^The ${SUBJECT} casts (?:the )?(.+?)(?: spell)?( on itself)?,? ` +
+  `^The ${SUBJECT} casts (?:the )?(.+?)(?: spell)?( on itself| on that creature)?,? ` +
     `(?:requiring no [A-Za-z ]+ components and )?` +
     `using (?:(the same) spellcasting ability as Spellcasting` +
     `|(Strength|Dexterity|Constitution|Intelligence|Wisdom|Charisma) as (?:the )?spell-?casting ability)` +
     `(?: \\(spell save DC (\\d+)\\))?\\.$`,
+);
+
+/**
+ * The clause "on that creature" refers **back** to, asked separately.
+ *
+ * {@link SUBJECT} is deliberately loose — a noun matched by its characters —
+ * and it will happily swallow "unicorn touches another creature with its horn
+ * and" on its way to the word "casts". That is harmless where the reader asks
+ * nothing of the prefix and wrong the moment a clause *depends* on it: "on that
+ * creature" with no antecedent is a referent to nothing, and reading it as "not
+ * the caster" would be inventing a target rule out of a dangling pronoun.
+ *
+ * So the antecedent is asked for as its own anchored question rather than
+ * carried as a group of the pattern above, which would have to make `SUBJECT`
+ * lazy to be reached at all and would change what every other line in this file
+ * matches. (W7-B11)
+ */
+const TOUCH_DELIVERED = new RegExp(
+  `^The ${SUBJECT} touches (?:another|one) creature with its [A-Za-z' -]+ and casts `,
 );
 
 /**
@@ -1861,7 +1891,8 @@ function readCastMenu(menu: string): string[] | null {
  * this one's.
  */
 export function parseCastLine(text: string): MonsterCastLine | null {
-  const matched = CAST_LINE.exec(text.replace(/\s+/g, ' ').trim());
+  const words = text.replace(/\s+/g, ' ').trim();
+  const matched = CAST_LINE.exec(words);
   if (matched === null) return null;
 
   const spells = readCastMenu(matched[1]!);
@@ -1870,12 +1901,22 @@ export function parseCastLine(text: string): MonsterCastLine | null {
   const stated = matched[4] === undefined ? undefined : ABILITY_KEYS[matched[4]];
   if (matched[4] !== undefined && stated === undefined) return null;
 
+  // **"on that creature" without the creature is a referent to nothing.** The
+  // clause is the far end of a touch the same sentence printed, so the line is
+  // refused whole where that clause is absent rather than read down to a target
+  // rule the book did not state. See {@link TOUCH_DELIVERED}.
+  const onAnother = matched[2] === ' on that creature';
+  if (onAnother && !TOUCH_DELIVERED.test(words)) return null;
+
   const line = {
     spells,
     ability: stated ?? ('spellcasting' as const),
     // "on itself" — the two words the book prints, and the whole of what they
     // say. A target this line fixes is not a target the caller offers.
-    ...(matched[2] === undefined ? {} : { selfOnly: true as const }),
+    ...(matched[2] === ' on itself' ? { selfOnly: true as const } : {}),
+    // And its mirror: "on that creature", which fixes the target to somebody
+    // who is **not** the caster.
+    ...(onAnother ? { notSelf: true as const } : {}),
     ...(matched[5] === undefined ? {} : { saveDc: Number(matched[5]) }),
   };
 

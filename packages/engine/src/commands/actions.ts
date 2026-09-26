@@ -2746,6 +2746,17 @@ export function castPrintedLine(
           `${line.name} casts ${wanted} on ${id} and on nobody else; ${named.filter((target) => target !== id).join(', ')} cannot be named`,
         );
       }
+      // **And its mirror.** SRD Unicorn's Blessing touches "another creature"
+      // and casts on that creature, which takes the caster out of the list the
+      // spell would otherwise offer. Refused rather than quietly re-aimed, for
+      // the reason above it: a stated fact that cannot be honoured is a call
+      // that is wrong. (W7-B11)
+      if (printed.notSelf === true && named.includes(id)) {
+        return err(
+          'line_casts_on_another',
+          `${line.name} casts ${wanted} on another creature, so ${id} cannot be its own target`,
+        );
+      }
 
       // **A line already used and not yet back**, and **a line whose day's
       // worth is gone** — both before the casting, because a refusal after a
