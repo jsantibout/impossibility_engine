@@ -1110,6 +1110,28 @@ roadmap covers the whole road.
   sweep, never on a model's surface.
 - `[ ]` **I-E8 A controller identity on tool calls.** Deferred by the
   one-player ruling; a design note before any code.
+- `[ ]` **I-E9 A read-only surface for code-run monsters** (owner,
+  2026-09-26: build it). App code plays the monsters (I-A12), and a printed
+  save line's targeting is English the engine does not check — 61 lines on 55
+  blocks at CR ≤ 5, 30 of them on a recharge (the breath weapons). Structured
+  targeting on those lines, a query that says whom a line's area catches
+  (`printed_line_catch`), a charge route, and a flag for whether the engine
+  applies an attack's rider. Without it I-A12 cannot put a breath weapon
+  ahead of a bite. After W7-B13 frees the printed-save files.
+
+*Batch I-1, measured 2026-09-26 (plan and briefs filed with the coordinator):*
+the DM door is 120+ tools, ≈48k tokens as function schemas, so the app's
+allowlist (≈15 tools, ≈14.5k) is essential, not an optimisation. I-E2's
+`openAiTools()` emits the Chat Completions envelope; the app's narration is on
+the Responses API, so the app uses `toolSchemas()` with `strict: false`. I-E5
+is dead under the separate-repository ruling; I-A0 does not run; I-A1 is not
+needed for I-1 (the adapter fills the app's existing types). `options` never
+lists a monster's printed lines — `look`/`observe()` does, which is where
+I-A12 reads them. **I-E3 as built:** `file:` dependencies on `@ie/tools` and
+`@ie/content`, the engine's root `build` (`tsc -b packages/tools`), an
+`engine:check` on `tsc -b --dry` before the app's tests; no `prepare`, no
+`./dm` subpath (`createDmSurface` is on the barrel). A clone of the app now
+needs the engine checked out beside it.
 
 ### App side, Infinite Realms
 
@@ -1301,7 +1323,13 @@ reshapes the casting pipeline, with a design note first.
   against criterion 3**, provided it is genuinely something the engine cannot
   or should not take on; the session test counts debts and lists handovers
   apart. **Gates G2–G4 run on Opus** (`qb-architect` with the model
-  overridden) — Fable is spent for a week.
+  overridden) — Fable is spent for a week. **Treasure is in scope**: magic
+  items that fit a shape are built though the level-5 ledger does not count
+  them, and items gain a `dmDecides` list beside `unmodelled`. **The model's
+  tool loop runs inside the app's turn resolver**, replacing the mock
+  referee, the narrator unchanged (three model calls a turn; the result saved
+  before it is narrated). **I-E9 is built.** Batch I-1 is approved (T0, then
+  A–D, then E and F).
 
 ## 10. Open questions and blocks
 
