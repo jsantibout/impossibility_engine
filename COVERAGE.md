@@ -28,7 +28,7 @@ than to the table.
 
 | Parsed | Tracked | Executed | of which partial | Verified |
 |---|---|---|---|---|
-| 339 | 143 (42.2%) | 192 (56.6%) | 26 | 159 (46.9%) |
+| 339 | 143 (42.2%) | 192 (56.6%) | 25 | 159 (46.9%) |
 
 A **tracked** spell is not a half-finished executed one. Disguise Self will
 never be executed, because what the caster looks like is not arithmetic;
@@ -177,7 +177,7 @@ a plain statement of what the table decides.
 - **Prestidigitation** (cantrip) — verified
 - **Produce Flame** (cantrip) — verified
 - **Protection from Energy** (level 3) — verified
-- **Protection from Evil and Good** (level 1) — verified, partial — a clause the engine owns is still unbuilt
+- **Protection from Evil and Good** (level 1) — verified
 - **Protection from Poison** (level 2) — verified
 - **Ray of Enfeeblement** (level 2) — verified
 - **Ray of Frost** (cantrip) — verified
@@ -478,7 +478,6 @@ of *Tracked* and is never added to it.
 | `a-duration-the-slot-changes` | 1 | 0 | 0 | 0 | 1 | 0 | 0 |
 | `a-fact-only-the-table-can-declare` | 1 | 0 | 0 | 0 | 1 | 0 | 0 |
 | `a-filter-on-the-attackers-creature-type` | 1 | 0 | 0 | 0 | 1 | 0 | 0 |
-| `a-mode-on-the-save-a-spell-forces` | 1 | 0 | 0 | 1 | 0 | 0 | 0 |
 | `a-repeat-save-on-the-clock` | 1 | 0 | 0 | 1 | 0 | 0 | 0 |
 | `a-rest-an-effect-gives-or-denies` | 1 | 0 | 0 | 0 | 1 | 0 | 0 |
 | `a-rider-on-a-later-weapon-attack` | 1 | 0 | 0 | 0 | 1 | 0 | 0 |

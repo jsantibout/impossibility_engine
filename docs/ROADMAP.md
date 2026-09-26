@@ -3191,3 +3191,20 @@ Appended 2026-09-26, wave seven on Opus:
   `commands/features.ts`; `reactionSwing` reads `.action`), so a familiar
   always swings its default line; `reactionSwing`'s docstring claims it
   considers what a creature holds. Opus review: PASS.
+- **A save a stat block forced** (W8-S24). Protection from Evil and Good's
+  printed road, and two gaps beside it: `printedLineHolder` reads the creature
+  back out of a printed line's source (the longest id in `state.creatures`,
+  never a colon split), so a repeat save a stat block raised knows who forced
+  it; `forcePrintedSaveOn` passes the conditions its failure would impose
+  (Dwarven Resilience, Fey Ancestry and Brave now reach a stat block's save)
+  and names the forcer where the line already holds a condition; a stat
+  block's condition names its causer (the printed landing, the grapple, the
+  attach, the drop to 0, the conferral), so the ward's Immunity refuses a
+  Quasit's Scare. `a-mode-on-the-save-a-spell-forces` moved to `ITEM_SHAPES`
+  (its last spell claimant paid; its feature and item claimants stay). **Spells
+  in reach, not executed: 0** — before W8-S26's sort, which is expected to
+  raise it honestly. **Left:** the "already" check sees any condition the
+  line holds, not the named one; saves forced by feature and hit-rider effects
+  still name no causer; the spell road's twin (a first save while already
+  under that caster's condition) is unbuilt. Opus review, two comment defects,
+  fixed.
