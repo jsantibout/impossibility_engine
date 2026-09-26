@@ -39,8 +39,7 @@ homebrew.
   push, a mode, a penalty, a worn-down object, a revealed fact — handing over
   what it could not read; a legendary block's uses are a pool spent one per
   turn boundary; a printed teleport is spent at its distance, a
-  printed Reaction adds to an ally's roll, and a block's aura, absorption and frenzy are read off its traits; a hit may set a creature **burning** (a hazard beside its conditions, put
-  out by its own action), wear its armour down, or hand a graded failure to
+  printed Reaction adds to an ally's roll, and a block's aura, absorption and frenzy are read off its traits; a hit may set a creature **burning** (put out by its own action), wear its armour down, or hand a graded failure to
   the printed-save reader; a save may spin the web that holds its target; a Parry raises Armour Class in the hit window, a printed Reaction may spend
   another printed line, a cast line is spent at its heading's price, a creature carries its
   Challenge Rating and may take the form its block prints, and a Roper reels
@@ -57,10 +56,7 @@ homebrew.
   Fighting, and the small named features, Savage Attacker to Primal Order, execute (`COVERAGE.md` lists each); a feature may ask two questions, grant a language, or know a
   marked quarry's defences through `look`. Eldritch Invocations executes
   whole, both Pacts included: a feature may conjure the weapon it imbues and
-  widen the forms a summons offers. **Wild Shape executes**: a
-  Druid wears a learned Beast's stat block for the hours the table prints,
-  with the SRD's retained half kept, and comes back by every ending the book
-  names.
+  widen the forms a summons offers. **Wild Shape executes**: a Druid wears a learned Beast's stat block, keeps the SRD's retained half, and comes back by every ending the book names.
 - **Casting and spells** — slots and Pact slots as pools, castings with
   identities, Concentration, ongoing spells, the effect and rider kinds, dice
   that behave the way their spell says, printed sentences handed to the DM
@@ -74,7 +70,7 @@ homebrew.
   a neighbour's check, a spell's attack may leap to creatures the caster names,
   a spell may print its own stat block, a casting may leave something behind
   when it ends or be dismissed by its target, a slot may change what kind of ending a casting
-  has, a Speed may be replaced, and a repeat save may be raised by a blow; a tracked spell read to
+  has, a Speed may be replaced, and a repeat save may be raised by a blow; a casting may choose a branch per creature, suppress a held condition, move a body a size step, re-choose its branch, pin an Emanation in place, and erupt on a DM's decision; a tracked spell read to
   the end carries its text in `dmDecides` and the ledger counts it apart.
 - **Characters** — twelve SRD classes with their subclass, nine species,
   backgrounds, feats, multiclassing, creation and advancement.
@@ -105,9 +101,7 @@ homebrew.
   second Fighting Style at level 7 still is. Every pool buys something.
 - **A Druid's known forms are the ones it was made with**; no rest replaces
   one yet, and the block's senses are not carried.
-- **A summons still carries one debt**: a printed line whose numbers are the
-  summoner's (the Otherworldly Steed's), and a creature stowed somewhere that
-  is not the scene.
+- **A summons still carries one debt**: a printed line whose numbers are the summoner's (the Otherworldly Steed's).
 - **Jumping is half**; Slow Fall is elected on the landing rather than in a
   window; **nothing stands a creature up** by its own act, so a spell that
   forbids standing has nothing to forbid.
@@ -116,8 +110,7 @@ homebrew.
   and stop asking; Resistance's d4 comes off the total before defences.
 - **Nothing brings a jumper down** from a High Jump; a lifted creature is set
   down when its casting ends.
-- No ammunition spent. **An object cannot make an ability check** — a door
-  asked for one rolls at −5 where it should refuse — and nothing stops a
+- No ammunition spent. **An object cannot make an ability check** (a door asked for one rolls at −5), and nothing stops a
   caller putting an object in the turn order.
 - A conferral refuses by name what it cannot do: spell attack bonuses,
   ability scores an item sets, curses, Speed from an item.

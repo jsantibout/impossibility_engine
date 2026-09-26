@@ -2602,3 +2602,46 @@ Appended after wave seven's first spells track (2026-09-24):
   failure puts the target inside, waiting on the printed-save reader's arm.
   `character.ts` gained `swallows` / `shiftsPlane` on the stated-action
   records. The builder ran on Fable, the reviewer on Opus. Main re-ingested.
+- **Compulsions, suppressions and a body reshaped.** Eight level-5 spells
+  execute whole: **Fear** (a failed save empties the hands — `drops: { all }`;
+  the end-of-turn repeat owed only out of the caster's sight,
+  `RepeatSave.onlyIf: 'cannot-see-caster'`, read through `canSee` with a
+  declared *no* the only thing that raises the debt; the compelled Dash is the
+  table's), **Enthrall** (the fought fact as an automatic success —
+  `autoSucceedIf: { fought }`; the −10 a `bonus` rider narrowed to Perception
+  that `passivePerceptionOf` reads too; `a-bonus-narrowed-to-a-skill` moves to
+  `ITEM_SHAPES`), **Calm Emotions** (`SpellDefinition.optionPerTarget` and
+  `cast_spell.optionByTarget`, a branch chosen goblin by goblin and pinned on
+  the record; an `immunity` rider that **suppresses** a held condition,
+  `GrantedConditionImmunity.suppresses`, beside Aura of Courage's reader),
+  **Invisibility** (`roll-recorded.attackRoll`, written by the weapon and the
+  spell attack, so the ending seam sees every swing including the miss),
+  **Enlarge/Reduce** (`GrantedSize` in `size.ts`, a step not a size, summed
+  last by `effectiveSizeOf`, the map shifted by `shiftSize` and given back on
+  release; the `size` rider; `later-blow` with `by: 'target'` and the blow's
+  own type), **Alter Self** (`weapon-rider.unarmed` / `imposesAbility` /
+  `damageType` reaching the fist through `strikeStyleFor`; a re-choosing
+  Magic action, `SpellActivation.reoptions` + `activate_spell.option` and the
+  event `spell-option-changed` releasing the old branch's grants; Aquatic
+  Adaptation a `match-walk` swim), **Speak with Plants** (a self-origin
+  Emanation that **stays**, and `AreaTerrain.clears` — a `DifficultPatch` that
+  overrides in `chargeAt`; a branch's own `areaTerrain`), and **Glyph of
+  Warding's rune** (`SpellDefinition.triggered`, pinned with the stated type;
+  `triggerGlyph` in `commands/glyph.ts`; DM door `trigger_glyph`;
+  `OngoingEndReason 'triggered'`). Bestow Curse's level 9 slot runs until
+  dispelled (`untilDispelledAtSlot`); a readied Major Image at slot 4
+  schedules no deadline. **One name for a pinned Emanation:** the barriers
+  track's `SpellArea.stays` and this track's `immobile` were the same thing
+  built twice in one wave; the merge kept `stays` (main's, in the docs) with
+  this track's better behaviour — an unplaced caster is asked for a position
+  rather than left unpinned — and one computation of the record's point for
+  a wall, a stayed Emanation and a stated point. **Owed:** the spell-glyph
+  half of Glyph of Warding sits in `unmodelled` and is a mechanic (a readied
+  casting held without a deadline, the triggerer substituted as target); it is
+  built on this rune record in the activations brief. The reviewer (Opus)
+  found four ordinary defects, fixed at the merge: three residues that said
+  a free swing does not end Sanctuary, the Potion of Invisibility or the Dust
+  of Disappearance (it does now, through the same mark); the re-chosen
+  branch's handover without the `[the DM decides]` mark; the ending seam's
+  event count; and a docstring naming what a per-creature branch list does
+  not get (the creature-type pre-flight, the caster's riders).
