@@ -82,9 +82,17 @@ export const isSceneEvent = seamOf(SCENE_EVENTS);
  * Magic action moves a held creature with a `forced` move too — it is not the
  * creature's movement either — so its feet are not counted here, and a caster
  * holding themself up who takes the action first and climbs afterwards spends
- * the twenty twice. Telling that move from a shove needs a fact the event does
- * not carry; the gap is written on the definition (SRD Levitate's
- * `unmodelled`) rather than guessed at from a placement's shape.
+ * the twenty twice.
+ *
+ * Telling that move from a shove needs a fact the event does not carry, and
+ * **the shape of a placement is not that fact**: a fall writes the same
+ * `{ feet: 0, elevation: -n, forced: true }` an altitude change does, so a
+ * guess read off the geometry would charge a wizard's own allowance for
+ * falling. Closing it is a marker on `creature-moved` saying whose allowance a
+ * move spends, which is a decision nobody has taken; until somebody does, the
+ * half that is enforced is the half the activation refuses and this docstring
+ * is where the other half is written down. Not SRD Levitate's `unmodelled`,
+ * which hands a clause to the table, and this is nothing a DM adjudicates.
  */
 function stampAltitudeAltered(
   state: GameState,

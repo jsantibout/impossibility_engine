@@ -134,6 +134,22 @@ smaller (a trait may waive it), and a Prone creature crawls at the climb's
 multiplier. The engine does not yet carry the held creature along; that is
 the holds track's.
 
+**The ground's vocabulary is three fields, not one rate.** `costPerFoot` is the
+rate, and where two patches overlap the dearer governs, as above. `damagePerFeet`
+is ground that *cuts* — SRD Spike Growth's 2d4 for every five feet travelled —
+and two cutting patches **each** cut: the glossary prints its non-cumulative
+sentence about the rate and prints nothing at all about dice, so a rule that they
+did not stack would be one the engine invented. `onlyTowards` narrows a rate to
+the **step** rather than to the square — SRD Gust of Wind's "2 feet of movement
+for every 1 foot it moves when moving closer to you" — so the patch charges a
+step of a stated route only where that step ends nearer the region's origin
+creature than it began, read against where that creature stands at the moment of
+the step; a move inside one that states no route is asked for one, because two
+endpoints do not say which way each step went. A casting lays all three the same
+way, off the region its own area resolved, and a casting whose area **turns**
+lays them again down the new bearing, because everything a re-aimed Line prints
+turns with it.
+
 ## Combat
 
 Initiative order, the action budget (action, bonus action, reaction,

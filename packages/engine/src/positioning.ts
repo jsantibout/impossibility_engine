@@ -3427,13 +3427,27 @@ function* shortestRouteSpaces(scene: PositionState, from: Point, to: Point): Gen
   }
 }
 
-/** The live patches that cut whoever crosses them — see {@link TerrainDamage}. */
+/**
+ * The live patches that cut whoever crosses them — see {@link TerrainDamage}.
+ *
+ * **By patch name, read through a sort.** `livePatches` is two lists laid end
+ * to end — the table's declarations by name, then the ground stat blocks drag
+ * about by creature — so the whole is in a fixed order but not in name order,
+ * and it happens to come out in name order today only because nothing dragged
+ * cuts. The dice a cutting patch throws are ordered by this, and an order that
+ * would change the day a stat block prints spikes is not an order: the sort is
+ * what makes the claim structural rather than lucky, the same reason
+ * `withPendingCasting` sorts a key set that insertion already ordered. By code
+ * unit and not by locale, because a locale is not deterministic. (W7-S19R)
+ */
 function damagingPatches(
   state: GameState,
 ): readonly (readonly [string, DifficultPatch & { readonly damagePerFeet: TerrainDamage }])[] {
-  return livePatches(state).flatMap(([name, patch]) =>
-    patch.damagePerFeet === undefined ? [] : [[name, { ...patch, damagePerFeet: patch.damagePerFeet }] as const],
-  );
+  return livePatches(state)
+    .flatMap(([name, patch]) =>
+      patch.damagePerFeet === undefined ? [] : [[name, { ...patch, damagePerFeet: patch.damagePerFeet }] as const],
+    )
+    .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0));
 }
 
 /**
@@ -3498,8 +3512,9 @@ export interface TerrainDamageCharge {
  * inventing a non-stacking rule for damage would be a sentence the glossary
  * prints for Difficult Terrain and not for this.
  *
- * Sorted by patch name, so the dice are thrown in one order whatever order
- * the castings happened to be laid in.
+ * By patch name, which {@link damagingPatches} sorts them into, so the dice are
+ * thrown in one order whatever order the castings happened to be laid in and
+ * whatever the two lists a live view is made of happen to hold.
  */
 export function terrainDamageAlong(
   state: GameState,

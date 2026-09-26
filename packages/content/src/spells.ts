@@ -7394,11 +7394,16 @@ export const LEVITATE: SpellDefinition = {
   //
   // **And it is one twenty, not two**: the Magic action above reads the same
   // tally the move does (`GrantedLift.altered`), so a caster who has climbed
-  // the twenty has nothing left to take the action with. The half of that
-  // sentence the engine cannot yet see is written below. (W7-S19R)
+  // the twenty has nothing left to take the action with.
+  //
+  // The tally is charged in one direction only, and the gap is the engine's
+  // rather than this definition's — so it is written where the code that would
+  // close it is (`stampAltitudeAltered`) and not on `unmodelled`, which hands a
+  // clause to the table and this is nothing a DM adjudicates: the action's own
+  // feet are not added, because the move it makes is forced exactly as a shove
+  // is and nothing on the event tells the two apart. (W7-S19R)
   unmodelled: [
     'the object the spell may target instead, and its 500-pound limit, are the DM’s: objects are not modelled',
-    'the twenty feet a turn are charged in one direction only: the Magic action reads what the caster’s own climb has already spent, but its own feet are not added to the tally, because the move it makes is a forced one exactly as a shove is and nothing on the event tells the two apart — so a caster holding themself up who takes the action first and climbs afterwards gets forty feet in a turn',
   ],
 };
 
