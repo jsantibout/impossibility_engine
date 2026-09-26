@@ -41,10 +41,11 @@ import {
 import type { PrintedSpeedMode } from '../monster.js';
 import { distanceBetween } from '../positioning.js';
 import { castingSource } from '../spells.js';
-import type { ControlledBond } from '../state.js';
+import type { ControlledBond, CreatureState } from '../state.js';
 import { sceneFor, unknownCreature } from './command.js';
 import { applyConditionTo } from './conditions.js';
-import { removeCreatureEverywhere, summonCreature } from './creatures.js';
+import { removeCreatureEverywhere, settleDeparture, summonCreature } from './creatures.js';
+import { undeadForbiddenProblem, walkingBodyProblem } from './spell-effect-creatures.js';
 import { type EffectContext, type EffectOfKind } from './spell-effect-context.js';
 
 /**
@@ -247,6 +248,18 @@ const raisedId = (castingId: string, monsterId: string, ordinal: number): Charac
   asCharacterId(`${castingId}:${monsterId}:${ordinal}`);
 
 /**
+ * **Whose corpse keeps its record when it rises: the one predicate.**
+ *
+ * The owner, 2026-09-26: "a player character's corpse" — the character can
+ * come back, so the body is not deleted when a Zombie stands up in it. The
+ * engine's fact for a player character is a creature built from choices, a
+ * `CharacterRecord`; a bestiary corpse — a Bandit — leaves the roster as it
+ * always has. Widening the ruling to every corpse is this function returning
+ * `true`, and nothing else moves.
+ */
+const keepsItsRecord = (body: CreatureState): boolean => body.character !== null;
+
+/**
  * Bodies become creatures under the caster's control — SRD Animate Dead.
  *
  * **Runs once over the casting**, from `runEffects` rather than from the
@@ -261,6 +274,18 @@ const raisedId = (castingId: string, monsterId: string, ordinal: number): Charac
  * `summonCreature` at the point the body lay — a raised corpse cannot be
  * raised again, which is the book's "each of the creatures must come from a
  * different corpse". A body nobody placed raises a creature nobody placed.
+ *
+ * **Except a player character's body, which keeps its key** (the owner,
+ * 2026-09-26; {@link keepsItsRecord}): the departure settles everything it
+ * always settled — holds, the map, the order — and writes no
+ * `creature-removed`, so the record stays under the character's id, dead and
+ * unplaced, and the creature that rises names it (`Summons.raisedFrom`). It
+ * cannot be raised twice for a different reason: while that creature stands
+ * the body walks (`body_walks`), and when it falls the fold lays the body
+ * where it fell (`layBodiesWhereWalkersFell`). A body a running Gentle Repose
+ * keeps is refused `cannot_become_undead`. Both are asked by the pre-flight,
+ * before the slot or the rite, and again here, where the rule lives — which is
+ * what refuses a rite declared before the fact that refuses it.
  *
  * **A creature the caster already controls through this spell is renewed,
  * not raised.** "This use of the spell reasserts your control": the bond
@@ -309,17 +334,31 @@ export function resolveRaiseEffect(
       throw new Error(`${name}: ${target} is alive and not ${casterId}'s; the target rule should have refused it`);
     }
 
+    // The pre-flight asked both before anything was spent; asked again here,
+    // where the rule lives, for a rite declared before the fact that refuses
+    // it — a body another rite raised first, a Gentle Repose laid during the
+    // minute.
+    const walking = walkingBodyProblem(current, target, name);
+    if (!walking.ok) return walking;
+    const kept = undeadForbiddenProblem(current, target, name);
+    if (!kept.ok) return kept;
+
+    // A player character's body keeps its key and its whole record, dead and
+    // off the map, and settles everything a departure settles; any other
+    // corpse leaves the game. See `keepsItsRecord`.
     const where = current.scene?.positions[target];
-    const gone = removeCreatureEverywhere(current, target);
-    if (!gone.ok) return gone;
-    events.push(...gone.value);
-    current = gone.value.reduce(applyEvent, current);
+    const keeps = keepsItsRecord(body);
+    const settled = keeps ? ok(settleDeparture(current, target)) : removeCreatureEverywhere(current, target);
+    if (!settled.ok) return settled;
+    events.push(...settled.value);
+    current = settled.value.reduce(applyEvent, current);
 
     const arrived = summonCreature(current, ctx.supply.content, {
       id: raisedId(castingId, effect.fromCorpse, ordinal++),
       monsterId: effect.fromCorpse,
       by: casterId,
       controlled,
+      ...(keeps ? { raisedFrom: target } : {}),
       ...(where === undefined ? {} : { placement: { from: { point: where }, feet: 0 } }),
     });
     if (!arrived.ok) return arrived;

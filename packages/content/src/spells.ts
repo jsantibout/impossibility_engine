@@ -4593,9 +4593,14 @@ export const GENTLE_REPOSE: SpellDefinition = {
   effects: [{ kind: 'preserves' }],
   durationSeconds: 864_000,
   // **Two sentences handed over and one that is executed**, which was P3-S6's
-  // reading of this spell and is now its whole content. Decay and becoming
-  // Undead are the DM's, and so is a heap of remains that is not a creature
-  // the engine holds. The third sentence was the debt this definition named:
+  // reading of this spell and is now its whole content. Decay is the DM's, and
+  // so is a heap of remains that is not a creature the engine holds. "Can't
+  // become Undead" is **read** now: a raising refuses a body a running
+  // `preserves` casting keeps (`cannot_become_undead`, SRD Animate Dead's
+  // pre-flight and its resolver). The sentence still goes over whole, for its
+  // decay half — a handover is the book's sentence verbatim, and the owner's
+  // ruling of 2026-09-26 on Gaseous Form hands over a sentence the engine
+  // partly enforces. The third sentence was the debt this definition named:
   // `revive.within` is subtraction over `Vitals.diedAt`, so a rule the engine
   // runs really does read the time limit this spell extends — and now the
   // `preserves` mark takes the repose's own running span back out of it.
@@ -7295,11 +7300,13 @@ export const HASTE: SpellDefinition = {
  * clause are three `roll-mode` effects, because a mode is selected by roll
  * family and ability and there is one selector per ability.
  *
- * Everything else about being a cloud is not, and the notes say which gap each
- * clause waits on. The spell is therefore **partial** rather than tracked: the
- * misty-cloud half is the table's and the five numbers are the engine's, and
- * writing none of them because some of them are missing would be a Gaseous
- * Form that a Fireball hurt at full price.
+ * The rest of being a cloud was built after it — the Fly Speed and three of
+ * the four things the cloud cannot do — and the fourth, talking, is handed
+ * over whole with the sentence it is printed in (the owner, 2026-09-26). What
+ * the notes still carry is the misty-cloud fiction and the occupancy the
+ * engine owns outright; the numbers are the engine's, and writing none of them
+ * because some sentence was missing would have been a Gaseous Form that a
+ * Fireball hurt at full price.
  */
 export const GASEOUS_FORM: SpellDefinition = {
   id: 'gaseous-form',
@@ -7342,7 +7349,13 @@ export const GASEOUS_FORM: SpellDefinition = {
     // `castSpell`, because a casting comes out of three different slots and no
     // one of them names it — and handling is the fourth, read by every command
     // that puts a hand on a thing. Talking is the one the engine has no spender
-    // for and never will.
+    // for and never will, so the first sentence is **handed over** below, whole
+    // and flagged for the DM: the owner's ruling of 2026-09-26, over the
+    // reading that a sentence the engine three-quarters enforces could not go
+    // to the table. Its one rules consequence needs nothing more — a creature
+    // that cannot talk cannot supply a Verbal component, and this one cannot
+    // cast at all (`casting: true`), so no spell of its is left for the
+    // component to refuse.
     {
       kind: 'action-rule',
       rule: { kind: 'forbids', actions: ['attack'], casting: true, objects: true },
@@ -7360,10 +7373,15 @@ export const GASEOUS_FORM: SpellDefinition = {
   // level 4 puts two creatures in mist and one of them falling leaves the
   // other one a cloud.
   endsEarly: [{ on: 'target-drops-to-0', ends: 'target' }],
+  // The talking, in the book's words: the sentence goes over whole because a
+  // handover is a printed sentence verbatim, and the object clauses inside it
+  // are enforced by the `forbids` rule above whatever the table reads.
+  dmDecides: [
+    "The target can't talk or manipulate objects, and any objects it was carrying or holding can't be dropped, used, or otherwise interacted with.",
+  ],
   unmodelled: [
     'the cloud itself is the DM’s: what the target looks like, that it "can pass through narrow openings", and that "it treats liquids as though they were solid surfaces" are fiction, and the gear coming along changes nothing the engine holds',
     '"The target can enter and occupy the space of another creature" is not applied: occupancy is a rule the engine owns outright, and nothing lets an effect tell that rule to believe something different about one creature',
-    'one of the four things the cloud cannot do is not forbidden: "The target can’t talk". Three are taken away — the Attack action, the casting, and every hand a command puts on a thing, which is "manipulate objects" and the objects that "can’t be dropped, used, or otherwise interacted with" — and talking is not an action anything spends. It is not a handover either, because the SRD prints it inside the same sentence as the object clauses the engine now enforces, and handing that sentence over would ask the table to adjudicate three quarters of a rule',
   ],
 };
 
@@ -12209,8 +12227,18 @@ export const SILENCE: SpellDefinition = {
  * **A `raise`, and the third kind of bond.** The corpses are the targets —
  * dead, Humanoid, Small or Medium, which is the one target rule in the book
  * that takes two sizes — and the bones are points the caster states
- * (`bonesAt`), one Skeleton each; a corpse's key leaves the roster and a
- * Zombie arrives in its space. What each creature is bound by is
+ * (`bonesAt`), one Skeleton each; a Zombie arrives in a corpse's space. What
+ * becomes of the corpse is the owner's ruling of 2026-09-26: **a player
+ * character's body keeps its record** — class, level, choices, sheet, pools,
+ * gear and `diedAt` stay under its id, dead and off the map, so the character
+ * can come back — and any other corpse's key leaves the roster as it always
+ * has. While the Zombie stands the body is not a corpse: Revivify, Gentle
+ * Repose and a second Animate Dead are refused `body_walks`. When the Zombie
+ * falls on the map the body lies where it fell, and Raise Dead's "dead no
+ * longer than 10 days" runs from the character's own death, which is the
+ * `diedAt` the body never lost — the reading for a character who was dead all
+ * along. A body a running Gentle Repose keeps "can't become Undead" and is
+ * refused `cannot_become_undead`. What each creature is bound by is
  * `SummonBond.controlled`: a summoner and a clock reading a day on, and when
  * the clock passes the *control* ends and the creature stays — a kept bond
  * would have taken a Zombie at 0 Hit Points away, and the book leaves it

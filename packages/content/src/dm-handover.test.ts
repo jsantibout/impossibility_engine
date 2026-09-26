@@ -491,6 +491,13 @@ describe('the catalogue hands over exactly the text it means to', () => {
       'fear',
       'find-traps',
       'floating-disk',
+      // **An executed spell's one sentence nobody can spend.** SRD Gaseous
+      // Form's Resistance, Immunity, Advantage, Fly Speed and the three things
+      // it forbids are executed; "The target can't talk" is no action a
+      // spender is told apart by, and it went to the table with the sentence
+      // it is printed in on the owner's ruling of 2026-09-26 — the object
+      // clauses beside it are still enforced whatever the table reads.
+      'gaseous-form',
       'gate',
       'gentle-repose',
       // SRD Glyph of Warding's inscription and its invented trigger, beside
@@ -810,6 +817,38 @@ describe('the sweep re-filed lines and retired no debt', () => {
 });
 
 /**
+ * SRD Gaseous Form: "The target can't talk or manipulate objects, and any
+ * objects it was carrying or holding can't be dropped, used, or otherwise
+ * interacted with. Finally, the target can't attack or cast spells."
+ *
+ * The owner's ruling of 2026-09-26 hands the talking over, flagged for the
+ * DM, and says the flag names the consequence: no Verbal components. That
+ * consequence is stated here and in the definition's own comment rather than
+ * in words the table reads — a handover is the book's sentence verbatim — and
+ * it needs no rule of its own, because the cloud cannot cast at all.
+ */
+describe('Gaseous Form hands its talking over and keeps the rest', () => {
+  const TALKING =
+    "The target can't talk or manipulate objects, and any objects it was carrying or holding can't be dropped, used, or otherwise interacted with.";
+
+  it('hands the sentence over under the DM mark and reports no other line about talking', () => {
+    const out = atomic('gaseous-form');
+    expect(dmDecisionsIn(out.unverified)).toEqual([TALKING]);
+    const unmarked = out.unverified.filter((line) => dmDecisionsIn([line]).length === 0);
+    expect(unmarked.filter((line) => /\btalk/i.test(line))).toEqual([]);
+  });
+
+  it('forbids the casting, which is where the missing Verbal component would bite', () => {
+    const forbids = SRD_CONTENT.spell('gaseous-form')!.effects.find(
+      (effect) => effect.kind === 'action-rule' && effect.rule.kind === 'forbids',
+    );
+    expect(forbids).toMatchObject({
+      rule: { kind: 'forbids', actions: ['attack'], casting: true, objects: true },
+    });
+  });
+});
+
+/**
  * The slot this casting spent, asserted over **every** pool rather than one.
  *
  * Six of the spells read to the end are cantrips, and a cantrip spends
@@ -934,11 +973,14 @@ describe('each of the forty-seven is cast, and hands its own text to the table',
     // The outcomes are about whom the casting was aimed at — the caster, for a
     // spell that may take itself, SRD Enlarge/Reduce — or, for a template the
     // caster points, whoever it caught: SRD Fear's cone finds the raven.
+    // One outcome per effect that landed, so SRD Gaseous Form — seven effects
+    // on the one willing creature — reports seven about the caster: the
+    // claim is whom they are about, and nobody else is in them.
     const aimed = aimedAt(definition).targets;
     if (aimed.length === 0) {
       expect(out.cast.outcomes.length).toBeGreaterThan(0);
     } else {
-      expect(out.cast.outcomes.map((one) => one.target)).toEqual(aimed);
+      expect([...new Set(out.cast.outcomes.map((one) => one.target))]).toEqual(aimed);
     }
     // A save was rolled, or — for a caster taking their own Enlarge/Reduce,
     // who is willing and offered no die — the effect simply landed.

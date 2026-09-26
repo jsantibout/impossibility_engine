@@ -11,6 +11,7 @@
     "attachedTo",
     "heldByObjectSource",
     "heldByObject",
+    "walkerOf",
     "carriedObjectId",
     "CreatureState",
     "AppliedCommand",
@@ -213,7 +214,8 @@
     "SceneEvent",
     "isSceneEvent",
     "stampAltitudeAltered",
-    "applyScene"
+    "applyScene",
+    "layBodiesWhereWalkersFell"
   ],
   "fold/elsewhere.ts": [
     "ELSEWHERE_EVENTS",

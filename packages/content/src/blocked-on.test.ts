@@ -1671,17 +1671,13 @@ const CITED_SOURCES: readonly CitedSource[] = [
     label: 'packages/engine/src/content.ts',
     files: ['packages/engine/src/content.ts'],
   },
-  // The action economy, registered here as well as in the feature table: the
-  // shape a spell is blocked on when it wants an errand no spender is told
-  // apart by lives in `NAMED_ACTIONS`, and it became a spell shape when the
-  // last feature under it left. A description naming a file this table does
-  // not hold fails the *points at prose* guard rather than passing unchecked,
-  // which is how the absence was found.
-  {
-    name: 'combat.ts',
-    label: 'packages/engine/src/combat.ts',
-    files: ['packages/engine/src/combat.ts'],
-  },
+  // `packages/engine/src/combat.ts` stood here for one description: the shape
+  // a spell was blocked on when it wanted an errand no spender is told apart
+  // by, which lives in `NAMED_ACTIONS`. That shape left the vocabulary with
+  // its last claimant (SRD Gaseous Form's talking, handed over on the owner's
+  // ruling of 2026-09-26), so nothing in these maps quotes the file and the
+  // entry went with it — the feature table still registers it. Register it
+  // again with its next citation.
   {
     name: 'items.ts',
     label: 'packages/content/src/items.ts',
@@ -1826,10 +1822,14 @@ describe('a shape says where this repository already described it', () => {
    * **The feature half is the third and the last**, taken by the owner on
    * 2026-09-21 as the general form rather than a fourth enumeration: `why`
    * names a shape in any of the three maps. Speak with Animals, Gaseous Form
-   * and Haste's narrowed action are all blocked on
+   * and Haste's narrowed action were all blocked on
    * `an-action-the-engine-has-no-spender-for`, which the feature book
-   * describes because `NAMED_ACTIONS` leaves Influence and Utilize out for a
-   * reason that has nothing to do with spells.
+   * described because `NAMED_ACTIONS` left Influence and Utilize out for a
+   * reason that has nothing to do with spells. All three have since left it —
+   * Speak with Animals to the table, Haste paid by `takeUtilize`, Gaseous
+   * Form's talking handed over on the owner's ruling of 2026-09-26 — and the
+   * id went from the vocabulary with its last claimant; the general form
+   * stands.
    */
   it('has a vocabulary that covers every claim', () => {
     const known = new Set<string>([

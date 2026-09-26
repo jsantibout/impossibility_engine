@@ -480,14 +480,12 @@ describe('what a shape finishes is the column a tranche is planned from', () => 
     // The Hide left this row with a spender and Fast Hands left it the same
     // way, which took the last **feature** off it: `takeUtilize` gave the
     // Utilize a spender, and an `allows` rule could then be priced against it.
-    // The id itself is a spell shape now rather than a feature one, which is
-    // what the unclaimed-shape guard above is for.
-    expect(knownFeatureBlockers()).toContain('an-action-the-engine-has-no-spender-for');
-    expect(featureConsumersOf('an-action-the-engine-has-no-spender-for')).toEqual({
-      shape: 'an-action-the-engine-has-no-spender-for',
-      blocks: [],
-      finishes: [],
-    });
+    // The id became a spell shape rather than a feature one, which is what the
+    // unclaimed-shape guard above is for — and it has now left the vocabulary
+    // by that guard: SRD Gaseous Form's talking, its last claimant, was handed
+    // over on the owner's ruling of 2026-09-26, and a shape nothing is blocked
+    // on is deleted rather than left standing over nothing.
+    expect(knownFeatureBlockers()).not.toContain('an-action-the-engine-has-no-spender-for');
     // And the cheaper price is no longer a shape: `STATABLE_PRICES` holds three
     // entries and three commands take a `from`, so nothing claims the id and it
     // is gone from the vocabulary rather than left standing over nothing.

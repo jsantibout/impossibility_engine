@@ -218,7 +218,15 @@ describe('a corpse becomes a Zombie under the caster’s control', () => {
     expect(creature.side).toBe('party');
     // "The target becomes an Undead creature": the corpse's key leaves and the
     // Zombie's arrives, in the space the body was lying in.
+    //
+    // **A bestiary corpse, so its key leaves.** The owner's ruling of
+    // 2026-09-26 keeps the record of a *player character's* corpse — see
+    // `a-body-that-keeps-its-name.test.ts` — and the Bandit is not one: it
+    // leaves the roster as it always has, and the Zombie remembers no body.
+    // Widening the ruling to every corpse is `keepsItsRecord` in
+    // `commands/spell-effect-summon.ts`, and flips these two lines.
     expect(g.state.creatures[BANDIT]).toBeUndefined();
+    expect(creature.raisedFrom).toBeNull();
     expect(g.state.scene!.positions[zombie]).toEqual(where);
     // The bond: a summoner and a clock reading, no casting and nothing kept.
     expect(creature.summonedBy).toEqual({

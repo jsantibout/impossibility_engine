@@ -82,7 +82,8 @@ describe('a spell may name a shape in any book', () => {
    * Haste's extra action may be spent on a Utilize among four others.
    * `NAMED_ACTIONS` leaves both out because no spender could be told apart as
    * having taken one, which is exactly what the feature vocabulary's
-   * `an-action-the-engine-has-no-spender-for` says.
+   * `an-action-the-engine-has-no-spender-for` says. **Both have since left**,
+   * and the assertions below say how.
    *
    * **Speak with Animals was the third and has left**, which is the assertion
    * below it. G1 filed it here on the reading that the Influence action had no
@@ -98,9 +99,18 @@ describe('a spell may name a shape in any book', () => {
       (map[id] ?? []).map((entry) => entry.why);
 
     expect(filed(TRACKED_ADJUDICATED, 'speak-with-animals')).toEqual(['table']);
-    expect(filed(ADJUDICATED, 'gaseous-form')).toContain(
+    // **Gaseous Form has left, on the owner's ruling of 2026-09-26.** Handling
+    // objects was always `forbids.objects`, and what stayed filed here was
+    // "The target can't talk": talking is no action anything spends, and it
+    // sits in the one sentence with the object clauses the engine enforces, so
+    // the reading was that it could not go to the table by half. The owner
+    // overruled it — the sentence is handed over whole, under the DM mark —
+    // and the spell files nothing under any shape. Asserted rather than the
+    // row quietly deleted.
+    expect(filed(ADJUDICATED, 'gaseous-form')).not.toContain(
       'an-action-the-engine-has-no-spender-for',
     );
+    expect(filed(ADJUDICATED, 'gaseous-form')).toEqual([]);
     // **And Haste has left too, on the same reading and by the same door.**
     // It was filed here because the note said Utilize was an action no
     // spender could be told apart as having taken. `takeUtilize` is one and
@@ -108,9 +118,13 @@ describe('a spell may name a shape in any book', () => {
     // book prints and the narrowing is enforced. Asserted rather than the row
     // quietly deleted.
     expect(filed(ADJUDICATED, 'haste')).not.toContain('an-action-the-engine-has-no-spender-for');
-    // And the shape is claimed across books now, which is what the widening
-    // was for: the query counts a spell's claim on a feature's gap.
-    expect(claimedShapes().has('an-action-the-engine-has-no-spender-for')).toBe(true);
+    // The shape was claimed across books, which is what the widening was for:
+    // the query counted a spell's claim on a feature's gap. With Gaseous Form
+    // gone nothing claims it, so the guard that keeps no unclaimed shape has
+    // deleted it from the vocabulary — the widening still stands, and is
+    // asserted below of the three books' ids rather than of this one.
+    expect(claimedShapes().has('an-action-the-engine-has-no-spender-for')).toBe(false);
+    expect(Object.keys(MISSING_SHAPES)).not.toContain('an-action-the-engine-has-no-spender-for');
   });
 
   /**
@@ -192,7 +206,11 @@ describe('the widening bought no relaxation', () => {
     // A shape in any of the three books is a claim a reader can re-run, so
     // all three are permitted — and so is the table.
     expect(complaints('table')).toEqual([]);
-    expect(complaints('an-action-the-engine-has-no-spender-for')).toEqual([]);
+    // The feature book's example was `an-action-the-engine-has-no-spender-for`
+    // until that id left the vocabulary (2026-09-26); a live feature shape
+    // stands in for it, and the item book has one of its own.
+    expect(complaints('an-action-rule-a-feature-holds')).toEqual([]);
+    expect(complaints('what-ends-attunement-besides-a-command')).toEqual([]);
     expect(complaints('a-fact-only-the-table-can-declare')).toEqual([]);
   });
 });

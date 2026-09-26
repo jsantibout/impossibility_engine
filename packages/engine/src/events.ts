@@ -1159,6 +1159,13 @@ export type GameEvent =
        * this beside `castingId` or `kept` is refused by the fold.
        */
       readonly controlled?: ControlledBond;
+      /**
+       * The body the creature was raised out of, where that body keeps its
+       * record — see `CreatureState.raisedFrom`. SRD Animate Dead's Zombie
+       * from a player character's corpse. Absent for every other summons,
+       * which is what every log written before it says.
+       */
+      readonly raisedFrom?: CharacterId;
       readonly command?: CommandStamp;
     }
   | {

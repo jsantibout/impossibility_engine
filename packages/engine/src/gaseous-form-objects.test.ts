@@ -11,10 +11,11 @@
  * `forbids.casting` is, and every command that puts a hand on a thing reads it
  * through `refuseObjectHandling` and refuses `cannot_manipulate_objects`.
  *
- * Talking is the one the engine has no spender for and never will. It stays a
- * debt rather than becoming a handover, because a handover is a verbatim printed
- * sentence and the SRD prints talking inside the same sentence as the object
- * clauses the engine now enforces.
+ * Talking is the one the engine has no spender for and never will. It was kept
+ * a debt on the reading that a handover is a verbatim printed sentence and the
+ * SRD prints talking inside the same sentence as the object clauses the engine
+ * enforces; the owner overruled that on 2026-09-26, and the whole sentence is
+ * handed over under the DM mark while the object clauses stay enforced here.
  */
 
 import { describe, expect, it } from 'vitest';
@@ -26,6 +27,7 @@ import { createRollIssuer } from './rolls.js';
 import { fold, type GameEvent, type GameState } from './events.js';
 import { spellSlotKey } from './resources.js';
 import { declaredCasting } from './spellcasting.js';
+import { dmDecisionsIn } from './spell-definitions.js';
 import {
   dropItem,
   equipItem,
@@ -178,13 +180,15 @@ describe('SRD Gaseous Form: a cloud may not handle a thing', () => {
   });
 
   /**
-   * **The one of the four that stays unspoken, and it stays a debt rather than
-   * becoming a handover.** Talking is not an action anything spends, and the SRD
-   * prints it inside the same sentence as the object clauses the engine now
-   * enforces — a handover is a verbatim sentence, so handing that one over would
-   * ask the table to adjudicate three quarters of a rule.
+   * **The one of the four the engine does not forbid, handed over.** Talking
+   * is not an action anything spends. It stood here as a debt, on the reading
+   * that handing over the sentence it is printed in would ask the table to
+   * adjudicate three quarters of a rule; the owner overruled that on
+   * 2026-09-26, so the sentence goes to the table whole under the DM mark —
+   * and the object clauses in it are still refused above, whatever the table
+   * reads.
    */
-  it('still reports the one thing it does not forbid', () => {
+  it('hands the one thing it does not forbid to the table', () => {
     const state = fold('seed', SETUP);
     const out = unwrap(
       resolveSpell(
@@ -195,8 +199,11 @@ describe('SRD Gaseous Form: a cloud may not handle a thing', () => {
       ),
       'gaseous form',
     );
-    expect(out.unverified.join('\n')).toContain('can’t talk');
-    // And the three it does forbid are no longer reported as unspoken.
-    expect(out.unverified.join('\n')).not.toContain('otherwise interacted with" — talking');
+    expect(dmDecisionsIn(out.unverified)).toEqual([
+      "The target can't talk or manipulate objects, and any objects it was carrying or holding can't be dropped, used, or otherwise interacted with.",
+    ]);
+    // And nothing unmarked speaks of talking: the debt line is gone.
+    const unmarked = out.unverified.filter((line) => dmDecisionsIn([line]).length === 0);
+    expect(unmarked.join('\n')).not.toMatch(/\btalk/i);
   });
 });

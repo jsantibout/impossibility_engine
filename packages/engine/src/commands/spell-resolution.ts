@@ -195,6 +195,7 @@ import {
   resolvePreservesEffect,
   resolveStabiliseEffect,
   reviveProblem,
+  undeadForbiddenProblem,
 } from './spell-effect-creatures.js';
 import {
   type CastingAlterations,
@@ -1806,6 +1807,15 @@ export function castOrRelease(
           'too_many_raised',
           `${definition.name} at level ${castLevel} animates or reasserts control over ${allowed} creature(s); ${targets.length} corpse(s) and ${piles} pile(s) of bones were named`,
         );
+      }
+      // SRD Gentle Repose: "can't become Undead". A corpse a running repose
+      // keeps is refused here, before the slot or the rite; the resolver asks
+      // the same function for a repose laid while the rite was being said. A
+      // creature the caster already controls is being renewed, not raised.
+      for (const target of targets) {
+        if (state.creatures[target]?.vitals.dead !== true) continue;
+        const kept = undeadForbiddenProblem(state, target, definition.name);
+        if (!kept.ok) return kept;
       }
     }
 

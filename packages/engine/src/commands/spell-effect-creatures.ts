@@ -14,6 +14,7 @@
 import { type CharacterId, err, ok, type Result } from '@ie/shared';
 import { type Content } from '../content.js';
 import { applyEvent, type GameState } from '../events.js';
+import { walkerOf } from '../state.js';
 import { isCreatureType } from '../spell-definitions.js';
 import { type EffectContext, type EffectOfKind } from './spell-effect-context.js';
 import { ongoingSpellsOn } from './ongoing.js';
@@ -58,6 +59,51 @@ export function preservedSpan(state: GameState, target: CharacterId, diedAt: num
 }
 
 /**
+ * Why this body is not a corpse a spell may reach, or null where it is one.
+ *
+ * SRD Animate Dead: "The target becomes an Undead creature". A player
+ * character's corpse keeps its record when it rises (the owner, 2026-09-26),
+ * and while the creature it became is standing, the body is walking about as
+ * that creature: Revivify, Gentle Repose and a second Animate Dead all find a
+ * body that is not lying anywhere to be touched. Read off {@link walkerOf},
+ * so the answer moves the moment the walker falls or leaves.
+ *
+ * Asked where each of those spells asks whether its target is a corpse — the
+ * target rule's `mustBeDead` at the cast and in the shortlist, and
+ * {@link reviveProblem} — so the refusal costs nothing; and again in the
+ * raising and preserving resolvers, which is what reaches a rite declared
+ * before the body rose.
+ */
+export function walkingBodyProblem(state: GameState, target: CharacterId, name: string): Result<true> {
+  const walker = walkerOf(state, target);
+  if (walker === null) return ok(true);
+  return err(
+    'body_walks',
+    `${name} reaches a corpse, and ${target}'s body is walking about as ${walker}`,
+  );
+}
+
+/**
+ * Why this body may not become Undead, or null where it may.
+ *
+ * > SRD Gentle Repose: "For the duration, the target is protected from decay
+ * > and **can't become Undead**."
+ *
+ * Read off the running castings on the body that keep it (`preserving` on the
+ * record, pinned at the cast), which is the one fact that sentence hangs on:
+ * the casting that stops the clock on a revival is the casting that stops the
+ * body rising. The decay half is fiction and stays handed over.
+ */
+export function undeadForbiddenProblem(state: GameState, target: CharacterId, name: string): Result<true> {
+  const keeping = ongoingSpellsOn(state, target).find((record) => record.preserving !== undefined);
+  if (keeping === undefined) return ok(true);
+  return err(
+    'cannot_become_undead',
+    `${name} would make ${target} Undead, and ${keeping.spell} keeps the body: it can't become Undead while that runs`,
+  );
+}
+
+/**
  * Why this creature may not be raised, or null where it may.
  *
  * Written once and asked twice — the pre-flight in `resolveSpell` calls it
@@ -83,6 +129,12 @@ export function reviveProblem(
   if (!victim.vitals.dead) {
     return err('not_dead', `${name} raises the dead, and ${target} is alive`);
   }
+
+  // **A body something walks about in is not a corpse to touch** — see
+  // `walkingBodyProblem`. Before the clock, so the refusal says what is
+  // actually in the way while the walker stands.
+  const walking = walkingBodyProblem(state, target, name);
+  if (!walking.ok) return walking;
 
   // **A corpse whose death this log never saw.** `diedAt` is stamped by the
   // fold on the transition, so the only creature with none is one that has
@@ -251,10 +303,14 @@ export function resolveStabiliseEffect(
  * something to hold to a casting that persists.
  */
 export function resolvePreservesEffect(
-  _ctx: EffectContext,
-  _target: CharacterId,
+  ctx: EffectContext,
+  target: CharacterId,
   world: GameState,
 ): Result<GameState> {
+  // Where the rule lives, which is what reaches a ritual declared over a
+  // corpse that rose before it was finished.
+  const walking = walkingBodyProblem(world, target, ctx.name);
+  if (!walking.ok) return walking;
   return ok(world);
 }
 
