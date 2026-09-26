@@ -16,7 +16,13 @@ import type { PassiveDefense } from './passive-defenses.js';
 import type { AreaStanding, SpeedChange } from './standing.js';
 import type { MovementMode } from './character.js';
 import type { ActionRule, ActionSlot } from './combat.js';
-import type { LightLevel, ObscurementDegree, PointAnchoring, SenseName } from './positioning.js';
+import type {
+  LightLevel,
+  ObscurementDegree,
+  PointAnchoring,
+  SenseName,
+  TerrainDamage,
+} from './positioning.js';
 import type { CastingTime } from './spells.js';
 import type { SpellReactionWindow } from './reactions.js';
 import type { HealingRule } from './vitals.js';
@@ -4411,6 +4417,20 @@ export interface AreaTerrain {
    * thicket always has been.
    */
   readonly clears?: true;
+  /**
+   * SRD Spike Growth: "When a creature moves into or within the area, it
+   * takes 2d4 Piercing damage **for every 5 feet it travels**."
+   *
+   * The dice are multiplied by a distance travelled *inside* the area, and
+   * the only thing that says which feet of a move were where is the route the
+   * mover states — so a move that could have crossed this ground with no
+   * route stated is asked for one (`route_required`), whether or not a budget
+   * is being spent, and a forced move that states none is reported rather
+   * than rolled for. Pinned onto the patch with the rate, so the fold and the
+   * ruler open no book. Beside `costPerFoot` and never beside {@link clears}:
+   * ground made ordinary deals nothing.
+   */
+  readonly damagePerFeet?: TerrainDamage;
 }
 
 /**

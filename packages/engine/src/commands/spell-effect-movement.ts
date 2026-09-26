@@ -36,12 +36,14 @@ import { err, ok, type CharacterId, type Result } from '@ie/shared';
 import { applyEvent, type GameEvent, type GameState } from '../events.js';
 import {
   bearingBetween,
+  damagingPatchesAt,
   distanceBetween,
   moveCreature,
   moverInRegionAt,
   positionOf,
   sizeAtMost,
   type Placement,
+  type Point,
   type PositionState,
 } from '../positioning.js';
 import { effectiveSizeOf } from '../size.js';
@@ -237,8 +239,35 @@ export function shoveAwayFrom(
   // Difficult Terrain was charged — a shove is not the creature's movement.
   return {
     events: [{ type: 'creature-moved', id: target, placement, forced: true }],
-    unverified: [...assumed, ...reach.unverified],
+    unverified: [
+      ...assumed,
+      ...reach.unverified,
+      ...cutOnTheWay(state, target, name, positionOf(moved.value.state, target)),
+    ],
   };
+}
+
+/**
+ * SRD Spike Growth cuts "when a creature moves into or within the area", and a
+ * creature thrown into it has — but a rider on a settled outcome rolls nothing
+ * and refuses nothing, and it states no route for the dice to be owed along.
+ * So a shove or a lift that lands on ground that cuts is reported here, in the
+ * words the walking road (`checkTerrainDamage`) uses for a forced move with no
+ * path stated, and the table sends the move again with its route to have the
+ * dice thrown. (W7-S19)
+ */
+function cutOnTheWay(
+  state: GameState,
+  target: CharacterId,
+  name: string,
+  landed: Point | null,
+): readonly string[] {
+  if (landed === null) return [];
+  const patches = damagingPatchesAt(state, landed);
+  if (patches.length === 0) return [];
+  return [
+    `${name}: ${target} came to rest in ${patches.join(' and ')}, which deals damage for every five feet travelled inside it; a forced move states no route, so no dice were thrown for it — send the move again with its route filled in to have them thrown`,
+  ];
 }
 
 /**
@@ -317,7 +346,10 @@ export function lift(
       { type: 'creature-moved', id: target, placement, forced: true },
       { type: 'creature-lifted', id: target, lift: { source } },
     ],
-    unverified: reach.unverified,
+    unverified: [
+      ...reach.unverified,
+      ...cutOnTheWay(state, target, name, positionOf(raised.value.state, target)),
+    ],
   };
 }
 

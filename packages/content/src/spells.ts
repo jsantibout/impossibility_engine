@@ -10073,15 +10073,18 @@ export const SPIKE_GROWTH: SpellDefinition = {
   range: { kind: 'ranged', feet: 150 },
   targets: { count: 0 },
   area: { kind: 'sphere', radius: 20, origin: 'point' },
-  // "The area becomes Difficult Terrain for the duration." The whole of what
-  // the casting itself does: the spikes' damage is the sentence after it and
-  // is still blocked on the distance a move does not record.
-  areaTerrain: { costPerFoot: 2 },
+  // "The area becomes Difficult Terrain for the duration. When a creature
+  // moves into or within the area, it takes 2d4 Piercing damage for every 5
+  // feet it travels." Both sentences on the one patch the casting lays: the
+  // rate is charged by the ruler, and the dice are owed for every five feet of
+  // a stated route that lie inside the Sphere — a move that could have crossed
+  // it with no route stated is asked for one, and a shove that states none is
+  // reported rather than rolled for.
+  areaTerrain: { costPerFoot: 2, damagePerFeet: { feet: 5, dice: '2d4', damageType: 'piercing' } },
   effects: [],
   durationSeconds: 600,
   unmodelled: [
-    'the spikes deal nothing: "it takes 2d4 Piercing damage for every 5 feet it travels" multiplies the dice by a distance travelled **inside** the area, and a move is charged by the foot without anybody asking which feet were where',
-    'the Wisdom (Perception or Survival) check that spots the hazard is not offered: it belongs to a creature that is about to walk in rather than to one the casting caught, and who may attempt a check is derived from what its timer sits on',
+    'the Wisdom (Perception or Survival) check that spots the hazard is not offered off the casting: `SpellCheck` names one skill and the command that attempts a check (`resolveEffectCheck`) states none, so "Perception or Survival" — the attempter’s choice — has no field to be said in; the table calls it as a Search action with either skill against the casting’s DC, and "any creature that can’t see the area when the spell is cast" is the table’s to know',
   ],
 };
 

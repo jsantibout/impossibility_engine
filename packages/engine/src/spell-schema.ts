@@ -63,7 +63,7 @@ import {
 } from './combat.js';
 import type { Bonus, BonusApplies, BonusNarrowing } from './bonuses.js';
 import type { RollModifier } from './roll-modifiers.js';
-import { DIFFICULT_TERRAIN, LIGHT_LEVELS, OBSCUREMENT_DEGREES } from './positioning.js';
+import { CUBE, DIFFICULT_TERRAIN, LIGHT_LEVELS, OBSCUREMENT_DEGREES } from './positioning.js';
 
 /**
  * Whether a spell definition is *coherent*, asked of a value rather than of a
@@ -1644,7 +1644,11 @@ function checkAreaTerrain(
   ) {
     return;
   }
-  const { costPerFoot: rate, clears } = terrain as { costPerFoot?: unknown; clears?: unknown };
+  const {
+    costPerFoot: rate,
+    clears,
+    damagePerFeet,
+  } = terrain as { costPerFoot?: unknown; clears?: unknown; damagePerFeet?: unknown };
   if (clears !== undefined) {
     if (clears !== true) {
       found.push({
@@ -1660,6 +1664,14 @@ function checkAreaTerrain(
         reason: 'ground made ordinary has no rate of its own; name the rate or the clearing, not both',
       });
     }
+    // Ground made ordinary deals nothing either: the same field's two answers.
+    if (damagePerFeet !== undefined) {
+      found.push({
+        field: `${path}.damagePerFeet`,
+        code: 'terrain_clears_and_charges',
+        reason: 'ground made ordinary cuts nobody; name the damage or the clearing, not both',
+      });
+    }
     return;
   }
   if (!Number.isInteger(rate) || (rate as number) < DIFFICULT_TERRAIN) {
@@ -1667,6 +1679,52 @@ function checkAreaTerrain(
       field: `${path}.costPerFoot`,
       code: 'bad_terrain_cost',
       reason: `${String(rate)} feet per foot is not Difficult Terrain; the glossary's rate is ${DIFFICULT_TERRAIN} and a spell that prints its own prints a larger whole number`,
+    });
+  }
+  if (damagePerFeet !== undefined) checkTerrainDamage(damagePerFeet, `${path}.damagePerFeet`, found);
+}
+
+/**
+ * SRD Spike Growth's "2d4 Piercing damage for every 5 feet it travels", as a
+ * definition writes it — see `TerrainDamage`.
+ *
+ * Three fields and three refusals under one code: the distance is a whole
+ * number of feet the lattice can count to, the dice parse, and the type is one
+ * of the book's. A move is charged by whole spaces, so a distance that is not
+ * a multiple of the lattice's five feet would be a helping of dice owed for a
+ * span no route can measure.
+ */
+function checkTerrainDamage(damage: unknown, path: string, found: SpellDefinitionProblem[]): void {
+  if (
+    !readsAsObject(
+      damage,
+      path,
+      'damage the ground deals is an object naming the feet, the dice and their type',
+      found,
+    )
+  ) {
+    return;
+  }
+  const { feet, dice, damageType } = damage as { feet?: unknown; dice?: unknown; damageType?: unknown };
+  if (!Number.isInteger(feet) || (feet as number) <= 0 || (feet as number) % CUBE !== 0) {
+    found.push({
+      field: `${path}.feet`,
+      code: 'bad_terrain_damage',
+      reason: `${String(feet)} is not a distance the dice can be owed for; the lattice counts travel in spaces of ${CUBE} feet`,
+    });
+  }
+  if (typeof dice !== 'string' || !parseNotation(dice).ok) {
+    found.push({
+      field: `${path}.dice`,
+      code: 'bad_terrain_damage',
+      reason: `${String(dice)} is not dice notation the engine can throw`,
+    });
+  }
+  if (typeof damageType !== 'string' || !DAMAGE.has(damageType)) {
+    found.push({
+      field: `${path}.damageType`,
+      code: 'bad_terrain_damage',
+      reason: `${String(damageType)} is not a damage type the book prints`,
     });
   }
 }

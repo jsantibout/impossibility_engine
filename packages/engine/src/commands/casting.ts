@@ -1453,6 +1453,9 @@ export function terrainPatchOf(
       // its printed rate — see `AreaTerrain.clears`.
       costPerFoot: terrain.clears === true ? ORDINARY_GROUND : terrain.costPerFoot!,
       ...(terrain.clears === true ? { clears: true as const } : {}),
+      // And what the ground cuts for — SRD Spike Growth's dice per five feet
+      // — pinned beside the rate for the same reason the rate is.
+      ...(terrain.damagePerFeet === undefined ? {} : { damagePerFeet: terrain.damagePerFeet }),
       ...(lastsWithTheCasting ? { source: castingId } : {}),
     },
   ];

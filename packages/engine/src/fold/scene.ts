@@ -116,6 +116,7 @@ export function applyScene({ state, next }: Applying, event: SceneEvent): GameSt
             event.costPerFoot,
             event.source,
             event.clears,
+            event.damagePerFeet,
           ),
         ),
       };
