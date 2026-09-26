@@ -667,8 +667,9 @@ are never divided by each other:
 | **Parsed** | `@ie/srd` has the entry: name, category, rarity line, attunement bracket, charges, prose |
 | **Transcribed** | at least one catalogue record was read out of that entry |
 | **Instances** | the catalogue records those entries expand to |
-| **Complete** | a record that carries no `unmodelled` note: it does everything its entry says |
+| **Complete** | a record that carries no `unmodelled` note: it does everything its entry says, or hands the rest to the DM |
 | **Partial** | a record carrying at least one, quoting the clause it leaves to the table |
+| **Handed over** | a record carrying a `dmDecides` sentence: printed text only the table can answer, in the book’s words. A handover is not a debt, so it never makes a record partial |
 
 **One entry is not one item.** The SRD writes _Weapon, +1, +2, or +3_ once,
 as a template over the weapon table; the catalogue holds a +1, a +2 and a +3
@@ -683,7 +684,11 @@ is where a figure like that belongs.
 
 | Parsed | Transcribed | Instances | of which complete | of which partial |
 |---|---|---|---|---|
-| 258 | 88 | 249 | 191 | 58 |
+| 258 | 88 | 249 | 199 | 50 |
+
+| Records handing printed text to the DM |
+|---|
+| 10 |
 
 An entry with **no** record is one whose whole text is beyond the grant
 vocabulary. `packages/content/src/items.ts` states the three rules that
@@ -700,7 +705,7 @@ inventing a column that nothing checks.
 
 | Category | Parsed | Transcribed | Instances | Complete | Partial |
 |---|---|---|---|---|---|
-| Armor | 19 | 10 | 55 | 49 | 6 |
+| Armor | 19 | 10 | 55 | 50 | 5 |
 | Potions | 24 | 11 | 14 | 9 | 5 |
 | Rings | 22 | 5 | 5 | 4 | 1 |
 | Rods | 7 | 1 | 1 | 0 | 1 |
@@ -708,7 +713,7 @@ inventing a column that nothing checks.
 | Staffs | 12 | 1 | 1 | 0 | 1 |
 | Wands | 13 | 8 | 8 | 1 | 7 |
 | Weapons | 33 | 15 | 128 | 115 | 13 |
-| Wondrous Items | 127 | 37 | 37 | 13 | 24 |
+| Wondrous Items | 127 | 37 | 37 | 20 | 17 |
 
 ### Entries transcribed
 
@@ -718,14 +723,14 @@ how many of those still carry a clause the engine does not say.
 - **Amulet of Health** (Wondrous Items) — 1 recorded, 1 partial
 - **Armor of Invulnerability** (Armor) — 1 recorded, complete
 - **Armor, +1, +2, or +3** (Armor) — 36 recorded, complete
-- **Boots of Elvenkind** (Wondrous Items) — 1 recorded, 1 partial
+- **Boots of Elvenkind** (Wondrous Items) — 1 recorded, complete
 - **Boots of Levitation** (Wondrous Items) — 1 recorded, complete
 - **Boots of Speed** (Wondrous Items) — 1 recorded, 1 partial
 - **Boots of the Winterlands** (Wondrous Items) — 1 recorded, 1 partial
 - **Bracers of Defense** (Wondrous Items) — 1 recorded, complete
 - **Brooch of Shielding** (Wondrous Items) — 1 recorded, 1 partial
 - **Cape of the Mountebank** (Wondrous Items) — 1 recorded, 1 partial
-- **Chime of Opening** (Wondrous Items) — 1 recorded, 1 partial
+- **Chime of Opening** (Wondrous Items) — 1 recorded, complete
 - **Circlet of Blasting** (Wondrous Items) — 1 recorded, complete
 - **Cloak of Elvenkind** (Wondrous Items) — 1 recorded, 1 partial
 - **Cloak of Invisibility** (Wondrous Items) — 1 recorded, 1 partial
@@ -733,9 +738,9 @@ how many of those still carry a clause the engine does not say.
 - **Crystal Ball** (Wondrous Items) — 1 recorded, complete
 - **Crystal Ball of Mind Reading** (Wondrous Items) — 1 recorded, 1 partial
 - **Crystal Ball of Telepathy** (Wondrous Items) — 1 recorded, 1 partial
-- **Crystal Ball of True Seeing** (Wondrous Items) — 1 recorded, 1 partial
-- **Cube of Force** (Wondrous Items) — 1 recorded, 1 partial
-- **Cubic Gate** (Wondrous Items) — 1 recorded, 1 partial
+- **Crystal Ball of True Seeing** (Wondrous Items) — 1 recorded, complete
+- **Cube of Force** (Wondrous Items) — 1 recorded, complete
+- **Cubic Gate** (Wondrous Items) — 1 recorded, complete
 - **Defender** (Weapons) — 1 recorded, 1 partial
 - **Dragon Slayer** (Weapons) — 1 recorded, 1 partial
 - **Dust of Disappearance** (Wondrous Items) — 1 recorded, 1 partial
@@ -746,7 +751,7 @@ how many of those still carry a clause the engine does not say.
 - **Frost Brand** (Weapons) — 1 recorded, 1 partial
 - **Gauntlets of Ogre Power** (Wondrous Items) — 1 recorded, complete
 - **Giant Slayer** (Weapons) — 1 recorded, 1 partial
-- **Glamoured Studded Leather** (Armor) — 1 recorded, 1 partial
+- **Glamoured Studded Leather** (Armor) — 1 recorded, complete
 - **Goggles of Night** (Wondrous Items) — 1 recorded, 1 partial
 - **Hammer of Thunderbolts** (Weapons) — 1 recorded, 1 partial
 - **Headband of Intellect** (Wondrous Items) — 1 recorded, complete
@@ -784,11 +789,11 @@ how many of those still carry a clause the engine does not say.
 - **Sentinel Shield** (Armor) — 1 recorded, complete
 - **Shield of the Cavalier** (Armor) — 1 recorded, 1 partial
 - **Shield, +1, +2, or +3** (Armor) — 3 recorded, complete
-- **Sovereign Glue** (Wondrous Items) — 1 recorded, 1 partial
+- **Sovereign Glue** (Wondrous Items) — 1 recorded, complete
 - **Staff of Fire** (Staffs) — 1 recorded, 1 partial
 - **Stone of Good Luck (Luckstone)** (Wondrous Items) — 1 recorded, complete
 - **Sword of Wounding** (Weapons) — 1 recorded, 1 partial
-- **Universal Solvent** (Wondrous Items) — 1 recorded, 1 partial
+- **Universal Solvent** (Wondrous Items) — 1 recorded, complete
 - **Vicious Weapon** (Weapons) — 1 recorded, complete
 - **Vorpal Sword** (Weapons) — 1 recorded, 1 partial
 - **Wand of Binding** (Wands) — 1 recorded, 1 partial

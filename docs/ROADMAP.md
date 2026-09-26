@@ -3057,3 +3057,16 @@ Appended 2026-09-26, wave seven on Opus:
   built:** the SRD glossary's "Changes to Your Speeds" applies an increase or
   a halving to every Speed; `speedOf` applies increases and doubling to
   walking alone, a builder's reading and not a ruling. Opus review: PASS.
+- **Treasure T-B2: the item's handover.** `CatalogueItem.dmDecides` beside
+  `unmodelled`, the item twin of `SpellDefinition.dmDecides`, validated by
+  `itemHandoverProblems` (`bad_dm_decides`, `empty_note`, `debt_and_handover`
+  both ways across a cut, `forged_dm_mark`); the report counts records that
+  hand printed text over. Eight items complete on table facts nothing reads
+  (Boots of Elvenkind, Chime of Opening, Crystal Ball of True Seeing, Cube of
+  Force, Cubic Gate, Glamoured Studded Leather, Sovereign Glue, Universal
+  Solvent); Weapon of Warning and Boots of the Winterlands keep their named
+  debts; **Frost Brand stays a debt** (its light is a patch sight reads).
+  Complete records 190 → 198 on the branch's base. The runtime door is
+  T-C1's. **Left:** Scrying's sensor note calls itself fiction from
+  `unmodelled`; Frost Brand's note calls a debt the DM's; the potions' gear
+  lines move now both tracks are in. Two Opus reviews, the second a PASS.
