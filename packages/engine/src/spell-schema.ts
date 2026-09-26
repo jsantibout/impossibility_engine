@@ -4130,11 +4130,45 @@ function checkEffect(
     // notation reaches a grant in the log and is rolled a minute later, where
     // a refusal has nowhere to go.
     case 'weapon-rider': {
+      // SRD Alter Self's claws: a rider on the fist names no object, imposes
+      // where Shillelagh offers, and says one thing about the type.
+      if (effect.unarmed !== undefined && effect.unarmed !== true) {
+        found.push({
+          field: `${path}.unarmed`,
+          code: 'malformed_field',
+          reason: 'a rider rides the Unarmed Strike or a weapon; the only value is true',
+        });
+      }
+      if (effect.unarmed === true && effect.weapons !== undefined) {
+        found.push({
+          field: `${path}.weapons`,
+          code: 'unarmed_names_weapons',
+          reason: 'a rider on the Unarmed Strike names no weapon, and this one names some',
+        });
+      }
+      if (effect.imposesAbility !== undefined && effect.castingAbility !== true) {
+        found.push({
+          field: `${path}.imposesAbility`,
+          code: 'imposes_no_ability',
+          reason: 'an ability is imposed only where one is named; set castingAbility beside it',
+        });
+      }
+      if (effect.damageType !== undefined) {
+        checkDamageType(effect.damageType, `${path}.damageType`, found);
+        if (effect.damageTypes !== undefined) {
+          found.push({
+            field: `${path}.damageType`,
+            code: 'two_type_clauses',
+            reason: 'a rider imposes a type or offers a choice of them, never both',
+          });
+        }
+      }
       if (
         effect.bonus === undefined &&
         effect.die === undefined &&
         effect.castingAbility !== true &&
-        effect.damageTypes === undefined
+        effect.damageTypes === undefined &&
+        effect.damageType === undefined
       ) {
         found.push({
           field: path,
@@ -6400,11 +6434,44 @@ export function checkSpellDefinition(
           'a later action measures from the caster or from the point the casting holds, never both',
       });
     }
+    // SRD Alter Self's Magic action re-chooses a form, reaches nobody and
+    // runs a branch's list rather than one of its own: three rules in one.
+    if (activation.reoptions !== undefined && activation.reoptions !== true) {
+      found.push({
+        field: 'activation.reoptions',
+        code: 'malformed_field',
+        reason: 'a later action replaces the branch or it does not; the only value is true',
+      });
+    }
+    if (activation.reoptions === true) {
+      if (definition.options === undefined) {
+        found.push({
+          field: 'activation.reoptions',
+          code: 'reoptions_without_options',
+          reason: 'an action that replaces the branch needs branches to choose between, and this spell prints none',
+        });
+      }
+      if (Array.isArray(activation.effects) && activation.effects.length > 0) {
+        found.push({
+          field: 'activation.effects',
+          code: 'reoptions_with_effects',
+          reason: 'what a re-choosing action runs is the branch it names; a list of its own would be a second place for one sentence to be got wrong',
+        });
+      }
+      if (activation.range !== undefined) {
+        found.push({
+          field: 'activation.range',
+          code: 'reoptions_with_range',
+          reason: 'a re-choosing action changes its caster and reaches nobody, so it takes no range',
+        });
+      }
+    }
     if (
       activation.range === undefined &&
       definition.origin === undefined &&
       activation.movesArea === undefined &&
-      activation.redirects !== true
+      activation.redirects !== true &&
+      activation.reoptions !== true
     ) {
       found.push({
         field: 'activation.range',
@@ -6441,7 +6508,8 @@ export function checkSpellDefinition(
       activation.effects.length === 0 &&
       activation.movesArea === undefined &&
       activation.redirects !== true &&
-      activation.reAims !== true
+      activation.reAims !== true &&
+      activation.reoptions !== true
     ) {
       found.push({
         field: 'activation.effects',
@@ -6869,7 +6937,7 @@ function checkShape(value: unknown): readonly SpellDefinitionProblem[] {
       checkSummonPlacement(entry.kind, where, at, found);
       checkPreservesPlacement(entry.kind, where, at, found);
       checkChancePlacement(entry.kind, where, at, found);
-      checkBranchPlacement(entry.kind, where, at, found);
+      checkBranchPlacement(entry.kind, where, at, found, effect);
       checkNoNestedEffect(effect, at, found);
     });
   }
@@ -7216,9 +7284,15 @@ function checkBranchPlacement(
   where: string,
   path: string,
   found: SpellDefinitionProblem[],
+  /** The effect itself, for the one exemption that reads a field of it. */
+  effect: unknown = undefined,
 ): void {
   if (!isBranchList(where)) return;
   if (!PRESETTLED_EFFECT_KINDS.has(String(kind))) return;
+  // A rider on the fist has nothing for the pre-flight to settle — no weapon
+  // to demand, no reach to measure — so a branch may carry it: SRD Alter
+  // Self's Natural Weapons.
+  if (kind === 'weapon-rider' && (effect as { readonly unarmed?: unknown }).unarmed === true) return;
   found.push({
     field: `${path}.kind`,
     code: 'option_effect_settled_early',

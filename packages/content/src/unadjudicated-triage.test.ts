@@ -81,7 +81,6 @@ const FILED: Readonly<Record<string, readonly string[]>> = {
   'animate-dead': ['a-stat-block-created-mid-fight', 'a-target-rule-the-format-cannot-state'],
   knock: ['an-effect-that-suppresses-other-magic'],
   nondetection: ['an-effect-that-suppresses-other-magic'],
-  'speak-with-plants': ['difficult-terrain-an-area-creates'],
   'tiny-hut': [
     'a-barrier-that-blocks-passage',
     'a-casting-ended-by-a-trigger',
@@ -232,6 +231,9 @@ const EXECUTES: readonly string[] = [
   // shape was then built, and the Attunement a Remove Curse breaks is the
   // engine's now.
   'remove-curse',
+  // Both directions of ground are written — `AreaTerrain.clears` and a branch's
+  // own terrain over an immobile Emanation — so the debt this list filed is paid.
+  'speak-with-plants',
 ];
 
 /**

@@ -11472,10 +11472,17 @@ export const UNSEEN_SERVANT: SpellDefinition = {
  * > that new growth, it deals 1d6 damage of the type in parentheses instead of
  * > dealing the normal damage for your Unarmed Strike."
  *
- * Three branches, chosen at the casting and swapped on a later Magic action,
- * and the two that are arithmetic are arithmetic the engine does not have: a
- * Swim Speed is a movement mode with no reader, and the claw is a rider on an
- * Unarmed Strike the spell never sees.
+ * Three branches, chosen at the casting and swapped on a later Magic action —
+ * and all three are written. **Aquatic Adaptation** is a Swim Speed that
+ * matches the walking Speed, the `match-walk` member the vocabulary grew for
+ * exactly this sentence; the gills are the table's. **Change Appearance** is
+ * handed over whole. **Natural Weapons** is a `weapon-rider` on the Unarmed
+ * Strike — `unarmed`, because a fist has no id to name — with its die, the type
+ * the caster stated (`damageTypeStated`, substituted into the rider and pinned)
+ * and the spellcasting ability **imposed** rather than offered, because the
+ * book says "instead" and "rather than". And **the swap is `reoptions`**: a
+ * Magic action that names a different branch, releases what the casting hung
+ * on its caster and runs the new branch off the record's own numbers.
  */
 export const ALTER_SELF: SpellDefinition = {
   id: 'alter-self',
@@ -11485,15 +11492,58 @@ export const ALTER_SELF: SpellDefinition = {
   castingTime: 'action',
   concentration: true,
   range: { kind: 'self' },
-  targets: { count: 0 },
+  // On the caster, which is who a Range: Self spell alters.
+  targets: { count: 1, self: true },
+  // "claws (Slashing), fangs (Piercing), horns (Piercing), or hooves
+  // (Bludgeoning)": the growth is the caster's, stated at the casting and
+  // asked for only where the branch holds a slot for it.
+  damageTypeStated: ['slashing', 'piercing', 'bludgeoning'],
   effects: [],
+  options: {
+    'aquatic-adaptation': {
+      label: 'Aquatic Adaptation',
+      // "gain a Swim Speed equal to your Speed".
+      effects: [{ kind: 'speed', change: 'match-walk', mode: 'swim' }],
+      handsOver: ['You sprout gills and grow webs between your fingers.'],
+      unmodelled: [
+        'breathing underwater is the table’s: the engine holds no water and nothing drowns in it',
+      ],
+    },
+    'change-appearance': {
+      label: 'Change Appearance',
+      handsOver: [
+        'You alter your appearance.',
+        'You decide what you look like, including your height, weight, facial features, sound of your voice, hair length, coloration, and other distinguishing characteristics.',
+        'You can make yourself appear as a member of another species, though none of your statistics change.',
+        "You can't appear as a creature of a different size, and your basic shape stays the same; if you're bipedal, you can't use this spell to become quadrupedal, for instance.",
+        'For the duration, you can take a Magic action to change your appearance in this way again.',
+      ],
+    },
+    'natural-weapons': {
+      label: 'Natural Weapons',
+      effects: [
+        {
+          kind: 'weapon-rider',
+          // "When you use your Unarmed Strike": the fist, not a weapon.
+          unarmed: true,
+          // "it deals 1d6 damage of the type in parentheses instead of dealing
+          // the normal damage for your Unarmed Strike": the die replaces the
+          // fist's, and the type is the stated growth's — the default is the
+          // slot `statedDamageType` fills.
+          die: '1d6',
+          damageType: 'slashing',
+          // "you use your spellcasting ability modifier for the attack and
+          // damage rolls rather than using Strength": imposed, not offered.
+          castingAbility: true,
+          imposesAbility: true,
+        },
+      ],
+    },
+  },
+  // "you can take a Magic action to replace the option you chose with a
+  // different one".
+  activation: { action: 'action', reoptions: true, effects: [], label: 'Alter Self (a new form)' },
   durationSeconds: 3600,
-  unmodelled: [
-    'which of the three forms was taken is not recorded, and neither is the Magic action that swaps it for another; a definition’s effects are written once and these are chosen at the table',
-    'the Swim Speed is not granted: Fly, Climb and Swim are not distinguished from walking, so there is nothing for "equal to your Speed" to be equal to',
-    'the 1d6 Slashing, Piercing or Bludgeoning from claws, fangs, horns or hooves is not dealt, and the spellcasting modifier does not replace Strength on those rolls: both ride on an Unarmed Strike made later, which this casting never sees',
-    'breathing underwater, and every word of what the caster looks like, are the DM’s',
-  ],
 };
 
 /**

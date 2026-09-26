@@ -187,7 +187,7 @@ describe('SRD Glyph of Warding’s explosive rune', () => {
     );
     const other = triggerGlyph(
       fold('seed', [...log, ...armoured.events]),
-      { castingId: armoured.castingId },
+      { castingId: armoured.castingId! },
       supply('nothing'),
     );
     expect(isErr(other) && other.code).toBe('no_trigger');

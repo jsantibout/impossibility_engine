@@ -2485,7 +2485,9 @@ describe('a consumer count is a query', () => {
     // names no mechanic at all; Spider Climb's Climb Speed is granted and
     // what is left — which walls a creature may walk on — is the table's,
     // filed against a lattice that holds no surfaces.
-    expect(modes.tracked).toEqual(['alter-self', 'freedom-of-movement']);
+    // Alter Self left this population when its Swim Speed was written — the
+    // 'match-walk' member in the swim mode — so the tracked claimant is one.
+    expect(modes.tracked).toEqual(['freedom-of-movement']);
     // A floor below the population rather than on it, lowered by the batch
     // that wrote Freedom of Movement — which moved a spell from the third
     // population into the second and so shrank this one by one.

@@ -161,6 +161,12 @@ export const PARTIAL_SPELLS: readonly string[] = Object.entries(ADJUDICATED)
  */
 export const VERIFIED_SPELLS: readonly string[] = [
   'acid-splash',
+  // `alter-self.test.ts` (engine): the claws dealing 1d6 Slashing with
+  // Charisma on a punch, the growth's type asked for, the Magic action
+  // swapping claws for gills — the swim come, the rider gone, the word
+  // re-pinned, the Action spent — and the same word, an unprinted one and
+  // none refused; Change Appearance handed over whole.
+  'alter-self',
   'animal-friendship',
   'arcane-sword',
   // `creature-type-override.test.ts`: the Mask laid on a Fey goblin, the

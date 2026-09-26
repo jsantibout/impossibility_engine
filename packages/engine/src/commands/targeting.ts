@@ -1250,7 +1250,10 @@ export function declaredFacts(
   // list names, one the target actually has — is read off the catalogue, and
   // this function holds no content. `resolveSpell`'s pre-flight is where those
   // are asked, beside the teleport destination's, and for the same reason.
-  if (weaponRiderOf(definition) !== null) {
+  // **A rider on the fist names no weapon** — SRD Alter Self's claws — and
+  // a casting that named one for it is refused as any weaponless spell is.
+  const imbuesAnObject = weaponRiderOf(definition)?.unarmed !== true && weaponRiderOf(definition) !== null;
+  if (imbuesAnObject) {
     if (request.weapon === undefined) {
       return err(
         'weapon_required',
@@ -1437,7 +1440,20 @@ export function declaredFacts(
   // the spell and the option print one, the spell's is the narrower question
   // and answers first: a Chromatic Orb already offers its caster the choice and
   // the option has bought nothing it did not have.
-  const types = definition.damageTypeStated ?? bought.restatesDamageType?.among;
+  // **And which branch was named decides whether the type is asked for**, the
+  // rule the choice above already keeps: SRD Alter Self prints its growths
+  // inside Natural Weapons alone — "claws (Slashing), fangs (Piercing) …" — and
+  // a caster choosing gills is asked nothing. The test is the same one the
+  // choice uses: does the list this casting actually runs hold a slot.
+  const typeReaches =
+    definition.damageTypeStated === undefined ||
+    definition.options === undefined ||
+    optionEffects(definition, request.option).some(
+      (effect) => 'damageType' in effect && effect.damageType !== undefined,
+    );
+  const types = typeReaches
+    ? (definition.damageTypeStated ?? bought.restatesDamageType?.among)
+    : bought.restatesDamageType?.among;
   if (types === undefined) {
     if (request.damageType !== undefined) {
       return err(

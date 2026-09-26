@@ -3423,11 +3423,13 @@ export function strikeStyleFor(
   // the sheet's and a casting is an act somebody just took, so the deliberate
   // thing wins where both reach the same swing — a Monk/Druid who spends a
   // Bonus Action on Shillelagh gets Shillelagh's die and not Martial Arts'. It
-  // can shadow nothing else: a weapon rider is keyed on one weapon's id, so an
-  // Unarmed Strike — which every class style covers and no rider can — never
-  // reaches this branch at all. That is what makes putting it first safe,
-  // where a style with an empty `weapons` list in the same position would take
-  // the Monk's fist away.
+  // can shadow one thing, and does so on purpose: a weapon rider is keyed on
+  // one weapon's id, so an Unarmed Strike reaches this branch only through a
+  // rider that says `unarmed` — SRD Alter Self's claws — and that casting is an
+  // act somebody just took, so it wins over a Monk's Martial Arts die exactly
+  // as Shillelagh wins over it on a staff. A style with an empty `weapons` list
+  // in the same position would take every Monk's fist away; a rider reaches
+  // the one fist it was cast on.
   const imbued = weaponRidersFor(creature, context.weapon).find(
     (rider) => rider.die !== undefined || rider.ability !== undefined,
   );
@@ -5628,8 +5630,30 @@ export interface GrantedWeaponRider {
    * for the first, and {@link name} carries the second.
    */
   readonly source: string;
-  /** The weapon, by catalogue id: the one the casting or the use was aimed at. */
-  readonly weapon: string;
+  /**
+   * The weapon, by catalogue id: the one the casting or the use was aimed at.
+   *
+   * Absent where {@link unarmed} is set — SRD Alter Self's Natural Weapons
+   * imbue a fist, which has no id — and one of the two is always present.
+   */
+  readonly weapon?: string;
+  /**
+   * The rider rides the Unarmed Strike — see `weapon-rider.unarmed`.
+   * `weaponRidersFor` answers with it for a swing with no weapon in it.
+   */
+  readonly unarmed?: true;
+  /**
+   * SRD Alter Self's "rather than using Strength": {@link ability} is imposed
+   * on the swing rather than weighed against the weapon's own — the reading
+   * `AttackOptions.imposedAbility` takes of SRD True Strike.
+   */
+  readonly imposesAbility?: true;
+  /**
+   * SRD Alter Self's "damage of the type in parentheses": a type the rider
+   * imposes on the blow, as the casting stated it. Never beside
+   * {@link damageTypes}, which is an offer the swing answers.
+   */
+  readonly damageType?: string;
   /**
    * How a log names what imbued this weapon, where the source is not a spell.
    *
@@ -5753,7 +5777,11 @@ export function weaponRidersFor(
   creature: CreatureState | undefined,
   weapon: Weapon | null,
 ): readonly GrantedWeaponRider[] {
-  if (creature === undefined || weapon === null) return [];
+  if (creature === undefined) return [];
+  // **A swing with no weapon in it is an Unarmed Strike**, and the riders that
+  // answer for it are the ones that say so — SRD Alter Self's claws. Every
+  // rider keyed to an object answers only for that object.
+  if (weapon === null) return creature.weaponRiders.filter((rider) => rider.unarmed === true);
   return creature.weaponRiders.filter((rider) => {
     if (rider.weapon !== weapon.id) return false;
     // SRD Shillelagh: "melee attacks using that weapon". A Dagger thrown is a
@@ -6493,8 +6521,14 @@ export function weaponRiderDamageType(
   weapon: Weapon | null,
   chosen: Readonly<Record<string, string>> | undefined,
 ): string | null {
+  const riders = weaponRidersFor(state.creatures[who], weapon);
+  // **An imposed type first, and it asks nobody.** SRD Alter Self's claws are
+  // Slashing on every swing — "instead of dealing the normal damage" — so the
+  // type is the rider's, not an offer the swing answers.
+  const imposed = riders.find((rider) => rider.damageType !== undefined);
+  if (imposed?.damageType !== undefined) return imposed.damageType;
   if (chosen === undefined) return null;
-  for (const rider of weaponRidersFor(state.creatures[who], weapon)) {
+  for (const rider of riders) {
     if (rider.damageTypes === undefined) continue;
     const named = chosen[riderChoiceKey(rider)];
     if (named !== undefined && rider.damageTypes.includes(named)) return named;

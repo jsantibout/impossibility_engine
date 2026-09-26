@@ -2701,6 +2701,13 @@ const ACTIVATE_SPELL = tool({
       .describe(
         'The 5-foot spaces the area crossed on the way, in order. Send it when an activation came back `route_required`: the same call again with this filled in is the whole of the answer. Each leg is settled where it happens, so a beam walked over three creatures is asked about all three.',
       ),
+    option: z
+      .string()
+      .min(1)
+      .optional()
+      .describe(
+        'The branch to run in place of the one running, for the one spell whose later Magic action replaces its option — Alter Self’s gills, appearance or claws. Refused for the branch already running, for one the spell does not print, and on any spell whose later action does not re-choose.',
+      ),
     altitude: z
       .number()
       .int()
@@ -2741,6 +2748,7 @@ const ACTIVATE_SPELL = tool({
           ...(args.to === undefined ? {} : { to: point(args.to) }),
           ...(args.via === undefined ? {} : { via: args.via.map(point) }),
           ...(args.altitude === undefined ? {} : { altitude: args.altitude }),
+          ...(args.option === undefined ? {} : { option: args.option }),
           ...(towards.value === undefined ? {} : { towards: towards.value }),
           ...identity(context),
         },

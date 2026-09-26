@@ -286,7 +286,7 @@ const typesOf = (events: readonly GameEvent[]): readonly string[] => {
   return record.components.map((component) => component.type);
 };
 
-const ridersOn = (log: readonly GameEvent[]): readonly { weapon: string }[] =>
+const ridersOn = (log: readonly GameEvent[]): readonly { weapon?: string }[] =>
   at(log).creatures[TEMPLAR]?.weaponRiders ?? [];
 
 const drop = (log: readonly GameEvent[], item: string): readonly GameEvent[] => [

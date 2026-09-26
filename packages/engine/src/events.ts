@@ -1998,6 +1998,22 @@ export type GameEvent =
       readonly command?: CommandStamp;
     }
   /**
+   * An ongoing spell now runs a different one of its printed branches.
+   *
+   * SRD Alter Self: "you can take a Magic action to replace the option you
+   * chose with a different one." One event, two things, because the book
+   * prints them as one act: every grant this casting hung on its caster is
+   * released — the claws go — and `OngoingSpell.option` is re-pinned, so a
+   * later use reads the word now spoken. What the new branch hangs is its own
+   * events, written beside this one by `activateSpell`.
+   */
+  | {
+      readonly type: 'spell-option-changed';
+      readonly castingId: string;
+      readonly option: string;
+      readonly command?: CommandStamp;
+    }
+  /**
    * The point an ongoing spell holds is now somewhere else.
    *
    * SRD Spiritual Weapon: "you can move the force up to 20 feet". Resolved

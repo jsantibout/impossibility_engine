@@ -875,6 +875,11 @@ const UNCOVERED_EVENT_TYPES: readonly string[] = [
   // which way, nothing rolled or moved by the turning, and a Bonus Action that
   // named no direction refused.
   'spell-aim-changed',
+  // A running spell swapping one of its printed branches for another — SRD
+  // Alter Self's Magic action. Neither log was written when a casting could
+  // re-choose; `alter-self.test.ts` folds it and drives it: the claws gone,
+  // the swim come, the word re-pinned, and the Action spent.
+  'spell-option-changed',
   // A line a stat block prints under **Actions** that the parser read nothing
   // out of, taken. Neither log was written when those lines reached a sheet as
   // anything but names, and nothing could spend one — so both fixtures fold to

@@ -323,7 +323,7 @@ describe('Enlarge/Reduce keeps the half its caster chose', () => {
    * to the table and Flee's is not spoken.
    */
   it('reports the branch’s own sentences by name', () => {
-    const out = unwrap(speak(ARMED, { option: 'approach' }), 'approach') as {
+    const out = unwrap(speak(ARMED, { option: 'approach' }), 'approach') as unknown as {
       readonly unverified: readonly string[];
     };
     expect(out.unverified.join('\n')).toContain('shortest and most direct route');

@@ -524,7 +524,8 @@ export function resolveWeaponRiderEffect(
   // anything is spent, so arriving here without one is the command layer and
   // the definition disagreeing rather than a rules dispute — the reading
   // `resolveTeleportEffect` takes of an absent destination.
-  if (weapon === undefined) {
+  // SRD Alter Self's claws ride the Unarmed Strike, which has no id to name.
+  if (weapon === undefined && effect.unarmed !== true) {
     return err(
       'weapon_required',
       `${ctx.label} imbues a weapon and none was named; say which weapon it was aimed at`,
@@ -542,7 +543,13 @@ export function resolveWeaponRiderEffect(
     id: target,
     rider: {
       source,
-      weapon,
+      // The fist, or the object the casting was aimed at — one or the other.
+      ...(effect.unarmed === true ? { unarmed: true as const } : { weapon: weapon! }),
+      ...(effect.imposesAbility === undefined ? {} : { imposesAbility: effect.imposesAbility }),
+      // "of the type in parentheses": the type the casting stated, substituted
+      // into the effect before it reached here, pinned so the fist is a claw
+      // on every swing.
+      ...(effect.damageType === undefined ? {} : { damageType: effect.damageType }),
       ...(effect.meleeOnly === undefined ? {} : { meleeOnly: effect.meleeOnly }),
       ...(effect.endsWhenLetGo === undefined ? {} : { endsWhenLetGo: effect.endsWhenLetGo }),
       ...(bonus === undefined ? {} : { bonus }),

@@ -116,6 +116,7 @@ import {
   standingWeaponRollRule,
   strikeStyleFor,
   weaponRiderDamageType,
+  weaponRidersFor,
   type HitAttach,
   type HitDropToZero,
   type HitForcedMove,
@@ -189,6 +190,30 @@ function wieldingOf(content: Content, creature: CreatureState): readonly Weapon[
 }
 
 /** What a style changes about the arithmetic, which is all `attack.ts` needs. */
+/**
+ * The ability a swing is **made** with, where something imposes one.
+ *
+ * SRD True Strike: "The attack uses your spellcasting ability … instead of
+ * using Strength or Dexterity." SRD Alter Self's Natural Weapons: "you use
+ * your spellcasting ability modifier for the attack and damage rolls rather
+ * than using Strength." Both impose rather than offer, so neither is weighed
+ * against the weapon's own — see `AttackOptions.imposedAbility`. The cantrip
+ * cast with the swing first, because it is the deliberate thing; then a rider
+ * on the weapon in hand — or on the fist, for a swing with no weapon — that
+ * says its ability is imposed. Absent where nothing does.
+ */
+function imposedAbilityFor(
+  castWithIt: { readonly ability: Ability } | null,
+  attacker: CreatureState,
+  weapon: Weapon | null,
+): { readonly imposedAbility?: Ability } {
+  if (castWithIt !== null) return { imposedAbility: castWithIt.ability };
+  const rider = weaponRidersFor(attacker, weapon).find(
+    (held) => held.imposesAbility === true && held.ability !== undefined,
+  );
+  return rider?.ability === undefined ? {} : { imposedAbility: rider.ability };
+}
+
 const inPlay = (style: StrikeStyle): StrikeStyleInPlay => ({
   source: style.source,
   ...(style.die === undefined ? {} : { die: style.die }),
@@ -2353,7 +2378,7 @@ export function resolveAttack(
       // attack and damage rolls **instead of** using Strength or Dexterity."
       // Imposed rather than offered, so it is answered here and not weighed
       // against the weapon's own — see `AttackOptions.imposedAbility`.
-      ...(castWithIt === null ? {} : { imposedAbility: castWithIt.ability }),
+      ...imposedAbilityFor(castWithIt, attacker, weapon),
       ...(style === null ? {} : { strikeStyle: inPlay(style) }),
       // Not read by `attackAbility`, and required by its options type: the
       // Armour Class belongs to the roll rather than to the question of which
@@ -2465,7 +2490,7 @@ export function resolveAttack(
     const swing: AttackOptions = {
       weapon,
       ...(stated === undefined ? {} : { statedAttack: stated }),
-      ...(castWithIt === null ? {} : { imposedAbility: castWithIt.ability }),
+      ...imposedAbilityFor(castWithIt, attacker, weapon),
       ...(style === null ? {} : { strikeStyle: inPlay(style) }),
       targetAc: armorClassOf(state, command.target) + coverAcBonus(cover),
       // The sheet's categories, or the one object an imbuing trained them in —
@@ -2848,7 +2873,7 @@ export function resolveAttack(
           : {
               statedAttack: statedDamageAfterTheChoice(stated, printedDamage.instead, charged),
             }),
-        ...(castWithIt === null ? {} : { imposedAbility: castWithIt.ability }),
+        ...imposedAbilityFor(castWithIt, attacker, weapon),
         ...(style === null ? {} : { strikeStyle: inPlay(style) }),
         // "it can be Force damage or the weapon's normal damage type (your
         // choice)": the offer a casting hung on this weapon, answered on this

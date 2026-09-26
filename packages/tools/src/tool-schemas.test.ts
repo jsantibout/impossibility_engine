@@ -247,8 +247,10 @@ describe('toolSchemas', () => {
     // no such door. One tool on one surface; the model's pins do not move.
     expect(toolSchemas(player())).toHaveLength(86);
     expect(toolSchemas(dm())).toHaveLength(109);
-    expect(JSON.stringify(toolSchemas(player())).length).toBe(130909);
-    expect(JSON.stringify(toolSchemas(dm())).length).toBe(167256);
+    // And `activate_spell.option`, the word a re-choosing Magic action speaks —
+    // SRD Alter Self — on a tool both doors publish: 340 bytes each.
+    expect(JSON.stringify(toolSchemas(player())).length).toBe(131249);
+    expect(JSON.stringify(toolSchemas(dm())).length).toBe(167596);
   });
 });
 

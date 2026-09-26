@@ -9,6 +9,7 @@ import { fold, type GameEvent, type GameState } from '@ie/engine';
 import { remaining, spellSlotKey } from '@ie/engine';
 import { declaredCasting } from '@ie/engine';
 import { dropsAnObject, statesWillingFact } from '@ie/engine';
+import { optionEffects, statesFoughtFact, type SpellDefinition } from '@ie/engine';
 import { dmDecisionsIn } from '@ie/engine';
 import { riderDurations, type RiderDuration } from '@ie/engine';
 import {
@@ -329,17 +330,27 @@ const cast = (
       // what this file claims is that every one of these is cast rather than
       // refused, not which of Command's five words was spoken. The first in
       // key order, as the executed sweep answers it.
+      // **Or a word per creature**, for the spell that prints "(choose for each
+      // creature)": the map covers exactly whom the Sphere catches, and at a
+      // point fifty feet from everybody it catches nobody, so the map is empty.
       ...(definition.options === undefined
         ? {}
-        : { option: Object.keys(definition.options).sort()[0]! }),
+        : definition.optionPerTarget === true
+          ? { optionByTarget: {} }
+          : { option: Object.keys(definition.options).sort()[0]! }),
       // And the same for a printed list of damage types, which is the other
       // fact a casting is refused for leaving unstated — `damage_type_required`
       // rather than `choice_required`, and the same reading: what this file
       // claims is that every one of these is cast rather than refused, not
       // which of the eleven SRD Resistance's caster named.
-      ...(definition.damageTypeStated === undefined
+      // Only where the list this casting runs holds a slot for it — SRD Alter
+      // Self prints its growths inside one branch of three.
+      ...(definition.damageTypeStated === undefined || !typeReachesFirstBranch(definition)
         ? {}
         : { damageType: definition.damageTypeStated[0]! }),
+      // SRD Enthrall reads the fought fact as an automatic success, so the
+      // sweep answers "none of them", as it does for Charm Person's Advantage.
+      ...(statesFoughtFact(definition) ? { fought: [] } : {}),
       // **An area needs a point, and a directional one a direction**: the two
       // facts `resolveTargets` demands of any spell with a volume. Derived
       // from the definition rather than listed by spell id, so the next
@@ -353,7 +364,12 @@ const cast = (
             // to have it moved — `area_starts_at_caster` — which the sibling
             // builder above has always known and this one learned the day a
             // tracked spell grew a carried Emanation.
-            ...(definition.area.origin === 'point' ? { at: AREA_AT } : {}),
+            // A Range: Touch area is drawn where the caster stands — SRD Glyph
+            // of Warding's threshold — and every other point-origin area at
+            // the point fifty feet off.
+            ...(definition.area.origin === 'point'
+              ? { at: definition.range.kind === 'touch' ? { x: 50, y: 50, z: 0 } : AREA_AT }
+              : {}),
             ...(DIRECTIONAL_AREAS.has(definition.area.kind) ? { towards: AREA_TOWARDS } : {}),
             // **And a wall needs its path**, which is the third fact an area
             // can demand and the only one that is a shape rather than a point:
@@ -419,6 +435,19 @@ const logFor = (spellId: string): readonly GameEvent[] =>
   )
     ? IN_A_FIGHT
     : SETUP;
+
+
+/**
+ * Whether the list this sweep speaks — the common list and the **first**
+ * branch in key order — holds a damage type for a stated one to fill. SRD
+ * Alter Self prints its growths inside one branch of three, and a casting of
+ * another is refused a type it did not ask for.
+ */
+const typeReachesFirstBranch = (definition: SpellDefinition): boolean =>
+  definition.options === undefined ||
+  optionEffects(definition, Object.keys(definition.options).sort()[0]).some(
+    (effect) => 'damageType' in effect && effect.damageType !== undefined,
+  );
 
 const resolved = (spellId: string, over = {}, log: readonly GameEvent[] = logFor(spellId)) =>
   unwrap(cast(spellId, over, log), spellId);
@@ -812,6 +841,10 @@ describe('a tracked spell may not hide a rule the engine owns', () => {
     // the word Attunement. No marker knows those words either.
     'prestidigitation',
     'remove-curse',
+    // Executed by two directions of ground it changes, in a paragraph that
+    // names no die, save, check or condition: the terrain words are the
+    // glossary's and the markers do not read them.
+    'speak-with-plants',
   ];
 
   it('finds every clean paragraph outside the executed bucket', () => {
@@ -1738,6 +1771,9 @@ describe('every spell this batch added is cast for real', () => {
    */
   const EXECUTED_SINCE: readonly string[] = [
     'aid',
+    // The compulsions track: the three forms whole and the Magic action that
+    // swaps them — a rider on the fist, a Swim Speed that matches, `reoptions`.
+    'alter-self',
     // **Animal Messenger leaves on a die whose whole content is its verdict.**
     // Its failure buys an errand and nothing a rule can hold, so while a save
     // had to impose a condition, hang a rider or write a record there was
@@ -1778,6 +1814,8 @@ describe('every spell this batch added is cast for real', () => {
     // leaves, and it leaves them as an executed-partial spell rather than a
     // tracked one.
     'bestow-curse',
+    // A branch chosen for each creature, and a condition a spell suppresses.
+    'calm-emotions',
     // **Command leaves by the second arm of a choice made at the casting.**
     // Three of its five words were each writable alone — a drop, a Prone, a
     // rule forbidding three slots — and what none of them had was a way to
@@ -1790,6 +1828,9 @@ describe('every spell this batch added is cast for real', () => {
     'darkness',
     'daylight',
     'enhance-ability',
+    // The fought fact read as an automatic success, and a −10 one skill wide
+    // that the passive score reads too.
+    'enthrall',
     'expeditious-retreat',
     'faerie-fire',
     // Feather Fall left the tracked bucket too, on the half the `falling`
@@ -1808,6 +1849,8 @@ describe('every spell this batch added is cast for real', () => {
     // `onAreaEntry` catches everyone the area sweeps over.
     'flaming-sphere',
     'fog-cloud',
+    // The rune a DM's decision fires over the pinned Sphere, ending the glyph.
+    'glyph-of-warding',
     'goodberry',
     // **Heat Metal leaves by the verb that takes a thing out of a hand.**
     // `what-a-creature-is-holding` was half built — hands counted, a casting
@@ -1908,6 +1951,8 @@ describe('every spell this batch added is cast for real', () => {
     // `a-range-that-scales-with-caster-level` and
     // `an-effect-that-stabilises-a-dying-creature` are retired by being built.
     'spare-the-dying',
+    // An immobile Emanation and ground made ordinary, either way the caster says.
+    'speak-with-plants',
     'spike-growth',
     // **Thaumaturgy leaves by the same door and by Prestidigitation's.** Its
     // six wonders are six branches, so the casting records which one was
@@ -2137,6 +2182,12 @@ describe('every spell this batch added is cast for real', () => {
    */
   const FINISHED_OUTRIGHT: readonly string[] = [
     'aid',
+    // The compulsions track paid what these three still owed: Bestow Curse's
+    // level 9 arm, Enthrall's fought fact and narrowed penalty, Calm Emotions'
+    // per-creature choice and suppression. Each casts and hands nothing over.
+    'bestow-curse',
+    'calm-emotions',
+    'enthrall',
     'expeditious-retreat',
     // The fifth, and it prints nothing the engine leaves alone: the die that
     // rides later blows, the ability the caster names, the slot table, and the

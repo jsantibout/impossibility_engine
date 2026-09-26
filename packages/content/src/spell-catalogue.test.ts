@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { SPELL_DEFINITIONS, SRD_CONTENT } from '@ie/content';
 import { declaredCasting } from '@ie/engine';
+import type { SpellDefinition } from '@ie/engine';
 import { asCharacterId, isErr, expect as unwrap, type CharacterId } from '@ie/shared';
 import type { CharacterSheet } from '@ie/engine';
 import type { CreatureSize } from '@ie/srd/schemas';
@@ -393,6 +394,19 @@ const logFor = (spellId: string): readonly GameEvent[] => {
   ];
 };
 
+
+/**
+ * Whether the list this sweep speaks — the common list and the **first**
+ * branch in key order, the same word `castAt` speaks — holds a damage type for
+ * a stated one to fill. SRD Alter Self prints its growths inside one branch of
+ * three, and a casting of another is refused a type it did not ask for.
+ */
+const typeReachesFirstBranch = (definition: SpellDefinition): boolean =>
+  definition.options === undefined ||
+  optionEffects(definition, Object.keys(definition.options).sort()[0]).some(
+    (effect) => 'damageType' in effect && effect.damageType !== undefined,
+  );
+
 /** Cast at whatever the definition needs: a target, or a place. */
 const castAt = (
   state: GameState,
@@ -429,7 +443,7 @@ const castAt = (
   // catalogue. `teleportOf` is the runtime's own reader, for the reason
   // `statesFoughtFact` is used above rather than a second reading of the field.
   const stated = {
-    ...(definition.damageTypeStated === undefined
+    ...(definition.damageTypeStated === undefined || !typeReachesFirstBranch(definition)
       ? {}
       : { damageType: definition.damageTypeStated[0]! }),
     ...(statesFoughtFact(definition) ? { fought: [] as readonly CharacterId[] } : {}),
@@ -911,7 +925,7 @@ describe('every definition this batch executed resolves its own dice', () => {
             spellId,
             targets: [TARGET],
             ...(definition.level === 0 ? {} : { slotLevel: definition.level }),
-            ...(definition.damageTypeStated === undefined
+            ...(definition.damageTypeStated === undefined || !typeReachesFirstBranch(definition)
               ? {}
               : { damageType: definition.damageTypeStated[0]! }),
             // A casting that holds a point takes one: the caster's own

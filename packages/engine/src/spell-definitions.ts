@@ -3365,6 +3365,18 @@ export type SpellEffect =
   | {
       readonly kind: 'weapon-rider';
       /**
+       * The rider rides the **Unarmed Strike** rather than a weapon.
+       *
+       * SRD Alter Self's Natural Weapons: "When you use your Unarmed Strike to
+       * deal damage with that new growth, it deals 1d6 damage … and you use
+       * your spellcasting ability modifier for the attack and damage rolls
+       * rather than using Strength." A rider is keyed to one weapon's id and a
+       * fist has none, so this says the casting names no weapon — the request
+       * is refused one — and `weaponRidersFor` answers for a swing with no
+       * weapon in it. Refused beside {@link weapons}, which names objects.
+       */
+      readonly unarmed?: true;
+      /**
        * The weapons the spell names, by catalogue id. Absent names any weapon.
        *
        * SRD Shillelagh prints "A **Club or Quarterstaff**", which is two
@@ -3451,6 +3463,29 @@ export type SpellEffect =
        * idea whose spell list the casting came off.
        */
       readonly castingAbility?: true;
+      /**
+       * The ability {@link castingAbility} names is **imposed** rather than
+       * offered.
+       *
+       * SRD Alter Self: "you use your spellcasting ability modifier for the
+       * attack and damage rolls **rather than** using Strength" — where SRD
+       * Shillelagh says "you **can** use". The difference is whether the
+       * attacker may decline, which `AttackOptions.imposedAbility` already
+       * draws for SRD True Strike; this puts a casting's rider on that side of
+       * it. Presupposes {@link castingAbility}.
+       */
+      readonly imposesAbility?: true;
+      /**
+       * A damage type the rider **imposes** on the blow, in place of its own.
+       *
+       * SRD Alter Self: "it deals 1d6 damage of the type in parentheses
+       * instead of dealing the normal damage for your Unarmed Strike" — the
+       * growth's type, chosen at the casting through `damageTypeStated` and
+       * substituted here, so a claw is Slashing on every swing. Refused beside
+       * {@link damageTypes}, which is the offer answered at the swing; one
+       * rider says one of the two.
+       */
+      readonly damageType?: string;
       /**
        * SRD Shillelagh: "If the attack deals damage, it can be **Force damage
        * or the weapon's normal damage type** (your choice)."
@@ -5853,6 +5888,19 @@ export interface SpellActivation {
    * sentence names.
    */
   readonly redirects?: true;
+  /**
+   * Whether this action **replaces the branch** the casting ran.
+   *
+   * SRD Alter Self: "you can take a Magic action to replace the option you
+   * chose with a different one." The word is named on the activation's
+   * request, refused where it is the one already running or one the spell
+   * does not print; `spell-option-changed` releases everything the casting
+   * hung on its caster and re-pins the word, and the new branch's effects
+   * run off the record's own numbers, on the caster. Presupposes
+   * `SpellDefinition.options`, carries an empty {@link effects} list — the
+   * effects are the branch's — and reaches nobody, so it takes no range.
+   */
+  readonly reoptions?: true;
   /**
    * Whether this action moves what the casting **already granted** onto a new
    * creature.

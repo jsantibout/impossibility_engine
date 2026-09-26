@@ -2064,20 +2064,6 @@ export const TRACKED_ADJUDICATED: Readonly<Record<string, readonly TrackedAdjudi
       note: 'dropping to 0 Hit Points is named in that shape’s own description as a cause with no member, and here it ends the casting rather than merely removing the creature — which is what the two summons that print the same sentence do not say.',
     },
   ],
-  'alter-self': [
-    {
-      marker: 'dice',
-      clause: 'it deals 1d6 damage of the type in parentheses',
-      why: 'a-rider-on-a-later-weapon-attack',
-      note: 'the notation is ordinary and what it rides is not: an Unarmed Strike made on some later turn, whose damage this replaces rather than adds to, and whose attack and damage rolls change ability besides.',
-    },
-    {
-      marker: 'speed',
-      clause: 'gain a Swim Speed equal to your Speed',
-      why: 'movement-modes',
-      note: 'Fly, Climb and Swim have no reader — no rule in the engine asks about one — so a Swim Speed would be a number nothing consults, and the spell-definition vocabulary refuses the field by name for exactly that reason.',
-    },
-  ],
   'dragons-breath': [
     {
       marker: 'saving-throw',
