@@ -1293,7 +1293,13 @@ reshapes the casting pipeline, with a design note first.
   corpse Animate Dead raises **keeps its character record**, so a later
   revival can bring the character back — the spell is not refused on player
   characters; **Infinite Realms stays a separate repository** (I-E3); **app
-  code plays the monsters' turns**, not the model (I-A12).
+  code plays the monsters' turns**, not the model (I-A12). Gaseous Form's
+  "can't talk" is **handed over, flagged**: it means no Verbal components, so
+  the flag names that consequence. **An honest fiction handover does not count
+  against criterion 3**, provided it is genuinely something the engine cannot
+  or should not take on; the session test counts debts and lists handovers
+  apart. **Gates G2–G4 run on Opus** (`qb-architect` with the model
+  overridden) — Fable is spent for a week.
 
 ## 10. Open questions and blocks
 
@@ -2872,14 +2878,15 @@ Appended 2026-09-26, when the Fable budget ran out mid-wave:
   Opus until the owner says otherwise. S21 and B10 stopped mid-part; their
   half-written edits are committed on their branches as `WIP (unverified)`
   and resumed by Opus builders, who rebase onto main first.
-- **Gates G2–G4 were the architect's**, and the architect ran on Fable. Who
-  holds them now is the owner's call, asked 2026-09-26.
+- **Gates G2–G4 were the architect's**, and the architect ran on Fable.
+  *Answered the same day: Opus holds them* (§9).
 - **Not yet briefed**, each a ledger line nothing covers: the Otherworldly
   Steed's Fey Step, Healing Touch and Life Bond; the Wraith's Create
   Specter; Protection from Evil and Good's printed-save road
   (`settlePrintedSave` handing `PrintedSaveDebt.by` to the gatherer as
-  `forcedBy`); Gaseous Form's "can't talk" (awaiting a ruling).
+  `forcedBy`); Gaseous Form's "can't talk" (*ruled the same day: handed
+  over, flagged as no Verbal components*).
 - **Criterion 3 stands at three handovers**, all the Wight's Life Drain: the
   Multiattack's "replace one attack with a use of Life Drain" and the line
-  itself. Whether an honest fiction handover (the Zombie that rises 24 hours
-  later) counts against "zero" is asked of the owner.
+  itself. *Ruled the same day: an honest fiction handover (the Zombie that
+  rises 24 hours later) does not count against "zero"* (§9).

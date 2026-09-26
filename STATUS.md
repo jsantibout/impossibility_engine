@@ -99,7 +99,9 @@ sight model is built.
 
 **Owner, 2026-09-26.** Crawling in Difficult Terrain costs a quarter Speed ·
 losing Hit Points is damage · a raised player character keeps its record ·
-Infinite Realms stays separate; its code plays the monsters.
+Infinite Realms stays separate; its code plays the monsters · Gaseous Form's
+talking is the table's, flagged as no Verbal casting · an honest fiction
+handover does not count against criterion 3.
 
 ## Decisions genuinely open
 
@@ -109,8 +111,7 @@ Infinite Realms stays separate; its code plays the monsters.
   as well as `physical-dice`; and where that door lives.
 - **An ally's side on Alert's swap** — nothing checks the two are on the same
   side, and a null side means nobody has said, so it wants its own request.
-- The rest are tracked in `docs/ROADMAP.md` §10, which is where a foreman
-  appends a new one.
+- The rest are in `docs/ROADMAP.md` §10.
 
 ## Traps in a worktree, not in the code
 
@@ -119,7 +120,5 @@ A worktree is not a clone: an empty `node_modules` makes `tsc -b` resolve
 agree. `npm install` links them; `ln -s` under Git Bash makes *copies* that go
 stale. The generated SRD data is gitignored and must be copied in, and
 `npm run srd:index` must never run in a worktree against it — re-ingest first
-or leave it alone. And **editing source with Python on Windows rewrites it
-CRLF**, which breaks the guards that parse source line by line and presents as
-a content defect: pass `newline='
-'`.
+or leave it alone. And **Python on Windows writes CRLF and cp1252**, which
+breaks the line-parsing guards: pass `encoding='utf-8', newline='\n'`.
