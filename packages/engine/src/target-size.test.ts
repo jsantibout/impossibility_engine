@@ -17,10 +17,10 @@ import { resolveSpell } from './commands.js';
  * > within range".
  *
  * `TargetRule` selected by creature type and by whether armour was worn, and
- * by nothing else — which is the first of the three facts
- * `a-target-rule-the-format-cannot-state` names. A size is a fact the engine
- * already holds authoritatively and reads through `effectiveSizeOf`, so the
- * only thing missing was a target rule that asked for it.
+ * by nothing else — and a size is among the rules
+ * `a-target-rule-the-format-cannot-state` now names as built. It is a fact the
+ * engine already holds authoritatively and reads through `effectiveSizeOf`,
+ * so the only thing missing was a target rule that asked for it.
  *
  * It reads like `mustBeUnarmored` rather than like `mustBeType`: a size is
  * never a thin record the way a creature type is — a placement puts one on the

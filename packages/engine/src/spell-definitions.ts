@@ -4757,6 +4757,16 @@ export type SpellArea =
        * the point and not of the template it lights. Absent is every other
        * point in the book: Fireball's bead may burst in a creature's space or
        * in the air. (W9-S4)
+       *
+       * **And a later move of the point keeps to the ground** — "rolling it
+       * along the ground" — so `relocateOrigin` refuses a step above the
+       * lattice floor with the same `point_not_on_ground`. The barriers and
+       * pits the book lets it roll over are not on the lattice (the content
+       * hands them to the table), so a stated route crosses them at floor
+       * level and a step in the air is refused. Occupancy is not asked again
+       * there: the book says what happens when the sphere is moved into a
+       * creature's space, and it is the ram (`areaTrigger.onPointEntry`), which
+       * stops the roll. (W9-T)
        */
       readonly pointOnUnoccupiedGround?: true;
     }
@@ -5303,9 +5313,11 @@ export interface TargetRule {
    * SRD *Animal Messenger*: "A **Tiny** Beast of your choice that you can see
    * within range."
    *
-   * The first of the three facts `a-target-rule-the-format-cannot-state`
-   * names — a size, a Challenge Rating and an ability score — and the only one
-   * of them the engine holds. It is read through `effectiveSizeOf`, so the
+   * One of the target rules `a-target-rule-the-format-cannot-state` names
+   * among those built and no longer its own — beside the Challenge Rating
+   * (`save.autoSucceedIf.challengeRatingAbove`), `casterOnly` and the rules
+   * W9-S4 built; what the id still holds is a different fact each time, and
+   * its description says which. It is read through `effectiveSizeOf`, so the
    * answer is the one every other size rule gets: the size an active feature
    * prints, then the size somebody stated, then the map's.
    *
@@ -5349,10 +5361,10 @@ export interface TargetRule {
    * Points and isn't dead**."
    *
    * The fourth clause of this kind and the first that reads **vitals**, which
-   * is the reading `a-target-rule-the-format-cannot-state` lost on its way
-   * through the three facts it does name: this is neither a type, nor armour,
-   * nor a size, nor a moment — it is the state a creature is in while it is on
-   * the floor, and the engine holds it authoritatively in two fields.
+   * no fact `a-target-rule-the-format-cannot-state` has named, built or
+   * still owed: this is neither a type, nor armour, nor a size, nor a moment
+   * — it is the state a creature is in while it is on the floor, and the
+   * engine holds it authoritatively in two fields.
    *
    * **Both halves, because the sentence has two and each alone is wrong.** A
    * creature above 0 Hit Points is not dying; a corpse is past being saved and
@@ -5500,9 +5512,10 @@ export interface TargetRule {
    * Read where a caller **names** targets and in the shortlist beside it, which
    * is where every other rule about who may be named is read: a target who is
    * not the caster is `not_the_caster`, and the shortlist offers the caster
-   * alone. Written with `self: true` and `count: 1`, which the validator holds
-   * it to — the first is what admits the caster at all and the second is the
-   * only count "you and nobody else" can have.
+   * alone. A casting that names nobody is cast on the caster, the one creature
+   * it could have named (W9-T). Written with `self: true` and `count: 1`,
+   * which the validator holds it to — the first is what admits the caster at
+   * all and the second is the only count "you and nobody else" can have.
    */
   readonly casterOnly?: true;
   /**

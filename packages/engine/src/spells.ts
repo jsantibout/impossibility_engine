@@ -1304,11 +1304,16 @@ export type OngoingEndReason =
    * The spell used itself up.
    *
    * SRD Mirror Image: "The spell ends when all three duplicates are
-   * destroyed." Nobody decides this one, which is the company expiry and a
-   * broken Concentration keep — and unlike those two it is **not** derivable
-   * from the clock or from Concentration, so the command that spent the last
-   * duplicate says so and the log reads as what happened. It is the only
-   * ending whose cause is a blow somebody else struck.
+   * destroyed." Unlike expiry and a broken Concentration it is **not**
+   * derivable from the clock or from Concentration, so whatever used the
+   * spell up says so and the log reads as what happened. Three writers: the
+   * blow that destroys the last duplicate, a landing SRD Feather Fall's ward
+   * paid for, and the table's word (`declareEnding`, W9-S2) where the spell
+   * prints a cause only the table can see — SRD Suggestion's errand
+   * completed, SRD Glyph of Warding's surface carried off. The table says the
+   * cause happened and the book says the spell ends; neither the caster nor
+   * anybody's magic chose the ending, which is what keeps it apart from
+   * `dismissed` and `dispelled`.
    */
   | 'spent'
   /**

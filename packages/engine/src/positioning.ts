@@ -303,10 +303,13 @@ export function bringBack(state: PositionState, who: CharacterId, at: Point): Po
  * creature at 30 feet has thirty feet of air under it as far as this model is
  * concerned, exactly as it has whatever cover somebody declared and no other.
  *
- * `resolveFall` is the one caller, it asks only for a flier the air has
- * stopped holding up, and it reports the assumption rather than burying it: a
- * table that had a ledge in mind states the height instead, and a stated
- * height always wins.
+ * Its readers are the fall's and the hold's. The fall asks it of a flier the
+ * air has stopped holding up (`flightLost`, `resolveFall`) and of a creature
+ * whose Fly Speed lapses with its casting (`fold/release.ts`, W9-S3), and it
+ * reports the assumption rather than burying it: a table that had a ledge in
+ * mind states the height instead, and a stated height always wins. The scene
+ * fold asks it either side of a move, for the vertical feet a held-up
+ * creature was moved.
  */
 export function altitudeOf(state: PositionState, who: CharacterId): number | null {
   return positionOf(state, who)?.z ?? null;

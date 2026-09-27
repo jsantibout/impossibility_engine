@@ -38,8 +38,9 @@ import {
   ranged,
   type SpellActivation,
   type SpellDefinition,
+  weaponRiderOf,
 } from '../spell-definitions.js';
-import { castingNumber, type OngoingSpell } from '../spells.js';
+import { castingIdOf, castingNumber, type OngoingSpell } from '../spells.js';
 import { type ActivateSpellCommand } from './activation.js';
 import { ROUTE_REQUIRED } from './command.js';
 
@@ -227,6 +228,76 @@ export function replacedCastings(
 }
 
 /**
+ * Every running casting a casting of this spell ends by being made — the
+ * ones {@link replacedCastings} ends, and the one the caster is concentrating
+ * on where the new casting takes Concentration of its own. SRD: "You lose
+ * Concentration on an effect the moment you start casting a spell that
+ * requires Concentration."
+ *
+ * Asked by a pre-flight that needs to know what the casting frees before it
+ * is made: SRD Produce Flame's "The spell ends if you cast it again" and SRD
+ * Flame Blade's Concentration both take the old thing out of the hand the new
+ * one appears in (W9-T). `concentrates` is the caller's, because whether a
+ * casting takes Concentration is read at its level and casting time
+ * (`concentrationAt`, and a casting of a minute or more), which the caller
+ * has worked out and this does not repeat.
+ */
+export function castingsEndedBy(
+  state: GameState,
+  casterId: CharacterId,
+  definition: SpellDefinition,
+  targets: readonly CharacterId[],
+  concentrates: boolean,
+): ReadonlySet<string> {
+  const ended = new Set(
+    replacedCastings(state, casterId, definition, targets).flatMap((event) =>
+      event.type === 'spell-ended' ? [event.castingId] : [],
+    ),
+  );
+  const held = state.creatures[casterId]?.concentration ?? null;
+  if (concentrates && held !== null) ended.add(held.castingId);
+  return ended;
+}
+
+/**
+ * The running casting that has made this creature's weapon a magic one, or
+ * null.
+ *
+ * SRD Magic Weapon: "that weapon **becomes a magic weapon**." A rider on the
+ * weapon, held by this creature, whose casting is still running and whose
+ * spell's own rider says so (`weapon-rider.makesMagical`) — read through the
+ * record to its `spellId` and then the book, because the rider carries
+ * neither. A rider from a feature (SRD Sacred Weapon) has no casting and says
+ * no such thing, and neither does SRD Shillelagh's.
+ *
+ * The one reading of "a magic weapon while a spell runs", for every sentence
+ * that asks whether a weapon is **nonmagical**: Magic Weapon's own target
+ * rule, and SRD Corrosive Form's "Any nonmagical weapon" (W9-T). The weapon's
+ * record is the other half, and is `isMagicalItem`'s. `passing` is the
+ * castings the caller knows are about to end — a recast is not in its own
+ * way.
+ */
+export function magicalByCasting(
+  state: GameState,
+  content: Content,
+  holder: CharacterId,
+  weapon: string,
+  passing: ReadonlySet<string> = new Set(),
+): OngoingSpell | null {
+  for (const rider of state.creatures[holder]?.weaponRiders ?? []) {
+    if (rider.weapon !== weapon) continue;
+    const castingId = castingIdOf(rider.source);
+    if (castingId === null || passing.has(castingId)) continue;
+    const record = state.ongoing[castingId];
+    if (record === undefined) continue;
+    const imbuedBy = content.spell(record.spellId);
+    if (imbuedBy === null || weaponRiderOf(imbuedBy)?.makesMagical !== true) continue;
+    return record;
+  }
+  return null;
+}
+
+/**
  * The carried areas this move would sweep across spaces nobody named.
  *
  * **The same hole Moonbeam's route had, arriving from the other direction.**
@@ -374,6 +445,32 @@ export function relocateOrigin(
       return err(
         'outside_scene',
         `${record.spell} cannot be moved to (${space.x}, ${space.y}, ${space.z}); that is outside this scene`,
+      );
+    }
+  }
+
+  // SRD Flaming Sphere: "you can move the sphere up to 30 feet, **rolling it
+  // along the ground**." The point the cast held to the ground
+  // (`area.pointOnUnoccupiedGround`) stays on the lattice floor for every
+  // step of the roll, because that floor is the only ground the engine has.
+  // **That is the lattice's reading and not more than the book says**: the
+  // book also lets the sphere go "over barriers up to 5 feet tall" and
+  // "across pits up to 10 feet wide", and the lattice holds neither a barrier
+  // nor a pit — the content hands that sentence to the table (`dmDecides`), and
+  // a route crosses one at floor level, as any mover's does. A step above the
+  // floor is therefore a sphere in the air with nothing the engine knows of
+  // under it, which is what is refused.
+  //
+  // **The ground half only**: "If you move the sphere into a creature's
+  // space, that creature makes the save against the sphere, and the sphere
+  // stops moving" — a creature's space is the ram the book prints, not a
+  // refusal, and the activation stops the roll there (`onPointEntry`). (W9-T)
+  if (definition.area?.kind === 'sphere' && definition.area.pointOnUnoccupiedGround === true) {
+    const aloft = legs.find((space) => space.z > 0);
+    if (aloft !== undefined) {
+      return err(
+        'point_not_on_ground',
+        `${record.spell} is rolled along the ground, and (${aloft.x}, ${aloft.y}, ${aloft.z}) is ${aloft.z} feet above the floor; the lattice holds no ledges`,
       );
     }
   }

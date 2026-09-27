@@ -212,12 +212,13 @@ export function handsFor(item: CatalogueItem): number {
  * field saying it again would be a second place to get it wrong and a second
  * thing `checkContent` would have to hold against the first.
  *
- * SRD Magic Weapon's "You touch a **nonmagical** weapon" reads it (W9-S4).
- * Two older readers spell the same fact inline and do not call this yet: Pact
- * of the Blade's conjuring in `commands/features.ts` (the same test) and the
- * corrosion in `commands/passive-defenses.ts` (which also counts pinned grants
- * and any weapon rider). What a *casting* made magic is not here: that is a
- * running rider's, which a command reads off the casting that hung it.
+ * SRD Magic Weapon's "You touch a **nonmagical** weapon" reads it (W9-S4), and
+ * so do Pact of the Blade's conjuring in `commands/features.ts` and SRD
+ * Corrosive Form's "Any nonmagical weapon" in `commands/passive-defenses.ts`,
+ * which also counts the grants its equip event pinned (W9-T). What a
+ * *casting* made magic is not here: that is a running rider's, which
+ * `magicalByCasting` in `commands/ongoing.ts` reads off the casting that hung
+ * it.
  */
 export function isMagicalItem(item: CatalogueItem): boolean {
   return (item.grants?.length ?? 0) > 0 || item.attunement !== undefined;

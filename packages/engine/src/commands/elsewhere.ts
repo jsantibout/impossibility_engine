@@ -933,9 +933,11 @@ export interface BorrowSensesOutcome {
  * bond names at the moment of borrowing — Find Steed keeps its steed on the
  * same terms and prints no such sentence, so a paladin is refused
  * `lends_nothing`. What the Bonus Action leaves is a `senses-borrowed` record
- * on the caster with the deadline pinned on it, and two readers: `canSee`
- * (yes where the familiar sees) and `sensesOf` (the familiar's senses for the
- * caster).
+ * on the caster with the deadline pinned on it, and one reader: `canSee`, yes
+ * where the familiar sees — from where it is, with its own senses. `sensesOf`
+ * does not read it: the familiar's senses are never the caster's own, so a
+ * borrowed Blindsight reaches no swing of the caster's (option B, owner
+ * 2026-09-27).
  *
  * **Outside a fight it asks for one.** "Until the start of your next turn" is
  * a moment in the order, and the engine will not call it six seconds; the

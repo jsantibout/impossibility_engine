@@ -182,7 +182,7 @@ export const RANGER: ClassDefinition = {
       name: 'Roving',
       level: 6,
       automation: 'engine',
-      note: 'SRD: "Your Speed increases by 10 feet while you aren’t wearing Heavy armor. You also have a Climb Speed and a Swim Speed equal to your Speed." The ten feet are applied by speedOf, so they reach the movement allowance, the Dash and the mounting cost. The Climb and Swim Speeds are not: movement has one speed and no modes, and a mode nothing reads would be a vocabulary with no reader.',
+      note: 'SRD: "Your Speed increases by 10 feet while you aren’t wearing Heavy armor. You also have a Climb Speed and a Swim Speed equal to your Speed." The ten feet are applied by speedOf, so they reach the movement allowance, the Dash and the mounting cost. The Climb and Swim Speeds are not written here yet. Movement has modes now, and `match-walk` is how a grant says a mode equal to the walking Speed — SRD Second-Story Work’s climb and Gift of the Depths’ swim are written that way — so this sentence is a grant nobody has added to this feature, not a mode the engine lacks.',
       grants: {
         kind: 'standing',
         reach: 'self',
