@@ -1451,14 +1451,15 @@ function checkSpeedMode(
   if (mode !== undefined && change === 'double') {
     // **The one member that neither gives a Speed nor takes one away**, so it
     // is refused a mode in its own words: SRD Haste says "the target's Speed
-    // is doubled" about the creature, and `speedOf` doubles the walking Speed
-    // and nothing else. A mode written here would promise a narrowing no
-    // reader performs, which is what the whole of this function is for.
+    // is doubled" about the creature, and `speedOf` doubles every Speed the
+    // creature has (the glossary's "Changes to Your Speeds"). A mode written
+    // here would promise a narrowing no reader performs, which is what the
+    // whole of this function is for.
     found.push({
       field: `${path}.mode`,
       code: 'bad_speed_change',
       reason:
-        '"double" multiplies the Speed the SRD writes unqualified, which is the walking one, and the book prints no sentence doubling one mode and not another — so this mode is read by nothing',
+        '"double" multiplies the Speed, and the glossary carries a change to the Speed to every special Speed the creature has; the book prints no sentence doubling one mode and not another — so this mode is read by nothing',
     });
   } else if (mode !== undefined && !gives) {
     found.push({

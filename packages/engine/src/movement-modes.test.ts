@@ -153,7 +153,7 @@ describe('the four Speeds beside walking', () => {
     expect(speedOf(state, id('chuul'), 'fly')).toBe(0);
   });
 
-  it('reduces every mode and increases only the walking one', () => {
+  it('reduces and increases every mode the creature has', () => {
     const log = withMonster('cockatrice', 'cockatrice', { feet: 0 }, 20);
     const faster = [
       ...log,
@@ -172,11 +172,12 @@ describe('the four Speeds beside walking', () => {
       },
     ] as readonly GameEvent[];
 
-    // "Your Speed increases by 10 feet" is the walking one; the flight is
-    // untouched.
+    // Glossary, "Changes to Your Speeds": "any special speed you have
+    // increases or decreases by an equal amount" — so the flight takes the
+    // ten feet too (owner, 2026-09-27; it used to stay at 40).
     expect(speedOf(fold(SEED, faster), id('cockatrice'))).toBe(30);
-    expect(speedOf(fold(SEED, faster), id('cockatrice'), 'fly')).toBe(40);
-    // A reduction is about the creature, and reaches the air with it.
+    expect(speedOf(fold(SEED, faster), id('cockatrice'), 'fly')).toBe(50);
+    // And a reduction reaches the air by the same amount.
     expect(speedOf(fold(SEED, iced), id('cockatrice'))).toBe(10);
     expect(speedOf(fold(SEED, iced), id('cockatrice'), 'fly')).toBe(30);
   });

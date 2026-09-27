@@ -376,10 +376,14 @@ describe('toolSchemas', () => {
     // and `cast_printed_line`'s description names the trait a coven casts
     // through. 124 → 127 tools; +3,750 bytes. The player's surface is
     // unchanged.
+    // And for W9-R, `borrow_senses`' description: a familiar's senses are
+    // used from where the familiar is and are not the caster's own (the
+    // owner's option B). One tool both doors publish: 124 bytes on each, and
+    // no tool added.
     expect(toolSchemas(player())).toHaveLength(96);
     expect(toolSchemas(dm())).toHaveLength(127);
-    expect(JSON.stringify(toolSchemas(player())).length).toBe(158726);
-    expect(JSON.stringify(toolSchemas(dm())).length).toBe(214944);
+    expect(JSON.stringify(toolSchemas(player())).length).toBe(158850);
+    expect(JSON.stringify(toolSchemas(dm())).length).toBe(215068);
   });
 });
 

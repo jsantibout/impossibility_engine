@@ -1328,7 +1328,7 @@ const DISMISS_FAMILIAR = tool({
 const BORROW_SENSES = tool({
   name: 'borrow_senses',
   description:
-    'See through the eyes of a creature you keep from a spell, and hear what it hears, until the start of your next turn — SRD Find Familiar’s familiar. A Bonus Action. While it lasts, every "a creature you can see" you are asked about is answered yes wherever your familiar can see that creature, and you have the senses it has (a Darkvision it was given, say). Only in a fight, because "the start of your next turn" is a moment in the turn order; outside one the engine asks for the order. Refused for a creature you do not keep and for one whose spell lends nothing — a Find Steed steed.',
+    'See through the eyes of a creature you keep from a spell, and hear what it hears, until the start of your next turn — SRD Find Familiar’s familiar. A Bonus Action. While it lasts, every "a creature you can see" you are asked about is answered yes wherever your familiar can see that creature, from where the familiar is and with the senses it has (its Darkvision, say); those senses stay the familiar’s and are not yours where you stand, so they do not reach your own attack rolls. Only in a fight, because "the start of your next turn" is a moment in the turn order; outside one the engine asks for the order. Refused for a creature you do not keep and for one whose spell lends nothing — a Find Steed steed.',
   mutates: true,
   input: z.object({
     caster: creatureId.describe('The summoner, whose Bonus Action this is.'),

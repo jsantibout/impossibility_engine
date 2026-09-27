@@ -12,6 +12,7 @@ import {
   addCreature,
   equipItem,
   resolveAttack,
+  resolveMove,
   resolveSpell,
   transferItem,
   unequipItem,
@@ -226,6 +227,41 @@ describe('a Speed a worn item grants', () => {
     // Worn and not attuned, the bracket withholds both.
     const unattuned = fold('seed', worn(TABLE, WIZARD, 'gloves-of-swimming-and-climbing'));
     expect(speedOf(unattuned, WIZARD, 'climb')).toBe(0);
+  });
+
+  /**
+   * SRD Slippers of Spider Climbing: "You have a Climb Speed equal to your
+   * Speed. ... the slippers don't allow you to move this way on a slippery
+   * surface". Back in the catalogue under rule 3's amendment (owner,
+   * 2026-09-27): the limit is a flagged debt, and it can be, because the fact
+   * it turns on is one every climb already asks the table for.
+   */
+  it('matches the walking Speed with the slippers, and still asks what is being climbed', () => {
+    const slippered = wornAndAttuned(TABLE, WIZARD, 'slippers-of-spider-climbing');
+    const state = fold('seed', slippered);
+    expect(speedOf(state, WIZARD, 'climb')).toBe(30);
+    expect(speedOf(state, WIZARD, 'swim')).toBe(0);
+    // Worn and not attuned, the bracket withholds the climb.
+    expect(speedOf(fold('seed', worn(TABLE, WIZARD, 'slippers-of-spider-climbing')), WIZARD, 'climb')).toBe(0);
+
+    const climbed = unwrap(
+      resolveMove(
+        state,
+        WIZARD,
+        { placement: { from: { creature: WIZARD }, feet: 0, elevation: 10 }, mode: 'climb' },
+        supply('climb'),
+      ),
+      'the climb',
+    );
+    // A Climb Speed: no surcharge.
+    expect(climbed.cost).toBe(10);
+    // And the surface is the table's to say, on this climb as on every one.
+    expect(climbed.unverified.some((note) => note.includes(`nobody has said what ${WIZARD} is climbing`))).toBe(
+      true,
+    );
+    expect(item('slippers-of-spider-climbing').unmodelled?.some((note) => note.includes('slippery surface'))).toBe(
+      true,
+    );
   });
 
   /**
