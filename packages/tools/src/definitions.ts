@@ -3544,17 +3544,32 @@ const DECLARE_ENDING = tool({
       .optional()
       .describe('The creature it happened to, for a spell that ends for one target — whose suggested activity is complete.'),
   }),
-  run: (context, args) =>
-    settleEvents(
+  run: (context, args) => {
+    const state = context.campaign.state();
+    const said = declareEnding(
+      state,
+      args.castingId,
+      { what: args.what, ...(args.on === undefined ? {} : { on: who(args.on) }) },
+      identity(context),
+    );
+    // **What the answer says is what the ending does.** A deferred ending
+    // moves the casting's deadline and ends nothing yet — SRD Web's webs hold
+    // until the start of its caster's next turn — so the answer names the
+    // moment rather than saying the spell is over, which a narrator would
+    // repeat. Read off the trigger the casting pinned rather than off the
+    // events, so a retry, which writes none, is answered the same way.
+    const deferred =
+      state.ongoing[args.castingId]?.endsEarly?.find(
+        (trigger) => trigger.on === 'the-table-declares' && trigger.what === args.what,
+      )?.at !== undefined;
+    return settleEvents(
       context,
-      declareEnding(
-        context.campaign.state(),
-        args.castingId,
-        { what: args.what, ...(args.on === undefined ? {} : { on: who(args.on) }) },
-        identity(context),
-      ),
-      { ended: args.castingId },
-    ),
+      said,
+      deferred
+        ? { ending: args.castingId, at: 'start-of-casters-next-turn' }
+        : { ended: args.castingId, ...(args.on === undefined ? {} : { on: args.on }) },
+    );
+  },
 });
 
 // — what a character holds, and the four ways of spending it ———————————————

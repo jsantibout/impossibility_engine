@@ -141,7 +141,7 @@ describe('an errand through Detect Thoughts', () => {
 
     // The Action is gone: a second errand this turn is refused.
     const again = activateSpell(after, WIZARD, { castingId, targets: [], errand: 'Read Thoughts' }, supply());
-    expect(isErr(again)).toBe(true);
+    expect(isErr(again) && again.code).toBe('no_action');
   });
 
   it('leaves the probe rolling its save', () => {

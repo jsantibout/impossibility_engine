@@ -41,6 +41,8 @@ const WEAVER = id('weaver');
 const DWARF = id('dwarf');
 const ROGUE = id('rogue');
 const VICTIM = id('victim');
+/** A second pair of Darkvision eyes, forty-five feet north of the Rogue. */
+const WATCHER = id('watcher');
 
 const sheet = (over: Partial<CharacterSheet> = {}): CharacterSheet => ({
   level: 5,
@@ -109,10 +111,17 @@ const FAR_CORNER: Point = { x: 320, y: 320, z: 0 };
 const ROOM: readonly GameEvent[] = [
   ...caster(DRUID, 'gust-of-wind', 2),
   ...caster(MAGE, 'fog-cloud', 1),
+  // And a level 2 slot, for the bank a higher slot spreads past the Sphere.
+  {
+    type: 'resource-pool-declared',
+    id: MAGE,
+    pool: { key: spellSlotKey(2), label: 'level 2', max: 3, recovers: 'long-rest' },
+  },
   ...caster(HERMIT, 'fog-cloud', 1),
   ...caster(SORC, 'stinking-cloud', 3),
   ...caster(WEAVER, 'web', 2),
   added(DWARF, { standing: [DARKVISION_60] }),
+  added(WATCHER, { standing: [DARKVISION_60] }),
   added(ROGUE),
   added(VICTIM),
   { type: 'scene-set', extent: { width: 400, depth: 400, height: 40 } },
@@ -125,6 +134,7 @@ const ROOM: readonly GameEvent[] = [
   at('beside the line', BESIDE_THE_LINE),
   at('in the gas', { x: 215, y: 100, z: 0 }),
   at('a step east', { x: 140, y: 100, z: 0 }),
+  at('the landing', { x: 140, y: 160, z: 0 }),
   put(DRUID, 'the hall'),
   put(MAGE, 'the balcony'),
   put(HERMIT, 'the far stair'),
@@ -133,6 +143,7 @@ const ROOM: readonly GameEvent[] = [
   put(DWARF, 'the arch'),
   put(ROGUE, 'beside the line'),
   put(VICTIM, 'in the gas'),
+  put(WATCHER, 'the landing'),
 ];
 
 /** A flat bonus that settles every save, so nobody is pushed out of the story. */
@@ -154,8 +165,8 @@ const cast = (
   return { log: [...log, ...out.events], castingId: out.castingId! };
 };
 
-const fog = (log: readonly GameEvent[], who = MAGE, where: Point = DOWN_THE_LINE) =>
-  cast(log, who, { spellId: 'fog-cloud', targets: [], at: where, slotLevel: 1 });
+const fog = (log: readonly GameEvent[], who = MAGE, where: Point = DOWN_THE_LINE, slotLevel = 1) =>
+  cast(log, who, { spellId: 'fog-cloud', targets: [], at: where, slotLevel });
 const gust = (log: readonly GameEvent[], towards: Point = EAST) =>
   cast(log, DRUID, { spellId: 'gust-of-wind', targets: [], towards, slotLevel: 2 });
 const stench = (log: readonly GameEvent[], where: Point) =>
@@ -198,12 +209,16 @@ describe('Gust of Wind disperses a cloud', () => {
   it('ends a Fog Cloud the Line is cast through, and the Rogue in it stands in clear air', () => {
     const fogged = fog(ROOM);
     expect(obscurementAt(state(fogged.log), BESIDE_THE_LINE).degree).toBe('heavily');
+    // Hidden in the bank: Darkvision does not see through fog.
+    expect(canSee(state(fogged.log), WATCHER, ROGUE)).toBe(false);
 
     const blown = gust(fogged.log);
     const after = state(blown.log);
     expect(after.ongoing[fogged.castingId]).toBeUndefined();
     expect(after.ongoing[blown.castingId]).toBeDefined();
     expect(obscurementAt(after, BESIDE_THE_LINE).degree).toBeNull();
+    // And seen: nothing stands between the watcher's Darkvision and the Rogue.
+    expect(canSee(after, WATCHER, ROGUE)).toBe(true);
     // The fog's caster is concentrating on nothing: the one door out took it.
     expect(after.creatures[MAGE]!.concentration).toBeNull();
   });
@@ -214,6 +229,32 @@ describe('Gust of Wind disperses a cloud', () => {
     const after = state(fogged.log);
     expect(after.ongoing[fogged.castingId]).toBeUndefined();
     expect(obscurementAt(after, BESIDE_THE_LINE).degree).toBeNull();
+  });
+
+  /**
+   * SRD Fog Cloud: "The fog's radius increases by 20 feet for each spell slot
+   * level above 1." The bank a level 2 casting spreads is forty feet, and its
+   * record still pins the twenty-foot Sphere — so thirty-five feet north of
+   * the Line, only the bank reaches it. What the gust disperses is the fog,
+   * the bank included, whichever came first.
+   */
+  describe('the bank a higher slot spreads', () => {
+    const NORTH_OF_THE_LINE: Point = { x: 140, y: 135, z: 0 };
+
+    it('is out of the Line at the first slot', () => {
+      const small = fog(ROOM, MAGE, NORTH_OF_THE_LINE, 1);
+      expect(state(gust(small.log).log).ongoing[small.castingId]).toBeDefined();
+    });
+
+    it('is dispersed by a gust blown over it', () => {
+      const big = fog(ROOM, MAGE, NORTH_OF_THE_LINE, 2);
+      expect(state(gust(big.log).log).ongoing[big.castingId]).toBeUndefined();
+    });
+
+    it('is dispersed when it is spread into a gust already blowing', () => {
+      const big = fog(gust(ROOM).log, MAGE, NORTH_OF_THE_LINE, 2);
+      expect(state(big.log).ongoing[big.castingId]).toBeUndefined();
+    });
   });
 
   it('leaves a fog the Line does not reach', () => {
