@@ -5500,9 +5500,10 @@ export interface TargetRule {
    * Read where a caller **names** targets and in the shortlist beside it, which
    * is where every other rule about who may be named is read: a target who is
    * not the caster is `not_the_caster`, and the shortlist offers the caster
-   * alone. Written with `self: true` and `count: 1`, which the validator holds
-   * it to — the first is what admits the caster at all and the second is the
-   * only count "you and nobody else" can have.
+   * alone. A casting that names nobody is cast on the caster, the one creature
+   * it could have named (W9-T). Written with `self: true` and `count: 1`,
+   * which the validator holds it to — the first is what admits the caster at
+   * all and the second is the only count "you and nobody else" can have.
    */
   readonly casterOnly?: true;
   /**

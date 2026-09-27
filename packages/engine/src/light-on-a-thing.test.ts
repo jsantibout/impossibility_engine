@@ -262,15 +262,19 @@ describe('SRD Produce Flame sheds the light it prints', () => {
   });
 
   /**
-   * The deviation this track reports: a Self spell's effect lands on the
-   * creature the casting names, and a casting that names nobody has nowhere
-   * for the flame's light to land — so it is refused, as Blur's is, rather
-   * than resolved with the light silently dropped.
+   * A Self spell's effect lands on the creature the casting names. A
+   * `casterOnly` spell can name one creature and it is the caster, so a
+   * casting that names nobody is cast on its caster (W9-T) — the flame in
+   * the caster's hand and its light on them — and anybody else is refused.
    */
-  it('asks the caster to name themselves, and nobody else', () => {
+  it('names its caster when nobody is named, and refuses anybody else', () => {
     const r = room();
-    const nobody = resolveSpell(r.state, DRUID, { spellId: 'produce-flame', targets: [] }, supply(r.state));
-    expect(isErr(nobody) && nobody.code).toBe('no_targets');
+    const flame = r.cast('produce-flame', { targets: [] });
+    expect(carrying(r.state, DRUID).find((held) => held.id === 'produce-flame')?.casting).toBe(
+      flame,
+    );
+    expect(r.light(at(100, 100))).toMatchObject({ level: 'bright', magical: true });
+
     const ally = resolveSpell(
       r.state,
       DRUID,

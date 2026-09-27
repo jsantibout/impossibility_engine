@@ -2553,6 +2553,24 @@ export function namedTargets(
     // attack." The force appears whether or not anything is standing beside
     // it, and refusing that would be a rule the book does not have.
     if (definition.targets.optional === true) return ok([]);
+    // **A spell cast on its caster and nobody else names nobody else.** SRD
+    // Produce Flame's flame "appears in your hand": `casterOnly` admits one
+    // creature, so a casting that names none is cast on that one, and every
+    // check below is asked of the caster exactly as if they had named
+    // themselves. (W9-T)
+    if (definition.targets.casterOnly === true) {
+      return namedTargets(
+        state,
+        casterId,
+        definition,
+        { ...request, targets: [casterId] },
+        castLevel,
+        reach,
+        needs,
+        origin,
+        casterLevel,
+      );
+    }
     return err('no_targets', `${definition.name} needs a target`);
   }
   // "Each creature of your choice" states no number, so there is none to
