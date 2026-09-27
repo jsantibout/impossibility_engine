@@ -23,7 +23,20 @@ import { lightDispelledBy, type LightLevel, type TerrainRegion } from '../positi
 import { armorClassOf, sheetAsItStands, speedOf } from '../standing.js';
 import { alteredRiderDice, recordD20Test, savingSupport } from './rolls.js';
 import { complementType, type PassiveDefenseState } from '../passive-defenses.js';
-import { type EffectContext, type EffectOfKind } from './spell-effect-context.js';
+import { type EffectContext, type EffectOfKind, sameEffectOf } from './spell-effect-context.js';
+
+/**
+ * The spell a grant written here is the effect of, as a field to spread onto
+ * its record — or nothing, for an origin that is the effect of no spell.
+ *
+ * Read by the three families whose readers count the same spell once — a
+ * bonus, a Speed, a rule that mints an action — and by no other: a field
+ * nothing reads is a promise the state cannot keep. See `sameEffectOf`.
+ */
+const pinnedEffect = (ctx: EffectContext): { readonly effectOf?: string } => {
+  const effectOf = sameEffectOf(ctx.origin);
+  return effectOf === undefined ? {} : { effectOf };
+};
 
 /**
  * A named bonus later rolls will read. Bane saves first; Bless does not.
@@ -96,6 +109,8 @@ export function resolveBuffEffect(
       // And the fence — SRD Warding Bond's sixty feet — pinned so the readers
       // ask the grant and not the book. (W7-S19)
       ...(effect.requires === undefined ? {} : { requires: effect.requires }),
+      // And the spell it is the effect of, so two Clerics' Bless count once.
+      ...pinnedEffect(ctx),
     },
   });
   current = events.slice(-1).reduce(applyEvent, current);
@@ -355,6 +370,8 @@ export function resolveSpeedEffect(
       // now.
       ...(effect.mode === undefined ? {} : { mode: effect.mode }),
       ...(effect.hover === undefined ? {} : { hover: effect.hover }),
+      // Two casters' Longstriders are ten feet, not twenty.
+      ...pinnedEffect(ctx),
     },
   });
   current = events.slice(-1).reduce(applyEvent, current);
@@ -441,7 +458,8 @@ export function resolveActionRuleEffect(
     // **Both strings pinned here**, because a refusal has to name what
     // forbade the action and until when, and `combat.ts` sits beneath
     // `GameState` and can reach neither the catalogue nor the timer.
-    rule: { source, rule: effect.rule, label: name, until: 'the spell ends' },
+    // And the spell it is the effect of: two Hastes mint one action.
+    rule: { source, rule: effect.rule, label: name, until: 'the spell ends', ...pinnedEffect(ctx) },
   });
   current = events.slice(-1).reduce(applyEvent, current);
   outcomes.push({ target, affected: true });

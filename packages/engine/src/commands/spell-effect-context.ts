@@ -12,7 +12,7 @@
  */
 
 import { type Ability, type CharacterId } from '@ie/shared';
-import { type CatalogueItem } from '../catalogue.js';
+import { type CatalogueItem, itemConferral } from '../catalogue.js';
 import { type CreatureState, type GameEvent } from '../events.js';
 import { type Placement, type Point } from '../positioning.js';
 import { type SpellDefinition, type SpellEffect } from '../spell-definitions.js';
@@ -65,6 +65,25 @@ export type EffectOrigin =
 
 /** The casting arm of {@link EffectOrigin}, named once. */
 export type CastingOrigin = Extract<EffectOrigin, { kind: 'casting' }>;
+
+/**
+ * The spell what this origin hangs is the effect of, or undefined when it is
+ * the effect of none — the identity `strongestOfEachEffect` collapses on.
+ *
+ * SRD "Combining Spell Effects": "the effects of the same spell cast multiple
+ * times don't combine." A casting is its definition's id. An item is the spell
+ * its conferral names — SRD Potion of Speed, "you gain the effect of the
+ * _Haste_ spell" — and nothing when it names none. A feature is never a spell.
+ *
+ * **Pinned here, in the command, and never derived later**: the fold opens no
+ * catalogue, and a source string carries a display name and, for an item, no
+ * spell at all.
+ */
+export function sameEffectOf(origin: EffectOrigin): string | undefined {
+  if (origin.kind === 'casting') return origin.definition.id;
+  if (origin.kind === 'item') return itemConferral(origin.item)?.effectOf;
+  return undefined;
+}
 
 /**
  * Everything a per-kind resolver reads, gathered once before the loop.

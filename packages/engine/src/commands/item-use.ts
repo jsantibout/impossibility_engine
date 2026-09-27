@@ -21,8 +21,11 @@
  * releases a `grants` timer by its bare source, `removeBonusFrom` takes one
  * off early — its docstring has named "a potion wearing off" since it was
  * written — and `fold/grants.ts` replaces rather than stacks when the same
- * source grants twice, which is SRD "Combining Magical Effects" and is why a
- * second potion inside the hour refreshes instead of doubling.
+ * source grants twice, which is why a second potion inside the hour refreshes
+ * instead of doubling. SRD "Combining Spell Effects" is the readers' rather
+ * than the fold's: two *sources* of one spell — a Potion of Speed beside a
+ * Haste, whose conferral names it through `effectOf` — both stand, and the
+ * readers count the spell once (`strongestOfEachEffect`).
  *
  * **A use is paid for with the bottle or with a charge, never both.** SRD
  * prints two prices for the same kind of sentence: "Once used, a potion takes

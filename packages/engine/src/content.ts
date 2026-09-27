@@ -4100,6 +4100,16 @@ function itemGrantProblems(
           at,
         );
       }
+      // "You gain the effect of the _Haste_ spell": the spell named has to be
+      // one this content knows, or the potion would collapse against nothing
+      // and stack beside the Haste it says it is.
+      if (grant.effectOf !== undefined && (!isString(grant.effectOf) || !spellExists(grant.effectOf))) {
+        say(
+          'conferral_effect_of_unknown_spell',
+          `${item.id} is the effect of ${String(grant.effectOf)}, which this content does not know as a spell`,
+          `${at}.effectOf`,
+        );
+      }
       found.push(...itemConfersProblems(item, grant, at));
       return;
     }
