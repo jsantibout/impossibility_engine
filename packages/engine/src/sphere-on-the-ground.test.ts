@@ -107,7 +107,8 @@ describe('an unoccupied space on the ground', () => {
   it('refuses a point in the goblin’s space', () => {
     const out = cast('flaming-sphere', GOBLIN_AT);
     expect(code(out)).toBe('point_occupied');
-    expect(isErr(out) && out.reason).toContain(GOBLIN);
+    // Who is standing there is not said: an unseen occupant is not named.
+    expect(isErr(out) && out.reason).not.toContain(GOBLIN);
   });
 
   it('refuses a point ten feet up', () => {

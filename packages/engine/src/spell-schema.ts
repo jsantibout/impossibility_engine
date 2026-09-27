@@ -5979,12 +5979,6 @@ function checkSharesDamage(
 }
 
 /**
- * SRD Nondetection's "can't be targeted by any Divination spell": a ward held
- * by a creature for a span, against one of the eight schools — see
- * `SpellDefinition.wardsTargets`. A ward on nobody, or one that ends the moment
- * it is laid, refuses nothing. (W7-S19)
- */
-/**
  * The rules W9-S4 added about what a casting may be aimed at, each `true` or
  * absent, and each where a reader will find it.
  *
@@ -6069,6 +6063,12 @@ function checkWhatACastingMayBeAimedAt(
   }
 }
 
+/**
+ * SRD Nondetection's "can't be targeted by any Divination spell": a ward held
+ * by a creature for a span, against one of the eight schools — see
+ * `SpellDefinition.wardsTargets`. A ward on nobody, or one that ends the moment
+ * it is laid, refuses nothing. (W7-S19)
+ */
 function checkWardsTargets(
   definition: SpellDefinition,
   lasts: boolean,

@@ -1087,12 +1087,6 @@ export function raiseAllowanceFor(
 }
 
 /**
- * Whether `target` is a creature `casterId` controls **through `spellId`** —
- * SRD Animate Dead's "creatures you have animated with this spell". Read off
- * the bond the raising wrote (`SummonBond.controlled`); a creature the fold's
- * `lapseExpiredControl` has released answers no, because its bond is gone.
- */
-/**
  * Whether a record is a declared object: its **own** type is the Object type
  * `declareObject` writes — never `typeMagicSees`, because a Mask is what
  * spells believe and not what the record is. Read by the consent a `willing`
@@ -1105,6 +1099,12 @@ const isDeclaredObject = (state: GameState, who: CharacterId): boolean =>
 const isObjectOrCaster = (state: GameState, casterId: CharacterId, target: CharacterId): boolean =>
   target === casterId || isDeclaredObject(state, target);
 
+/**
+ * Whether `target` is a creature `casterId` controls **through `spellId`** —
+ * SRD Animate Dead's "creatures you have animated with this spell". Read off
+ * the bond the raising wrote (`SummonBond.controlled`); a creature the fold's
+ * `lapseExpiredControl` has released answers no, because its bond is gone.
+ */
 const controlsThrough = (
   state: GameState,
   casterId: CharacterId,
@@ -1952,16 +1952,17 @@ function groundPointProblem(
       `${source.name} is created on the ground, and (${space.x}, ${space.y}, ${space.z}) is ${space.z} feet above the floor; the lattice holds no ledges`,
     );
   }
-  const occupants = Object.keys(scene.positions)
-    .sort()
-    .filter((who) => {
-      const apart = distanceToPoint(scene, who as CharacterId, space);
-      return apart.ok && apart.value === 0;
-    });
-  if (occupants.length > 0) {
+  // **Who is there is not said**, which is the reading `placeCreature`'s own
+  // occupancy refusal takes: a caller who could not see an invisible creature
+  // would otherwise learn its name from the refusal.
+  const occupied = Object.keys(scene.positions).some((who) => {
+    const apart = distanceToPoint(scene, who as CharacterId, space);
+    return apart.ok && apart.value === 0;
+  });
+  if (occupied) {
     return err(
       'point_occupied',
-      `${source.name} is created in an unoccupied space, and (${space.x}, ${space.y}, ${space.z}) is ${occupants.join(' and ')}’s`,
+      `${source.name} is created in an unoccupied space, and somebody occupies (${space.x}, ${space.y}, ${space.z})`,
     );
   }
   return null;
