@@ -226,10 +226,16 @@ describe('what reaches a floor still reaches it', () => {
     expect(speedOf(state, TARGET)).toBe(0);
   });
 
-  it('lets Longstrider reach the walk and not the flight, per today’s ruling', () => {
+  /**
+   * Glossary, "Changes to Your Speeds": "any special speed you have increases
+   * or decreases by an equal amount" (owner, 2026-09-27). The floor is chosen
+   * first and Longstrider's ten feet land on it, so 70; this read 60 while an
+   * increase reached the walk alone.
+   */
+  it('lets Longstrider reach the walk and the flight alike', () => {
     const state = fold(SEED, cast(cast(setup(), 'fly', 3), 'longstrider', 1));
     expect(speedOf(state, TARGET)).toBe(40);
-    expect(speedOf(state, TARGET, 'fly')).toBe(60);
+    expect(speedOf(state, TARGET, 'fly')).toBe(70);
   });
 });
 

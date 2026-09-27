@@ -1573,15 +1573,16 @@ export interface GrantedLift {
  * Another creature's senses, lent to this one for a while — SRD Find
  * Familiar's Bonus Action, written by `borrowSenses`.
  *
- * **A record with its deadline on it, read and never swept.** Two readers ask
- * it — `canSee` (yes where the lender sees) and `sensesOf` (the lender's senses
- * for the borrower) — and both treat it as nothing once `until` has passed, the
- * lender has gone, or the bond that allowed it has; so the moment the caster's
- * next turn starts the eyes are their own again, with no event to write and no
- * window in which a stale record answers. A second borrowing replaces the
- * first. Not a sourced grant: nothing ends it but the clock, and a grant family
- * would be a field every creature is born with for the one spell that lends.
- * (W7-S21)
+ * **A record with its deadline on it, read and never swept.** One reader asks
+ * it — `canSee`, yes where the lender sees, from the lender's position with
+ * the lender's senses; the borrower's own `sensesOf` never holds them (option
+ * B, owner 2026-09-27) — and it treats the record as nothing once `until` has
+ * passed, the lender has gone, or the bond that allowed it has; so the moment
+ * the caster's next turn starts the eyes are their own again, with no event to
+ * write and no window in which a stale record answers. A second borrowing
+ * replaces the first. Not a sourced grant: nothing ends it but the clock, and
+ * a grant family would be a field every creature is born with for the one
+ * spell that lends. (W7-S21)
  */
 export interface BorrowedSenses {
   /** The creature lending them — the familiar. */

@@ -35,10 +35,13 @@ import {
  * `recallKeptSummons`. The permission is the spell's — `KeptSummons.lends`,
  * which Find Familiar writes and Find Steed does not — and what the Bonus
  * Action leaves is a `senses-borrowed` record on the caster until the start of
- * their next turn, read in two places only: `canSee` (yes where the familiar
- * sees) and `sensesOf` (the familiar's senses for the caster). The declared
- * sight model stays three-valued: where the familiar's own answer is not yes,
- * the caster's is what it always was.
+ * their next turn, read in one place only: `canSee`, yes where the familiar
+ * sees, **from the familiar's position with the familiar's senses** (owner,
+ * 2026-09-27, option B). The caster's own `sensesOf` never holds a lent sense,
+ * so the familiar's Darkvision is not the caster's Darkvision: it is what the
+ * caster sees *through the familiar*. The declared sight model stays
+ * three-valued: where the familiar's own answer is not yes, the caster's is
+ * what it always was.
  *
  * **The owl here is also touched with the Darkvision spell**, which was once
  * the only way it had a Darkvision to lend. Since W8-S25 a block's printed
@@ -183,7 +186,7 @@ const turns = (log: readonly GameEvent[], count: number): GameEvent[] => {
 };
 
 describe('a familiar’s senses, borrowed', () => {
-  it('lets the wizard see the goblin the owl sees, and read the owl’s Darkvision, for a Bonus Action', () => {
+  it('lets the wizard see the goblin the owl sees, for a Bonus Action, without the owl’s Darkvision becoming the wizard’s', () => {
     const { owl, log, state } = withOwl();
     // The owl's Darkvision, which the wizard does not have.
     expect(darkvisionOf(state, owl)?.feet).toBe(150);
@@ -195,7 +198,9 @@ describe('a familiar’s senses, borrowed', () => {
     const after = fold('seed', [...log, ...borrowed.events]) as GameState;
 
     expect(canSee(after, WIZARD, GOBLIN)).toBe(true);
-    expect(darkvisionOf(after, WIZARD)?.feet).toBe(150);
+    // Seen through the owl's eyes, at the owl's position: the wizard's own
+    // senses are the wizard's own (option B).
+    expect(darkvisionOf(after, WIZARD)).toBeUndefined();
     // The owl's own sight is untouched, and nobody else borrowed anything.
     expect(canSee(after, owl, GOBLIN)).toBe(true);
     expect(darkvisionOf(after, FIGHTER)).toBeUndefined();
@@ -208,7 +213,6 @@ describe('a familiar’s senses, borrowed', () => {
     const lateInTheRound = turns(borrowed, 3);
     const still = fold('seed', lateInTheRound) as GameState;
     expect(canSee(still, WIZARD, GOBLIN)).toBe(true);
-    expect(darkvisionOf(still, WIZARD)?.feet).toBe(150);
     // The wizard's next turn starts: the eyes are their own again.
     const back = fold('seed', turns(lateInTheRound, 1)) as GameState;
     expect(back.combat?.order[back.combat.turnIndex]?.id).toBe(WIZARD);
@@ -229,14 +233,15 @@ describe('a familiar’s senses, borrowed', () => {
     expect(canSee(after, owl, FIGHTER)).toBe(true);
     expect(canSee(after, WIZARD, FIGHTER)).toBe(true);
     // Declared unseen by the owl, the owl's answer is no — and a no lends
-    // nothing: the wizard's own eyes, holding the lent Darkvision, still answer.
+    // nothing: the wizard's own eyes answer, and they hold no Darkvision of
+    // the owl's, so nobody has said (option B; under A they saw).
     const hidden = fold('seed', [
       ...log,
       { type: 'sight-declared', from: owl, to: FIGHTER, seen: false },
       ...must(borrowSenses(state, SRD_CONTENT, WIZARD, { who: owl }), 'borrow').events,
     ]) as GameState;
     expect(canSee(hidden, owl, FIGHTER)).toBe(false);
-    expect(canSee(hidden, WIZARD, FIGHTER)).toBe(true);
+    expect(canSee(hidden, WIZARD, FIGHTER)).toBeNull();
     // And where the owl's answer is no and the wizard's is a declared no, the
     // answer is no; nothing is invented either way.
     const walled = fold('seed', [

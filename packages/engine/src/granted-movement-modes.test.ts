@@ -216,13 +216,15 @@ describe('a spell grants a Climb Speed equal to the walking one', () => {
    * | | matching the base | matching the whole |
    * |---|---|---|
    * | Slowed spider, walk 30 halved to 15 | climbs 15 | climbs 7 |
-   * | Longstrider'd spider, walk 40 | climbs 30 | climbs 40 |
+   * | Longstrider'd spider, walk 40 | climbs 40 | climbs 50 |
    *
    * The first is the SRD's: a halving is one halving, which is the rule
    * `combineSpeed` already fixes for every other input. The second is the
-   * ruling directly above this family — an increase is the walking Speed's —
-   * and a climb that took Longstrider's ten feet would be reading a sentence
-   * the book does not print.
+   * glossary's "Changes to Your Speeds" (owner, 2026-09-27): "any special
+   * speed you have increases or decreases by an equal amount", so the ten
+   * feet reach the climb once, and a climb "equal to its Speed" stays equal.
+   * (Before that ruling an increase reached the walk alone and this climbed
+   * at 30.)
    */
   it('halves a Slowed spider once rather than twice', () => {
     const slowed: readonly GameEvent[] = [
@@ -238,7 +240,7 @@ describe('a spell grants a Climb Speed equal to the walking one', () => {
     expect(speedOf(after, TARGET, 'climb')).toBe(15);
   });
 
-  it('does not hand the climb a walking increase', () => {
+  it('hands the climb the walking increase once, so it stays equal to the walk', () => {
     const faster: readonly GameEvent[] = [
       ...SETUP,
       {
@@ -249,7 +251,7 @@ describe('a spell grants a Climb Speed equal to the walking one', () => {
     ];
     const after = castOn(faster, 'spider-climb', 2);
     expect(speedOf(after, TARGET)).toBe(40);
-    expect(speedOf(after, TARGET, 'climb')).toBe(30);
+    expect(speedOf(after, TARGET, 'climb')).toBe(40);
   });
 
   /**

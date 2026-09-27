@@ -2072,10 +2072,12 @@ export interface StandingEffect {
    * creature type; Hit Points; Hit Point Dice; Intelligence, Wisdom, and
    * Charisma scores; class features; languages; and feats" — which names class
    * features and feats and does not name a species trait, so
-   * `assumeStatBlock` can tell a Dwarf's Darkvision from a class feature's
-   * Blindsight. Stamped by creation, which is the one place that still knows
-   * which list a feature came from. A sheet pinned before the mark existed
-   * carries none, and keeps everything it kept. (W8-S25)
+   * `assumeStatBlock` sets aside every effect carrying the mark (a Dwarf's
+   * Darkvision and Dwarven Resilience alike; owner, 2026-09-27) and keeps a
+   * class feature's Blindsight. Stamped by creation, which is the one place
+   * that still knows which list a feature came from; never on a feat's effect,
+   * whatever granted the feat. A sheet pinned before the mark existed carries
+   * none, and keeps everything it kept. (W8-S25)
    */
   readonly speciesTrait?: true;
 }
@@ -5007,52 +5009,19 @@ export function ritualsFromBookOn(state: GameState, who: CharacterId): boolean {
  * one sense, and the answer cannot depend on which was read first. Sorted by
  * name, for the reason `conditionImmunitiesOf` is.
  *
- * **And a familiar's senses, while they are lent** — SRD Find Familiar's
- * "gaining the benefits of any special senses it has" — which includes the
- * senses its stat block prints (W8-S25). Where they apply is a reading the
- * owner has not yet ruled, and the argument below is the whole of the switch:
- * `true` (option A, built) lends them at the **caster's** position, so every
- * reader of this function has them — `ownSight`, `canSeePoint`,
- * `canSomehowSee`, `obscuredFrom` and `sensesPerceiving` among them; `false`
- * (option B) lends nothing here, and the familiar's eyes answer only through
- * `canSee`'s lender branch, from the familiar's position with its own senses
- * and `sees-through`. Under B, `borrowed-senses.test.ts`'s two Darkvision
- * readings of the wizard and its `hidden` fighter flip, and the
- * `borrow_senses` tool description's "you have the senses it has" stops being
- * true.
+ * **A familiar's senses are not among them, even while they are lent**
+ * (owner, 2026-09-27, option B). SRD Find Familiar: "you can see through the
+ * familiar's eyes and hear what it hears ..., gaining the benefits of any
+ * special senses it has." The benefit is of seeing *through the familiar* —
+ * from where it is, with what it has — so it is answered by `canSee`'s lender
+ * branch, at the familiar's position with its own senses and `sees-through`,
+ * and by nothing here. Every other reader of this function — `canSeePoint`,
+ * `canSomehowSee`, `obscuredFrom` and `sensesPerceiving`, which an attack roll
+ * reads — has the caster's own senses alone, so a borrowed Bat's Blindsight
+ * never reaches its wizard's swing. W8-S25 built option A, which lent them at
+ * the caster's position; the owner ruled it out.
  */
 export function sensesOf(state: GameState, who: CharacterId): readonly CreatureSense[] {
-  return sensesHeld(state, who, true);
-}
-
-/**
- * The creature lending this one its senses right now, or null — SRD Find
- * Familiar: "you can see through the familiar's eyes and hear what it hears
- * until the start of your next turn, gaining the benefits of any special
- * senses it has."
- *
- * **The one reading of the record `borrowSenses` writes**, for the two
- * readers below. Nothing is lent once the deadline has passed — which is also
- * the fight ending, where `hasExpired` reads a turn-anchored moment as gone —
- * nor by a lender that is dead, away in its pocket, or no longer the
- * borrower's own: eyes that are not in the scene see nothing in it. (W7-S21)
- */
-function lenderOf(state: GameState, who: CharacterId): CharacterId | null {
-  const borrowed = state.creatures[who]?.borrowedSenses;
-  if (borrowed === undefined) return null;
-  if (hasExpired(timeView(state), borrowed.until)) return null;
-  const lender = state.creatures[borrowed.from];
-  if (lender === undefined || lender.vitals.dead || lender.elsewhere !== null) return null;
-  if (lender.summonedBy?.by !== who) return null;
-  return borrowed.from;
-}
-
-/**
- * {@link sensesOf}, with the lent half optional — so the lender's own senses
- * are read without its own borrowing, and no pair of creatures can lend each
- * other a sense round a loop.
- */
-function sensesHeld(state: GameState, who: CharacterId, borrowing: boolean): readonly CreatureSense[] {
   const furthest = new Map<SenseName, number>();
   const reach = (sense: SenseName, feet: number): void => {
     const had = furthest.get(sense);
@@ -5067,16 +5036,34 @@ function sensesHeld(state: GameState, who: CharacterId, borrowing: boolean): rea
   for (const held of state.creatures[who]?.senseModifiers ?? []) {
     reach(held.sense, held.feet);
   }
-  // And the senses a familiar lends through its eyes — SRD Find Familiar's
-  // "gaining the benefits of any special senses it has" — at the lender's
-  // own ranges, for as long as the borrowing holds. See `lenderOf`. (W7-S21)
-  const lender = borrowing ? lenderOf(state, who) : null;
-  if (lender !== null) {
-    for (const lent of sensesHeld(state, lender, false)) reach(lent.sense, lent.feet);
-  }
   return [...furthest.entries()]
     .sort(([a], [b]) => a.localeCompare(b))
     .map(([sense, feet]) => ({ sense, feet }));
+}
+
+/**
+ * The creature lending this one its senses right now, or null — SRD Find
+ * Familiar: "you can see through the familiar's eyes and hear what it hears
+ * until the start of your next turn, gaining the benefits of any special
+ * senses it has."
+ *
+ * **The one reading of the record `borrowSenses` writes**, for its one
+ * reader, {@link canSee}: the familiar's senses are used from where the
+ * familiar is and are never the borrower's own (option B, owner 2026-09-27 —
+ * see {@link sensesOf}). Nothing is lent once the deadline has passed —
+ * which is also the fight ending, where `hasExpired` reads a turn-anchored
+ * moment as gone — nor by a lender that is dead, away in its pocket, or no
+ * longer the borrower's own: eyes that are not in the scene see nothing in
+ * it. (W7-S21)
+ */
+function lenderOf(state: GameState, who: CharacterId): CharacterId | null {
+  const borrowed = state.creatures[who]?.borrowedSenses;
+  if (borrowed === undefined) return null;
+  if (hasExpired(timeView(state), borrowed.until)) return null;
+  const lender = state.creatures[borrowed.from];
+  if (lender === undefined || lender.vitals.dead || lender.elsewhere !== null) return null;
+  if (lender.summonedBy?.by !== who) return null;
+  return borrowed.from;
 }
 
 /**
@@ -5363,7 +5350,10 @@ export function canSee(state: GameState, from: CharacterId, to: CharacterId): bo
   // the familiar sees, and the looker's own answer everywhere else**, so the
   // model stays three-valued: a familiar that cannot see, or that nobody has
   // said sees, leaves the question exactly where the looker's own eyes put
-  // it. See `lenderOf`. (W7-S21)
+  // it. **This is the whole of the borrowing** — the familiar's eyes, at the
+  // familiar's position, with the familiar's senses; the looker's own senses
+  // are not lengthened by it (option B, owner 2026-09-27). See `lenderOf`.
+  // (W7-S21)
   const lender = from === to ? null : lenderOf(state, from);
   if (lender !== null && lender !== to && ownSight(state, lender, to) === true) return true;
   return ownSight(state, from, to);
@@ -6080,10 +6070,11 @@ export type SpeedChange =
    *
    * **The walking Speed it matches is the base one**, before a Longstrider
    * and before a halving, and then everything that reaches the mode reaches
-   * it. The alternative reads the *whole* walking Speed and then halves the
-   * result a second time, so a Slowed spider would climb at a quarter of what
-   * it walks. It is also the reading that agrees with the rule directly above
-   * this family — an increase is the walking Speed's — and there is no
+   * it — which, under the glossary's "Changes to Your Speeds", is every
+   * change the walk takes, so the climb stays equal to the walk. The
+   * alternative reads the *whole* walking Speed and then applies the changes
+   * a second time, so a Slowed spider would climb at a quarter of what it
+   * walks and a Longstrider one at twenty feet over it. And there is no
    * recursion, because a match names a mode and the walking mode is refused.
    *
    * Carries no feet. The number is the creature's, and a sentence that
@@ -6166,12 +6157,12 @@ export interface GrantedSpeed {
    *
    * It is meaningful on the operations that *give* a Speed — required on
    * `match-walk`, `only` and `at-least`, which name the Speed they give — and
-   * refused on the two that take one away, which is the rule `speedOf`
-   * already fixed and `checkSpeedChange` now enforces at the door: SRD writes
-   * "your Speed" for an increase and means walking, and writes Grappled's 0,
-   * Slow's halving and Exhaustion's five feet a level about the creature
-   * rather than about a mode. A `halve` that named one mode would be a
-   * sentence the book does not print.
+   * refused on the two that take one away, which `checkSpeedChange` enforces
+   * at the door: Grappled's 0, Slow's halving and Exhaustion's five feet a
+   * level are written about the creature rather than about a mode, and the
+   * glossary's "Changes to Your Speeds" carries every change to the Speed to
+   * every special Speed the creature has (see `speedOf`). A `halve` that
+   * named one mode would be a sentence the book does not print.
    */
   readonly mode?: MovementMode;
   /**
@@ -7263,21 +7254,19 @@ export function speedOf(
             floorInMode(state, who, creature, mode),
           );
 
-  // **Feet reach the mode they were granted in; an unqualified increase
-  // reaches walking alone and an unqualified reduction reaches every mode.**
-  // Judged grant by grant rather than netted afterwards, which is what the
-  // sign split here is for: a Longstrider and a Ray of Frost on one creature
-  // are two sentences, and cancelling them into a net of zero would quietly
-  // hand a flier back the ten feet the ice took. See the note below the loops
-  // for the ruling the sign carries.
+  // **A change to the Speed reaches every Speed the creature has; a change
+  // named in a mode reaches that mode alone.** See the note below the loops
+  // for the glossary sentence this is. A change to "your Speed" is written
+  // with no mode (or, were anything to write it, the walking one); a
+  // mode-named `add` is only ever an old log's Fly, which reads as it was
+  // written.
   let flat = 0;
   const flattenInMode = (granted: {
     readonly feet?: number;
     readonly mode?: MovementMode;
   }): void => {
-    const feet = granted.feet ?? 0;
-    if ((granted.mode ?? 'walk') === mode) flat += feet;
-    else if (granted.mode === undefined && feet < 0) flat += feet;
+    const named = granted.mode ?? 'walk';
+    if (named === 'walk' || named === mode) flat += granted.feet ?? 0;
   };
 
   for (const { effect, grant } of derivedSpeedGrants(creature)) {
@@ -7291,15 +7280,12 @@ export function speedOf(
   let zeroed = false;
   for (const granted of creature.speedModifiers) {
     if (granted.change === 'add') flattenInMode(granted);
-    // **A doubling is an increase, so it is the walking Speed's**, which is
-    // the ruling written below about the flat accumulator's sign and read
-    // here rather than a second time: SRD writes "your Speed" unqualified for
-    // what *gives* Speed and means walking, and SRD Haste is that sentence
-    // multiplied. A hasted Cockatrice walks at twice the pace and flies at
-    // the pace it always did.
-    else if (granted.change === 'double') {
-      if (mode === 'walk') doublings += 1;
-    } else if (granted.change === 'halve') halvings += 1;
+    // **A doubling reaches every mode, as a halving does**: the glossary's
+    // "if your Speed is halved and you have a Fly Speed, your Fly Speed is
+    // also halved", read for SRD Haste's "the target's Speed is doubled". A
+    // hasted Cockatrice walks and flies at twice the pace.
+    else if (granted.change === 'double') doublings += 1;
+    else if (granted.change === 'halve') halvings += 1;
     else if (granted.change === 'zero') zeroed = true;
   }
 
@@ -7323,30 +7309,36 @@ export function speedOf(
   // `double` is deliberately absent from that loop and from the type it reads
   // — see {@link AreaSpeedStanding.change}.
 
-  // **An increase is the walking Speed's; everything that takes Speed away is
-  // every mode's.** SRD writes "your Speed" unqualified for the walking one —
-  // Longstrider's ten feet and a Barbarian's Fast Movement are both that
-  // sentence — so adding them to a Fly Speed would be reading a rule the book
-  // does not print. Slowing is the other way round, and all four spellings of
-  // it agree: Grappled's "Speed is 0", Slow's halving, Exhaustion's five feet
-  // a level and Ray of Frost's flat ten are about the creature rather than
-  // about a mode. A Restrained Cockatrice does not fly away at half speed,
-  // and a Specter iced by Ray of Frost does not fly away at full.
+  // **Every change to the Speed is every mode's** — the Rules Glossary,
+  // Speed, as the owner read it on 2026-09-27:
   //
-  // So the flat accumulator is split by sign rather than by source, which is
-  // the only line here that is a ruling rather than a transcription: the book
-  // prints no sentence reducing one mode and not another, and the alternative
-  // — reductions that miss every mode but walking — leaves a creature whose
-  // Speed is *mostly* a Fly Speed untouched by half the rules that slow
-  // anybody. Exhaustion already behaved this way through `conditionSpeed`,
-  // and this is the rest of the family joining it rather than an exception
-  // being carved.
+  // > "_Changes to Your Speeds._ If an effect increases or decreases your
+  // > Speed for a time, any special speed you have increases or decreases by
+  // > an equal amount for the same duration. For example, if your Speed is
+  // > reduced to 0 and you have a Climb Speed, your Climb Speed is also
+  // > reduced to 0. Similarly, if your Speed is halved and you have a Fly
+  // > Speed, your Fly Speed is also halved."
   //
-  // What a *mode-named* grant does is not that ruling and needs none: SRD Fly
+  // So Longstrider's ten feet and a Barbarian's Fast Movement reach a Fly
+  // Speed by the same ten feet ("an equal amount"), Ray of Frost's ten come
+  // off it, and Haste, Slow and a Speed of 0 multiply it as they multiply the
+  // walk ("also halved", "also reduced to 0"). "Any special speed **you
+  // have**" is the gate above: a mode nothing gives the creature is 0 before
+  // any of this runs, so nothing here hands a walker wings. (This replaces a
+  // builder's reading, never ruled, under which an increase and a doubling
+  // reached the walking Speed alone.)
+  //
+  // **The order, for every mode alike**: the base — the highest of the
+  // printed Speed, a matched walk and every `at-least` floor, or an `only`
+  // Speed alone — then every flat change, then doubled once, then halved
+  // once, then zeroed, which is {@link combineSpeed}. A creature under Fly
+  // with an Owl's printed 60, Longstrider and Haste flies at (60 + 10) x 2.
+  //
+  // What a *mode-named* grant does is not that rule and needs none: SRD Fly
   // prints "a Fly Speed of 60 feet", which is an `at-least` in the base above
   // rather than feet in this accumulator. A mode-named `add` is still summed
-  // here because a log written before the floor carries one, and it reads as
-  // it was written.
+  // into its own mode because a log written before the floor carries one,
+  // and it reads as it was written.
   return combineSpeed(base, flat, halvings, zeroed, creature.conditions, doublings);
 }
 

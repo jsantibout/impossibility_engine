@@ -164,6 +164,13 @@ const CONJURED_ITEMS: readonly CatalogueItem[] = [
  *    that *limits* the benefit — the Cloak of Displacement's Disadvantage
  *    stops "if you take damage", and an engine that granted the mode and not
  *    the suspension would hand out a better cloak than the book prints.
+ *    **Except** (owner, 2026-09-27) where the engine already asks the table
+ *    for the limit's fact on every use: then the limit may ride as a flagged
+ *    `unmodelled` debt and the record stays partial. The Slippers of Spider
+ *    Climbing are the case — every climb without a printed Spider Climb is
+ *    reported "nobody has said what … is climbing" (`climbCheck` in
+ *    `commands/movement.ts`), which is where ice or oil gets said. The
+ *    Horseshoes of Speed are not: nothing asks the table about a hoof.
  *
  * The SRD prints no price for these — the tables that do are for mundane gear
  * — so it is null, and buying one is refused exactly as buying anything the
@@ -1631,6 +1638,42 @@ const NAMED_ITEMS: readonly CatalogueItem[] = [
     },
   ),
   wornItem(
+    { id: 'slippers-of-spider-climbing', name: 'Slippers of Spider Climbing', kind: 'wondrous' },
+    {
+      /**
+       * SRD Slippers of Spider Climbing: "Wondrous Item, Uncommon (Requires
+       * Attunement). ... You have a Climb Speed equal to your Speed."
+       *
+       * SRD Spider Climb's sentence, spelled as that spell spells it —
+       * `match-walk` in the climbing mode.
+       *
+       * **Transcribed with a limit the engine cannot see, under rule 3's
+       * amendment above** (owner, 2026-09-27): "the slippers don't allow you
+       * to move this way on a slippery surface". The lattice holds no
+       * surfaces, so the Climb Speed holds on ice and oil too — a better pair
+       * of slippers than the book prints wherever the table has laid ice. It
+       * rides as the flagged `unmodelled` line below because the surface is
+       * the fact the climb already asks the table about on every climb: the
+       * slippers print no Spider Climb trait, so `climbCheck` reports "nobody
+       * has said what … is climbing" each time the wearer climbs. Spider
+       * Climb carries the same absence of surfaces for the vertical half.
+       */
+      attunement: {},
+      grants: [
+        {
+          kind: 'standing',
+          reach: 'self',
+          effects: [{ kind: 'speed', change: 'match-walk', mode: 'climb' }],
+          requires: WORN_AND_ATTUNED,
+        },
+      ],
+      unmodelled: [
+        '"you can move up, down, and across vertical surfaces and along ceilings, while leaving your hands free": the lattice holds elevation and no surfaces, as it does for SRD Spider Climb',
+        '"the slippers don\'t allow you to move this way on a slippery surface, such as one covered by ice or oil": a limit on the Climb Speed that the engine cannot apply, because nothing records what a surface is covered by — so the slippers climb where the book says they do not',
+      ],
+    },
+  ),
+  wornItem(
     {
       id: 'gloves-of-swimming-and-climbing',
       name: 'Gloves of Swimming and Climbing',
@@ -2689,7 +2732,7 @@ const NAMED_ITEMS: readonly CatalogueItem[] = [
         castsSpell('web', 1, { saveDc: 13 }),
       ],
       unmodelled: [
-        '"_Spider Climb._ You have a Climb Speed equal to your Speed and can move up, down, and across vertical surfaces and along ceilings, while leaving your hands free": the Climb Speed is sayable on a worn item now, and the sentence is held back for the question the Slippers of Spider Climbing wait on — what surface an item\'s climb covers, walls and ceilings included, which the lattice does not hold',
+        '"_Spider Climb._ You have a Climb Speed equal to your Speed and can move up, down, and across vertical surfaces and along ceilings, while leaving your hands free": the Climb Speed is sayable on a worn item now and is not yet written on this cloak — the Slippers of Spider Climbing carry the same sentence as a `match-walk` climb with the walls and ceilings a debt, and this cloak can follow them — so the climb is a benefit left out',
         '"_Spider Walk._ You can\'t be caught in webs of any sort and can move through webs as if they were Difficult Terrain": an immunity to a spell\'s area and a terrain rule keyed to it, neither of which an item grant can say',
         '"The web created by the spell fills twice its normal area": a `casts` grant hands the definition to the pipeline whole, so a web from this cloak fills Web\'s own 20-foot Cube — half the page\'s cloak rather than twice it',
       ],

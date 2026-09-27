@@ -382,10 +382,14 @@ describe('toolSchemas', () => {
     // `declare_light` (a cast light moved with its object or covered, the
     // casting's identity kept). 96 → 97 and 127 → 128 tools; +1,622 bytes on
     // each.
+    // And for W9-R, `borrow_senses`' description: a familiar's senses are
+    // used from where the familiar is and are not the caster's own (the
+    // owner's option B). One tool both doors publish: 124 bytes on each, and
+    // no tool added.
     expect(toolSchemas(player())).toHaveLength(97);
     expect(toolSchemas(dm())).toHaveLength(128);
-    expect(JSON.stringify(toolSchemas(player())).length).toBe(160348);
-    expect(JSON.stringify(toolSchemas(dm())).length).toBe(216566);
+    expect(JSON.stringify(toolSchemas(player())).length).toBe(160472);
+    expect(JSON.stringify(toolSchemas(dm())).length).toBe(216690);
   });
 });
 

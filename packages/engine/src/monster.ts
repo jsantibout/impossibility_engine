@@ -3247,9 +3247,9 @@ function withoutFields<K extends keyof CharacterSheet>(
  * and Charisma scores; class features; languages; and feats": the type and
  * the hit points are not on a sheet and stay where they are; the scores the
  * grant names are the holder's; every compiled feature list is the holder's,
- * less the senses a species trait grants, which the list does not keep and
- * the block's Senses line replaces, and the block's own printed rules stand
- * beside them. "You also retain your
+ * less every standing effect a species trait grants, which the list does not
+ * keep (the block's Senses line replaces the senses among them), and the
+ * block's own printed rules stand beside them. "You also retain your
  * skill and saving throw proficiencies and use your Proficiency Bonus for
  * them, in addition to gaining the proficiencies of the creature. If a skill
  * or saving throw modifier in the Beast's stat block is higher than yours, use
@@ -3300,16 +3300,18 @@ export function assumeStatBlock(
   // SRD Wild Shape, "Game Statistics": "Your game statistics are replaced by
   // the Beast's stat block, but you retain your creature type; Hit Points; Hit
   // Point Dice; Intelligence, Wisdom, and Charisma scores; class features;
-  // languages; and feats." A block's Senses line is its statistics, and a
-  // species trait is not on the list — so a sense the holder's species gave
-  // is replaced by the block's rather than kept beside it, and a class
-  // feature's or a feat's is kept. A sheet pinned before species traits were
-  // marked cannot say which is which and keeps them all. (W8-S25)
-  const retained = (own.standing ?? []).filter(
-    (effect) =>
-      effect.speciesTrait !== true ||
-      (effect.grant.kind !== 'sense' && effect.grant.kind !== 'sees-through'),
-  );
+  // languages; and feats." A species trait is not on the list, so **nothing**
+  // a species trait gave the sheet is kept: a sense the holder's species gave
+  // is replaced by the block's Senses line, and Dwarven Resilience's Poison
+  // Resistance is simply gone until the form ends (owner, 2026-09-27; W8-S25
+  // read the sentence for senses alone). A class feature's effect and a
+  // feat's are kept — a feat whatever granted it, because `standingFromFeats`
+  // never stamps one. The Hit Points are untouched by this filter: they live
+  // on the creature's vitals, and Dwarven Toughness is a hit-point-maximum
+  // grant creation has already added to them, not a standing effect here. A
+  // sheet pinned before species traits were marked cannot say which is which
+  // and keeps them all.
+  const retained = (own.standing ?? []).filter((effect) => effect.speciesTrait !== true);
   const standing = [...retained, ...(block.standing ?? [])];
   const attacksPerAction = Math.max(own.attacksPerAction ?? 1, block.attacksPerAction ?? 1);
 

@@ -18,7 +18,8 @@
  * Druid in a Wolf's shape sees with the wolf's eyes and loses them with the
  * form, and a Dwarf's own Darkvision is not one of the things the form keeps;
  * an Owl familiar has its printed Darkvision to lend with no casting, and a
- * Bat's Blindsight reaches its wizard's swing; and a sheet pinned before any
+ * Bat's Blindsight is seen through rather than held, so it never reaches its
+ * wizard's swing; and a sheet pinned before any
  * of this reads no senses at all, which is the answer it always gave.
  */
 
@@ -514,7 +515,7 @@ describe('a familiar’s printed senses, lent', () => {
     const { familiar: owl, log } = summoned('owl');
     // The owl down the stair, the goblin a hundred feet beyond it — and so a
     // hundred and eighty from the wizard, past any Darkvision the wizard could
-    // be lent at the wizard's own position: this is the owl's eyes answering.
+    // hold at the wizard's own position: this is the owl's eyes answering.
     const placed = fighting(
       [
         ...log,
@@ -533,13 +534,15 @@ describe('a familiar’s printed senses, lent', () => {
   });
 
   /**
-   * **Option A**, which is what `sensesOf` builds today: the lent senses are
-   * the caster's own, at the caster's position, so a Bat's Blindsight reaches
-   * its wizard's swing at a goblin beside the wizard. Under option B — the
-   * lend read only through `canSee`'s lender branch — `sensesPerceiving`
-   * would answer `[]` here. See `sensesOf`'s docstring for the switch.
+   * **Option B** (owner, 2026-09-27): SRD Find Familiar's "you can see through
+   * the familiar's eyes ..., gaining the benefits of any special senses it
+   * has" reaches what the caster sees *through the familiar*, from where the
+   * familiar is. It does not make the Bat's Blindsight the wizard's, so the
+   * wizard's own `sensesPerceiving` — what an attack roll reads — stays empty
+   * and the borrowed sense never reaches the wizard's swing; `canSee` answers
+   * yes, because the bat itself perceives the goblin.
    */
-  it('lends a Bat’s printed Blindsight to the wizard’s own senses (option A)', () => {
+  it('lets the wizard see through the Bat’s Blindsight without holding it (option B)', () => {
     const { familiar: bat, log } = summoned('bat');
     const placed = fighting(
       [
@@ -555,6 +558,8 @@ describe('a familiar’s printed senses, lent', () => {
 
     const borrowed = must(borrowSenses(state, SRD_CONTENT, WIZARD, { who: bat }), 'borrow');
     const after = fold('senses', [...placed, ...borrowed.events]) as GameState;
-    expect(sensesPerceiving(after, WIZARD, GOBLIN)).toEqual(['blindsight']);
+    expect(canSee(after, WIZARD, GOBLIN)).toBe(true);
+    expect(sensesOf(after, WIZARD)).toEqual([]);
+    expect(sensesPerceiving(after, WIZARD, GOBLIN)).toEqual([]);
   });
 });
