@@ -1579,10 +1579,10 @@ export interface GrantedLift {
  * B, owner 2026-09-27) — and it treats the record as nothing once `until` has
  * passed, the lender has gone, or the bond that allowed it has; so the moment
  * the caster's next turn starts the eyes are their own again, with no event to
- * write and no window in which a stale record answers. A second borrowing replaces the
- * first. Not a sourced grant: nothing ends it but the clock, and a grant family
- * would be a field every creature is born with for the one spell that lends.
- * (W7-S21)
+ * write and no window in which a stale record answers. A second borrowing
+ * replaces the first. Not a sourced grant: nothing ends it but the clock, and
+ * a grant family would be a field every creature is born with for the one
+ * spell that lends. (W7-S21)
  */
 export interface BorrowedSenses {
   /** The creature lending them — the familiar. */
