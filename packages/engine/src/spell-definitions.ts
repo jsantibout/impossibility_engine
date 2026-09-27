@@ -4757,6 +4757,13 @@ export type SpellArea =
        * the point and not of the template it lights. Absent is every other
        * point in the book: Fireball's bead may burst in a creature's space or
        * in the air. (W9-S4)
+       *
+       * **And a later move of the point keeps to the ground** — "rolling it
+       * along the ground" — so `relocateOrigin` refuses a step above the floor
+       * with the same `point_not_on_ground`. Occupancy is not asked again
+       * there: the book says what happens when the sphere is moved into a
+       * creature's space, and it is the ram (`areaTrigger.onPointEntry`), which
+       * stops the roll. (W9-T)
        */
       readonly pointOnUnoccupiedGround?: true;
     }

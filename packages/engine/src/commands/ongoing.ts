@@ -449,6 +449,24 @@ export function relocateOrigin(
     }
   }
 
+  // SRD Flaming Sphere: "you can move the sphere up to 30 feet, **rolling it
+  // along the ground**." The point the cast held to the ground
+  // (`area.pointOnUnoccupiedGround`) is held there on every step of the roll,
+  // where the lattice floor is the only ground there is. **The ground half
+  // only**: "If you move the sphere into a creature's space, that creature
+  // makes the save against the sphere, and the sphere stops moving" — a
+  // creature's space is the ram the book prints, not a refusal, and the
+  // activation stops the roll there (`onPointEntry`). (W9-T)
+  if (definition.area?.kind === 'sphere' && definition.area.pointOnUnoccupiedGround === true) {
+    const aloft = legs.find((space) => space.z > 0);
+    if (aloft !== undefined) {
+      return err(
+        'point_not_on_ground',
+        `${record.spell} is rolled along the ground, and (${aloft.x}, ${aloft.y}, ${aloft.z}) is ${aloft.z} feet above the floor; the lattice holds no ledges`,
+      );
+    }
+  }
+
   // From where it is, not from where it started and not from the caster. A
   // force may be walked steadily further away than the spell's own Range,
   // which is exactly what "move the force up to 20 feet" says and what a

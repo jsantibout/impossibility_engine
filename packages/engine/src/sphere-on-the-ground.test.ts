@@ -8,7 +8,7 @@ import { fold, type GameEvent, type GameState } from './events.js';
 import { declaredCasting } from './spellcasting.js';
 import { lightAt, type Point } from './positioning.js';
 import { checkSpellDefinitionValue } from './spell-schema.js';
-import { resolveSpell } from './commands.js';
+import { activateSpell, ongoingSpellOf, resolveSpell } from './commands.js';
 
 /**
  * SRD Flaming Sphere: "You create a 5-foot-diameter sphere of fire in an
@@ -125,5 +125,69 @@ describe('an unoccupied space on the ground', () => {
   it('leaves Fireball’s point where the book lets it go: in a creature’s space, or in the air', () => {
     expect(code(cast('fireball', GOBLIN_AT, 3))).toBe('cast');
     expect(code(cast('fireball', IN_THE_AIR, 3))).toBe('cast');
+  });
+});
+
+/**
+ * SRD Flaming Sphere: "As a Bonus Action, you can move the sphere up to 30
+ * feet, **rolling it along the ground**. If you move the sphere into a
+ * creature's space, that creature makes the save against the sphere, and the
+ * sphere stops moving for the turn." (W9-T)
+ *
+ * The roll is held to the ground the cast is: a space above the lattice floor
+ * is refused, as the point is at the casting, whether it is where the roll
+ * ends or a step along the way. A creature's space is **not** refused — the
+ * book says what happens when the sphere is rolled into one, and it is the
+ * ram, which stops the sphere there.
+ */
+describe('the sphere rolled along the ground', () => {
+  const conjured = (): { readonly log: readonly GameEvent[]; readonly sphere: string } => {
+    const out = unwrap(
+      resolveSpell(state(), DRUID, { spellId: 'flaming-sphere', targets: [], at: EMPTY_FLOOR }, supply()),
+      'Flaming Sphere on the floor',
+    );
+    return { log: [...SETUP, ...out.events], sphere: out.castingId! };
+  };
+
+  const roll = (log: readonly GameEvent[], castingId: string, to: Point, via?: readonly Point[]) =>
+    activateSpell(
+      state(log),
+      DRUID,
+      { castingId, targets: [], to, ...(via === undefined ? {} : { via }) },
+      supply(),
+    );
+
+  it('rolls five feet along the empty floor', () => {
+    const { log, sphere } = conjured();
+    const to: Point = { x: 130, y: 125, z: 0 };
+    const out = unwrap(roll(log, sphere, to), 'the roll');
+    expect(ongoingSpellOf(state([...log, ...out.events]), sphere)?.origin).toEqual(to);
+  });
+
+  it('refuses a roll that ends ten feet up', () => {
+    const { log, sphere } = conjured();
+    expect(code(roll(log, sphere, { x: 130, y: 125, z: 10 }))).toBe('point_not_on_ground');
+  });
+
+  it('refuses a roll that leaves the ground on the way, and lands on it again', () => {
+    const { log, sphere } = conjured();
+    const out = roll(log, sphere, { x: 130, y: 130, z: 0 }, [{ x: 130, y: 125, z: 5 }]);
+    expect(code(out)).toBe('point_not_on_ground');
+  });
+
+  it('rolls into the goblin’s space, which the book calls a ram and not a refusal, and stops there', () => {
+    const { log, sphere } = conjured();
+    const out = unwrap(
+      roll(log, sphere, GOBLIN_AT, [
+        { x: 130, y: 115, z: 0 },
+        { x: 130, y: 110, z: 0 },
+        { x: 130, y: 105, z: 0 },
+      ]),
+      'the ram',
+    );
+    expect(ongoingSpellOf(state([...log, ...out.events]), sphere)?.origin).toEqual(GOBLIN_AT);
+    expect(
+      out.events.some((event) => event.type === 'area-effect-settled' && event.target === GOBLIN),
+    ).toBe(true);
   });
 });
