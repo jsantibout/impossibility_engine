@@ -2299,14 +2299,14 @@ describe('an un-arrived start blocks its own creature and nobody else', () => {
   });
 
   it('refuses the creature whose start has not arrived', () => {
-    const refused = mayAct(midBoundary(), MOVER);
+    const refused = mayAct(midBoundary(), MOVER, 'act');
     expect(refused).not.toBeNull();
     if (refused !== null) expect(refused.code).toBe('area_effect_owed');
   });
 
   it('lets anybody else act', () => {
-    expect(mayAct(midBoundary(), CASTER)).toBeNull();
-    expect(mayAct(midBoundary(), THREAT)).toBeNull();
+    expect(mayAct(midBoundary(), CASTER, 'act')).toBeNull();
+    expect(mayAct(midBoundary(), THREAT, 'act')).toBeNull();
   });
 
   /** And an owed area effect stops all three, which is the other half. */
@@ -2315,7 +2315,7 @@ describe('an un-arrived start blocks its own creature and nobody else', () => {
     g.conjure('grease', CUBE, { towards: TOWARDS, slotLevel: 1 });
     g.walk(MOVER, 'inside cube');
     for (const who of [MOVER, CASTER, THREAT]) {
-      const refused = mayAct(g.state, who);
+      const refused = mayAct(g.state, who, 'act');
       expect(refused).not.toBeNull();
       if (refused !== null) expect(refused.code).toBe('area_effect_owed');
     }

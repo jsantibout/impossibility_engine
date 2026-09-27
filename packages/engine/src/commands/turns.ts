@@ -90,7 +90,7 @@ import { creatureOf, unknownCreature, ZERO_HIT_POINTS } from './command.js';
 import { grantTemporaryHpTo, healCreature, strandedSummons } from './creatures.js';
 import { dealSpellDamage } from './damage.js';
 import { forcePrintedSaveOn, withDeclaredDamage } from './printed-save-clauses.js';
-import { mayAct, pendingCastingsOf, pendingSavesOf } from './holds.js';
+import { mayAct, owedRefusal, pendingCastingsOf, pendingSavesOf } from './holds.js';
 import {
   checkBonuses,
   recordD20Test,
@@ -1123,7 +1123,7 @@ export function resolveEffectCheck(
   }, (stamp) => {
     // A mandatory effect this creature has been caught by, or a turn whose start
     // has not arrived. **After the duplicate check, never before it.**
-    const owedHere = mayAct(state, who);
+    const owedHere = mayAct(state, who, 'act');
     if (owedHere !== null) return owedHere;
 
     const creature = creatureOf(state, who);
@@ -2307,7 +2307,7 @@ export function resolveTurn(
     // and a creature would be two saves behind by the time anybody looked. The
     // creature named is the one whose turn is ending, and the area half of the
     // policy is global anyway.
-    const owedNow = mayAct(state, currentCombatant(state.combat).id);
+    const owedNow = owedRefusal(state, currentCombatant(state.combat).id);
     if (owedNow !== null) return owedNow;
 
     const advanced: GameEvent[] = [

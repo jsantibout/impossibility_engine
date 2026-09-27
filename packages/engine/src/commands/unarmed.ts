@@ -340,7 +340,7 @@ function strikeProblem(
     return err('self_target', `${striker} cannot make ${what} against themselves`);
   }
 
-  const owedHere = mayAct(state, striker);
+  const owedHere = mayAct(state, striker, 'act');
   if (owedHere !== null) return owedHere;
 
   const reach = reachedBy(state, striker, target, what, UNARMED_REACH);
@@ -744,7 +744,7 @@ export function escapeGrapple(
     (stamp) => {
       // A mandatory effect this creature has been caught by, or a turn whose
       // start has not arrived. **After the duplicate check, never before it.**
-      const owedHere = mayAct(state, who);
+      const owedHere = mayAct(state, who, 'act');
       if (owedHere !== null) return owedHere;
 
       const creature = creatureOf(state, who);
@@ -1019,7 +1019,7 @@ export function detachFrom(
       // A mandatory effect this creature has been caught by, or a turn whose
       // start has not arrived. After the duplicate check, as `escapeGrapple`'s
       // is and for its reason.
-      const owedHere = mayAct(state, who);
+      const owedHere = mayAct(state, who, 'act');
       if (owedHere !== null) return owedHere;
 
       const creature = creatureOf(state, who);
@@ -1133,8 +1133,10 @@ export function letGoOfAttachment(
     // **`mayAct` applies, because this spends movement**, which is the rule
     // `mountCreature` states of the same spend: a creature owing a mandatory
     // saving throw settles it before it moves anywhere. After the duplicate
-    // check, never before it.
-    const owedHere = mayAct(state, who);
+    // check, never before it. Asked only whether the attacher is alive: the
+    // five feet the line prints are measured below against the Speed its own
+    // hold pinned at 0 and set aside, which the mover's Speed would refuse.
+    const owedHere = mayAct(state, who, 'alive');
     if (owedHere !== null) return owedHere;
 
     const creature = creatureOf(state, who);

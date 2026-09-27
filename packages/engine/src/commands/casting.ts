@@ -97,7 +97,7 @@ import {
   NOTHING_GAINED,
   rewardsForDropping,
 } from './drop-rewards.js';
-import { mayAct, pendingCastingsOf } from './holds.js';
+import { actorRefusal, mayAct, pendingCastingsOf } from './holds.js';
 import { recordD20Test, savingSupport } from './rolls.js';
 import { type CastSpellRequest } from './targeting.js';
 
@@ -894,13 +894,14 @@ function castSpellWith(
 ): Result<GameEvent[]> {
   const caster = creatureOf(state, id);
   if (caster === null) return unknownCreature(id);
-  if (caster.vitals.dead) return err('dead', `${id} is dead and casts nothing`);
 
   // SRD Incapacitated: "You can't take any action, Bonus Action, or Reaction."
-  // Every casting time is one of those, so none of them is available.
-  if (isIncapacitated(caster.conditions)) {
-    return err('incapacitated', `${id} is Incapacitated and can't cast`);
-  }
+  // Every casting time is one of those, so none of them is available — and a
+  // dead caster casts nothing. Asked of the actor's own state, the question
+  // `mayAct` asks, because this low-level half is reached by `castSpell`,
+  // which `mayAct` is deliberately not in front of.
+  const cannot = actorRefusal(state, id, 'act');
+  if (cannot !== null) return cannot;
 
   const name = validateSpellName(command.spell);
   if (!name.ok) return name;
@@ -1853,7 +1854,10 @@ export function endOngoingSpell(
   command: CommandIdentity = {},
 ): Result<GameEvent[]> {
   return once(state, `end-ongoing:${castingId}`, { ...command, on }, () => [], (stamp) => {
-    const owed = mayAct(state, casterId);
+    // A dismissal costs no action, so `mayAct` asks only whether the caster is
+    // alive; whether an Incapacitated one may dismiss is this command's own
+    // reading, below, after it knows which spell is being let go.
+    const owed = mayAct(state, casterId, 'alive');
     if (owed !== null) return owed;
 
     const caster = creatureOf(state, casterId);
@@ -1978,7 +1982,7 @@ export function endOngoingSpellOnSelf(
   command: CommandIdentity = {},
 ): Result<GameEvent[]> {
   return once(state, `end-on-self:${castingId}:${id}`, command, () => [], (stamp) => {
-    const owed = mayAct(state, id);
+    const owed = mayAct(state, id, 'act');
     if (owed !== null) return owed;
 
     const creature = creatureOf(state, id);
@@ -2000,9 +2004,8 @@ export function endOngoingSpellOnSelf(
       return err('no_effect_there', `${record.spell} is not on ${id}, so it cannot end there`);
     }
 
-    if (isIncapacitated(creature.conditions)) {
-      return err('incapacitated', `${id} is Incapacitated and can't take an action`);
-    }
+    // An Incapacitated target cannot take the Magic action this costs: refused
+    // `incapacitated` by `mayAct` above, which asks it of every act.
 
     if (state.combat === null) {
       return ok([
@@ -2079,7 +2082,7 @@ export function endConcentration(
   // *inside* it, for the reason this file has now recorded nine times: a retry
   // arrives at the debt its own first run may have raised.
   return once(state, `end-concentration:${id}`, { ...command, reason }, () => [], (stamp) => {
-    const owed = mayAct(state, id);
+    const owed = mayAct(state, id, 'alive');
     if (owed !== null) return owed;
 
     const creature = creatureOf(state, id);
@@ -2630,7 +2633,7 @@ export function resolveCast(
   // tell a retry about the world its own first run arrived in, and this file
   // records eight prior occasions on which that is exactly what happened.
   return once(state, `cast:${id}`, command, () => [], (stamp) => {
-    const owedHere = mayAct(state, id);
+    const owedHere = mayAct(state, id, 'act');
     if (owedHere !== null) return owedHere;
     return resolveCastWith(state, id, command, stamp);
   });
@@ -2669,7 +2672,7 @@ export function continueCasting(
   return once(state, `continue-cast:${castingId}`, command, () => [], (stamp) => {
     // A mandatory effect somebody has been caught by, or a turn whose start has
     // not arrived. **After the duplicate check, never before it.**
-    const owedHere = mayAct(state, casterId);
+    const owedHere = mayAct(state, casterId, 'act');
     if (owedHere !== null) return owedHere;
 
     const pending = state.pendingCastings[castingId];

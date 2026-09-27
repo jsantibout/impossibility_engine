@@ -4791,6 +4791,161 @@ describe('every command that spends something asks whether it may', () => {
 });
 
 /**
+ * E-DOWN: **a dead creature takes no action and makes no move of its own.**
+ *
+ * Found by the first live playtest: a Fighter dead of three failed death saves
+ * was accepted a `move`, and a goblin took an Opportunity Attack on the corpse.
+ * `mayAct` now asks the actor's own state before the world's debts
+ * (`actorRefusal`), so the same enumerated spenders the debt sweep above runs
+ * are run again here against a world whose only fact about B is that B is
+ * dead — nothing owed, B's own turn, every slot of it unspent.
+ *
+ * **Derived, like the sweep above**: every spender the closure finds is either
+ * run here and refused `actor_dead`, refused at its own door and run here too
+ * (`DEAD_REFUSED_AT_ITS_OWN_DOOR`), or named in {@link OPEN_TO_THE_DEAD} with
+ * the sentence that keeps it open. A spender added tomorrow is one of the
+ * three or this fails naming it.
+ */
+const deadOnTheirTurn = (): readonly GameEvent[] => {
+  const log = owing();
+  return [
+    ...log,
+    ...unwrap(settleAreaEffects(fold('s', log), supply()), 'settle').events,
+    { type: 'creature-died', id: B, cause: 'the fixture' },
+  ];
+};
+
+/**
+ * The spenders `mayAct` is deliberately not in front of that still refuse a
+ * corpse, each at a door of its own — `actorRefusal`, asked where the command
+ * is the actor's act but the world's debts are not its to wait on.
+ */
+const DEAD_REFUSED_AT_ITS_OWN_DOOR: readonly Spender[] = [
+  // The low-level half of a casting: `castSpellWith` asks the caster's state.
+  { name: 'castSpell', run: (s) => castSpell(s, B, { spell: 'Inflict Wounds', level: 1, slotLevel: 1 }) },
+  // A Reaction. Nothing lapses a readied action on death, so B is made to
+  // hold one before dying, and the release asks the holder's state.
+  {
+    name: 'releaseReady',
+    run: (s) => {
+      const log = owing();
+      const settled = [...log, ...unwrap(settleAreaEffects(fold('s', log), supply()), 'settle').events];
+      const readied = [
+        ...settled,
+        ...unwrap(
+          takeReady(fold('s', settled), B, { trigger: 'when it moves', response: { kind: 'action' } }, SRD_CONTENT),
+          'ready',
+        ),
+        { type: 'creature-died', id: B, cause: 'the fixture' } satisfies GameEvent,
+      ];
+      void s;
+      return releaseReady(fold('s', readied), B, {}, supply());
+    },
+  },
+];
+
+/**
+ * The spenders a dead creature's state does not close, each with why. Every
+ * one is a door that is not the corpse's own act — something done to it, or a
+ * settlement of something already open — or one whose Reaction is refused one
+ * step further in.
+ */
+const OPEN_TO_THE_DEAD: Readonly<Record<string, string>> = {
+  takeOpportunityAttack:
+    'a Reaction offered only to a creature neither dead nor Incapacitated (`provokedBy`), and the swing it takes goes through `resolveAttack`, whose `mayAct` refuses a reactor who died between the offer and the answer `actor_dead`; declining stays open, because a window a corpse cannot close would strand the mover',
+  takeAttackReaction:
+    'a Reaction answering a window somebody else opened, offered only to the living and capable (`reactionOpportunities`); what it costs is asked at `spendReactionCost`, which refuses a dead reactor `actor_dead` and, where it costs the Reaction, an Incapacitated one',
+  takeDamageReaction: 'a Reaction closing a window, refused a corpse at `spendReactionCost` as `takeAttackReaction` is',
+  takeTestReaction: 'a Reaction closing a window, refused a corpse at `spendReactionCost` as `takeAttackReaction` is',
+  takeDamageResponse: 'a Reaction closing a window, refused a corpse at `spendReactionCost` as `takeAttackReaction` is',
+  resolveFall:
+    'the ground: a fall happens to a corpse as to anyone, and the one thing it spends is a Reaction a living faller elects to land with',
+  resolveTest:
+    'a D20 Test the table asked for, which is not an act of the creature rolling it — a saving throw a spell forces is the spell’s',
+  resolveAttackDamage: 'the settlement of an attack already made; a guard would strand the held roll',
+  settleDamage:
+    'the settlement of a damage window the engine is holding open; the damage lands on the living and the dead alike, and refusing it would strand the roll',
+  resolveDeclaredCast: 'the settlement of a casting already held open; refusing it would deadlock the window',
+  endRest:
+    'not an act in the turn economy, and closed a step earlier: `beginRest` refuses a corpse (`dead`, "past resting"), so a dead creature has no rest to end',
+  settleAreaEffects: 'the settlement of what an area owes, which reaches the dead as the fold raised it',
+  triggerGlyph: 'the DM’s word that a rune went off; nobody spends anything to be caught by one',
+  settleBlockDeadlines: 'the settlement of a debt the clock raised; a limb rises or withers whoever is dead',
+  resolveTurn:
+    'the turn boundary: a dead creature’s turn still has to end, or the fight stops at the corpse — and a dying one’s is where its death save is rolled',
+};
+
+describe('every command that spends an action or movement refuses a dead actor', () => {
+  const all = Object.values(MODULE_SOURCE).join('\n');
+  const spenders = new Set([...spendersIn(all)].filter((name) => COMMAND_SURFACE.has(name)));
+
+  it('accounts for every spender: run dead, refused at its own door, or open with a reason', () => {
+    const run = new Set([...SPENDERS, ...DEAD_REFUSED_AT_ITS_OWN_DOOR].map((one) => one.name));
+    const accounted = new Set([...run, ...Object.keys(OPEN_TO_THE_DEAD)]);
+    expect([...spenders].filter((name) => !accounted.has(name)).sort()).toEqual([]);
+    expect([...accounted].filter((name) => !spenders.has(name)).sort()).toEqual([]);
+    // And no door is both run and kept open, which would be an exemption gone
+    // stale.
+    expect(Object.keys(OPEN_TO_THE_DEAD).filter((name) => run.has(name))).toEqual([]);
+    expect(Object.values(OPEN_TO_THE_DEAD).every((reason) => reason.length > 20)).toBe(true);
+  });
+
+  it('really is B who is dead, on B’s own turn, owing nothing', () => {
+    const state = fold('s', deadOnTheirTurn());
+    expect(state.creatures[B]?.vitals.dead).toBe(true);
+    expect(state.owedAreaEffects).toEqual([]);
+    expect(state.combat?.order[state.combat.turnIndex]?.id).toBe(B);
+  });
+
+  for (const spender of [...SPENDERS, ...DEAD_REFUSED_AT_ITS_OWN_DOOR]) {
+    it(`${spender.name}: refused actor_dead`, () => {
+      const out = spender.run(fold('s', deadOnTheirTurn()));
+      expect(isErr(out) ? out.code : 'ok').toBe('actor_dead');
+    });
+  }
+
+  /**
+   * And every other door `mayAct` stands in front of — the ones that spend
+   * nothing the closure can see — refuses the corpse the same way, because
+   * `mayAct` asks the actor before it asks anything else.
+   */
+  const guardedButSpendingNothing: readonly Spender[] = [
+    { name: 'endConcentration', run: (s) => endConcentration(s, B, 'voluntary') },
+    { name: 'endOngoingSpell', run: (s) => endOngoingSpell(s, B, 'cast:1', null) },
+    { name: 'enterElsewhere', run: (s) => enterElsewhere(s, B, SRD_CONTENT, { castingId: 'cast:1' }) },
+    { name: 'drawWayIn', run: (s) => drawWayIn(s, B, SRD_CONTENT, { castingId: 'cast:1', up: true }) },
+    {
+      name: 'createDevice',
+      run: (s) =>
+        createDevice(s, B, {
+          feature: 'test:tinker',
+          device: A,
+          name: 'a tinkered thing',
+          function: 'it whistles',
+          placement: { from: { creature: A }, feet: 5, bearing: 180 },
+        }),
+    },
+    { name: 'dismantleDevice', run: (s) => dismantleDevice(s, B, { device: A }) },
+  ];
+
+  it('runs every guarded door that spends nothing the closure can see', () => {
+    const guarded = guardedIn(all);
+    // Less the guard itself, whose own declaration names it.
+    const quiet = [...guarded]
+      .filter((name) => COMMAND_SURFACE.has(name) && !spenders.has(name) && name !== 'mayAct')
+      .sort();
+    expect(guardedButSpendingNothing.map((one) => one.name).sort()).toEqual(quiet);
+  });
+
+  for (const door of guardedButSpendingNothing) {
+    it(`${door.name}: refused actor_dead`, () => {
+      const out = door.run(fold('s', deadOnTheirTurn()));
+      expect(isErr(out) ? out.code : 'ok').toBe('actor_dead');
+    });
+  }
+});
+
+/**
  * The commands that end a casting without spending anything — and the sweep
  * that can see them, which the action-economy closure cannot.
  *

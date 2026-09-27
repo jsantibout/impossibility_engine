@@ -233,7 +233,7 @@ export function takePrintedMove(
       if (state.pendingAttack !== null) {
         return err('attack_pending', 'a hit is waiting for its damage; settle it first');
       }
-      const owedHere = mayAct(state, id);
+      const owedHere = mayAct(state, id, 'act');
       if (owedHere !== null) return owedHere;
 
       const creature = creatureOf(state, id);

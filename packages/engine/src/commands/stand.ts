@@ -71,7 +71,9 @@ export function standUp(
   return once(state, `stand-up:${id}`, command, () => [], (stamp) => {
     // A mandatory effect this creature has been caught by, or a turn whose
     // start has not arrived. **After the duplicate check, never before it.**
-    const owedHere = mayAct(state, id);
+    // Asked only whether the creature is alive: a Speed of 0 is refused below
+    // as `cannot_stand`, the sentence SRD prints for exactly this.
+    const owedHere = mayAct(state, id, 'alive');
     if (owedHere !== null) return owedHere;
 
     const creature = creatureOf(state, id);

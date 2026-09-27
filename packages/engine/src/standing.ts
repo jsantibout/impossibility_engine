@@ -7541,6 +7541,28 @@ export function hasSpeedInModeOn(state: GameState, who: CharacterId, mode: Movem
 }
 
 /**
+ * The Speed a move made in this mode is measured against, or null where there
+ * is none to measure it against.
+ *
+ * SRD "Climbing" and "Swimming": without a Climb or Swim Speed, "each foot of
+ * movement costs 1 extra foot" — the move is still made, **with the walking
+ * Speed**. A Fly or Burrow Speed has no unaided version, so a creature without
+ * one has nothing to move with and the answer is null rather than 0: "cannot"
+ * and "stopped" are {@link hasSpeedInModeOn}'s two questions, and a 0 here is
+ * always the second.
+ *
+ * One reading for the two questions asked of it: the allowance a move spends
+ * against (`wayOf` in `commands/movement.ts`) and whether the mover may move at
+ * all (`actorRefusal` in `commands/holds.ts`), so a Speed of 0 cannot be a
+ * refusal at one door and an allowance at the other.
+ */
+export function speedForMoveIn(state: GameState, who: CharacterId, mode: MovementMode): number | null {
+  if (hasSpeedInModeOn(state, who, mode)) return speedOf(state, who, mode);
+  if (mode === 'climb' || mode === 'swim') return speedOf(state, who, 'walk');
+  return null;
+}
+
+/**
  * SRD "Flying": "the creature falls unless it has the Hover trait", asked of
  * the creature rather than of its sheet.
  *

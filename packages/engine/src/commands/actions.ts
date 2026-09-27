@@ -77,7 +77,7 @@ import {
   type PrintedSaveOnACreature,
   withDeclaredDamage,
 } from './printed-save-clauses.js';
-import { hasCondition, isIncapacitated } from '../conditions.js';
+import { hasCondition } from '../conditions.js';
 import {
   applyEvent,
   type CommandStamp,
@@ -141,7 +141,7 @@ import { grantTemporaryHpTo } from './creatures.js';
 import { rollRecorded } from '../rolls.js';
 import { caughtIn, hazardSource } from '../hazards.js';
 import { featureTimer } from './features.js';
-import { mayAct } from './holds.js';
+import { actorRefusal, mayAct } from './holds.js';
 import { teleportTo } from './teleport.js';
 import { type MoveResolution, moveWithin } from './movement.js';
 import { castOrRelease } from './spell-resolution.js';
@@ -270,7 +270,7 @@ export function takeDash(
   return once(state, `dash:${id}`, command, () => [], (stamp) => {
     // A mandatory effect this creature has been caught by, or a turn whose start
     // has not arrived. **After the duplicate check, never before it.**
-    const owedHere = mayAct(state, id);
+    const owedHere = mayAct(state, id, 'act');
     if (owedHere !== null) return owedHere;
 
     const creature = creatureOf(state, id);
@@ -401,7 +401,7 @@ export function takeDisengage(
   return once(state, `disengage:${id}`, command, () => [], (stamp) => {
     // A mandatory effect this creature has been caught by, or a turn whose start
     // has not arrived. **After the duplicate check, never before it.**
-    const owedHere = mayAct(state, id);
+    const owedHere = mayAct(state, id, 'act');
     if (owedHere !== null) return owedHere;
 
     const creature = creatureOf(state, id);
@@ -837,7 +837,7 @@ export function takeStatedBonusAction(
     (stamp) => {
       // A mandatory effect this creature has been caught by, or a turn whose
       // start has not arrived. **After the duplicate check, never before it.**
-      const owedHere = mayAct(state, id);
+      const owedHere = mayAct(state, id, 'act');
       if (owedHere !== null) return owedHere;
 
       const creature = creatureOf(state, id);
@@ -1057,7 +1057,7 @@ export function takeStatedAction(
     (stamp) => {
       // A mandatory effect this creature has been caught by, or a turn whose
       // start has not arrived. **After the duplicate check, never before it.**
-      const owedHere = mayAct(state, id);
+      const owedHere = mayAct(state, id, 'act');
       if (owedHere !== null) return owedHere;
 
       const creature = creatureOf(state, id);
@@ -1329,7 +1329,7 @@ export function forcePrintedSave(
     (stamp) => {
       // A mandatory effect this creature has been caught by, or a turn whose
       // start has not arrived. **After the duplicate check, never before it.**
-      const owedHere = mayAct(state, id);
+      const owedHere = mayAct(state, id, 'act');
       if (owedHere !== null) return owedHere;
 
       const creature = creatureOf(state, id);
@@ -1986,20 +1986,17 @@ export function takeLegendaryAction(
     command,
     () => ({ events: [], usesLeft: 0, attack: null, unverified: [], duplicate: true }),
     (stamp) => {
-      const owedHere = mayAct(state, id);
+      // SRD *Monsters*: "The monster can't take a Legendary Action if it has
+      // the Incapacitated condition or is otherwise unable to take actions."
+      // Asked of the actor's own state by `mayAct` rather than left to the
+      // swing, because the Shield swings nothing and the Horn is taken `free`,
+      // which is the road that skips the Attack action's own capability check
+      // — and a dead monster is refused `actor_dead` by the same question.
+      const owedHere = mayAct(state, id, 'act');
       if (owedHere !== null) return owedHere;
 
       const creature = creatureOf(state, id);
       if (creature === null) return unknownCreature(id, 'has no record here yet; add it first');
-      if (creature.vitals.dead) return err('dead', `${id} is dead and takes no legendary action`);
-      // SRD *Monsters*: "The monster can't take a Legendary Action if it has
-      // the Incapacitated condition or is otherwise unable to take actions."
-      // Asked here rather than left to the swing, because the Shield swings
-      // nothing and the Horn is taken `free`, which is the road that skips the
-      // Attack action's own capability check.
-      if (isIncapacitated(effectiveConditions(state, id))) {
-        return err('incapacitated', `${id} is Incapacitated and can take no legendary action`);
-      }
 
       const line = legendaryLineOf(creature.sheet, command.line);
       if (line === null) {
@@ -2371,7 +2368,7 @@ export function takePrintedTeleport(
 
       // A mandatory effect this creature has been caught by, or a turn whose
       // start has not arrived. **After the duplicate check, never before it.**
-      const owedHere = mayAct(state, id);
+      const owedHere = mayAct(state, id, 'act');
       if (owedHere !== null) return owedHere;
 
       const creature = creatureOf(state, id);
@@ -2671,7 +2668,7 @@ export function takePrintedForm(
     (stamp) => {
       // A mandatory effect this creature has been caught by, or a turn whose
       // start has not arrived. After the duplicate check, never before it.
-      const owedHere = mayAct(state, id);
+      const owedHere = mayAct(state, id, 'act');
       if (owedHere !== null) return owedHere;
 
       const creature = creatureOf(state, id);
@@ -2919,7 +2916,7 @@ export function takePrintedPull(
         return err('attack_pending', 'a hit is waiting for its damage; settle it first');
       }
 
-      const owedHere = mayAct(state, id);
+      const owedHere = mayAct(state, id, 'act');
       if (owedHere !== null) return owedHere;
 
       const creature = creatureOf(state, id);
@@ -3318,7 +3315,7 @@ export function castPrintedLine(
     (stamp) => {
       // A mandatory effect this creature has been caught by, or a turn whose
       // start has not arrived. **After the duplicate check, never before it.**
-      const owedHere = mayAct(state, id);
+      const owedHere = mayAct(state, id, 'act');
       if (owedHere !== null) return owedHere;
 
       const creature = creatureOf(state, id);
@@ -3760,7 +3757,7 @@ export function takeDodge(
   return once(state, `dodge:${id}`, command, () => [], (stamp) => {
     // A mandatory effect this creature has been caught by, or a turn whose start
     // has not arrived. **After the duplicate check, never before it.**
-    const owedHere = mayAct(state, id);
+    const owedHere = mayAct(state, id, 'act');
     if (owedHere !== null) return owedHere;
 
     const creature = creatureOf(state, id);
@@ -3981,7 +3978,7 @@ export function takeHide(
     (stamp) => {
       // A mandatory effect this creature has been caught by, or a turn whose
       // start has not arrived. **After the duplicate check, never before it.**
-      const owedHere = mayAct(state, id);
+      const owedHere = mayAct(state, id, 'act');
       if (owedHere !== null) return owedHere;
 
       const creature = creatureOf(state, id);
@@ -4195,7 +4192,7 @@ export function useFreeObjectInteraction(
 ): Result<GameEvent[]> {
   return once(state, `free-interaction:${id}`, command, () => [], (stamp) => {
     // **After the duplicate check, never before it.**
-    const owedHere = mayAct(state, id);
+    const owedHere = mayAct(state, id, 'act');
     if (owedHere !== null) return owedHere;
 
     // SRD Gaseous Form: "any objects it was carrying or holding can't be
@@ -4274,7 +4271,7 @@ export function takeUtilize(
   return once(state, `utilize:${id}`, command, () => [], (stamp) => {
     // A mandatory effect this creature has been caught by, or a turn whose start
     // has not arrived. **After the duplicate check, never before it.**
-    const owedHere = mayAct(state, id);
+    const owedHere = mayAct(state, id, 'act');
     if (owedHere !== null) return owedHere;
 
     const creature = creatureOf(state, id);
@@ -4439,7 +4436,7 @@ function takeActionCheck(
     (stamp) => {
       // A mandatory effect this creature has been caught by, or a turn whose
       // start has not arrived. **After the duplicate check, never before it.**
-      const owedHere = mayAct(state, id);
+      const owedHere = mayAct(state, id, 'act');
       if (owedHere !== null) return owedHere;
 
       const creature = creatureOf(state, id);
@@ -4681,7 +4678,7 @@ export function takeHelp(
     (stamp) => {
       // A mandatory effect this creature has been caught by, or a turn whose
       // start has not arrived. **After the duplicate check, never before it.**
-      const owedHere = mayAct(state, id);
+      const owedHere = mayAct(state, id, 'act');
       if (owedHere !== null) return owedHere;
 
       const creature = creatureOf(state, id);
@@ -4884,7 +4881,7 @@ export function takeReady(
   return once(state, `ready:${id}`, command, () => [], (stamp) => {
     // A mandatory effect this creature has been caught by, or a turn whose start
     // has not arrived. **After the duplicate check, never before it.**
-    const owedHere = mayAct(state, id);
+    const owedHere = mayAct(state, id, 'act');
     if (owedHere !== null) return owedHere;
 
     const creature = creatureOf(state, id);
@@ -5248,6 +5245,15 @@ export function releaseReady(
       });
     }
 
+    // The Reaction is the holder's own act, so the holder's own state is asked
+    // of it. Nothing lapses a readied action on death — Ready's hold ends at
+    // the start of the holder's next turn and on a broken Concentration, not
+    // on a corpse — so a dead holder is refused here rather than taking it.
+    // `mayAct` is not asked: a Reaction answers a trigger that is already
+    // happening, and the world's debts are not its to wait on.
+    const cannot = actorRefusal(state, id, 'act');
+    if (cannot !== null) return cannot;
+
     if (state.combat === null || state.combat.budgets[id] === undefined) {
       return err('not_in_combat', 'there is no Reaction to spend outside combat');
     }
@@ -5459,7 +5465,7 @@ export function extinguishFire(
   return once(state, `extinguish:${id}`, command, () => [], (stamp) => {
     // A mandatory effect this creature has been caught by, or a turn whose
     // start has not arrived. **After the duplicate check, never before it.**
-    const owedHere = mayAct(state, id);
+    const owedHere = mayAct(state, id, 'act');
     if (owedHere !== null) return owedHere;
 
     const creature = creatureOf(state, id);

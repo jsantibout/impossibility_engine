@@ -251,7 +251,7 @@ export function useItem(
     const creature = creatureOf(state, id);
     if (creature === null) return unknownCreature(id);
 
-    const holding = mayAct(state, id);
+    const holding = mayAct(state, id, 'act');
     if (holding !== null) return holding;
 
     const item = supply.content.item(command.item);

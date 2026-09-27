@@ -1935,8 +1935,10 @@ export function resolveAttack(
       );
     }
 
-    // And whatever this attacker has been caught by: swinging is acting.
-    const owedHere = mayAct(state, id);
+    // And whatever this attacker has been caught by: swinging is acting. A dead
+    // or Incapacitated attacker is refused here too, on the road a free swing
+    // takes as well as on the one that spends the Attack action.
+    const owedHere = mayAct(state, id, 'act');
     if (owedHere !== null) return owedHere;
 
     const attacker = creatureOf(state, id);
@@ -1955,7 +1957,6 @@ export function resolveAttack(
     if (victim === null) {
       return unknownCreature(command.target, 'has no record here yet; add it first');
     }
-    if (attacker.vitals.dead) return err('dead', `${id} is dead and swings at nothing`);
 
     // — what the attacker elected before anything is thrown ————————————————
     //

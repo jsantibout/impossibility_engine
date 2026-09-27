@@ -65,7 +65,7 @@ import {
 } from '../positioning.js';
 import { barriersAgainst, canSee } from '../standing.js';
 import { anchorNeeded, creatureOf, sceneFor, unknownCreature } from './command.js';
-import { mayAct } from './holds.js';
+import { owedRefusal } from './holds.js';
 
 export interface RelocateCommand extends CommandIdentity {
   /** Where to, relative to something already established. */
@@ -159,7 +159,7 @@ export function relocateCreature(
         return err('attack_pending', 'a hit is waiting for its damage; settle it first');
       }
 
-      const owedHere = mayAct(state, who);
+      const owedHere = owedRefusal(state, who);
       if (owedHere !== null) return owedHere;
 
       const done = teleportTo(state, who, command, stamp);

@@ -23,7 +23,6 @@
  */
 
 import { type CharacterId, err, ok, type Result } from '@ie/shared';
-import { isIncapacitated } from '../conditions.js';
 import type { Content } from '../content.js';
 import { type GameEvent, type GameState } from '../events.js';
 import { type CommandIdentity, once } from '../idempotency.js';
@@ -60,7 +59,7 @@ export function assumeShape(
   return once(state, `assume-shape:${id}`, command, () => [], (stamp) => {
     // A mandatory effect this creature has been caught by, or a turn whose start
     // has not arrived. After the duplicate check, never before it.
-    const owedHere = mayAct(state, id);
+    const owedHere = mayAct(state, id, 'act');
     if (owedHere !== null) return owedHere;
 
     const creature = creatureOf(state, id);
@@ -74,10 +73,8 @@ export function assumeShape(
     }
 
     // SRD: the form ends on the Incapacitated condition, so it cannot begin
-    // under one either — the same clause read from the same list.
-    if (isIncapacitated(creature.conditions)) {
-      return err('incapacitated', `${id} is Incapacitated and cannot take a form`);
-    }
+    // under one either — refused `incapacitated` by `mayAct` above, which asks
+    // it of every act.
 
     const block = content.monsterById(command.form);
     if (block === null) return err('unknown_monster', `no stat block with the id ${command.form}`);
@@ -171,7 +168,7 @@ export function revertShape(
   command: CommandIdentity,
 ): Result<GameEvent[]> {
   return once(state, `revert-shape:${id}`, command, () => [], (stamp) => {
-    const owedHere = mayAct(state, id);
+    const owedHere = mayAct(state, id, 'act');
     if (owedHere !== null) return owedHere;
 
     const creature = creatureOf(state, id);

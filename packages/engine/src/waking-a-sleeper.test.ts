@@ -316,6 +316,12 @@ describe('SRD Sleep: someone within 5 feet spends an action', () => {
     if (!down.ok) expect(down.code).toBe('nothing_to_wake');
   });
 
+  /**
+   * A sleeper is Unconscious, and so Incapacitated: it takes no action at all,
+   * which is the refusal it meets first (E-DOWN) — before the rule that no
+   * sentence lets a creature shake itself awake. That rule is still asked of a
+   * creature that *can* act and names itself.
+   */
   it('refuses a creature shaking itself', () => {
     const game = new Game(field());
     game.cast('sleep', [FOE, MOB]);
@@ -323,7 +329,11 @@ describe('SRD Sleep: someone within 5 feet spends an action', () => {
 
     const alone = game.wake(FOE, FOE);
     expect(alone.ok).toBe(false);
-    if (!alone.ok) expect(alone.code).toBe('cannot_wake_yourself');
+    if (!alone.ok) expect(alone.code).toBe('incapacitated');
+
+    const awake = game.wake(ALLY, ALLY);
+    expect(awake.ok).toBe(false);
+    if (!awake.ok) expect(awake.code).toBe('cannot_wake_yourself');
   });
 
   it('is the same ending a blow is', () => {

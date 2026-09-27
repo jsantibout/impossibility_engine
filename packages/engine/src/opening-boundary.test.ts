@@ -201,12 +201,12 @@ describe('a fight that opens on a start-of-turn area', () => {
   it('makes the opening creature settle before it acts, and deals the spell', () => {
     const log = webbed();
     log.push(FIGHT);
-    expect(mayAct(fold('seed', log), VICTIM)).not.toBeNull();
+    expect(mayAct(fold('seed', log), VICTIM, 'act')).not.toBeNull();
 
     settle(log);
     const state = fold('seed', log);
     expect(owedAreaEffectsOf(state)).toEqual([]);
-    expect(mayAct(state, VICTIM)).toBeNull();
+    expect(mayAct(state, VICTIM, 'act')).toBeNull();
     // SRD Web: "each creature that starts its turn in the webs must succeed on
     // a Dexterity saving throw or have the Restrained condition." The fixture's
     // penalty makes it fail.

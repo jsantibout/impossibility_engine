@@ -20,6 +20,7 @@ import {
   fliesWithoutFallingOn,
   hasSpeedInModeOn,
   sheetAsItStands,
+  speedForMoveIn,
   speedOf,
   standingFor,
 } from '../standing.js';
@@ -92,7 +93,7 @@ import {
   SINGLE_STEPS_REQUIRED,
   unknownCreature,
 } from './command.js';
-import { completeIfSettled, mayAct } from './holds.js';
+import { completeIfSettled, mayAct, owedRefusal, WALKING } from './holds.js';
 import { carryAreaWithMover, sweptRoute } from './ongoing.js';
 
 /**
@@ -391,7 +392,19 @@ export function moveWithin(
     }
     // Walking on out of an area that has already caught you would leave the
     // engine owing a save against a Web the mover is no longer standing in.
-    const owedHere = mayAct(state, id);
+    //
+    // **And a move the mover makes asks whether the mover can make it** — the
+    // playtest's corpse, walking, and a goblin swinging at it. A move somebody
+    // else is making (`forced`) asks only what the world is owed: a shove, a
+    // drag, a fall happen to the dead and the Unconscious exactly as to anyone,
+    // and provoke nothing, because none of them is the creature's own movement.
+    // A move paid for out of something other than the mover's Speed — a
+    // readied move's Reaction, a summons' commanded feet — asks only whether
+    // the mover is alive, and is measured against the `allowance` it was given.
+    const owedHere =
+      command.forced === true
+        ? owedRefusal(state, id)
+        : mayAct(state, id, allowance === null ? { move: command.mode ?? 'walk' } : 'alive');
     if (owedHere !== null) return owedHere;
 
     const mover = creatureOf(state, id);
@@ -1422,12 +1435,12 @@ function wayOf(
   const conditions = state.creatures[id]?.conditions;
   const crawling = conditions !== undefined && hasCondition(conditions, 'prone') ? 1 : 0;
 
-  if (hasSpeedInModeOn(state, id, mode)) {
-    return ok({ allowance: speedOf(state, id, mode), surcharge: 1 + crawling, dragging });
-  }
-
-  if (mode === 'climb' || mode === 'swim') {
-    return ok({ allowance: speedOf(state, id, 'walk'), surcharge: 2 + crawling, dragging });
+  // The Speed is `speedForMoveIn`'s, which `actorRefusal` asks too: a mover
+  // whose answer is 0 was refused `no_speed` before it got here.
+  const allowance = speedForMoveIn(state, id, mode);
+  if (allowance !== null) {
+    const surcharge = hasSpeedInModeOn(state, id, mode) ? 1 : 2;
+    return ok({ allowance, surcharge: surcharge + crawling, dragging });
   }
 
   return err(
@@ -2545,9 +2558,11 @@ export function declineOpportunity(
  * for free. It also keeps the log honest — a `movement-spent` of 0 feet is an
  * event recording that nothing happened.
  *
- * It reports `not_enough_movement`, which is the code this refused under
- * before the allowance became live, because a refusal code is observable
- * behaviour and a caller may branch on one.
+ * **The refusal is `mayAct`'s now, as `no_speed`**, asked by both commands
+ * before this is reached and in or out of a fight. It had been
+ * `not_enough_movement`, asked here and only where a budget was running, so
+ * an Unconscious rider outside a fight climbed onto a horse for nothing. One
+ * code for one sentence: the one every voluntary move at a Speed of 0 meets.
  */
 function spendMounting(state: GameState, rider: CharacterId): Result<readonly GameEvent[]> {
   if (state.combat === null || state.combat.budgets[rider] === undefined) return ok([]);
@@ -2557,11 +2572,9 @@ function spendMounting(state: GameState, rider: CharacterId): Result<readonly Ga
 
   // Half the Speed the rider *has*, not half the one the Initiative order
   // pinned: SRD says "half your Speed", and a Barbarian's Fast Movement is as
-  // much a part of that as Exhaustion is. One reader answers both.
+  // much a part of that as Exhaustion is. One reader answers both. Never 0
+  // here: `mayAct` refused that as `no_speed`.
   const speed = speedOf(state, rider);
-  if (speed <= 0) {
-    return err('not_enough_movement', `${rider} has no Speed to mount or dismount with`);
-  }
 
   const feet = mountingCost(speed);
   // The economy's refusal is passed through under its own code, for the reason
@@ -2603,7 +2616,7 @@ export function mountCreature(
 ): Result<GameEvent[]> {
   return once(state, `mount:${rider}`, { ...command, target, ...options }, () => [], (stamp) => {
     // **After the duplicate check, never before it.**
-    const owedHere = mayAct(state, rider);
+    const owedHere = mayAct(state, rider, WALKING);
     if (owedHere !== null) return owedHere;
 
     const scene = sceneFor(state, rider, `${rider} to climb onto ${target} in`);
@@ -2658,7 +2671,7 @@ export function dismountRider(
   command: CommandIdentity = {},
 ): Result<GameEvent[]> {
   return once(state, `dismount:${rider}`, { ...command, placement }, () => [], (stamp) => {
-    const owedHere = mayAct(state, rider);
+    const owedHere = mayAct(state, rider, WALKING);
     if (owedHere !== null) return owedHere;
 
     const scene = sceneFor(state, rider, `${rider} to get down into`);

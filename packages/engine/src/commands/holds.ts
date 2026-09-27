@@ -19,6 +19,7 @@
  */
 
 import { type CharacterId, err, type Err } from '@ie/shared';
+import { type MovementMode } from '../character.js';
 import { type PendingSave } from '../timers.js';
 import {
   applyEvent,
@@ -30,7 +31,9 @@ import {
   type PendingMove,
   type PendingTest,
 } from '../events.js';
+import { isIncapacitated } from '../conditions.js';
 import { moveCreature } from '../positioning.js';
+import { effectiveConditions, speedForMoveIn } from '../standing.js';
 import { type OwedAreaEffect } from '../spells.js';
 
 /**
@@ -333,12 +336,121 @@ export function unsettledRefusal(state: GameState, who: CharacterId): Err | null
   }
   // And whatever this creature in particular has been caught by — see
   // {@link mayAct}, which is the half of this policy that is per-creature.
-  return mayAct(state, who);
+  return mayAct(state, who, 'act');
+}
+
+/**
+ * What a voluntary act asks of the body taking it — the argument
+ * {@link mayAct} and {@link actorRefusal} are told, by every command that
+ * calls them.
+ *
+ * - `'act'` — an Action, a Bonus Action, a Reaction, or what is taken with
+ *   one: a feature's use, a spell, a swing, a potion. Refused dead or
+ *   Incapacitated.
+ * - `{ move }` — voluntary movement in the mode named, paid for out of the
+ *   mover's own Speed: a walk, a climb, the half-Speed that mounting costs.
+ *   Refused dead, or where the Speed that mode moves with is 0. **Not**
+ *   refused for being Incapacitated alone: SRD Incapacitated forbids actions,
+ *   Bonus Actions and Reactions and says nothing about moving, so a Stunned
+ *   creature — whose Speed the SRD leaves alone — may still walk.
+ *   Unconscious, Paralyzed and Petrified stop a move through their Speed of 0,
+ *   which is the sentence each of them prints.
+ * - `'alive'` — refused dead, and nothing else. For a choice that costs no
+ *   action at all (letting a Concentration go, dismissing a spell), and for a
+ *   door that measures the move against a rule of its own rather than the
+ *   mover's Speed: standing up (`cannot_stand`, SRD "If your Speed is 0, you
+ *   can't right yourself"), a Darkmantle letting go on the five feet its line
+ *   prints despite the Speed its hold pinned at 0, and a move somebody else
+ *   pays for — a readied move's Reaction, an Unseen Servant's command.
+ */
+export type Doing = 'act' | 'alive' | { readonly move: MovementMode };
+
+/** The walk, which is what "voluntary movement" is unless a mode is named. */
+export const WALKING: Doing = { move: 'walk' };
+
+/**
+ * The actor's own state, asked once: whether the creature taking a voluntary
+ * act is able to take it at all.
+ *
+ * Found by the first live playtest. A Fighter failed three death saves and
+ * was dead, and the engine accepted a `move` by the corpse — and a goblin took
+ * an Opportunity Attack on it. A creature that dies stops being Unconscious
+ * ("a different state entirely", as `damageCreature` says when it lifts the
+ * condition), so no condition stopped the corpse, and nothing asked whether it
+ * was alive. The per-command refusals that did exist were partial: the turn
+ * budget refuses an Incapacitated creature's Action, but only where there is a
+ * budget, so outside a fight a dying hero could still swing.
+ *
+ * The three causes, each under its own code:
+ *
+ * - **`actor_dead`.** SRD "Dead": "A dead creature has no Hit Points and
+ *   can't regain them unless it is first revived by magic". A corpse takes no
+ *   action and makes no move of its own, whatever `doing` says. Revivify is
+ *   cast *on* it, by somebody else, and meets no refusal here.
+ * - **`incapacitated`** — the code the turn budget, the casting door and the
+ *   Reaction door already refuse under, kept so there is one code for one
+ *   rule. SRD Incapacitated: "You can't take any action, Bonus Action, or
+ *   Reaction." Asked for `'act'` only.
+ * - **`no_speed`.** SRD Unconscious and Grappled: "Your Speed is 0 and can't
+ *   increase." Asked for `{ move }` only, of the Speed the mode moves with
+ *   ({@link speedForMoveIn}). A mode the creature has no Speed in at all is
+ *   not this refusal — the move's own `no_such_speed` says that — and a Dash
+ *   banked before the Speed fell to 0 does not buy a step: a Speed of 0 is
+ *   "can't increase", and the budget's arithmetic is for a Speed that is
+ *   there.
+ *
+ * What is *done to* a creature is never asked here: a shove, a drag, a fall, a
+ * teleport somebody else performs, damage, a death save, a heal, a Reaction
+ * window's settlement. Those doors call {@link owedRefusal} or nothing, and
+ * the invariant sweep in `invariants.test.ts` names each one.
+ *
+ * Null for a creature with no record, which is the caller's own
+ * `unknown_creature` to report — this is a question about a body, and there
+ * is none to ask it of.
+ */
+export function actorRefusal(state: GameState, who: CharacterId, doing: Doing): Err | null {
+  const creature = state.creatures[who];
+  if (creature === undefined) return null;
+  if (creature.vitals.dead) {
+    return err('actor_dead', `${who} is dead, and a dead creature takes no action and makes no move of its own`);
+  }
+  if (doing === 'act' && isIncapacitated(effectiveConditions(state, who))) {
+    return err('incapacitated', `${who} is Incapacitated and can take no action, Bonus Action or Reaction`);
+  }
+  if (typeof doing === 'object') {
+    const speed = speedForMoveIn(state, who, doing.move);
+    if (speed !== null && speed <= 0) {
+      return err('no_speed', `${who}'s Speed is 0, so ${who} cannot move of their own accord`);
+    }
+  }
+  return null;
 }
 
 /**
  * Whether anybody may take a voluntary action right now, and this creature in
  * particular.
+ *
+ * **The creature's own body first**: {@link actorRefusal}, which is whether it
+ * can take this act at all — dead, Incapacitated, or at a Speed of 0 — and so
+ * is a fact about it that no settlement will change. A corpse told a Web save
+ * is owed would settle the Web and be told it is dead.
+ *
+ * Then {@link owedRefusal}: what the world is owed before anybody acts into it.
+ */
+export function mayAct(state: GameState, who: CharacterId, doing: Doing): Err | null {
+  return actorRefusal(state, who, doing) ?? owedRefusal(state, who);
+}
+
+/**
+ * What the engine is owed before anybody may act, and before this creature in
+ * particular may — the half of {@link mayAct} that is about the world rather
+ * than about the actor's body.
+ *
+ * Called on its own by the doors that move or end things without anybody
+ * acting: a forced move, a relocation somebody else performs, and the turn
+ * boundary. They must still wait for the world to settle, and they must not
+ * ask whether the creature concerned is alive — a corpse can be dragged, and a
+ * dead creature's turn still has to end.
  *
  * **Two policies, and only the second is about the creature named.**
  *
@@ -368,11 +480,11 @@ export function unsettledRefusal(state: GameState, who: CharacterId): Err | null
  * already-open window — a guard that prevented its own settlement would be a
  * deadlock rather than a rule.
  *
- * One function, called by every command that spends an Action, a Bonus Action,
- * movement or a feature's use, rather than a sentence each of them writes out
- * again.
+ * One function, reached through {@link mayAct} by every command that spends an
+ * Action, a Bonus Action, movement or a feature's use, rather than a sentence
+ * each of them writes out again.
  */
-export function mayAct(state: GameState, who: CharacterId): Err | null {
+export function owedRefusal(state: GameState, who: CharacterId): Err | null {
   const caught = state.owedAreaEffects[0];
   if (caught !== undefined) {
     return err(

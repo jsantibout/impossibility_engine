@@ -756,7 +756,7 @@ export function evokeConjured(
     const creature = creatureOf(state, id);
     if (creature === null) return unknownCreature(id);
 
-    const holding = mayAct(state, id);
+    const holding = mayAct(state, id, 'act');
     if (holding !== null) return holding;
 
     const content = supply.content;
@@ -1554,7 +1554,7 @@ export function expendCharges(
   return once(state, `expend-charges:${id}`, inputs, () => [], (stamp) => {
     // A mandatory effect this creature has been caught by, or a turn whose
     // start has not arrived. **After the duplicate check, never before it.**
-    const owedHere = mayAct(state, id);
+    const owedHere = mayAct(state, id, 'act');
     if (owedHere !== null) return owedHere;
 
     const creature = creatureOf(state, id);
