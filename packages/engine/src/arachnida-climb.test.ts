@@ -30,6 +30,7 @@ const sheet: CharacterSheet = {
   shield: null,
   armorTraining: { light: true, medium: true, heavy: true, shields: true },
   baseSpeed: 30,
+  spellcastingAbility: null,
 };
 
 const TABLE: readonly GameEvent[] = [
