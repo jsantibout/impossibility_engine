@@ -4759,8 +4759,11 @@ export type SpellArea =
        * in the air. (W9-S4)
        *
        * **And a later move of the point keeps to the ground** — "rolling it
-       * along the ground" — so `relocateOrigin` refuses a step above the floor
-       * with the same `point_not_on_ground`. Occupancy is not asked again
+       * along the ground" — so `relocateOrigin` refuses a step above the
+       * lattice floor with the same `point_not_on_ground`. The barriers and
+       * pits the book lets it roll over are not on the lattice (the content
+       * hands them to the table), so a stated route crosses them at floor
+       * level and a step in the air is refused. Occupancy is not asked again
        * there: the book says what happens when the sphere is moved into a
        * creature's space, and it is the ram (`areaTrigger.onPointEntry`), which
        * stops the roll. (W9-T)

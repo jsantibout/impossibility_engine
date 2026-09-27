@@ -451,12 +451,20 @@ export function relocateOrigin(
 
   // SRD Flaming Sphere: "you can move the sphere up to 30 feet, **rolling it
   // along the ground**." The point the cast held to the ground
-  // (`area.pointOnUnoccupiedGround`) is held there on every step of the roll,
-  // where the lattice floor is the only ground there is. **The ground half
-  // only**: "If you move the sphere into a creature's space, that creature
-  // makes the save against the sphere, and the sphere stops moving" — a
-  // creature's space is the ram the book prints, not a refusal, and the
-  // activation stops the roll there (`onPointEntry`). (W9-T)
+  // (`area.pointOnUnoccupiedGround`) stays on the lattice floor for every
+  // step of the roll, because that floor is the only ground the engine has.
+  // **That is the lattice's reading and not more than the book says**: the
+  // book also lets the sphere go "over barriers up to 5 feet tall" and
+  // "across pits up to 10 feet wide", and the lattice holds neither a barrier
+  // nor a pit — the content hands that sentence to the table (`dmDecides`), and
+  // a route crosses one at floor level, as any mover's does. A step above the
+  // floor is therefore a sphere in the air with nothing the engine knows of
+  // under it, which is what is refused.
+  //
+  // **The ground half only**: "If you move the sphere into a creature's
+  // space, that creature makes the save against the sphere, and the sphere
+  // stops moving" — a creature's space is the ram the book prints, not a
+  // refusal, and the activation stops the roll there (`onPointEntry`). (W9-T)
   if (definition.area?.kind === 'sphere' && definition.area.pointOnUnoccupiedGround === true) {
     const aloft = legs.find((space) => space.z > 0);
     if (aloft !== undefined) {

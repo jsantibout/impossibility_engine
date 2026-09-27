@@ -169,6 +169,13 @@ describe('the sphere rolled along the ground', () => {
     expect(code(roll(log, sphere, { x: 130, y: 125, z: 10 }))).toBe('point_not_on_ground');
   });
 
+  /**
+   * The book lets the sphere go "over barriers up to 5 feet tall", and the
+   * lattice holds no barrier: the sentence is the table's (`dmDecides`) and a
+   * route crosses one at floor level. So a step five feet up is a sphere in
+   * the air over nothing the engine knows of, and it is refused — the
+   * lattice's reading of the hop, not a claim that the book forbids it.
+   */
   it('refuses a roll that leaves the ground on the way, and lands on it again', () => {
     const { log, sphere } = conjured();
     const out = roll(log, sphere, { x: 130, y: 130, z: 0 }, [{ x: 130, y: 125, z: 5 }]);

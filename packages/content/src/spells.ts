@@ -6043,8 +6043,9 @@ export const VAMPIRIC_TOUCH: SpellDefinition = {
  * is not an attack, so every blow it ever strikes comes through the
  * activation; what the casting's own list holds is the light, "The flaming
  * blade sheds Bright Light in a 10-foot radius and Dim Light for an
- * additional 10 feet", laid on the caster — who names themselves, as Blur's
- * caster does — and shining only while the blade is in hand
+ * additional 10 feet", laid on the caster — the one creature `casterOnly`
+ * admits, and the one a casting naming nobody is cast on — and shining only
+ * while the blade is in hand
  * (`LightPatch.whileHolding`, W9-S1).
  *
  * The blade is in the caster's hand, which is why this belongs to the family
@@ -6107,8 +6108,8 @@ export const FLAME_BLADE: SpellDefinition = {
  * and every bolt the spell ever throws comes through the activation. What the
  * casting does hold is the flame and its light (W9-S1): the flame is a
  * conjured thing in the caster's hand, as Flame Blade's blade is, and the
- * Bright and Dim Light are a `light` effect on the caster, who names
- * themselves, shining "While there" \u2014 while the flame is in the hand.
+ * Bright and Dim Light are a `light` effect on the caster, named or not,
+ * shining "While there" \u2014 while the flame is in the hand.
  *
  * **The 60 feet are the activation's, not the spell's.** SRD prints
  * **Range: Self**, because what the casting reaches is the caster's own hand;
@@ -11946,8 +11947,9 @@ export const THAUMATURGY: SpellDefinition = {
   // "**You** have Advantage on Charisma (Intimidation) checks": the caster and
   // nobody else, which is the one target rule that hands Booming Voice's mode a
   // creature without letting a cleric boom an ally's voice. The other five
-  // wonders happen within range and on nobody, and the caster names themselves
-  // for those too — the whole spell is a wonder the caster manifests.
+  // wonders happen within range and on nobody, and the casting is on the
+  // caster for those too, named or not — the whole spell is a wonder the
+  // caster manifests.
   targets: { count: 1, self: true, casterOnly: true },
   effects: [],
   // "You create **one** of the effects below": six branches, of which the
