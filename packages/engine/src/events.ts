@@ -3142,6 +3142,40 @@ export type GameEvent =
       readonly command?: CommandStamp;
     }
   /**
+   * The way into a casting's place is drawn up, or let down again — W9-S3.
+   *
+   * SRD Rope Trick: "That space can be reached by climbing the rope, which can
+   * be pulled into or dropped out of it." A creature inside did it, and `by`
+   * says who; `closed` is the state it left the way in, so a replay reads the
+   * rope where it was put rather than counting pulls. Folded onto
+   * `OngoingSpell.wayInClosed`, which the climb reads.
+   */
+  | {
+      readonly type: 'way-in-drawn';
+      readonly castingId: string;
+      readonly by: CharacterId;
+      readonly closed: boolean;
+      readonly command?: CommandStamp;
+    }
+  /**
+   * How high a casting's way in hangs, stated by the table — W9-S3.
+   *
+   * SRD Rope Trick: "One end of it hovers upward until the rope hangs
+   * perpendicular to the ground or the rope reaches a ceiling. At the rope's
+   * upper end, an Invisible 3-foot-by-5-foot portal opens." Where the ceiling
+   * is is a fact about the room, the table's alone (the owner's §10 falling
+   * ruling: such a door is the DM's), and a number the engine then reads: the
+   * climb in is measured from the portal, `feet` above the casting's point.
+   * Re-declaring overwrites; the rope does not move, but a table that misread
+   * its own room may say so.
+   */
+  | {
+      readonly type: 'way-in-height-declared';
+      readonly castingId: string;
+      readonly feet: number;
+      readonly command?: CommandStamp;
+    }
+  /**
    * Which side of the fight a creature is on.
    *
    * Declared rather than derived, like cover and line of sight, and its own

@@ -1013,6 +1013,16 @@ const UNCOVERED_EVENT_TYPES: readonly string[] = [
   // Thief paying from a Bonus Action through Fast Hands, and a Rogue without
   // the feature refused the cheaper price.
   'utilize-taken',
+  // A casting's way in drawn up, and the height it hangs at — SRD Rope Trick's
+  // rope, "which can be pulled into or dropped out of it", and its portal "at
+  // the rope's upper end" (W9-S3). Neither log was written when a place had a
+  // door that could be shut or a height the table stated: both fixtures fold
+  // to exactly the states they always folded to with the two fields absent on
+  // every ongoing record. `rope-drawn-up.test.ts` folds both and drives them
+  // end to end: the height asked for and pinned, the climb to the portal, the
+  // rope drawn up against a climber and not a flier, and let down again.
+  'way-in-drawn',
+  'way-in-height-declared',
   // What a casting did to one weapon. Neither log was written when a spell
   // could reach an object at all: no creature had a `weaponRiders` list, no
   // casting could name a weapon, and Shillelagh and Magic Weapon were both

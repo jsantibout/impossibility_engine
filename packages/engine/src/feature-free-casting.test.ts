@@ -372,7 +372,9 @@ describe("a Paladin's Faithful Steed casts Find Steed once between rests", () =>
     ).toEqual({
       by: AELRIC,
       castingId: null,
-      kept: { spell: 'find-steed', untilSummonerDies: true },
+      // And what it leaves behind when it goes, the spell's own sentence pinned
+      // on the bond (W9-S3).
+      kept: { spell: 'find-steed', untilSummonerDies: true, leavesBehind: true },
     });
   });
 });

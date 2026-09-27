@@ -184,6 +184,7 @@ import {
   dismissKeptSummons,
   dismissStrandedSummons,
   dismountRider,
+  drawWayIn,
   enterElsewhere,
   escapeFromInside,
   pullOutOfCreature,
@@ -1125,7 +1126,7 @@ const DISMISS_STRANDED_SUMMONS = tool({
     const dismissed = strandedSummons(context.campaign.state()).map(String);
     return settleEvents(
       context,
-      dismissStrandedSummons(context.campaign.state(), identity(context)),
+      dismissStrandedSummons(context.campaign.state(), identity(context), context.campaign.content),
       { dismissed },
     );
   },
@@ -1149,7 +1150,7 @@ const DISMISS_STRANDED_SUMMONS = tool({
 const RETURN_FROM_ELSEWHERE = tool({
   name: 'return_from_elsewhere',
   description:
-    'Bring a creature back into the scene from wherever a spell or a stat-block line sent it — the Ethereal Plane, an extradimensional space, another creature’s gullet — once the way back is open: the casting that sent it has ended, the Rope Trick is still hanging to climb down, or the creature that swallowed it has died. Name the space it stands in, measured from a landmark or a creature; the engine checks it against the rule pinned when the creature left (how far from the space it left or from the creature the rule names, whether it must be one the creature can see) and refuses one too far, one somebody is standing in, or one outside the scene. Omit the space and the engine takes the one space that qualifies, or asks which. `end_turn` refuses while a creature is stranded elsewhere by a casting that has ended, and names it.',
+    'Bring a creature back into the scene from wherever a spell or a stat-block line sent it — the Ethereal Plane, an extradimensional space, another creature’s gullet — once the way back is open: the casting that sent it has ended, the Rope Trick is still hanging to climb down, or the creature that swallowed it has died. Name the space it stands in, measured from a landmark or a creature; the engine checks it against the rule pinned when the creature left (how far from the space it left or from the creature the rule names, whether it must be one the creature can see) and refuses one too far, one somebody is standing in, or one outside the scene. Omit the space and the engine takes the one space that qualifies, or asks which. Coming back from the Ethereal Plane into a barrier that demands a saving throw of interplanar travel — SRD Magic Circle’s Cylinder — the engine rolls the save first, and on a failure the creature stays away and may be sent again to another space. `end_turn` refuses while a creature is stranded elsewhere by a casting that has ended, and names it.',
   mutates: true,
   selfAnswers: ['position'],
   input: z.object({
@@ -1159,10 +1160,15 @@ const RETURN_FROM_ELSEWHERE = tool({
   run: (context, args) =>
     settle(
       context,
-      returnFromElsewhere(context.campaign.state(), who(args.who), {
-        ...(args.to === undefined ? {} : { to: placementOf(args.to) }),
-        ...identity(context),
-      }),
+      returnFromElsewhere(
+        context.campaign.state(),
+        who(args.who),
+        {
+          ...(args.to === undefined ? {} : { to: placementOf(args.to) }),
+          ...identity(context),
+        },
+        context.campaign.supply(),
+      ),
       (value) => value.events,
       (value) => ({ returned: args.who, at: value.at, duplicate: value.duplicate }),
       (value) => value.unverified,
@@ -1175,13 +1181,15 @@ const RETURN_FROM_ELSEWHERE = tool({
  *
  * The creature's own act, so the call names the climber; the casting is the
  * rope. Everything the sentence gates is the engine's — within five feet of
- * the rope's point, no larger than the space admits, only while it has room —
- * and the movement the climb costs is the table's, which the outcome says.
+ * the portal at the rope's top, no larger than the space admits, only while it
+ * has room, and not while the rope is drawn up unless the climber can fly or is
+ * held aloft. How high the portal hangs is the room's and the DM's to state;
+ * the climb up to it is an ordinary move, charged as one. (W9-S3)
  */
 const CLIMB_INTO_SPACE = tool({
   name: 'climb_into_space',
   description:
-    'Have a creature climb into a place a running casting has opened — SRD Rope Trick’s extradimensional space. Name the climber and the casting; the engine refuses a climber too far from the casting’s point, one too large for the space, a space already holding as many as the book allows, and a casting that opens no such place. While inside, the creature has no position, is caught by no area and is reached by nothing; it climbs down with `return_from_elsewhere`, and drops out when the spell ends.',
+    'Have a creature enter a place a running casting has opened — SRD Rope Trick’s extradimensional space, through the portal at the top of its rope. Name the climber and the casting. The climber must first get up to the portal with `move` (a climb, or a flight), within five feet of it; how high the portal hangs is a fact about the room the DM states, and the call asks for it until then. The engine refuses a climber out of reach of the portal, one too large for the space, a space already holding as many as the book allows, a rope drawn up into the space (unless the climber can fly or is held aloft by magic), and a casting that opens no such place. While inside, the creature has no position, is caught by no area and is reached by nothing; it climbs down with `return_from_elsewhere`, and drops out when the spell ends.',
   mutates: true,
   input: z.object({
     who: creatureId.describe('The creature climbing in.'),
@@ -1197,6 +1205,35 @@ const CLIMB_INTO_SPACE = tool({
       (value) => value.events,
       (value) => ({ entered: args.who, castingId: args.castingId, duplicate: value.duplicate }),
       (value) => value.unverified,
+    ),
+});
+
+/**
+ * SRD Rope Trick: "That space can be reached by climbing the rope, which can
+ * be pulled into or dropped out of it." — W9-S3.
+ *
+ * The act of a creature inside, and nobody else's. It costs nothing the book
+ * prices; what it changes is who can climb in.
+ */
+const DRAW_ROPE = tool({
+  name: 'draw_rope',
+  description:
+    'Have a creature inside a place a running casting has opened pull the way in up after it, or let it down again — SRD Rope Trick’s rope, "which can be pulled into or dropped out of it". Name the creature and the casting, and `up`: true to draw the rope into the space, false to drop it out again. While it is drawn up, `climb_into_space` refuses anybody who would need the rope to reach the portal; a creature that can fly, or that magic holds aloft, still comes in. Refused for a creature that is not inside that space, and for a rope already where it was asked to be.',
+  mutates: true,
+  input: z.object({
+    who: creatureId.describe('The creature inside the space.'),
+    castingId: z.string().min(1).describe('The casting whose way in this is, from `look`.'),
+    up: z.boolean().describe('True to draw the rope up into the space; false to let it down again.'),
+  }),
+  run: (context, args) =>
+    settleEvents(
+      context,
+      drawWayIn(context.campaign.state(), who(args.who), context.campaign.content, {
+        castingId: args.castingId,
+        up: args.up,
+        ...identity(context),
+      }),
+      { castingId: args.castingId, drawnUp: args.up },
     ),
 });
 
@@ -1308,10 +1345,12 @@ const DISMISS_FAMILIAR = tool({
   run: (context, args) =>
     settle(
       context,
-      dismissKeptSummons(context.campaign.state(), who(args.caster), {
-        who: who(args.who),
-        ...identity(context),
-      }),
+      dismissKeptSummons(
+        context.campaign.state(),
+        who(args.caster),
+        { who: who(args.who), ...identity(context) },
+        context.campaign.content,
+      ),
       (value) => value.events,
       (value) => ({ dismissed: args.who, duplicate: value.duplicate }),
       (value) => value.unverified,
@@ -6332,6 +6371,7 @@ export const TOOLS: readonly ToolDefinition[] = [
   DECLINE_OPPORTUNITY,
   DECLINE_TEST_REACTION,
   CLIMB_INTO_SPACE,
+  DRAW_ROPE,
   COMMAND_SUMMONS,
   DISMISS_FAMILIAR,
   DISMISS_STRANDED_SUMMONS,

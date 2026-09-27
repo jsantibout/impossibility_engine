@@ -74,6 +74,7 @@
     "releaseCasting",
     "landEndRiders",
     "landsWhenReleased",
+    "fallsWhenReleased",
     "withPendingCasting",
     "withoutPendingCasting",
     "withoutScheduledDamage",

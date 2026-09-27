@@ -32,6 +32,8 @@ export const ONGOING_EVENTS = [
   'casting-save-recorded',
   'spell-origin-moved',
   'spell-aim-changed',
+  'way-in-drawn',
+  'way-in-height-declared',
   'concentration-started',
   'concentration-ended',
   'spell-fizzled',
@@ -270,6 +272,41 @@ export function applyOngoing({ state, next, legacy }: Applying, event: OngoingEv
       return {
         ...next,
         ongoing: { ...state.ongoing, [event.castingId]: { ...record, towards: event.towards } },
+      };
+    }
+
+    // **The rope drawn up or let down** — W9-S3. The casting has to be
+    // running and to hold the point its way in hangs from; the command refuses
+    // both, and a hand-built log that does either is loud rather than absorbed,
+    // on `spell-origin-moved`'s reading.
+    case 'way-in-drawn': {
+      const record = state.ongoing[event.castingId];
+      if (record === undefined) {
+        throw new CorruptLogError(event, `${event.castingId} is not running`);
+      }
+      if (record.origin === undefined) {
+        throw new CorruptLogError(event, `${event.castingId} holds no point for a way in to hang from`);
+      }
+      const { wayInClosed: _was, ...rest } = record;
+      void _was;
+      return {
+        ...next,
+        ongoing: { ...state.ongoing, [event.castingId]: event.closed ? { ...rest, wayInClosed: true } : rest },
+      };
+    }
+
+    // **How high the way in hangs**, the table's to say. The same two guards.
+    case 'way-in-height-declared': {
+      const record = state.ongoing[event.castingId];
+      if (record === undefined) {
+        throw new CorruptLogError(event, `${event.castingId} is not running`);
+      }
+      if (record.origin === undefined) {
+        throw new CorruptLogError(event, `${event.castingId} holds no point for a way in to hang from`);
+      }
+      return {
+        ...next,
+        ongoing: { ...state.ongoing, [event.castingId]: { ...record, wayInHeight: event.feet } },
       };
     }
 

@@ -237,6 +237,9 @@ export {
   takePrintedPlaneShift,
   takePrintedSwallow,
 } from './commands/elsewhere.js';
+// The rope drawn up and the height it hangs at — SRD Rope Trick. (W9-S3)
+export { declareWayInHeight, drawWayIn } from './commands/elsewhere.js';
+export type { DrawWayInCommand, WayInHeightCommand } from './commands/elsewhere.js';
 // The command a caster gives a creature a casting holds — SRD Unseen Servant's
 // Bonus Action and fifteen feet. (W7-S19)
 export { commandSummons } from './commands/spell-effect-summon.js';

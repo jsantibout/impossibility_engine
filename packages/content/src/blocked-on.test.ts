@@ -3482,10 +3482,9 @@ describe('a trigger that ends a casting is a partial build, and the map says whi
     // Find Familiar is written now, and the clause moved with it into the
     // executed map — and then went, when a block's Senses line reached its
     // sheet (W8-S25): the familiar's printed senses are lent, so the spell is
-    // no longer on the shape at all.
-    expect(ADJUDICATED['find-familiar']?.map((entry) => entry.why)).not.toContain(
-      'senses-beyond-declared-sight',
-    );
+    // no longer on the shape at all. And the last line it carried, what it
+    // leaves behind when it goes, was built too (W9-S3): it is off the map.
+    expect(ADJUDICATED['find-familiar']).toBeUndefined();
     // Project Image was the second and is a tracked definition now. Its
     // senses clause trips no mechanical marker, so it could not move into the
     // tracked map; what carries it is the definition's own note, which the

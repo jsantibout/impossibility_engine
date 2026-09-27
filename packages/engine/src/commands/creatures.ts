@@ -45,6 +45,7 @@ import { applyDamageToVitals, damagePastThreshold, healingRuleOf, isDown } from 
 import type { Recovery } from '../resources.js';
 import { creatureOf, unknownCreature, ZERO_HIT_POINTS } from './command.js';
 import { settleHoldsInvolving } from './holds.js';
+import { carrying, dropItem, unequipItem } from './inventory.js';
 import { raisePrintedObject } from './objects.js';
 
 export interface AddCreatureOutcome {
@@ -973,6 +974,13 @@ export function strandedSummons(state: GameState): readonly CharacterId[] {
 export function dismissStrandedSummons(
   state: GameState,
   command: CommandIdentity = {},
+  /**
+   * The catalogue a departing creature's gear is put down with, where its
+   * bond says it leaves any behind (`KeptBond.leavesBehind`): an unequip and a
+   * drop read the item's record. Asked for only then — `left_behind_owed`
+   * where it is missing and owed. (W9-S3)
+   */
+  content?: Content,
 ): Result<GameEvent[]> {
   return once(state, 'dismiss-stranded-summons', { ...command }, () => [], (stamp) => {
     const events: GameEvent[] = [];
@@ -981,6 +989,13 @@ export function dismissStrandedSummons(
     for (;;) {
       const who = strandedSummons(current)[0];
       if (who === undefined) break;
+      // SRD Find Familiar: "Whenever the familiar drops to 0 Hit Points … it
+      // leaves behind in its space anything it was wearing or carrying" — put
+      // down while the creature still has a space to put it in. (W9-S3)
+      const left = leavingBehind(current, content, who);
+      if (!left.ok) return left;
+      events.push(...left.value);
+      current = left.value.reduce(applyEvent, current);
       const gone = removeCreatureEverywhere(current, who);
       if (!gone.ok) return gone;
       events.push(...gone.value);
@@ -993,6 +1008,80 @@ export function dismissStrandedSummons(
     // emitted if it emitted anything at all.
     return ok([...events.slice(0, -1), { ...events[events.length - 1]!, command: stamp }]);
   });
+}
+
+/**
+ * What a departing kept creature leaves in its own space, where its spell says
+ * it leaves anything — W9-S3.
+ *
+ * SRD Find Familiar: "Whenever the familiar drops to 0 Hit Points or
+ * disappears into the pocket dimension, it leaves behind in its space anything
+ * it was wearing or carrying." SRD Find Steed: "When it disappears, it leaves
+ * behind anything it was wearing or carrying." **The sentence is the bond's**
+ * (`KeptBond.leavesBehind`, pinned from the spell at the binding) and not a
+ * rule of departure — the owner, 2026-09-27 — so a creature whose bond carries
+ * none takes what it held with it, and so does every creature that is not
+ * kept.
+ *
+ * **Two commands, on `forcedDrop`'s order, and not a third way to write their
+ * events.** What is worn or wielded comes off first (`unequipItem`), because
+ * `dropItem` refuses to put down what is still in hand; then every line goes
+ * down whole (`dropItem`), each at the creature's own feet — the placement is
+ * anchored on the creature, and the batch puts it down before the departure
+ * unplaces it. A labelled copy is named by its own record and goes first, so an
+ * unlabelled line of the same kind is alone by the time it is named. Each step
+ * is folded forward before the next is asked for. Neither call carries a
+ * command id: this runs inside the departure's batch, which has its own.
+ *
+ * **What is not put down**, and why:
+ * - a conjured thing, which a casting holds and which disappears rather than
+ *   landing (`dropConjured`'s rule);
+ * - anything held by a creature that is already away — it has no space, and a
+ *   creature that went to its pocket through `dismissKeptSummons` left its gear
+ *   on the way.
+ *
+ * Refusals are the two commands' own, surfaced: a creature standing nowhere
+ * is asked where it is, which is the question a drop always asks.
+ */
+export function leavingBehind(
+  state: GameState,
+  content: Content | undefined,
+  id: CharacterId,
+): Result<readonly GameEvent[]> {
+  const creature = creatureOf(state, id);
+  if (creature === null || creature.summonedBy?.kept?.leavesBehind !== true) return ok([]);
+  if (creature.elsewhere !== null) return ok([]);
+  const held = carrying(state, id).filter((line) => line.casting === undefined);
+  if (held.length === 0) return ok([]);
+  if (content === undefined) {
+    return err(
+      'left_behind_owed',
+      `${id} leaves behind in its space what it was wearing or carrying as it goes, and putting ${held
+        .map((line) => line.id)
+        .join(', ')} down needs the catalogue`,
+    );
+  }
+
+  const events: GameEvent[] = [];
+  let current = state;
+  const step = (result: Result<readonly GameEvent[]>): Result<null> => {
+    if (!result.ok) return result;
+    events.push(...result.value);
+    current = result.value.reduce(applyEvent, current);
+    return ok(null);
+  };
+
+  for (const worn of creature.equipped) {
+    const off = step(unequipItem(current, content, id, worn.instance ?? worn.id));
+    if (!off.ok) return off;
+  }
+  const labelled = held.filter((line) => line.instance !== undefined);
+  const unlabelled = held.filter((line) => line.instance === undefined);
+  for (const line of [...labelled, ...unlabelled]) {
+    const down = step(dropItem(current, content, id, { item: line.instance ?? line.id }));
+    if (!down.ok) return down;
+  }
+  return ok(events);
 }
 
 export interface DamageCommand extends CommandIdentity {

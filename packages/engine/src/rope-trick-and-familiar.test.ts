@@ -132,6 +132,10 @@ const ropeHung = () => {
     'the rope',
   );
   log.push(...cast.events);
+  // How high the rope rose is the room's, and the DM's to state (W9-S3): five
+  // feet under a low ceiling, a portal a creature standing beside the rope can
+  // reach without climbing. `rope-drawn-up.test.ts` is the climb to a high one.
+  log.push({ type: 'way-in-height-declared', castingId: cast.castingId!, feet: 5 });
   return { log, castingId: cast.castingId! };
 };
 
@@ -149,7 +153,8 @@ describe('Rope Trick', () => {
     const record = elsewhereOf(state, FIGHTERS[0]!);
     expect(record?.kind).toBe('extradimensional');
     expect(record?.returns).toEqual({ within: 5 });
-    expect(up.unverified.join(' ')).toContain('movement');
+    // The climb is a move the movement rules charge, so nothing is handed over. (W9-S3)
+    expect(up.unverified).toEqual([]);
   });
 
   it('refuses a creature the space does not admit, and a climber out of reach', () => {

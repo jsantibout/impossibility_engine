@@ -17,6 +17,8 @@
  * otherwise asks — the same boundary `eligibleTargets` draws for targeting.
  */
 import {
+  type Ability,
+  ABILITY_NAMES,
   type CharacterId,
   type ConditionName,
   err,
@@ -28,7 +30,7 @@ import {
 } from '@ie/shared';
 import type { CreatureSize } from '@ie/srd';
 import type { Bonus, ModeSource } from '../bonuses.js';
-import { rollAbilityCheck, type D20TestResult } from '../checks.js';
+import { rollAbilityCheck, rollSavingThrow, type D20TestResult } from '../checks.js';
 import { spendAction } from '../combat.js';
 import { applyEvent, type CommandStamp, type GameEvent, type GameState } from '../events.js';
 import { type CommandIdentity, once } from '../idempotency.js';
@@ -50,13 +52,23 @@ import {
 import {
   distanceBetween,
   distanceToPoint,
+  moverInRegionAt,
   placeCreature,
+  positionOf,
   type Placement,
   type Point,
   type PositionState,
 } from '../positioning.js';
 import { castingIdOf, castingSource } from '../spells.js';
-import { actionRulesOn, canSee, effectiveConditions, rollModesFor, sheetAsItStands } from '../standing.js';
+import {
+  actionRulesOn,
+  barriersAgainst,
+  canSee,
+  hasSpeedInModeOn,
+  effectiveConditions,
+  rollModesFor,
+  sheetAsItStands,
+} from '../standing.js';
 import { effectiveSizeOf } from '../size.js';
 import {
   endOfNextTurn,
@@ -81,10 +93,18 @@ import {
   turnContextFor,
   unknownCreature,
 } from './command.js';
+import { leavingBehind } from './creatures.js';
 import { mayAct } from './holds.js';
 import { grapplerOf, grappleSource, grapplesOn } from './unarmed.js';
 import type { Supply } from './casting.js';
-import { checkBonuses, recordD20Test, rollSpellDice, spentRollModifiers, withFlatAddend } from './rolls.js';
+import {
+  checkBonuses,
+  recordD20Test,
+  rollSpellDice,
+  savingSupport,
+  spentRollModifiers,
+  withFlatAddend,
+} from './rolls.js';
 import { dealSpellDamage } from './damage.js';
 import { ongoingSpellsOn } from './ongoing.js';
 import type { EffectContext, EffectOfKind } from './spell-effect-context.js';
@@ -295,6 +315,105 @@ export function returnEvents(
   ];
 }
 
+// — the crossing ——————————————————————————————————————————————————————————————
+
+/** What a barrier demands of a creature crossing it by way of another plane. */
+interface PlanarCrossing {
+  readonly ability: Ability;
+  readonly dc: number;
+  /** The casting's pinned display name, for the roll's label. */
+  readonly spell: string;
+}
+
+/**
+ * The saving throw a barrier demands of a creature arriving from another
+ * plane, or leaving for one, or null where none does — W9-S3.
+ *
+ * SRD Magic Circle: "If the creature tries to use teleportation or
+ * **interplanar travel** to do so, it must first succeed on a Charisma saving
+ * throw." `teleportTo` asks the teleport half of the sentence; this asks the
+ * other half of the same barriers, through the same `barriersAgainst`, with
+ * the geometry reduced to one space. Arriving, the barrier is crossed where the
+ * space the creature comes back to is inside a region that bars entering (or
+ * either way); leaving, where the space it stands in is inside one that bars
+ * leaving (or either way). A barrier that prints no save is not asked: nothing
+ * but the save reaches a creature that does not walk.
+ *
+ * **Only the Ethereal is a plane.** The engine holds two other kinds of
+ * elsewhere and neither is one: an extradimensional space — SRD Rope Trick's,
+ * a familiar's pocket — is reached from this plane and left back into it, and
+ * the inside of another creature is somewhere in this scene. So a creature
+ * coming back from either is asked nothing, and neither is one going to them.
+ */
+function planarCrossing(
+  state: GameState,
+  who: CharacterId,
+  kind: ElsewhereKind,
+  way: { readonly arriving: Point } | { readonly leaving: true },
+): PlanarCrossing | null {
+  if (kind !== 'ethereal') return null;
+  const scene = state.scene;
+  if (scene === null) return null;
+  const arriving = 'arriving' in way;
+  const at = arriving ? way.arriving : positionOf(scene, who);
+  if (at === null) return null;
+  for (const barrier of barriersAgainst(state, who, { flying: false })) {
+    if (barrier.saveToCross === undefined) continue;
+    if (barrier.crossing === (arriving ? 'out' : 'in')) continue;
+    if (!moverInRegionAt(scene, barrier.region, who, at)) continue;
+    return { ...barrier.saveToCross, spell: barrier.spell };
+  }
+  return null;
+}
+
+/**
+ * Roll the save a crossing demands: recorded, with the generator's position
+ * after it, on the teleport resolver's precedent — `savingSupport` gathers what
+ * stands behind the roll, and the save is against magic.
+ */
+function rollCrossing(
+  state: GameState,
+  who: CharacterId,
+  crossing: PlanarCrossing,
+  supply: Supply,
+): Result<{ readonly events: readonly GameEvent[]; readonly crossed: boolean }> {
+  const creature = creatureOf(state, who);
+  if (creature === null) return unknownCreature(who);
+  const support = savingSupport(state, who, creature, crossing.ability, supply, [], true);
+  const sheet = sheetAsItStands(state, who) ?? creature.sheet;
+  const issuedBefore = supply.issuer.count;
+  const save = rollSavingThrow(supply.issuer, supply.rng, sheet, crossing.ability, {
+    dc: crossing.dc,
+    conditions: support.conditions,
+    modes: support.modes,
+    bonuses: support.bonuses,
+  });
+  if (!save.ok) return save;
+  return ok({
+    events: [
+      { type: 'rolls-issued', count: supply.issuer.count - issuedBefore, rng: supply.rng.snapshot() },
+      recordD20Test(
+        who,
+        `${ABILITY_NAMES[crossing.ability]} save vs ${crossing.spell}`,
+        save.value,
+        save.value.success ? 'crossed' : 'held back',
+      ),
+    ],
+    crossed: save.value.success,
+  });
+}
+
+/** The refusal for a crossing owed where nothing was handed over to roll it. */
+const crossingOwed = (who: CharacterId, crossing: PlanarCrossing, code = 'crossing_save_owed'): Err =>
+  err(
+    code,
+    `${who} must first succeed on a ${ABILITY_NAMES[crossing.ability]} saving throw to cross ${crossing.spell} by way of another plane, and there is no generator to roll it`,
+  );
+
+/** What a failed crossing leaves the creature, for the outcome. */
+const heldBack = (who: CharacterId, crossing: PlanarCrossing, stays: string): string =>
+  `${who} failed the ${ABILITY_NAMES[crossing.ability]} saving throw ${crossing.spell} demands of interplanar travel across it, and ${stays}`;
+
 export interface ReturnCommand extends CommandIdentity {
   /** The space to stand in. Absent is asked about where several qualify. */
   readonly to?: Placement;
@@ -323,6 +442,13 @@ export function returnFromElsewhere(
   state: GameState,
   who: CharacterId,
   command: ReturnCommand,
+  /**
+   * The generator a barrier's save is rolled with, where the space the
+   * creature comes back to is across one — SRD Magic Circle on a return from
+   * the Ethereal Plane. Asked for only then: `crossing_save_owed` where it is
+   * missing and owed. (W9-S3)
+   */
+  supply?: Supply,
 ): Result<ReturnOutcome> {
   return once(
     state,
@@ -362,8 +488,34 @@ export function returnFromElsewhere(
         ),
       );
       if (!settled.ok) return settled;
+
+      // SRD Magic Circle: a return from another plane into the Cylinder is
+      // interplanar travel into it, and the save comes first. On a failure the
+      // creature does not stand there — the book says nothing of where it goes
+      // instead, so it stays where it is, and the command may be sent again
+      // naming another space. The roll is written either way, carrying the
+      // stamp where nothing else will.
+      const crossing = planarCrossing(state, who, record.kind, { arriving: settled.value.at });
+      let rolled: readonly GameEvent[] = [];
+      if (crossing !== null) {
+        if (supply === undefined) return crossingOwed(who, crossing);
+        const save = rollCrossing(state, who, crossing, supply);
+        if (!save.ok) return save;
+        if (!save.value.crossed) {
+          const [issued, recorded] = save.value.events;
+          return ok({
+            events: [issued!, { ...recorded!, ...(stamp === null ? {} : { command: stamp }) }],
+            at: null,
+            unverified: [
+              heldBack(who, crossing, `stays ${describeElsewhere(record)}; name a space outside it, or try again`),
+            ],
+            duplicate: false,
+          });
+        }
+        rolled = save.value.events;
+      }
       return ok({
-        events: returnEvents(state, who, settled.value.at, stamp),
+        events: [...rolled, ...returnEvents(state, who, settled.value.at, stamp)],
         at: settled.value.at,
         unverified: settled.value.unverified,
         duplicate: false,
@@ -504,6 +656,19 @@ export function settleElsewhereAtBoundary(
             ]);
           }
           if (!vanishes) continue;
+          // SRD Magic Circle, reversed: leaving the Cylinder for the Ethereal
+          // Plane is interplanar travel out of it, and the save comes first. A
+          // failure keeps the caster where it stands. (W9-S3)
+          const leaving = planarCrossing(current, who, effect.where, { leaving: true });
+          if (leaving !== null) {
+            const save = rollCrossing(current, who, leaving, supply);
+            if (!save.ok) return save;
+            push(save.value.events);
+            if (!save.value.crossed) {
+              unverified.push(heldBack(who, leaving, 'does not vanish'));
+              continue;
+            }
+          }
           const sent = sendingEvents(
             current,
             who,
@@ -573,8 +738,24 @@ export function settleElsewhereAtBoundary(
       askForSpace(who),
     );
     if (!settled.ok) return settled;
-    unverified.push(...settled.value.unverified);
-    push(returnEvents(current, who, settled.value.at, null));
+    // SRD Magic Circle: coming back into the Cylinder from the Ethereal Plane
+    // is interplanar travel into it. A failure leaves the creature away, to
+    // come back at the next moment its record names or when its casting ends,
+    // each asked again. (W9-S3)
+    const crossing = planarCrossing(current, who, returning.kind, { arriving: settled.value.at });
+    let crossed = true;
+    if (crossing !== null) {
+      if (supply === undefined) return crossingOwed(who, crossing, 'elsewhere_owed');
+      const save = rollCrossing(current, who, crossing, supply);
+      if (!save.ok) return save;
+      push(save.value.events);
+      crossed = save.value.crossed;
+      if (!crossed) unverified.push(heldBack(who, crossing, `stays ${describeElsewhere(returning)}`));
+    }
+    if (crossed) {
+      unverified.push(...settled.value.unverified);
+      push(returnEvents(current, who, settled.value.at, null));
+    }
   }
 
   return ok({ events, unverified });
@@ -632,6 +813,11 @@ export function dismissKeptSummons(
   state: GameState,
   casterId: CharacterId,
   command: KeptSummonsCommand,
+  /**
+   * The catalogue the familiar's gear is put down with, where its bond says it
+   * leaves any behind — asked for only then (`left_behind_owed`). (W9-S3)
+   */
+  content?: Content,
 ): Result<KeptSummonsOutcome> {
   return once(
     state,
@@ -650,6 +836,12 @@ export function dismissKeptSummons(
         if (!spent.ok) return spent;
         events.push(spent.value);
       }
+      // SRD Find Familiar: "Whenever the familiar … disappears into the pocket
+      // dimension, it leaves behind in its space anything it was wearing or
+      // carrying" — put down before it leaves the space. (W9-S3)
+      const left = leavingBehind(events.reduce(applyEvent, state), content, command.who);
+      if (!left.ok) return left;
+      events.push(...left.value);
       const sent = sendingEvents(
         events.reduce(applyEvent, state),
         command.who,
@@ -821,12 +1013,23 @@ export interface EnterOutcome {
  * extradimensional space by moving up the rope."
  *
  * The creature's own act, so the command is addressed to it: within reach of
- * the casting's origin (the rope), no larger than the place admits, and only
- * while the place has room. The way back is pinned from the definition at the
- * climb — within five feet of where the creature climbed in — so "drops out
- * when the spell ends" needs no book. The climb's five feet of movement are
- * the table's; a Speed spent on a rope nobody modelled would be a number the
- * engine invented.
+ * the way in, no larger than the place admits, and only while the place has
+ * room. The way back is pinned from the definition at the climb — within five
+ * feet of where the creature climbed in — so "drops out when the spell ends"
+ * needs no book.
+ *
+ * **The way in is the portal at the top of the rope** — W9-S3. "One end of it
+ * hovers upward until the rope hangs perpendicular to the ground or the rope
+ * reaches a ceiling. At the rope's upper end, an Invisible … portal opens": how
+ * high that is is the room's, stated by the DM (`declareWayInHeight`) and
+ * pinned on the record, and asked for (`no_way_in_height`) until it is.
+ * The reach is measured from the portal, so a creature climbs to it first by
+ * the ordinary move the movement rules already charge, and this spends
+ * nothing of its own.
+ *
+ * **And the rope can be drawn up** (`drawWayIn`): while it is, a climber is
+ * refused `way_in_drawn_up`, and only a creature that reaches the portal
+ * without the rope comes in — one with a Fly Speed, or one a lift holds up.
  */
 export function enterElsewhere(
   state: GameState,
@@ -865,10 +1068,22 @@ export function enterElsewhere(
       if (creature.elsewhere !== null) {
         return err('already_elsewhere', `${who} is already ${describeElsewhere(creature.elsewhere)}`);
       }
+      if (record.wayInHeight === undefined) return heightRequired(command.castingId, record.spell);
+      // SRD Rope Trick: "That space can be reached by climbing the rope, which
+      // can be pulled into or dropped out of it." A rope pulled up is a way in
+      // that is gone for a climber; a creature that reaches the portal without
+      // it — flying, or held up by a lift — was never using it.
+      if (record.wayInClosed === true && !hasSpeedInModeOn(state, who, 'fly') && creature.lifts.length === 0) {
+        return err(
+          'way_in_drawn_up',
+          `${record.spell}'s rope has been drawn up into the space, and ${who} has nothing but the rope to reach the portal by`,
+        );
+      }
+      const portal: Point = { ...record.origin, z: record.origin.z + record.wayInHeight };
 
       const scene = sceneFor(state, who, `${who} to climb from`);
       if (!scene.ok) return scene;
-      const apart = distanceToPoint(scene.value, who, record.origin);
+      const apart = distanceToPoint(scene.value, who, portal);
       if (!apart.ok) {
         return apart.code === 'not_here'
           ? apart
@@ -883,7 +1098,10 @@ export function enterElsewhere(
             ]);
       }
       if (apart.value > effect.entry.within) {
-        return err('out_of_reach', `${record.spell}'s way in is ${effect.entry.within} feet from its point; ${who} is ${apart.value} away`);
+        return err(
+          'out_of_reach',
+          `${record.spell}'s way in is within ${effect.entry.within} feet of the portal ${record.wayInHeight} feet above its point; ${who} is ${apart.value} away — climb to it first`,
+        );
       }
 
       const size = effectiveSizeOf(state, who) ?? scene.value.sizes[who] ?? 'medium';
@@ -904,13 +1122,143 @@ export function enterElsewhere(
         stamp,
       );
       if (!sent.ok) return sent;
-      return ok({
-        events: sent.value,
-        unverified: [`${record.spell}: the movement the climb costs ${who} is the table's`],
-        duplicate: false,
-      });
+      return ok({ events: sent.value, unverified: [], duplicate: false });
     },
   );
+}
+
+/** The question a way in asks until the table has said how high it hangs. */
+const heightRequired = (castingId: string, spell: string): Err =>
+  needsContext(
+    'no_way_in_height',
+    `nobody has said how high ${spell}'s rope rose before it hung straight or met a ceiling, and the way in is at its top`,
+    [
+      {
+        kind: 'scene',
+        subject: castingId,
+        need: `how many feet above its point ${spell}'s way in hangs`,
+        because: 'the portal opens at the rope’s upper end, and where a ceiling stops it is a fact about the room',
+        satisfyWith: `a declareWayInHeight command for ${castingId}, which is the DM’s to state`,
+      },
+    ],
+  );
+
+/** The running casting whose place a creature climbs into, with its point. */
+function wayInOf(
+  state: GameState,
+  content: Content,
+  castingId: string,
+): Result<{ readonly spell: string; readonly source: string; readonly origin: Point }> {
+  const record = state.ongoing[castingId];
+  if (record === undefined) {
+    return err('not_ongoing', `${castingId} is not a spell that is still running`);
+  }
+  const definition = content.spell(record.spellId);
+  const opens = definition?.effects.some((effect) => effect.kind === 'elsewhere' && effect.entry !== undefined);
+  if (definition === null || opens !== true) {
+    return err('no_way_in', `${record.spell} opens no place a creature can climb into`);
+  }
+  if (record.origin === undefined) {
+    return err('no_way_in', `${record.spell} (${castingId}) pinned no point for its way in`);
+  }
+  return ok({ spell: record.spell, source: castingSource(definition.name, castingId), origin: record.origin });
+}
+
+export interface DrawWayInCommand extends CommandIdentity {
+  /** The casting whose way in is being drawn up or let down. */
+  readonly castingId: string;
+  /** Up is drawn into the space; false lets it down again. */
+  readonly up: boolean;
+}
+
+/**
+ * SRD Rope Trick: "That space can be reached by climbing the rope, which can
+ * be pulled into or dropped out of it." — W9-S3.
+ *
+ * The act of a creature **inside** the space, and of nobody else: the rope is
+ * pulled into the space and dropped out of it, so a hand has to be in there
+ * (`not_inside` otherwise). The book prices neither, so nothing is spent;
+ * `mayAct` applies, as it does to every act a creature takes. Drawing a rope
+ * already up, or dropping one already down, is refused `way_in_already` rather
+ * than written twice. What the drawn rope does is `enterElsewhere`'s to read.
+ */
+export function drawWayIn(
+  state: GameState,
+  who: CharacterId,
+  content: Content,
+  command: DrawWayInCommand,
+): Result<GameEvent[]> {
+  return once(state, `draw-way-in:${who}`, command, () => [], (stamp) => {
+    const owedHere = mayAct(state, who);
+    if (owedHere !== null) return owedHere;
+    const creature = creatureOf(state, who);
+    if (creature === null) return unknownCreature(who);
+    const way = wayInOf(state, content, command.castingId);
+    if (!way.ok) return way;
+    if (creature.elsewhere?.source !== way.value.source) {
+      return err(
+        'not_inside',
+        `${who} is not inside ${way.value.spell}'s space; the rope is pulled up into it and dropped out of it from within`,
+      );
+    }
+    const closed = state.ongoing[command.castingId]?.wayInClosed === true;
+    if (closed === command.up) {
+      return err(
+        'way_in_already',
+        `${way.value.spell}'s rope is already ${closed ? 'drawn up' : 'hanging'}; there is nothing to ${command.up ? 'pull up' : 'let down'}`,
+      );
+    }
+    return ok([
+      {
+        type: 'way-in-drawn',
+        castingId: command.castingId,
+        by: who,
+        closed: command.up,
+        ...(stamp === null ? {} : { command: stamp }),
+      },
+    ]);
+  });
+}
+
+export interface WayInHeightCommand extends CommandIdentity {
+  /** Feet above the casting's point that the way in hangs. */
+  readonly feet: number;
+}
+
+/**
+ * How high a casting's way in hangs — the table's fact about the room, W9-S3.
+ *
+ * SRD Rope Trick: "One end of it hovers upward until the rope hangs
+ * perpendicular to the ground or the rope reaches a ceiling." How far that is
+ * depends on a ceiling the lattice does not hold, so the DM states it, and the
+ * owner's §10 falling ruling puts a door stating such a height on the DM's
+ * surface and no other. The engine checks only what it holds: a whole,
+ * positive number of feet, and a portal inside the scene's own extent
+ * (`outside_scene` for one above the room's ceiling). It may be stated again.
+ */
+export function declareWayInHeight(
+  state: GameState,
+  content: Content,
+  castingId: string,
+  command: WayInHeightCommand,
+): Result<GameEvent[]> {
+  return once(state, `way-in-height:${castingId}`, command, () => [], (stamp) => {
+    const way = wayInOf(state, content, castingId);
+    if (!way.ok) return way;
+    if (!Number.isInteger(command.feet) || command.feet <= 0) {
+      return err('bad_height', `${String(command.feet)} is not a height a rope rises to; it is a whole number of feet above its point`);
+    }
+    const scene = state.scene;
+    if (scene !== null && way.value.origin.z + command.feet > scene.extent.height) {
+      return err(
+        'outside_scene',
+        `${way.value.spell}'s way in would hang ${command.feet} feet above its point, above this room's ${scene.extent.height}-foot ceiling`,
+      );
+    }
+    return ok([
+      { type: 'way-in-height-declared', castingId, feet: command.feet, ...(stamp === null ? {} : { command: stamp }) },
+    ]);
+  });
 }
 
 const SIZE_ORDER: readonly CreatureSize[] = ['tiny', 'small', 'medium', 'large', 'huge', 'gargantuan'];
@@ -1552,6 +1900,13 @@ export function takePrintedPlaneShift(
   state: GameState,
   id: CharacterId,
   command: PrintedPlaneShiftCommand,
+  /**
+   * The generator a barrier's save is rolled with — SRD Magic Circle, whose
+   * Cylinder a step onto or off the Ethereal Plane may cross. Asked for only
+   * where a crossing is owed (`crossing_save_owed`), before the line is
+   * spent. (W9-S3)
+   */
+  supply?: Supply,
 ): Result<PrintedPlaneShiftOutcome> {
   return once(
     state,
@@ -1598,7 +1953,12 @@ export function takePrintedPlaneShift(
             `${id} is ${describeElsewhere(creature.elsewhere)} by ${creature.elsewhere.source}, and ${found.line.name} brings back only what it sent`,
           );
         }
-        const back: { readonly who: CharacterId; readonly at: Point }[] = [];
+        const back: {
+          readonly who: CharacterId;
+          readonly at: Point;
+          readonly crossing: PlanarCrossing | null;
+          readonly unverified: readonly string[];
+        }[] = [];
         let world = state;
         const party = [
           id,
@@ -1624,20 +1984,44 @@ export function takePrintedPlaneShift(
             ),
           );
           if (!settled.ok) return settled;
-          unverified.push(...settled.value.unverified);
-          back.push({ who, at: settled.value.at });
+          // And whether the space is across a barrier that asks a save of
+          // interplanar travel, asked of the world as it stands and before the
+          // line is spent, for the reason the spaces are. (W9-S3)
+          const record = world.creatures[who]?.elsewhere;
+          const crossing =
+            record === null || record === undefined
+              ? null
+              : planarCrossing(world, who, record.kind, { arriving: settled.value.at });
+          if (crossing !== null && supply === undefined) return crossingOwed(who, crossing);
+          back.push({ who, at: settled.value.at, crossing, unverified: settled.value.unverified });
           world = returnEvents(world, who, settled.value.at, null).reduce(applyEvent, world);
         }
         const spent = spendPrintedLine(state, id, found, stamp);
         if (!spent.ok) return spent;
         const events: GameEvent[] = [...spent.value];
         let current = spent.value.reduce(applyEvent, state);
-        for (const { who, at } of back) {
+        const moved: CharacterId[] = [];
+        for (const { who, at, crossing, unverified: unsure } of back) {
+          // SRD Magic Circle: each creature makes its own save, and one that
+          // fails stays on the Ethereal Plane under the line that took it — the
+          // same line brings it back later with the rest of whoever is left.
+          if (crossing !== null && supply !== undefined) {
+            const save = rollCrossing(current, who, crossing, supply);
+            if (!save.ok) return save;
+            events.push(...save.value.events);
+            current = save.value.events.reduce(applyEvent, current);
+            if (!save.value.crossed) {
+              unverified.push(heldBack(who, crossing, `stays ${describeElsewhere(current.creatures[who]!.elsewhere!)}`));
+              continue;
+            }
+          }
+          unverified.push(...unsure);
           const returned = returnEvents(current, who, at, null);
           events.push(...returned);
           current = returned.reduce(applyEvent, current);
+          moved.push(who);
         }
-        return ok({ events, direction: 'back', moved: party, unverified, duplicate: false });
+        return ok({ events, direction: 'back', moved, unverified, duplicate: false });
       }
 
       // **Out.** The companions the line allows, within its reach.
@@ -1666,17 +2050,39 @@ export function takePrintedPlaneShift(
           `${found.line.name}: that ${companions.join(', ')} ${companions.length === 1 ? 'is' : 'are'} willing is stated by naming them, and the engine records it as stated`,
         );
       }
+      // SRD Magic Circle, reversed: leaving the Cylinder for another plane is
+      // interplanar travel out of it. Asked before the line is spent, so a
+      // missing generator costs nothing. (W9-S3)
+      const leaving = [id, ...companions].map((who) => ({
+        who,
+        crossing: planarCrossing(state, who, printed.plane, { leaving: true }),
+      }));
+      const owed = leaving.find((one) => one.crossing !== null);
+      if (owed?.crossing != null && supply === undefined) return crossingOwed(owed.who, owed.crossing);
+
       const spent = spendPrintedLine(state, id, found, stamp);
       if (!spent.ok) return spent;
       const events: GameEvent[] = [...spent.value];
       let current = spent.value.reduce(applyEvent, state);
-      for (const who of [id, ...companions]) {
+      const moved: CharacterId[] = [];
+      for (const { who, crossing } of leaving) {
+        if (crossing !== null && supply !== undefined) {
+          const save = rollCrossing(current, who, crossing, supply);
+          if (!save.ok) return save;
+          events.push(...save.value.events);
+          current = save.value.events.reduce(applyEvent, current);
+          if (!save.value.crossed) {
+            unverified.push(heldBack(who, crossing, 'stays where it stands'));
+            continue;
+          }
+        }
         const sent = sendingEvents(current, who, { kind: printed.plane, source, returns: { within: 0 } }, null);
         if (!sent.ok) return sent;
         events.push(...sent.value);
         current = sent.value.reduce(applyEvent, current);
+        moved.push(who);
       }
-      return ok({ events, direction: 'out', moved: [id, ...companions], unverified, duplicate: false });
+      return ok({ events, direction: 'out', moved, unverified, duplicate: false });
     },
   );
 }

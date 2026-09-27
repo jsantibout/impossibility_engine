@@ -318,12 +318,16 @@ export const VERIFIED_SPELLS: readonly string[] = [
   // give it one, the wizard borrows its eyes for a Bonus Action and sees a
   // goblin in the dark a hundred feet past it, and a Bat's printed Blindsight
   // reaches the wizard's own senses; `borrowed-senses.test.ts` (engine) is the
-  // lend's deadline and its refusals.
+  // lend's deadline and its refusals; `left-behind.test.ts` (engine) puts the
+  // bell an owl carried on the floor of its space when it drops to 0 and when
+  // it is dismissed to its pocket.
   'find-familiar',
   // `find-steed-whole.test.ts` (engine): the Otherworldly Steed's Slam swings
   // with the Paladin's spell attack bonus for 1d8 plus the slot level of the
   // type the Paladin chose, its Bonus Actions' DC is the Paladin's, and a steed
-  // added by hand carries the line as prose with a caveat.
+  // added by hand carries the line as prose with a caveat; `left-behind.test.ts`
+  // (engine): the casting pins the gear sentence on the bond, and the bedroll
+  // and the wielded dagger land in its space at 0 and when a recast replaces it.
   'find-steed',
   'finger-of-death',
   'fire-bolt',
@@ -331,6 +335,12 @@ export const VERIFIED_SPELLS: readonly string[] = [
   'fireball',
   'flame-blade',
   'flame-strike',
+  // `fly-fall.test.ts` (engine): Fly cast through `resolveSpell` on a wizard
+  // thirty feet up, the Concentration let go and the fall raised from the
+  // pinned thirty with Feather Fall offered, the landing's 3d6 and Prone with
+  // no height stated, and nobody dropped who stood on the floor, flew on wings
+  // of its own, hung from a Levitate, or kept a casting ended on somebody else.
+  'fly',
   'fog-cloud',
   // `dismissals-and-the-cloud.test.ts` (engine): the Fly Speed of 10 that is
   // the whole of how the cloud moves, the walking and swimming Speeds it
@@ -416,7 +426,10 @@ export const VERIFIED_SPELLS: readonly string[] = [
   // into the clauses, a Fiend barred a step in, its Misty Step saving on
   // Charisma and held back on a failure, Disadvantage on its shot at the cleric
   // inside and none on a Humanoid's, its Frightened refused, and the reverse
-  // holding a Fiend inside.
+  // holding a Fiend inside; `circle-and-the-planes.test.ts` (engine): the
+  // Charisma save on a Fiend coming back from the Ethereal Plane into the
+  // Cylinder — after Blink, at Blink's own return and by a Ghost's Etherealness
+  // — held back on a failure, and the reverse holding a Blink inside.
   'magic-circle',
   'magic-jar',
   // `auto-damage.test.ts`: three darts round the list, five out of a level 3
@@ -512,7 +525,10 @@ export const VERIFIED_SPELLS: readonly string[] = [
   // `rope-trick-and-familiar.test.ts`: the rope kept as a point, a climber
   // within five feet, the Large creature and the ninth refused, a Fire Bolt
   // at a climber refusing `not_here`, the climb down, and the drop at the
-  // spell's end to spaces the caller names.
+  // spell's end to spaces the caller names; `rope-drawn-up.test.ts` (engine):
+  // the portal's height asked for and pinned, a climber on the floor refused
+  // and one who climbed to it let in, the rope drawn up by a creature inside
+  // against a climber and not a flier, and let down again.
   'rope-trick',
   'sacred-flame',
   // Driven end to end by `several-attack-rolls.test.ts`, and partial as well,

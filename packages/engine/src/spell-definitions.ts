@@ -4644,6 +4644,20 @@ export interface KeptSummons {
    * creature the book gives no such sentence. (W7-S21)
    */
   readonly lends?: true;
+  /**
+   * SRD Find Familiar: "Whenever the familiar drops to 0 Hit Points or
+   * disappears into the pocket dimension, it leaves behind in its space
+   * anything it was wearing or carrying." SRD Find Steed: "When it disappears,
+   * it leaves behind anything it was wearing or carrying."
+   *
+   * **The spell's sentence, not a rule of departure** — the owner, 2026-09-27:
+   * a creature leaving the game takes what it holds with it unless its own
+   * spell says otherwise. Pinned onto the bond at the arrival, and read by the
+   * departures the bond has: each puts every line the creature holds on the
+   * floor of its own space before it goes. Absent for every kept creature whose
+   * spell prints no such sentence. (W9-S3)
+   */
+  readonly leavesBehind?: true;
 }
 
 /**

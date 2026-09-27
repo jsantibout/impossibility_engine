@@ -10016,6 +10016,16 @@ function checkKeptSummons(kept: unknown, path: string, found: SpellDefinitionPro
       reason: 'a spell either prints "or if you die" or does not; the only value is true',
     });
   }
+  // SRD Find Familiar's and Find Steed's "it leaves behind … anything it was
+  // wearing or carrying": the spell prints it or does not. (W9-S3)
+  const leaves = (kept as { readonly leavesBehind?: unknown }).leavesBehind;
+  if (leaves !== undefined && leaves !== true) {
+    found.push({
+      field: `${path}.leavesBehind`,
+      code: 'malformed_field',
+      reason: 'a spell either prints that its creature leaves behind what it was wearing or carrying, or does not; the only value is true',
+    });
+  }
   // SRD Find Familiar's pocket dimension: one number, how far from the
   // summoner the creature reappears.
   const pocket = (kept as { readonly pocket?: unknown }).pocket;

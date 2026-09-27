@@ -184,9 +184,10 @@ describe('toolSchemas', () => {
     // And one on each for W9-S1, `move_cast_light` — where the thing a cast
     // light is on went, and whether it is covered. And two on each for W9-S2:
     // `declare_wind` and `declare_ending`, the room's weather and the table's
-    // word that a printed cause happened.
-    expect(toolSchemas(player())).toHaveLength(99);
-    expect(toolSchemas(dm())).toHaveLength(130);
+    // word that a printed cause happened. And one on each for W9-S3,
+    // `draw_rope`, and one more on the DM's alone, `declare_portal_height`.
+    expect(toolSchemas(player())).toHaveLength(100);
+    expect(toolSchemas(dm())).toHaveLength(132);
     // Re-pinned 2026-09-24 for the printed-lines track, which opened one door
     // on the DM's surface alone: `teleport_printed_line` takes the teleport a
     // stat block prints, at the distance the block prints, to a space the DM
@@ -392,10 +393,18 @@ describe('toolSchemas', () => {
     // after `end_ongoing_spell`, and `activate_spell` gains `errand` — SRD
     // Detect Thoughts' Sense Thoughts and Read Thoughts. 96 → 98 and 127 →
     // 129 tools; +2,459 bytes on each.
-    expect(toolSchemas(player())).toHaveLength(99);
-    expect(toolSchemas(dm())).toHaveLength(130);
-    expect(JSON.stringify(toolSchemas(player())).length).toBe(162931);
-    expect(JSON.stringify(toolSchemas(dm())).length).toBe(219149);
+    // And for W9-S3: `draw_rope` added on both doors (a creature inside SRD
+    // Rope Trick's space pulls the rope up or lets it down), and
+    // `climb_into_space` and `return_from_elsewhere` say what now gates them —
+    // the portal at the rope's top and its drawn rope, and Magic Circle's save
+    // on a return from the Ethereal Plane. 96 → 97 tools on the player's door;
+    // +1,563 bytes on each. And the DM's alone: `declare_portal_height` (how
+    // high the rope rose, a fact about the room the §10 falling ruling keeps
+    // off a model's door), 127 → 129 tools; +2,373 bytes in all.
+    expect(toolSchemas(player())).toHaveLength(100);
+    expect(toolSchemas(dm())).toHaveLength(132);
+    expect(JSON.stringify(toolSchemas(player())).length).toBe(164494);
+    expect(JSON.stringify(toolSchemas(dm())).length).toBe(221522);
   });
 });
 

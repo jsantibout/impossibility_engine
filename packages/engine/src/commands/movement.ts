@@ -2929,6 +2929,26 @@ function heightFallen(
         );
   }
 
+  // **A height the fold pinned, before anything is asked** — W9-S3. SRD Fly's
+  // "falls if it is still aloft" is set with no event when the casting ends,
+  // and the altitude the lattice held at that moment is on the fall. It is read
+  // only while the creature is still at that altitude: a creature that has
+  // since landed, or been moved, is not falling from there, and a declared fall
+  // carries no height at all — both go on to the questions below. `flightLost`
+  // is not the door for this one: the Fly Speed is gone, so it would answer
+  // `no-flight`, which is right for every other caller.
+  const falling = state.creatures[id]?.falling ?? null;
+  const pinned = falling?.from;
+  if (pinned !== undefined && state.scene !== null && altitudeOf(state.scene, id) === pinned) {
+    return ok({
+      feet: pinned,
+      descends: pinned > 0,
+      unverified: [
+        `nobody has said whether ${id} was in the air or over something ${pinned} feet up when the magic holding it aloft ended, and the lattice holds no ledges; the fall was measured as the ${pinned} feet of air the scene said were under it, which a stated height would have overridden`,
+      ],
+    });
+  }
+
   const flight = flightLost(state, id);
   switch (flight.kind) {
     case 'hovers':
