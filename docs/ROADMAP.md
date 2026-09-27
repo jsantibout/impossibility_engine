@@ -3308,3 +3308,58 @@ Appended 2026-09-27, the owner's answers of the day:
   whether the landing falls inside the spell's minute; **a departing
   summons' gear** follows each spell's printed sentence, no general rule;
   Rope Trick's portal height is a DM-only fact (the §10 falling ruling).
+
+Appended 2026-09-26 night, wave nine (Opus builders, Opus reviews):
+
+- **A light on a thing** (W9-S1). Produce Flame and Flame Blade shed light
+  while held (`LightPatch.whileHolding`); Starry Wisp's glow runs on its own
+  deadline (`LightRider.lasts`, `LatticePatch.lapsesWith`); Moonbeam's Dim
+  Light; `lightOnObject` and `move_cast_light` carry a cast light with its
+  object or cover it, keeping the casting's identity (a covered patch neither
+  dispels nor is dispelled). Faerie Fire on an object already worked. Left,
+  and recorded: a recast conjured flame with the other hand full is refused
+  (the free-hand pre-flight counts the old casting's hand), and Darkness does
+  not reach Starry Wisp's sourceless glow.
+- **The owner's readings** (W9-R). A familiar's senses are used from where
+  the familiar is and never reach the caster's own rolls (option B, decided);
+  "Changes to Your Speeds" moves every Speed with the Speed, doubling too;
+  Wild Shape drops every species trait and keeps the retained list (Hit
+  Points untouched, feats kept); the Slippers of Spider Climbing are back
+  under items.ts rule 3's amendment (a limit the engine asks the table about
+  on every use may ride as a flagged debt).
+- **The wind and the table's word** (W9-S2). `declare_wind` disperses Fog
+  Cloud and Stinking Cloud (the upcast bank too); `declare_ending` takes the
+  table's word that a cause the spell prints happened — Web's collapse at the
+  start of the caster's next turn, Suggestion's errand, a Glyph moved;
+  Detect Thoughts' errands. Three ids minted for what the trigger shape held
+  that was not a trigger.
+- **The rope, the circle, the fall** (W9-S3). Fly's end drops a creature
+  still aloft; Magic Circle's crossing save on every road back from the
+  Ethereal; a familiar's or steed's gear lands where it vanished
+  (`leavesBehind`); Rope Trick's rope drawn up (`draw_rope`) and its height a
+  DM-only fact (`declare_portal_height`). `a-second-place-to-put-a-creature`
+  is retired.
+- **What a casting may be aimed at** (W9-S4). Nondetection on a place or an
+  object; Flaming Sphere only on empty ground; Magic Weapon only on a
+  nonmagical weapon (`isMagicalItem`, `makesMagical`); `objectOrSelf`, which
+  Light now writes — the caster's own torch or a declared object nobody
+  holds, the size asked of the object and never of the caster. Dispel Magic's
+  named casting was not built (more than the brief allowed).
+- **Spells in reach, not executed: 44 → 29.** Tool pins: player 100 / 164494,
+  DM 132 / 221522.
+- **Left for a tidy track:** the free-hand count on a recast (finishes
+  Produce Flame and Flame Blade); Corrosive Form's check treats any weapon
+  rider as magic (a Shillelagh club is spared); Flaming Sphere's ram can lift
+  it or park it in an occupied space; a Magic Circle save can be re-rolled by
+  sending the return again; prose the tracks named false (elsewhere.ts's
+  `borrowSenses`, `altitudeOf`, `OngoingEndReason 'spent'`, druid.ts:175,
+  casting.md, space-and-areas.md, light-and-sight.md).
+
+**Infinite Realms, the same night.** E (the runtime) and F (the switch, the
+composition root, the death-save plaque, the opt-in live test) merged. F's
+live runs did not land a swing: the model attacked from 25 feet, took the
+refusal as the end, and the setup's own calls made the turn look acted.
+I-1/F2 is in flight (close to reach; a turn acts only from the player's side;
+a refused-only turn is told, not thrown — the coordinator's ruling, from rule
+6). **Owner, for I-2:** five live playtest scenarios of about twenty turns,
+an AI player, and the AI DM deciding loot and level-ups itself.
