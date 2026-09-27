@@ -2722,17 +2722,27 @@ const NAMED_ITEMS: readonly CatalogueItem[] = [
        * The Resistance and the Web, in the Cape of the Mountebank's pool of
        * one. The doubled web is a benefit withheld — a casting from this
        * cloak fills Web's own cube — so the record is a weaker cloak than the
-       * page, and the climb and the webs it walks through are benefits left
-       * out.
+       * page, and the webs it walks through are benefits left out.
+       *
+       * _Spider Climb_ is the Slippers of Spider Climbing's sentence without
+       * their slippery surface, so it is written as theirs is (W9-T): a
+       * `match-walk` climb behind the same attunement bracket, and the walls
+       * and ceilings the same debt.
        */
       attunement: {},
       grants: [
         resistanceWhileWorn(['poison']),
+        {
+          kind: 'standing',
+          reach: 'self',
+          effects: [{ kind: 'speed', change: 'match-walk', mode: 'climb' }],
+          requires: WORN_AND_ATTUNED,
+        },
         charges('cloak-of-arachnida', 'Cloak of Arachnida', 1),
         castsSpell('web', 1, { saveDc: 13 }),
       ],
       unmodelled: [
-        '"_Spider Climb._ You have a Climb Speed equal to your Speed and can move up, down, and across vertical surfaces and along ceilings, while leaving your hands free": the Climb Speed is sayable on a worn item now and is not yet written on this cloak — the Slippers of Spider Climbing carry the same sentence as a `match-walk` climb with the walls and ceilings a debt, and this cloak can follow them — so the climb is a benefit left out',
+        '_Spider Climb_: "can move up, down, and across vertical surfaces and along ceilings, while leaving your hands free": the lattice holds elevation and no surfaces, as it does for SRD Spider Climb and the Slippers of Spider Climbing',
         '"_Spider Walk._ You can\'t be caught in webs of any sort and can move through webs as if they were Difficult Terrain": an immunity to a spell\'s area and a terrain rule keyed to it, neither of which an item grant can say',
         '"The web created by the spell fills twice its normal area": a `casts` grant hands the definition to the pipeline whole, so a web from this cloak fills Web\'s own 20-foot Cube — half the page\'s cloak rather than twice it',
       ],

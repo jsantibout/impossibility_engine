@@ -2992,8 +2992,8 @@ export const TRACKED_ADJUDICATED: Readonly<Record<string, readonly TrackedAdjudi
     {
       marker: 'ability-check',
       clause: 'requires a successful Wisdom (Perception) check against your spell save DC to notice',
-      why: 'a-check-another-creature-may-attempt',
-      note: 'the check may be made by anybody who looks rather than by a creature the casting reached, and a casting check is rolled by somebody the casting touched.',
+      why: 'a-check-a-casting-with-no-deadline-offers',
+      note: 'W9-T re-filed this from `a-check-another-creature-may-attempt`, whose derivation already makes a casting with no victim anybody’s to see through. The sentence is Glyph of Warding’s word for word, on a glyph that likewise lasts until dispelled or triggered: a casting check rides on the casting’s timer, this casting schedules none, and `checkSpellDefinition` refuses a check on it. A check on a casting with no deadline, which is this id.',
     },
   ],
   'true-polymorph': [
