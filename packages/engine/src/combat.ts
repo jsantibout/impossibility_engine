@@ -17,6 +17,7 @@ import {
   type ConditionState,
 } from './conditions.js';
 import type { RollIssuer } from './rolls.js';
+import { strongestOfEachEffect } from './same-effect.js';
 // Type-only, and deliberately: this module sits beneath the geometry and a
 // value edge to it would be an economy that could not be reasoned about
 // without a map. What a `MoveSegment` needs is the shape of a coordinate, and
@@ -649,6 +650,13 @@ export interface GrantedActionRule {
   readonly spends?: string;
   /** Temporary Hit Points an `allows` rule pays when its price is taken, already a number. */
   readonly temporaryHitPoints?: number;
+  /**
+   * The spell this rule is the effect of — see `SameEffect` in
+   * `same-effect.ts`. Pinned by the command; absent is its own identity.
+   */
+  readonly effectOf?: string;
+  /** When the fold stored it, on a rule with an `effectOf` and on no other. */
+  readonly appliedAt?: number;
 }
 
 /**
@@ -743,9 +751,19 @@ const governs = (rule: ActionRule, slot: ActionSlot, as: NamedAction | undefined
 export function extraActionsOwedAtTurnStart(
   rules: readonly GrantedActionRule[],
 ): readonly GrantedAction[] {
+  // **The same spell mints once.** SRD "Combining Spell Effects": "the effects
+  // of the same spell cast multiple times don't combine" — two Hastes, or a
+  // Haste beside a Potion of Speed ("the effect of the _Haste_ spell"), give
+  // one extra action and not two. Every such grant is one action, so the
+  // potency is always a tie and "the most recent effect applies": the label
+  // the action carries is the later one's.
+  const minting = strongestOfEachEffect(
+    rules.filter((held) => held.rule.kind === 'grants' && held.rule.at === 'each-turn'),
+    (bySource) => bySource.length,
+  );
   const owed: GrantedAction[] = [];
-  for (const held of rules) {
-    if (held.rule.kind !== 'grants' || held.rule.at !== 'each-turn') continue;
+  for (const held of minting) {
+    if (held.rule.kind !== 'grants') continue;
     owed.push({
       source: held.label,
       ...(held.rule.only === undefined ? {} : { only: held.rule.only }),

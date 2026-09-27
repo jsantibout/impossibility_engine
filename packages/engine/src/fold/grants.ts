@@ -99,12 +99,27 @@ export function applyGrants({ state, next }: Applying, event: GrantsEvent): Game
       // grants of one casting keep the order the log emitted them in, which is
       // as deterministic as the log is — and every log already written sorts
       // exactly as it did.
+      //
+      // **Two *sources* of one spell both stand**, two Clerics' Bless among
+      // them: SRD "Combining Spell Effects" suppresses the weaker while both
+      // run and does not end it, so which applies is the readers' question
+      // (`strongestOfEachEffect`, through `bonusesInForce`). What they need
+      // from the fold is the book's tie-break, "the most recent effect", and
+      // the array is sorted by source — so a grant that is the effect of a
+      // spell is stamped with its place in the log, `next.eventCount`, which
+      // the fold reads as it reads the turn in `jump-allowance-spent` and
+      // which overwrites any the event stated. **Only such a grant**: no log
+      // written before `effectOf` carries one, so both frozen logs fold to the
+      // states they always folded to. The Speed and the rule below are
+      // stamped the same way.
       const replacing = bonusKey(event.bonus.source, event.bonus.applies, event.bonus.only);
       const bonuses = [
         ...creature.bonuses.filter(
           (held) => bonusKey(held.source, held.applies, held.only) !== replacing,
         ),
-        event.bonus,
+        event.bonus.effectOf === undefined
+          ? event.bonus
+          : { ...event.bonus, appliedAt: next.eventCount },
       ].sort((a, b) => (a.source < b.source ? -1 : a.source > b.source ? 1 : 0));
       return withCreature(next, event.id, { bonuses }, creature);
     }
@@ -211,7 +226,10 @@ export function applyGrants({ state, next }: Applying, event: GrantsEvent): Game
       // sentence, and no SRD sentence changes one creature's Speed twice.
       const speedModifiers = [
         ...creature.speedModifiers.filter((held) => held.source !== event.modifier.source),
-        event.modifier,
+        // Stamped with its order when it is a spell's — see `bonus-applied`.
+        event.modifier.effectOf === undefined
+          ? event.modifier
+          : { ...event.modifier, appliedAt: next.eventCount },
       ].sort((a, b) => (a.source < b.source ? -1 : a.source > b.source ? 1 : 0));
       return withCreature(next, event.id, { speedModifiers }, creature);
     }
@@ -551,7 +569,10 @@ export function applyGrants({ state, next }: Applying, event: GrantsEvent): Game
       const key = actionRuleKey(event.rule.source, event.rule.rule);
       const actionRules = [
         ...creature.actionRules.filter((held) => actionRuleKey(held.source, held.rule) !== key),
-        event.rule,
+        // Stamped with its order when it is a spell's — see `bonus-applied`.
+        event.rule.effectOf === undefined
+          ? event.rule
+          : { ...event.rule, appliedAt: next.eventCount },
       ].sort((a, b) => {
         const left = actionRuleKey(a.source, a.rule);
         const right = actionRuleKey(b.source, b.rule);

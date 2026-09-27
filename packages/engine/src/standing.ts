@@ -18,6 +18,7 @@ import {
 } from './bonuses.js';
 import type { CreatureSize, PrintedHoldCapacity } from '@ie/srd';
 import type { HazardName } from './hazards.js';
+import { strongestOfEachEffect } from './same-effect.js';
 // Type-only, so the cycle with `monster.ts` (which imports this file's types)
 // is erased: the shape a printed hold binds its holder with — W7-B10.
 import type { PrintedHeldObject, PrintedWhileHolding } from './monster.js';
@@ -5984,15 +5985,18 @@ export function armorClassOf(state: GameState, who: CharacterId): number {
   // Armour Class that reads it — and an item that sets Strength moves the
   // heavy-armour penalty `armorClass` applies for a Strength requirement.
   let total = armorClass(sheetAsItStands(state, who) ?? creature.sheet, creature.armorClasses);
-  for (const active of creature.bonuses) {
-    if (!active.applies.includes('ac')) continue;
-    // A bonus a spell fenced — SRD Warding Bond's "while the target is within
-    // 60 feet of you" — is asked its requirement at every read, exactly as a
-    // feature's standing grant is. (W7-S19)
-    if (!requirementsHold(state, who, active.requires, active.source)) continue;
-    const flat = active.bonus.flat ?? 0;
-    total += active.direction === 'subtract' ? -flat : flat;
-  }
+  // A bonus a spell fenced — SRD Warding Bond's "while the target is within
+  // 60 feet of you" — is asked its requirement at every read, exactly as a
+  // feature's standing grant is. (W7-S19)
+  const live = creature.bonuses.filter(
+    (active) =>
+      active.applies.includes('ac') && requirementsHold(state, who, active.requires, active.source),
+  );
+  // Then summed through the one gatherer, which counts the same spell once —
+  // SRD "Combining Spell Effects": two Hastes, or a Haste beside a Potion of
+  // Speed, are +2 and not +4. `bonusesFor` has already turned a subtraction's
+  // flat round, and only the flat half of a bonus reaches an Armour Class.
+  for (const bonus of bonusesFor(live, 'ac')) total += bonus.flat ?? 0;
   // And the other lifetime: what a worn item is granting right now. Derived
   // rather than stored, so taking the ring off takes the +1 with it without
   // anything having to remember to. No item is used to *gain* an Armour Class,
@@ -6195,6 +6199,13 @@ export interface GrantedSpeed {
    * a creature that cannot fly cannot hover either.
    */
   readonly hover?: true;
+  /**
+   * The spell this change is the effect of — see `SameEffect` in
+   * `same-effect.ts`. Pinned by the command; absent is its own identity.
+   */
+  readonly effectOf?: string;
+  /** When the fold stored it, on a change with an `effectOf` and on no other. */
+  readonly appliedAt?: number;
 }
 
 /**
@@ -7297,16 +7308,32 @@ export function speedOf(
     flattenInMode(grant);
   }
 
+  // **The same spell's feet count once.** SRD "Combining Spell Effects": two
+  // casters' Longstriders on one creature are ten feet and not twenty. Asked
+  // of the adds that reach this mode, because potency is what reaches the
+  // Speed being asked for, and the most potent is the most feet whichever way
+  // they push. The multiplications below are presence already — "Speed is
+  // doubled" twice is doubled once — and need nothing.
+  const reachesMode = (granted: GrantedSpeed): boolean => {
+    const named = granted.mode ?? 'walk';
+    return named === 'walk' || named === mode;
+  };
+  for (const granted of strongestOfEachEffect(
+    creature.speedModifiers.filter((granted) => granted.change === 'add' && reachesMode(granted)),
+    (bySource) => bySource.reduce((sum, granted) => sum + Math.abs(granted.feet ?? 0), 0),
+  )) {
+    flattenInMode(granted);
+  }
+
   let halvings = 0;
   let doublings = 0;
   let zeroed = false;
   for (const granted of creature.speedModifiers) {
-    if (granted.change === 'add') flattenInMode(granted);
     // **A doubling reaches every mode, as a halving does**: the glossary's
     // "if your Speed is halved and you have a Fly Speed, your Fly Speed is
     // also halved", read for SRD Haste's "the target's Speed is doubled". A
     // hasted Cockatrice walks and flies at twice the pace.
-    else if (granted.change === 'double') doublings += 1;
+    if (granted.change === 'double') doublings += 1;
     else if (granted.change === 'halve') halvings += 1;
     else if (granted.change === 'zero') zeroed = true;
   }

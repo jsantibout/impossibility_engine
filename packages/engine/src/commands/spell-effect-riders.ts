@@ -367,6 +367,10 @@ export function applyRiders(
 }> {
   const { definition, castingId, casterId, saveDc, held } = context;
   const source = castingSource(definition.name, castingId);
+  // The spell what these riders hang is the effect of, on the three families
+  // whose readers count the same spell once: two Slows are −2 and not −4, and
+  // two Rays of Frost take ten feet and not twenty. See `strongestOfEachEffect`.
+  const pinnedEffect = definition.id === undefined ? {} : { effectOf: definition.id };
 
   // **Owed rather than applied, where the book lands them on the target's own
   // next turn** — SRD Command's "follow the command on its next turn". The
@@ -508,6 +512,7 @@ export function applyRiders(
               rule: modifier.rule,
               label: definition.name,
               until: riderDurationPhrase(modifier.lasts),
+              ...pinnedEffect,
             },
           }
         : modifier.kind === 'bonus'
@@ -525,6 +530,7 @@ export function applyRiders(
               // for. A second rider of one casting stands beside the first
               // rather than replacing it, which `bonusKey` is what decides.
               ...(modifier.only === undefined ? {} : { only: modifier.only }),
+              ...pinnedEffect,
             },
           }
         : modifier.kind === 'mode'
@@ -619,6 +625,7 @@ export function applyRiders(
                   source,
                   change: modifier.change,
                   ...(modifier.feet === undefined ? {} : { feet: modifier.feet }),
+                  ...pinnedEffect,
                 },
               };
     events.push(granted);
@@ -867,8 +874,16 @@ export function applyRiders(
  * log uses, the level a payout scales from, and the activation a lift reads
  * its per-turn cap off. A `SpellDefinition` is one; a deferred debt pins the
  * first two, because it lands a turn after the definition was read.
+ *
+ * **And the id, where there is one**, which is the spell a bonus, a Speed or a
+ * rule hung here is the effect of — SRD "Combining Spell Effects", read by
+ * `strongestOfEachEffect`. A deferred debt pins no id, so what it lands is its
+ * own identity: the one road a rider reaches the world by without its
+ * definition in hand.
  */
-export type RiderSpell = Pick<SpellDefinition, 'name' | 'level' | 'activation'>;
+export type RiderSpell = Pick<SpellDefinition, 'name' | 'level' | 'activation'> & {
+  readonly id?: string;
+};
 
 /**
  * The debt a deferred outcome writes, or a line saying why it wrote none.

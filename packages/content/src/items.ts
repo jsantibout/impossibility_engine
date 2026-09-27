@@ -3780,12 +3780,13 @@ const POTIONS: readonly CatalogueItem[] = [
      * Temporary Hit Points that last for 1 hour. For the same duration, you
      * are under the effect of the _Bless_ spell (no Concentration required)."
      *
-     * **Bless written out rather than named.** A conferral carries an effect
-     * list and not a spell id, so the Bless half is Bless's own effect —
+     * **Bless written out, and named.** A conferral carries its own effect
+     * list rather than a spell's, so the Bless half is Bless's own effect —
      * `{ dice: '1d4' }` on attack rolls and saving throws — transcribed here.
      * "No Concentration required" is then not a clause the engine has to
      * honour but a description of what a conferral already is: there is no
-     * casting to concentrate on.
+     * casting to concentrate on. `effectOf: 'bless'` is what makes it Bless
+     * where it counts: beside a Cleric's Bless it is one 1d4, not two.
      *
      * **The ten Temporary Hit Points are a `temp-hp` amount with no dice in
      * it**, which is what `DiceScaling.dice` became optional for: the book
@@ -3815,6 +3816,8 @@ const POTIONS: readonly CatalogueItem[] = [
         // "For the same duration" — SRD Bless runs a minute and this one runs
         // the potion's hour, which is why the number is the item's.
         durationSeconds: 3600,
+        // "you are under the effect of the _Bless_ spell"
+        effectOf: 'bless',
         effects: [
           // "you gain 10 Temporary Hit Points": a printed number, and nothing
           // is thrown for it.
@@ -3994,6 +3997,9 @@ const POTIONS: readonly CatalogueItem[] = [
      * minute runs out its timer takes the four grants off and lays nothing.
      * So "without suffering the wave of lethargy" is what this record does
      * because of the shape it is written in, not because a rule was skipped.
+     *
+     * `effectOf: 'haste'` makes it Haste for SRD "Combining Spell Effects":
+     * beside a Haste it is +2 AC and one extra action, not +4 and two.
      */
     id: 'potion-of-speed',
     name: 'Potion of Speed',
@@ -4010,6 +4016,8 @@ const POTIONS: readonly CatalogueItem[] = [
         // "for 1 minute" — the potion's own span, where Haste runs on
         // Concentration for up to the same minute.
         durationSeconds: 60,
+        // "you gain the effect of the _Haste_ spell"
+        effectOf: 'haste',
         effects: [
           // "the target's Speed is doubled"
           { kind: 'speed', change: 'double' },

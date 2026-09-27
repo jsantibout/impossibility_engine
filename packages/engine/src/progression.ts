@@ -2993,6 +2993,22 @@ export type FeatureGrant =
       readonly action: 'action' | 'bonus-action';
       readonly effects: readonly SpellEffect[];
       /**
+       * The spell whose effect this is, by its id, where the item's line
+       * names one — SRD Potion of Speed: "you gain the effect of the _Haste_
+       * spell for 1 minute".
+       *
+       * SRD "Combining Spell Effects" then reads the potion as that spell:
+       * "the effects of the same spell cast multiple times don't combine", so
+       * a Haste beside a Potion of Speed is +2 to Armour Class and one extra
+       * action, not +4 and two. The command pins it onto what the conferral
+       * hangs and the readers collapse on it (`strongestOfEachEffect`).
+       *
+       * Absent is an item that names no spell, whose effects are its own
+       * identity. `checkContent` refuses a spell id this content does not
+       * know (`conferral_effect_of_unknown_spell`).
+       */
+      readonly effectOf?: string;
+      /**
        * How far the use reaches, in feet, where the item's line prints a
        * distance — and then it is "a creature **you can see** within" it.
        *

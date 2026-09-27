@@ -2,6 +2,7 @@ import { type Ability, ok, type Result, type RollMode, type Skill } from '@ie/sh
 import type { Rng } from './dice.js';
 import { parseNotation } from './dice.js';
 import { rollRecorded, type RecordedRoll, type RollIssuer } from './rolls.js';
+import { strongestOfEachEffect } from './same-effect.js';
 import type { StandingRequirement } from './standing.js';
 
 /**
@@ -172,6 +173,14 @@ export interface ActiveBonus {
    * the field existed. (W7-S19)
    */
   readonly requires?: readonly StandingRequirement[];
+  /**
+   * The spell this bonus is the effect of — see `SameEffect` in
+   * `same-effect.ts`. Pinned by the command: a casting's definition id, or
+   * the spell a conferral names. Absent is its own identity.
+   */
+  readonly effectOf?: string;
+  /** When the fold stored it, on a bonus with an `effectOf` and on no other. */
+  readonly appliedAt?: number;
 }
 
 /**
@@ -220,23 +229,62 @@ export function bonusKey(
  * before {@link BonusNarrowing} existed. A caller that knows nothing passes
  * nothing and gets the unnarrowed bonuses alone, which is the conservative
  * direction `checkBonuses` already takes for the feature-side twin.
+ *
+ * And the same spell is counted once — see {@link bonusesInForce}, which is
+ * what this reads.
  */
 export function bonusesFor(
   held: readonly ActiveBonus[],
   kind: BonusApplies,
   of?: BonusNarrowing,
 ): readonly Bonus[] {
-  return held
-    .filter((active) => active.applies.includes(kind) && reaches(active.only, of))
-    .map((active) =>
-      active.direction === 'add'
-        ? active.bonus
-        : {
-            ...active.bonus,
-            ...(active.bonus.flat === undefined ? {} : { flat: -active.bonus.flat }),
-            direction: 'subtract' as const,
-          },
-    );
+  return bonusesInForce(held, kind, of).map((active) =>
+    active.direction === 'add'
+      ? active.bonus
+      : {
+          ...active.bonus,
+          ...(active.bonus.flat === undefined ? {} : { flat: -active.bonus.flat }),
+          direction: 'subtract' as const,
+        },
+  );
+}
+
+/**
+ * The stored bonuses that reach this kind of roll, with the same spell
+ * counted once — the records {@link bonusesFor} reads its modifiers off.
+ *
+ * SRD "Combining Spell Effects": "the effects of the same spell cast multiple
+ * times don't combine. Instead, the most potent effect—such as the highest
+ * bonus—from those castings applies". Two Clerics' Bless on one Fighter is
+ * one 1d4, and a Potion of Heroism beside a Bless is one 1d4 too, because the
+ * potion prints "the effect of the _Bless_ spell". See
+ * `strongestOfEachEffect`, which runs **after** the kind and the narrowing:
+ * potency is a question about what reaches this roll.
+ *
+ * **Potency is the size of the push, whichever way it pushes**: twice the
+ * flat plus, for each die, its sides plus one — the mean, doubled so it stays
+ * a whole number. A penalty's magnitude counts the same way, so of two Slows
+ * the −2 that applies is whichever was the more recent.
+ */
+export function bonusesInForce(
+  held: readonly ActiveBonus[],
+  kind: BonusApplies,
+  of?: BonusNarrowing,
+): readonly ActiveBonus[] {
+  return strongestOfEachEffect(
+    held.filter((active) => active.applies.includes(kind) && reaches(active.only, of)),
+    (bySource) => bySource.reduce((sum, active) => sum + potencyOf(active.bonus), 0),
+  );
+}
+
+/** Twice a bonus's expected size, ignoring its sign. See {@link bonusesInForce}. */
+function potencyOf(bonus: Bonus): number {
+  const flat = 2 * Math.abs(bonus.flat ?? 0);
+  if (bonus.dice === undefined) return flat;
+  const parsed = parseNotation(bonus.dice);
+  if (!parsed.ok) return flat;
+  const { count, sides, modifier } = parsed.value;
+  return flat + count * (sides + 1) + 2 * Math.abs(modifier);
 }
 
 /**
