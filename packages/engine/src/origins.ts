@@ -161,12 +161,38 @@ export interface FeatDefinition {
    * Score Improvement gates on level 4 **and** asks which scores, which one
    * member of a union could not say.
    *
-   * The other two prerequisites the SRD prints are not modelled and are not
-   * pretended to be: Grappler's "Strength or Dexterity 13+" is a score gate
-   * and Boon of Spell Recall's "Spellcasting Feature" is a feature gate.
-   * Each stays in its feat's `note` until a brief builds it.
+   * Grappler's "Strength or Dexterity 13+" is a score gate and is not
+   * modelled; it stays in its feat's `note` until a brief builds it. The
+   * feature gate is {@link prerequisiteFeature}.
    */
   readonly minimumLevel?: number;
+  /**
+   * The feature a character must hold to take this feat, by the name the book
+   * prints it under — SRD "Fighting Style Feats": "_Fighting Style Feat
+   * (Prerequisite: Fighting Style Feature)_".
+   *
+   * **Why it is needed at all.** A Fighting Style feature's own choice names
+   * the `fighting-style` category, which holds *that slot* to the category; it
+   * does nothing to hold the category to the feature. The Ability Score
+   * Improvement every class prints is "another feat of your choice for which
+   * you qualify", so its choice names no category, and a Wizard took Archery
+   * in it. SRD "Feats": "To take a feat, you must meet any prerequisite in its
+   * description unless a feature allows you to take the feat without the
+   * prerequisite."
+   *
+   * **A name rather than an id**, because the sentence names a feature
+   * wherever it is found: the Fighter's, the Paladin's and the Ranger's are
+   * three features called Fighting Style, and a homebrew class that prints a
+   * Fighting Style of its own meets the prerequisite by printing it. Checked
+   * against every feature the character holds, in every class it has levels
+   * in, by `checkFeats` in `creation.ts`.
+   *
+   * Boon of Spell Recall's "Spellcasting Feature" is the same shape, and is
+   * not written on it: the classes print their casting under names other than
+   * "Spellcasting" (Pact Magic), so that gate wants a reading this field does
+   * not give and stays in the feat's `note`.
+   */
+  readonly prerequisiteFeature?: string;
   /** Taking it twice is legal only for these, and only under the feat's own terms. */
   readonly repeatable: boolean;
   /** What a DM still has to apply, beyond whatever {@link grants} declares. */

@@ -475,7 +475,7 @@ describe('a chosen resistance reaches the damage command', () => {
         levelOneSpell: 'find-familiar',
       },
       'human:versatile': { featId: 'alert' },
-      'sorcerer:ability-score-improvement': { featId: 'defense' },
+      'sorcerer:ability-score-improvement': { featId: 'ability-score-improvement', abilities: ['int', 'int'] },
     },
     dmGrants: { items: [], goldPieces: 0, magicItems: [], note: 'standard' },
   });

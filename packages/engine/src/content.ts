@@ -557,6 +557,18 @@ function abilityProblemsOfFeat(feat: FeatDefinition): readonly ContentProblem[] 
     });
   }
 
+  // SRD "Fighting Style Feat (Prerequisite: Fighting Style Feature)": a
+  // feature's name, which an empty string or a non-string is not — a gate on
+  // a name nothing can print would refuse every character, silently.
+  const feature: unknown = (feat as { readonly prerequisiteFeature?: unknown }).prerequisiteFeature;
+  if (feature !== undefined && (typeof feature !== 'string' || feature.trim() === '')) {
+    problems.push({
+      field: `${at}.prerequisiteFeature`,
+      code: 'bad_feat_prerequisite',
+      reason: `a feat's feature prerequisite is the name of a feature, not ${JSON.stringify(feature)}`,
+    });
+  }
+
   return problems;
 }
 
@@ -6588,6 +6600,7 @@ function parseFeatDefinition(value: unknown): Result<FeatDefinition> {
     return err('bad_feat', `${where}.grants: a grant is an object saying which kind it is`);
   }
   const grants = declared as FeatDefinition['grants'];
+  const prerequisiteFeature = s.optionalString(value, 'prerequisiteFeature');
 
   const definition: FeatDefinition = {
     id: s.string(value, 'id'),
@@ -6601,6 +6614,7 @@ function parseFeatDefinition(value: unknown): Result<FeatDefinition> {
     ...(value['minimumLevel'] === undefined
       ? {}
       : { minimumLevel: value['minimumLevel'] as number }),
+    ...(prerequisiteFeature === undefined ? {} : { prerequisiteFeature }),
     ...(grants === undefined ? {} : { grants }),
   };
   const problems = s.problems();

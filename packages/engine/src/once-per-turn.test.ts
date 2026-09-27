@@ -106,7 +106,7 @@ const rogueChoices = (level: number): CharacterChoices => ({
     ? {
         feats: {
           ...common.feats,
-          'rogue:ability-score-improvement': { featId: 'defense' },
+          'rogue:ability-score-improvement': { featId: 'ability-score-improvement', abilities: ['cha', 'cha'] },
           ...(level >= 8 ? { 'rogue:ability-score-improvement-2': { featId: 'ability-score-improvement', abilities: ['cha', 'int'] } } : {}),
           ...(level >= 10 ? { 'rogue:ability-score-improvement-3': { featId: 'ability-score-improvement', abilities: ['cha', 'int'] } } : {}),
           ...(level >= 12 ? { 'rogue:ability-score-improvement-4': { featId: 'ability-score-improvement', abilities: ['cha', 'int'] } } : {}),
@@ -688,7 +688,7 @@ describe('a feature whose damage type is chosen at the hit', () => {
     },
     feats: {
       ...common.feats,
-      ...(level >= 4 ? { 'cleric:ability-score-improvement': { featId: 'defense' } } : {}),
+      ...(level >= 4 ? { 'cleric:ability-score-improvement': { featId: 'ability-score-improvement', abilities: ['int', 'int'] } } : {}),
       ...(level >= 8 ? { 'cleric:ability-score-improvement-2': { featId: 'ability-score-improvement', abilities: ['cha', 'int'] } } : {}),
       ...(level >= 12 ? { 'cleric:ability-score-improvement-3': { featId: 'ability-score-improvement', abilities: ['cha', 'int'] } } : {}),
       ...(level >= 16 ? { 'cleric:ability-score-improvement-4': { featId: 'ability-score-improvement', abilities: ['cha', 'int'] } } : {}),

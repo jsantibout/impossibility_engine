@@ -571,7 +571,7 @@ const monk = (): CharacterChoices => ({
       levelOneSpell: 'find-familiar',
     },
     'human:versatile': { featId: 'alert' },
-    'monk:ability-score-improvement': { featId: 'defense' },
+    'monk:ability-score-improvement': { featId: 'ability-score-improvement', abilities: ['cha', 'cha'] },
   },
   dmGrants: { items: [], goldPieces: 0, magicItems: [], note: 'standard' },
 });
