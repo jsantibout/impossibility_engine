@@ -161,3 +161,61 @@ describe('the rule', () => {
     expect(codes({ count: 2, self: true, objectOrSelf: true })).toContain('object_or_self_count');
   });
 });
+
+/**
+ * "One **Large or smaller** object": the size is the object's. Named as the
+ * caster, the object is the thing in the caster's hand, so the caster's own
+ * size is not asked — a caster nothing has sized still lights their torch. A
+ * declared object is asked its own size. (Every declared object is Large or
+ * smaller already — the Object Hit Points table stops there — so SRD Light's
+ * size never refuses one; a homebrew "Tiny object" shows the reading bites.)
+ */
+describe('the size objectOrSelf asks is the object’s', () => {
+  const SIZELESS = id('sizeless');
+  const PEBBLE_GLOW: SpellDefinition = { ...GLOWSTONE, id: 'homebrew-pebble-glow', name: 'Pebble Glow', targets: { ...GLOWSTONE.targets, mustBeSize: 'tiny' } };
+  const PEBBLE_CONTENT = unwrap(extendContent(CONTENT, { spells: [PEBBLE_GLOW] }), 'the tiny homebrew');
+
+  const sizedState = (): GameState => {
+    const base: GameEvent[] = [
+      { ...added(SIZELESS), size: undefined } as GameEvent,
+      {
+        type: 'spellcasting-declared',
+        id: SIZELESS,
+        spellcasting: declaredCasting({ ability: 'int', cantrips: [PEBBLE_GLOW.id] }),
+      },
+      { type: 'scene-set', extent: { width: 100, depth: 100, height: 40 } },
+      { type: 'landmark-added', name: 'the hall', at: { x: 50, y: 50, z: 0 } },
+      { type: 'creature-placed', id: SIZELESS, placement: { from: { landmark: 'the hall' }, feet: 0 } },
+    ];
+    const sconce = unwrap(
+      declareObject(fold('seed', base), PEBBLE_CONTENT, SCONCE, {
+        name: 'sconce',
+        material: 'iron',
+        size: 'small',
+        build: 'resilient',
+      }),
+      'the sconce',
+    );
+    return fold('seed', [
+      ...base,
+      ...sconce,
+      { type: 'creature-placed', id: SCONCE, placement: { from: { creature: SIZELESS }, feet: 5, bearing: 90 } },
+    ]);
+  };
+
+  const cast = (on: CharacterId): Result<unknown> =>
+    resolveSpell(sizedState(), SIZELESS, { spellId: PEBBLE_GLOW.id, targets: [on] }, {
+      ...supply(),
+      content: PEBBLE_CONTENT,
+    });
+
+  it('lets a caster nothing has sized light the thing in their own hand', () => {
+    expect(code(cast(SIZELESS))).toBe('cast');
+    const shortlist = eligibleTargets(sizedState(), PEBBLE_CONTENT, SIZELESS, PEBBLE_GLOW.id, 0);
+    expect(shortlist.eligible).toContain(SIZELESS);
+  });
+
+  it('asks a declared object its own size', () => {
+    expect(code(cast(SCONCE))).toBe('wrong_creature_size');
+  });
+});

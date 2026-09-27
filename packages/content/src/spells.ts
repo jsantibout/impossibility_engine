@@ -3745,18 +3745,16 @@ export const LIGHT: SpellDefinition = {
   castingTime: 'action',
   concentration: false,
   range: { kind: 'touch' },
-  // The bearer of the object: the SRD touches "one Large or smaller object",
-  // the engine holds no objects, and the object that matters is in somebody's
-  // hand — so the casting names the creature carrying it, the caster included,
-  // and the light goes where they go.
-  targets: { count: 1, self: true },
+  // "One Large or smaller object that isn't being worn or carried by someone
+  // else": the caster, for the thing in their own hand, or a declared object
+  // nobody holds. Anybody else is refused `carried_by_someone_else` (W9-S4's
+  // rule, written here after W9-S1). The size is the object's, so it is asked
+  // of a declared object; the caster's own torch is the caster's to name.
+  targets: { count: 1, self: true, objectOrSelf: true, mustBeSize: ['tiny', 'small', 'medium', 'large'] },
   effects: [{ kind: 'light', level: 'bright', radius: 20, dimBeyond: 20 }],
   durationSeconds: 3600,
   replacesPriorCasting: true,
   lightOnObject: 'always',
-  unmodelled: [
-    'whether the object is worn or carried by someone else is not checked: the casting names any creature as the bearer',
-  ],
   dmDecides: ['The light can be colored as you like.'],
 };
 

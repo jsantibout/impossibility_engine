@@ -2137,8 +2137,6 @@ const FORMAT_EXEMPTIONS: Readonly<Record<string, string>> = {
     'The moment a sending is read at, and SRD Blink prints the other one: "Roll 1d6 **at the end** of each of your turns." The reader is live — `settleElsewhereAtBoundary` compares the effect\'s `at` against the moment it is called with, at both moments — and a definition that vanished a creature at the start of its turn would be read exactly as Blink is. No SRD spell prints that sentence; the day one does, this fails rather than going on excusing a member that now has a writer.',
   "SpellArea[cone].origin='point'":
     'Four cones are defined — Burning Hands, Color Spray, Cone of Cold and Fear — and SRD prints "Self (15-foot Cone)" or its like on every one, so every cone this catalogue writes is anchored on the caster. The arm offers a point because the geometry does not care which it is: `resolveArea` reads `origin === \'self\'` once for every area kind, and the cube arm beside it writes both values, so the branch is live and driven. What is absent is a spell or an item that forms a cone somewhere other than where its caster is standing, and the day one is written this fails rather than going on excusing a member that now has a writer.',
-  'TargetRule.objectOrSelf?':
-    'SRD Light prints "one Large or smaller object that isn\'t being worn or carried by someone else", which is exactly this field, and Light\'s record is W9-S1\'s to edit first in the wave that built the rule — so W9-S4 landed the rule over a homebrew cantrip in `object-or-self.test.ts`, which drives both loops, and left the two-line edit on the record to follow S1\'s merge. The reader is live: `namedTargets` refuses `carried_by_someone_else` and the shortlist excludes the same creatures. The pin below holds that Light does not yet write it, and the day it does this fails rather than going on excusing a member that now has a writer.',
 };
 
 /**
@@ -2661,15 +2659,16 @@ describe('a format exemption says something that can stop being true', () => {
   });
 
   /**
-   * `TargetRule.objectOrSelf` is Light's sentence and Light does not write it
-   * yet: its record still names a bearer with `{ count: 1, self: true }`. The
-   * day W9-S1's merge lets the record take the field, this fails and the
-   * exemption above goes with it. (W9-S4)
+   * `TargetRule.objectOrSelf` is Light's sentence, and Light writes it: SRD
+   * "one Large or smaller object that isn't being worn or carried by someone
+   * else" — the caster's own, or a declared object nobody holds. W9-S4 built
+   * the rule over a homebrew cantrip; the record took it once W9-S1 had
+   * merged.
    */
-  it('pins that the spell printing an object nobody else carries does not write the rule yet', () => {
+  it('pins that the spell printing an object nobody else carries writes the rule', () => {
     const light = SPELL_DEFINITIONS.find((d) => d.id === 'light');
-    expect(light?.targets.objectOrSelf).toBeUndefined();
-    expect(SPELL_DEFINITIONS.filter((d) => d.targets.objectOrSelf === true)).toEqual([]);
+    expect(light?.targets.objectOrSelf).toBe(true);
+    expect(light?.targets.mustBeSize).toEqual(['tiny', 'small', 'medium', 'large']);
   });
 
   /**

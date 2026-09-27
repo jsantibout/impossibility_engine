@@ -2736,8 +2736,14 @@ export function namedTargets(
     // is. A creature nothing anywhere has sized is a plain no rather than a
     // question, for `mustBeUnarmored`'s reason and `mustBeFalling`'s: the fact
     // is the engine's to read, and asking here would tell a caller which
-    // declaration to invent in order to widen the spell.
-    const sized = reasserting ? undefined : definition.targets.mustBeSize;
+    // declaration to invent in order to widen the spell. Under
+    // `objectOrSelf` the caster stands for the object in their own hand (SRD
+    // Light's "Large or smaller object"), so the caster's own size is not the
+    // one asked.
+    const sized =
+      reasserting || (definition.targets.objectOrSelf === true && target === casterId)
+        ? undefined
+        : definition.targets.mustBeSize;
     if (sized !== undefined) {
       const actual = effectiveSizeOf(state, target);
       if (!admitsSize(sized, actual)) {
@@ -3206,7 +3212,11 @@ export function eligibleTargets(
     // The same size rule the named-target path applies, so the shortlist and
     // the cast agree about who this spell could ever be aimed at. An excluded
     // creature rather than a refusal, because that is what this query answers.
-    const sized = reasserting ? undefined : definition.targets.mustBeSize;
+    // The caster under `objectOrSelf` is not asked, for the cast's reason.
+    const sized =
+      reasserting || (definition.targets.objectOrSelf === true && target.id === casterId)
+        ? undefined
+        : definition.targets.mustBeSize;
     if (sized !== undefined) {
       const actual = effectiveSizeOf(state, target.id);
       if (!admitsSize(sized, actual)) {

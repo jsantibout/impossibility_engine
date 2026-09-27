@@ -1116,13 +1116,6 @@ export const ADJUDICATED: Readonly<Record<string, readonly Adjudication[]>> = {
   // is that word, `save.unlessWilling` is the clause that reads it, and the
   // table declares consent by naming it — which is the shape working as
   // described rather than a shape being removed.
-  light: [
-    {
-      clause: 'whether the object is worn or carried by someone else is not checked',
-      why: 'a-target-rule-the-format-cannot-state',
-      note: 'W9-S1 built the object and the cover and re-filed the half that is left, which is about who may be named rather than about light. SRD: "You touch one Large or smaller object that isn’t being worn or carried by someone else." The casting names a creature as the bearer — the caster, or a declared object — and nothing refuses a bearer who is somebody else, or an object larger than Large. A target rule the format cannot state, and W9-S4’s to write (`TargetRule.objectOrSelf` with the size bound beside it).',
-    },
-  ],
   'magic-circle': [
     {
       clause: 'can\'t be possessed by or gain the Charmed or Frightened condition',

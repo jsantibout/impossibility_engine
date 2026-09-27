@@ -553,9 +553,11 @@ const castAt = (
     // SRD Thaumaturgy's "**you** have Advantage": `casterOnly` says the caster
     // is the one legal target, so the sweep names the caster. `notTheCaster`'s
     // opposite number, and the one target rule for which TARGET is a refusal.
+    // SRD Light's `objectOrSelf` is the other: TARGET carries its own gear, so
+    // the sweep names the caster, whose torch the object is.
     const targets = aimsAtNobody
       ? []
-      : definition.targets.casterOnly === true
+      : definition.targets.casterOnly === true || definition.targets.objectOrSelf === true
         ? [CASTER]
         : [TARGET];
     // A bounded target list takes both halves: the names, and the point whose
