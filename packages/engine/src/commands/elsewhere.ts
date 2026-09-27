@@ -825,7 +825,7 @@ export function dismissKeptSummons(
     command,
     () => ({ events: [], unverified: [], duplicate: true }),
     (stamp) => {
-      const owedHere = mayAct(state, casterId);
+      const owedHere = mayAct(state, casterId, 'act');
       if (owedHere !== null) return owedHere;
       const pocket = pocketOf(state, casterId, command.who);
       if (!pocket.ok) return pocket;
@@ -873,7 +873,7 @@ export function recallKeptSummons(
     command,
     () => ({ events: [], unverified: [], duplicate: true }),
     (stamp) => {
-      const owedHere = mayAct(state, casterId);
+      const owedHere = mayAct(state, casterId, 'act');
       if (owedHere !== null) return owedHere;
       const pocket = pocketOf(state, casterId, command.who);
       if (!pocket.ok) return pocket;
@@ -955,7 +955,7 @@ export function borrowSenses(
     command,
     () => ({ events: [], until: null, duplicate: true }),
     (stamp) => {
-      const owedHere = mayAct(state, casterId);
+      const owedHere = mayAct(state, casterId, 'act');
       if (owedHere !== null) return owedHere;
       const creature = creatureOf(state, command.who);
       if (creature === null) return unknownCreature(command.who);
@@ -1048,7 +1048,11 @@ export function enterElsewhere(
       if (state.pendingMove !== null) {
         return err('move_pending', `${state.pendingMove.mover} is already mid-move; settle it first`);
       }
-      const owedHere = mayAct(state, who);
+      // SRD Rope Trick: "climb into the extradimensional space by moving up
+      // the rope" — the creature's own movement, so its Speed is asked: the
+      // climb's, or the flight's for a creature that reaches the portal on
+      // wings (below), which a Specter with no walking Speed does.
+      const owedHere = mayAct(state, who, { move: hasSpeedInModeOn(state, who, 'fly') ? 'fly' : 'climb' });
       if (owedHere !== null) return owedHere;
       const creature = creatureOf(state, who);
       if (creature === null) return unknownCreature(who);
@@ -1191,7 +1195,7 @@ export function drawWayIn(
   command: DrawWayInCommand,
 ): Result<GameEvent[]> {
   return once(state, `draw-way-in:${who}`, command, () => [], (stamp) => {
-    const owedHere = mayAct(state, who);
+    const owedHere = mayAct(state, who, 'act');
     if (owedHere !== null) return owedHere;
     const creature = creatureOf(state, who);
     if (creature === null) return unknownCreature(who);
@@ -1375,7 +1379,7 @@ export function takePrintedSwallow(
       if (state.pendingAttack !== null) {
         return err('attack_pending', 'a hit is waiting for its damage; settle it first');
       }
-      const owedHere = mayAct(state, id);
+      const owedHere = mayAct(state, id, 'act');
       if (owedHere !== null) return owedHere;
       const creature = creatureOf(state, id);
       if (creature === null) return unknownCreature(id, 'has no record here yet; add it first');
@@ -1541,7 +1545,7 @@ export function escapeFromInside(
       if (state.pendingAttack !== null) {
         return err('attack_pending', 'a hit is waiting for its damage; settle it first');
       }
-      const owedHere = mayAct(state, who);
+      const owedHere = mayAct(state, who, 'act');
       if (owedHere !== null) return owedHere;
       const creature = creatureOf(state, who);
       if (creature === null) return unknownCreature(who);
@@ -1691,7 +1695,7 @@ export function pullOutOfCreature(
       if (state.pendingAttack !== null) {
         return err('attack_pending', 'a hit is waiting for its damage; settle it first');
       }
-      const owedHere = mayAct(state, puller);
+      const owedHere = mayAct(state, puller, 'act');
       if (owedHere !== null) return owedHere;
       const creature = creatureOf(state, puller);
       if (creature === null) return unknownCreature(puller);
@@ -1922,7 +1926,7 @@ export function takePrintedPlaneShift(
       if (state.pendingAttack !== null) {
         return err('attack_pending', 'a hit is waiting for its damage; settle it first');
       }
-      const owedHere = mayAct(state, id);
+      const owedHere = mayAct(state, id, 'act');
       if (owedHere !== null) return owedHere;
       const creature = creatureOf(state, id);
       if (creature === null) return unknownCreature(id, 'has no record here yet; add it first');

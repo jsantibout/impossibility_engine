@@ -1371,7 +1371,7 @@ export const EPIC_BOON_FEATS: readonly FeatDefinition[] = [
     minimumLevel: 19,
     repeatable: false,
     grants: { kind: 'ability-score-increase', maximum: 30 },
-    note: 'The second half of the bracket is not enforced: SRD prints "Prerequisite: Level 19+, Spellcasting Feature" and a feat gates on a level and on nothing else, so a character with no Spellcasting feature is not refused this boon. Free Casting is not applied either: rolling 1d4 against the slot’s level to refund it is a roll made inside a casting, which no grant hangs anything on.',
+    note: 'The second half of the bracket is not enforced: SRD prints "Prerequisite: Level 19+, Spellcasting Feature", and a feature gate (`prerequisiteFeature`) names one feature by the name the book prints — which would refuse the Warlock, who casts through a feature called Pact Magic. So a character with no Spellcasting feature is not refused this boon. Free Casting is not applied either: rolling 1d4 against the slot’s level to refund it is a roll made inside a casting, which no grant hangs anything on.',
   },
   {
     id: 'boon-of-the-night-spirit',
@@ -1399,10 +1399,12 @@ export const EPIC_BOON_FEATS: readonly FeatDefinition[] = [
  * SRD "Fighting Style Feats" — the four the SRD publishes.
  *
  * Their prerequisite is the Fighting Style *feature*, which is how the SRD
- * writes "only a class that grants this may take one". The feature's choice
- * names the category, and `checkFeats` already refuses a feat from the wrong
- * one, so the prerequisite is enforced by where the choice is offered rather
- * than by a rule here.
+ * writes "only a class that grants this may take one", and each carries it as
+ * `prerequisiteFeature`. The feature's own choice names the category, which
+ * holds *that slot* to it; it did nothing to hold the category to the
+ * feature, and the Ability Score Improvement's choice names no category — so
+ * a Wizard took Archery in one until the prerequisite was written down
+ * (E-DOWN).
  *
  * **All four are declarations now**, and each wanted something different,
  * which an earlier version of this comment got wrong. It said three of them
@@ -1439,6 +1441,8 @@ export const FIGHTING_STYLE_FEATS: readonly FeatDefinition[] = [
     id: 'archery',
     name: 'Archery',
     category: 'fighting-style',
+    // SRD: "Fighting Style Feat (Prerequisite: Fighting Style Feature)".
+    prerequisiteFeature: 'Fighting Style',
     requires: { kind: 'none' },
     repeatable: false,
     grants: {
@@ -1459,6 +1463,8 @@ export const FIGHTING_STYLE_FEATS: readonly FeatDefinition[] = [
     id: 'defense',
     name: 'Defense',
     category: 'fighting-style',
+    // SRD: "Fighting Style Feat (Prerequisite: Fighting Style Feature)".
+    prerequisiteFeature: 'Fighting Style',
     requires: { kind: 'none' },
     repeatable: false,
     grants: {
@@ -1476,6 +1482,8 @@ export const FIGHTING_STYLE_FEATS: readonly FeatDefinition[] = [
     id: 'great-weapon-fighting',
     name: 'Great Weapon Fighting',
     category: 'fighting-style',
+    // SRD: "Fighting Style Feat (Prerequisite: Fighting Style Feature)".
+    prerequisiteFeature: 'Fighting Style',
     requires: { kind: 'none' },
     repeatable: false,
     grants: {
@@ -1501,6 +1509,8 @@ export const FIGHTING_STYLE_FEATS: readonly FeatDefinition[] = [
     id: 'two-weapon-fighting',
     name: 'Two-Weapon Fighting',
     category: 'fighting-style',
+    // SRD: "Fighting Style Feat (Prerequisite: Fighting Style Feature)".
+    prerequisiteFeature: 'Fighting Style',
     requires: { kind: 'none' },
     repeatable: false,
     grants: {

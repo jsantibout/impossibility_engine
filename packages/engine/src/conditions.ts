@@ -671,8 +671,21 @@ const SPEED_ZERO = ['grappled', 'paralyzed', 'petrified', 'restrained', 'unconsc
  * reduced by 5 feet per Exhaustion level.
  */
 export function conditionSpeed(state: ConditionState, baseSpeed: number): number {
-  if (SPEED_ZERO.some((c) => hasCondition(state, c))) return 0;
+  if (speedPinnedByCondition(state)) return 0;
   return Math.max(0, baseSpeed - 5 * state.exhaustion);
+}
+
+/**
+ * Whether a condition holds the creature at a Speed of 0 — SRD Grappled,
+ * Paralyzed, Petrified, Restrained and Unconscious: "Your Speed is 0 and
+ * can't increase" — whatever its Speed would otherwise be.
+ *
+ * Asked where the feet a move spends are not the creature's own Speed at all:
+ * an Unseen Servant commanded fifteen feet by the spell that made it has no
+ * Speed of its own to be 0, and a net still holds it where it is.
+ */
+export function speedPinnedByCondition(state: ConditionState): boolean {
+  return SPEED_ZERO.some((c) => hasCondition(state, c));
 }
 
 /**

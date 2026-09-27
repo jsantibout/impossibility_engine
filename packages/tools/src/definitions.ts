@@ -204,7 +204,7 @@ import {
   INITIATIVE_LABEL,
   joinCombat,
   MAX_LEVEL,
-  mayAct,
+  owedRefusal,
   mountCreature,
   placeCreatureInScene,
   positionOf,
@@ -684,14 +684,16 @@ const LOOK = tool({
 /**
  * What is open to a creature right now — and one field named carefully.
  *
- * `blockedByDebt` is `mayAct` and nothing more, which is narrower than "may
- * act" sounds: the engine's `mayAct` answers about **debts the world owes** —
- * an unsettled area effect, a turn start nobody resolved — and says nothing
- * whatever about Paralyzed, dead, or whose turn it is. Publishing that as
- * `mayAct: true` for a Paralyzed creature would be this layer's error rather
- * than the engine's, because a caller would act on it. What the engine calls
- * its own function is the engine's business; what goes on the wire is this
- * package's.
+ * `blockedByDebt` is `owedRefusal` and nothing more, which is narrower than
+ * "may act" sounds: it answers about **debts the world owes** — an unsettled
+ * area effect, a turn start nobody resolved — and says nothing whatever about
+ * Paralyzed, dead, or whose turn it is. Publishing that as `mayAct: true` for
+ * a Paralyzed creature would be this layer's error rather than the engine's,
+ * because a caller would act on it. (The engine's `mayAct` asks the actor's
+ * own state as well since E-DOWN — dead, Incapacitated, a Speed of 0 — and
+ * the command refuses on it; this field stays the debt it was named for.)
+ * What the engine calls its own function is the engine's business; what goes
+ * on the wire is this package's.
  */
 const OPTIONS = tool({
   name: 'options',
@@ -702,7 +704,7 @@ const OPTIONS = tool({
   run: (context, args) => {
     const state = context.campaign.state();
     const id = who(args.who);
-    const blocked = mayAct(state, id);
+    const blocked = owedRefusal(state, id);
     return okOutcome([], {
       blockedByDebt: blocked === null ? null : { code: blocked.code, reason: blocked.reason },
       reactions: reactionOpportunities(state, context.campaign.content)

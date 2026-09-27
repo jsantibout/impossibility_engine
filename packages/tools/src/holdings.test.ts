@@ -797,7 +797,13 @@ describe('a Fighter can take a Second Wind', () => {
   it('runs out of uses, and the refusal spends neither a use nor a die', () => {
     const t = table('second-wind-empty');
     expectOk(t.call('create_character', { id: 'bram', choices: character('fighter', 3) }));
-    expectOk(t.rule('improvised_damage', { target: 'bram', amount: 30, ruling: 'the chandelier' }));
+    // One hit point short of the floor: a Fighter the chandelier drops to 0 is
+    // Unconscious, and an Unconscious creature takes no Bonus Action to Second
+    // Wind with (E-DOWN) — which this fixture used to do, twice.
+    expectOk(
+      t.rule('improvised_damage', { target: 'bram', amount: hpOf(t, 'bram') - 1, ruling: 'the chandelier' }),
+    );
+    expect(hpOf(t, 'bram')).toBe(1);
     expectOk(t.call('heal_with_feature', { who: 'bram', feature: 'fighter:second-wind' }));
     expectOk(t.call('heal_with_feature', { who: 'bram', feature: 'fighter:second-wind' }));
     expect(sheetOf(t, 'bram').pool('second-wind')!.left).toBe(0);

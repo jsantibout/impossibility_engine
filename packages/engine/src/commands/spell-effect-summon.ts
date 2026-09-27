@@ -578,7 +578,7 @@ export function commandSummons(
     command,
     () => ({ events: [], moved: null, unverified: [], duplicate: true }),
     (stamp) => {
-      const owedHere = mayAct(state, casterId);
+      const owedHere = mayAct(state, casterId, 'act');
       if (owedHere !== null) return owedHere;
       const creature = creatureOf(state, command.who);
       if (creature === null) return unknownCreature(command.who);

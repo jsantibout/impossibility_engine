@@ -260,14 +260,18 @@ describe('Second Wind', () => {
     expect(rolls.issuer.count).toBe(0);
   });
 
-  /** "Hit points alone will not bring them back" — and the refusal is free. */
+  /**
+   * "Hit points alone will not bring them back" — and the refusal is free. A
+   * dead Fighter takes no Bonus Action at all, so the refusal is the actor's
+   * own state (`actor_dead`, E-DOWN), asked before the heal's target is.
+   */
   it('refuses a dead Fighter without spending a use or a die', () => {
     const g = built(5);
     g.push([{ type: 'creature-died', id: BRAM, cause: 'a very large rock' }]);
 
     const rolls = supply();
     const out = useSelfHeal(g.state, BRAM, { feature: 'fighter:second-wind' }, rolls);
-    expect(isErr(out) && out.code).toBe('dead');
+    expect(isErr(out) && out.code).toBe('actor_dead');
     expect(rolls.issuer.count).toBe(0);
     expect(g.left('bram', 'second-wind')).toBe(3);
   });

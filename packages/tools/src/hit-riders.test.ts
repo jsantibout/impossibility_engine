@@ -146,7 +146,7 @@ const rogue = (name: string): Record<string, unknown> => ({
   featureChoices: { 'rogue:expertise': ['stealth', 'acrobatics'] },
   feats: {
     'criminal:alert': { featId: 'alert' },
-    'rogue:ability-score-improvement': { featId: 'defense' },
+    'rogue:ability-score-improvement': { featId: 'ability-score-improvement', abilities: ['cha', 'cha'] },
   },
   dmGrants: { items: [], goldPieces: 0, magicItems: [], note: 'standard package only' },
 });

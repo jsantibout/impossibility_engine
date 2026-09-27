@@ -475,6 +475,10 @@ describe('a feature grant reaches the command layer', () => {
    *
    * Nothing in the suite mounted under a zeroing condition before this, which
    * is how the refusal could have gone missing without a test going red.
+   *
+   * Refused `no_speed` since E-DOWN — the one code every voluntary move at a
+   * Speed of 0 meets, asked by `mayAct` — where it had been
+   * `not_enough_movement`, asked only where a turn budget was running.
    */
   it('refuses mounting while a condition has pinned the rider', () => {
     const base = fold('seed', setup([unarmoredMovement]));
@@ -486,7 +490,7 @@ describe('a feature grant reaches the command layer', () => {
 
     const out = mountCreature(grappled, MONK, HORSE, { willing: true });
     expect(isErr(out)).toBe(true);
-    if (isErr(out)) expect(out.code).toBe('not_enough_movement');
+    if (isErr(out)) expect(out.code).toBe('no_speed');
   });
 
   /**

@@ -44,6 +44,7 @@
 export { damageTakenIn, ZERO_HIT_POINTS } from './commands/command.js';
 export {
   mayAct,
+  owedRefusal,
   owedAreaEffectsOf,
   pendingAttackOf,
   pendingCastingsBy,

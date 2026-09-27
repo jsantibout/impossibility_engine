@@ -2576,6 +2576,19 @@ function checkFeats(
         continue;
       }
 
+      // And the feature the bracket names — SRD "Fighting Style Feat
+      // (Prerequisite: Fighting Style Feature)" — asked of every feature the
+      // character holds, by the name the book prints, so an Ability Score
+      // Improvement ("another feat of your choice for which you qualify") that
+      // names no category cannot hand a Wizard Archery.
+      const needs = definition.prerequisiteFeature;
+      if (needs !== undefined && !features.some((held) => held.name === needs)) {
+        problems.push(
+          problem('feat_prerequisite_unmet', 'feats', `${definition.name} asks for the ${needs} feature, and this character holds none`),
+        );
+        continue;
+      }
+
       taken.push({ feature: answerKey, feat: definition, choice: made });
       problems.push(...checkFeatChoice(content, answerKey, definition, made, fixed?.spellList));
     }

@@ -640,6 +640,10 @@ describe('a readied move spends the Reaction, not the Speed', () => {
    * moment of deciding. SRD Grappled: "Your Speed becomes 0." A creature
    * grabbed while waiting on its trigger goes nowhere, and an allowance frozen
    * at the Ready would have handed it thirty feet out of the ogre's fist.
+   *
+   * Refused `no_speed` since E-DOWN — the code every voluntary move a
+   * condition holds at a Speed of 0 meets — where it had been
+   * `not_enough_movement`, the allowance's own arithmetic arriving at 0.
    */
   it('reads the mover’s Speed at the release, not at the Ready', () => {
     const grabbed: readonly GameEvent[] = [
@@ -648,7 +652,7 @@ describe('a readied move spends the Reaction, not the Speed', () => {
     ];
     const out = releaseReady(fold('seed', grabbed), ARCHER, { placement: away(35) }, supply());
     expect(isErr(out)).toBe(true);
-    if (isErr(out)) expect(out.code).toBe('not_enough_movement');
+    if (isErr(out)) expect(out.code).toBe('no_speed');
   });
 
   /**

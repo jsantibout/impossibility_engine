@@ -1314,13 +1314,14 @@ export interface TurnBudget {
    * folded into the allowance because it was earned at a moment: the Speed it
    * was measured against was the Speed *then*.
    *
-   * **A Dash's gained movement survives a later Speed of 0 this turn**, and
-   * that is an open reading rather than a decision. SRD Grappled says "Your
+   * **A Dash's gained movement does not survive a later Speed of 0**, and
+   * that was an open reading until E-DOWN decided it. SRD Grappled says "Your
    * Speed is 0 and can't increase", which is about the Speed and says nothing
-   * about extra movement already banked. Today's arithmetic allowed it before
-   * this field existed and this formula preserves the reading exactly; the
-   * engine has not decided it, and this sentence is where that is written
-   * down rather than discovered.
+   * about extra movement already banked; this arithmetic still keeps the feet,
+   * but the command in front of it no longer lets a mover at a Speed of 0 take
+   * a step — `actorRefusal` in `commands/holds.ts` refuses it `no_speed`,
+   * because an Unconscious creature that Dashed before it fell walking on
+   * would be the playtest's corpse by another road.
    */
   readonly movementGained: number;
   /**
@@ -2268,9 +2269,11 @@ export function spendMovement(
   }
 
   // SRD Tsunami: "it can't move". A Speed of 0 is a *different* sentence —
-  // `speedOf`'s, and Hypnotic Pattern's — and the two are kept apart because
-  // a Dash banked before the rule landed still spends against a Speed of 0
-  // and must not spend against a prohibition.
+  // `speedOf`'s, and Hypnotic Pattern's — and the two are kept apart here
+  // because this arithmetic spends a banked Dash against a Speed of 0 and must
+  // not spend it against a prohibition. (The commands refuse a voluntary move
+  // at a Speed of 0 before it gets here, as `no_speed`; the reducer's backstop
+  // still folds whatever an old log recorded.)
   const permitted = refuseSpend(id, 'movement', spend);
   if (!permitted.ok) return permitted;
 

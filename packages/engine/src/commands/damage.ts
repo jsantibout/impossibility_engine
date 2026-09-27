@@ -25,7 +25,8 @@ import {
 import { parseNotation } from '../dice.js';
 import { canUseFeatureThisTurn, spendReaction } from '../combat.js';
 import { damageReductionsOf, reductionApplies } from '../damage-reduction.js';
-import { isIncapacitated, sourceOfInstance } from '../conditions.js';
+import { sourceOfInstance } from '../conditions.js';
+import { actorRefusal } from './holds.js';
 import { rollSavingThrow } from '../checks.js';
 import { castingIdOf, castingSource } from '../spells.js';
 import { type EffectTarget } from '../timers.js';
@@ -902,18 +903,21 @@ export function spendReactionCost(
 ): Result<GameEvent[]> {
   const events: GameEvent[] = [];
 
-  if (feature.costsReaction) {
-    if (state.combat !== null && state.combat.budgets[reactor] !== undefined) {
-      const spent = spendReaction(state.combat, reactor, creature.conditions, {
-        rules: actionRulesOn(state, reactor),
-      });
-      if (!spent.ok) return spent;
-      events.push({ type: 'reaction-spent', id: reactor });
-    } else if (isIncapacitated(creature.conditions)) {
-      // Outside combat there is no Reaction to spend and `spendReaction` is
-      // never asked, but SRD Incapacitated still forbids taking one.
-      return err('incapacitated', `${reactor} is Incapacitated and can't take a Reaction`);
-    }
+  // The reactor's own state, asked once and in or out of a fight — outside one
+  // there is no Reaction to spend and `spendReaction` is never asked, but SRD
+  // Incapacitated still forbids taking one. A dead creature answers no window
+  // whatever it costs; an Incapacitated one is refused only what costs the
+  // Reaction it cannot take. This is the one place every window's command asks
+  // what a Reaction costs, so it is the one place the reactor is asked.
+  const cannot = actorRefusal(state, reactor, feature.costsReaction ? 'act' : 'alive');
+  if (cannot !== null) return cannot;
+
+  if (feature.costsReaction && state.combat !== null && state.combat.budgets[reactor] !== undefined) {
+    const spent = spendReaction(state.combat, reactor, creature.conditions, {
+      rules: actionRulesOn(state, reactor),
+    });
+    if (!spent.ok) return spent;
+    events.push({ type: 'reaction-spent', id: reactor });
   }
 
   if (feature.pool !== null) {

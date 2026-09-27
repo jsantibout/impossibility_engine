@@ -144,7 +144,7 @@ export function createDevice(
   command: CreateDeviceCommand,
 ): Result<GameEvent[]> {
   return once(state, `create-device:${id}`, command, () => [], (stamp) => {
-    const owed = mayAct(state, id);
+    const owed = mayAct(state, id, 'act');
     if (owed !== null) return owed;
 
     const creature = creatureOf(state, id);
@@ -279,7 +279,7 @@ export function dismantleDevice(
   command: DismantleDeviceCommand,
 ): Result<GameEvent[]> {
   return once(state, `dismantle-device:${id}`, command, () => [], (stamp) => {
-    const owed = mayAct(state, id);
+    const owed = mayAct(state, id, 'act');
     if (owed !== null) return owed;
 
     if (creatureOf(state, id) === null) return unknownCreature(id);
@@ -317,7 +317,7 @@ export function activateDevice(
   command: ActivateDeviceCommand,
 ): Result<DeviceUse> {
   return once(state, `activate-device:${id}`, command, () => NOTHING_USED, (stamp) => {
-    const owed = mayAct(state, id);
+    const owed = mayAct(state, id, 'act');
     if (owed !== null) return owed;
 
     if (creatureOf(state, id) === null) return unknownCreature(id);

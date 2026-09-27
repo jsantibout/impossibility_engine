@@ -127,7 +127,7 @@ export function activateFeature(
   return once(state, `activate:${id}`, command, () => [], (stamp) => {
     // A mandatory effect this creature has been caught by, or a turn whose start
     // has not arrived. **After the duplicate check, never before it.**
-    const owedHere = mayAct(state, id);
+    const owedHere = mayAct(state, id, 'act');
     if (owedHere !== null) return owedHere;
 
     const creature = creatureOf(state, id);
@@ -365,7 +365,7 @@ export function useHealingTouch(
   return once(state, `healing-touch:${id}`, command, () => [], (stamp) => {
     // A mandatory effect this creature has been caught by, or a turn whose start
     // has not arrived. **After the duplicate check, never before it.**
-    const owedHere = mayAct(state, id);
+    const owedHere = mayAct(state, id, 'act');
     if (owedHere !== null) return owedHere;
 
     const creature = creatureOf(state, id);
@@ -482,7 +482,7 @@ export function conferReaction(
 ): Result<Conferral> {
   return once(state, `confer-reaction:${id}`, command, () => NOTHING_CONFERRED, (stamp) => {
     // After the duplicate check, never before it.
-    const owedHere = mayAct(state, id);
+    const owedHere = mayAct(state, id, 'act');
     if (owedHere !== null) return owedHere;
 
     const giver = creatureOf(state, id);
@@ -597,7 +597,7 @@ export function useSelfHeal(
   return once(state, `self-heal:${id}`, command, () => [], (stamp) => {
     // A mandatory effect this creature has been caught by, or a turn whose start
     // has not arrived. **After the duplicate check, never before it.**
-    const owedHere = mayAct(state, id);
+    const owedHere = mayAct(state, id, 'act');
     if (owedHere !== null) return owedHere;
 
     const creature = creatureOf(state, id);
@@ -612,12 +612,9 @@ export function useSelfHeal(
       return err('exhausted', `${id} has no uses of ${definition.name} left`);
     }
 
-    // Asked before the die rather than discovered after it: `healCreature`
-    // refuses a corpse, and a refusal that arrived after the roll would have
-    // spent a die on nothing.
-    if (creature.vitals.dead) {
-      return err('dead', `${id} is dead; hit points alone will not bring them back`);
-    }
+    // A corpse was refused before the die rather than discovered after it —
+    // `actor_dead`, by `mayAct` above, because the healer and the healed are
+    // one creature here and a dead one takes no Bonus Action.
 
     const events: GameEvent[] = [];
 
@@ -782,7 +779,7 @@ export function useRecovery(
   return once(state, `recovery:${id}`, command, () => [], (stamp) => {
     // A mandatory effect this creature has been caught by, or a turn whose start
     // has not arrived. **After the duplicate check, never before it.**
-    const owedHere = mayAct(state, id);
+    const owedHere = mayAct(state, id, 'act');
     if (owedHere !== null) return owedHere;
 
     const creature = creatureOf(state, id);
@@ -926,7 +923,7 @@ export function extendFeature(
     // sibling feature commands have always asked; this one spends a Bonus Action
     // and a pool use and did not, which is the hole the sweep in
     // `invariants.test.ts` now makes impossible to reintroduce quietly.
-    const owedHere = mayAct(state, id);
+    const owedHere = mayAct(state, id, 'act');
     if (owedHere !== null) return owedHere;
 
     const creature = creatureOf(state, id);
@@ -1330,7 +1327,7 @@ export function orderSummonsAttack(
     (stamp) => {
       // A mandatory effect this creature has been caught by, or a turn whose
       // start has not arrived. **After the duplicate check, never before it.**
-      const owedHere = mayAct(state, id);
+      const owedHere = mayAct(state, id, 'act');
       if (owedHere !== null) return owedHere;
 
       const creature = creatureOf(state, id);
@@ -1565,7 +1562,7 @@ export function usePoolOption(
   return once(state, `pool-option:${id}`, command, () => NOTHING_USED, (stamp) => {
     // A mandatory effect this creature has been caught by, or a turn whose
     // start has not arrived. **After the duplicate check, never before it.**
-    const owedHere = mayAct(state, id);
+    const owedHere = mayAct(state, id, 'act');
     if (owedHere !== null) return owedHere;
 
     const creature = creatureOf(state, id);

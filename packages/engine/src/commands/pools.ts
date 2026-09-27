@@ -123,7 +123,7 @@ export function tradeResource(
   return once(state, `trade:${id}`, command, () => [], (stamp) => {
     // A mandatory effect this creature has been caught by, or a turn whose
     // start has not arrived. **After the duplicate check, never before it.**
-    const owedHere = mayAct(state, id);
+    const owedHere = mayAct(state, id, 'act');
     if (owedHere !== null) return owedHere;
 
     const creature = creatureOf(state, id);

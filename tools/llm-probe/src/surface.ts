@@ -491,7 +491,7 @@ function run(
 
     case 'options': {
       const id = who(input, 'who');
-      const blocked = mayAct(state, id);
+      const blocked = mayAct(state, id, 'act');
       return plain({
         may_act: blocked === null,
         ...(blocked === null ? {} : { blocked_because: { code: blocked.code, reason: blocked.reason } }),
