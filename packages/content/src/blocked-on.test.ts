@@ -2786,8 +2786,11 @@ describe('a consumer count is a query', () => {
       // **And W9-S2 swapped them back**: the trigger shape lost six clauses to
       // a build and fell to meet the second place, a consumer behind the coin
       // flip.
+      //
+      // **And W9-S3 retired the second place** — Magic Circle's crossing and
+      // Rope Trick's rope were its last claimants — so the trigger shape
+      // stands in this band alone.
       'a-casting-ended-by-a-trigger',
-      'a-second-place-to-put-a-creature',
     ]);
     // **Moved from 20 to 15 by the third catalogue pass, and the total fell
     // further than the tracked column rose.** Twelve undefined spells named

@@ -21,7 +21,7 @@ import { applyEvent, fold, type GameEvent, type GameState } from './events.js';
 import { lightAt, type Point } from './positioning.js';
 import { createRollIssuer } from './rolls.js';
 import { canSee, rollModesFor, sensesOf } from './standing.js';
-import { activateSpell, advanceTime, resolveAttack, resolveMove, resolveSpell } from './commands.js';
+import { activateSpell, advanceTime, moveCastLight, resolveAttack, resolveMove, resolveSpell } from './commands.js';
 
 const WIZ = asCharacterId('wiz');
 const ALLY = asCharacterId('ally');
@@ -177,8 +177,11 @@ describe('SRD Light, on a thing a creature holds', () => {
     const allyAt = at(105, 100);
     expect(lightAt(state, allyAt).level).toBeNull();
 
-    const cast = unwrap(resolveSpell(state, WIZ, { spellId: 'light', targets: [ALLY] }, supply('light')), 'light');
-    const lit = run(state, cast.events);
+    // The wizard lights the torch in their own hand — SRD Light refuses one
+    // somebody else is carrying (W9-S4) — and hands it to the ally.
+    const cast = unwrap(resolveSpell(state, WIZ, { spellId: 'light', targets: [WIZ] }, supply('light')), 'light');
+    const own = run(state, cast.events);
+    const lit = run(own, unwrap(moveCastLight(own, SRD_CONTENT, cast.castingId!, { to: { creature: ALLY } }), 'hand over'));
     expect(lightAt(lit, allyAt)).toMatchObject({ level: 'bright', magical: true });
     expect(lightAt(lit, at(135, 100)).level).toBe('dim');
     expect(lightAt(lit, at(155, 100)).level).toBeNull();
@@ -199,9 +202,10 @@ describe('SRD Light, on a thing a creature holds', () => {
 
   it('goes out when the hour does', () => {
     const state = fold('seed', hall(made(WIZ, wizard()), WIZ));
-    const lit = run(state, unwrap(resolveSpell(state, WIZ, { spellId: 'light', targets: [ALLY] }, supply('l')), 'light').events);
+    const lit = run(state, unwrap(resolveSpell(state, WIZ, { spellId: 'light', targets: [WIZ] }, supply('l')), 'light').events);
+    expect(lightAt(lit, at(100, 100)).level).toBe('bright');
     const later = run(lit, unwrap(advanceTime(lit, HOUR, 'an hour'), 'time'));
-    expect(lightAt(later, at(105, 100)).level).toBeNull();
+    expect(lightAt(later, at(100, 100)).level).toBeNull();
   });
 
   it('is put out by a Darkness laid over it, as the book says a level 2 spell is', () => {

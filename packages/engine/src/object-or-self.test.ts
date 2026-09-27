@@ -177,7 +177,9 @@ describe('the size objectOrSelf asks is the object’s', () => {
 
   const sizedState = (): GameState => {
     const base: GameEvent[] = [
-      { ...added(SIZELESS), size: undefined } as GameEvent,
+      // Added with no size at all: nothing — stat block, species or placement —
+      // has said how big this caster is.
+      { type: 'creature-added', id: SIZELESS, name: SIZELESS, sheet: sheet(), maxHp: 30, diesAtZero: false, creatureType: 'Humanoid' },
       {
         type: 'spellcasting-declared',
         id: SIZELESS,
