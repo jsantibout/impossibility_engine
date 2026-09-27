@@ -1176,7 +1176,7 @@ export const ADJUDICATED: Readonly<Record<string, readonly Adjudication[]>> = {
     {
       clause: 'can\'t be possessed by or gain the Charmed or Frightened condition',
       why: 'table',
-      note: 'The reading that lets the handed-over sentence past the marker rule (W8-S26). The marker fires on the Charmed and Frightened, which the Immunity narrowed to the chosen types refuseswhatever the table reads. Possession is the third thing in the sentence: the owner ruled on 2026-09-24 that a possession is a compulsion the table adjudicates for good — only a Ghost’s saving throw is the engine’s — so the protection against one reads nothing the engine will ever hold.',
+      note: 'The reading that lets the handed-over sentence past the marker rule (W8-S26). The marker fires on the Charmed and Frightened, which the Immunity narrowed to the chosen types refuses whatever the table reads. Possession is the third thing in the sentence: the owner ruled on 2026-09-24 that a possession is a compulsion the table adjudicates for good — only a Ghost’s saving throw is the engine’s — so the protection against one reads nothing the engine will ever hold.',
     },
     {
       clause: 'interplanar travel to do so, it must first succeed on a Charisma saving throw',

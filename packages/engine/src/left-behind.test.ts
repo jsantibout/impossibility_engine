@@ -198,6 +198,21 @@ describe('SRD Find Steed: "When it disappears, it leaves behind anything it was 
   });
 });
 
+describe('a familiar with nowhere to leave anything', () => {
+  it('asks where it was when there is no room to put the bell down in, rather than losing the bell', () => {
+    const start = fold('left', FIELD.filter((event) => !['scene-set', 'landmark-added', 'creature-placed'].includes(event.type)));
+    const arrived = unwrapped(
+      summonCreature(start, SRD_CONTENT, { id: OWL, monsterId: 'owl', by: WIZARD, kept: FAMILIAR }),
+      'the arrival',
+    );
+    const state = after(after(start, arrived.events), [
+      { type: 'items-gained', id: OWL, items: [{ id: 'bell', quantity: 1 }], source: 'tied to its leg' },
+    ]);
+    const { swept } = felled(state, OWL);
+    expect(isErr(swept) && swept.kind).toBe('needs-context');
+  });
+});
+
 describe('a kept creature whose spell prints no such sentence', () => {
   it('takes what it carried with it', () => {
     const state = kept(HOUND, { spell: 'some-other-spell', untilSummonerDies: false });
