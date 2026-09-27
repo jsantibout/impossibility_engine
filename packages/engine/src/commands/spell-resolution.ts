@@ -43,6 +43,7 @@ import {
   itemChargePool,
   itemFailureCount,
   itemSource,
+  isMagicalItem,
 } from '../catalogue.js';
 import { featureSource } from '../progression.js';
 import {
@@ -53,7 +54,7 @@ import {
   quantityOf,
 } from './inventory.js';
 import { type GrantedActionRule, spendAction, spendBonusAction, spendReaction } from '../combat.js';
-import { hasComponent, type SpellEntry } from '../content.js';
+import { type Content, hasComponent, type SpellEntry } from '../content.js';
 import { type CommandIdentity, commandOutcome, once } from '../idempotency.js';
 import {
   type Ability,
@@ -128,6 +129,7 @@ import {
 } from '../spell-definitions.js';
 import { castsAtWill, type CastingRoute } from '../spellcasting.js';
 import {
+  castingIdOf,
   castingNumber,
   castingSource,
   type CastingNumbers,
@@ -1761,6 +1763,13 @@ export function castOrRelease(
           'weapon_not_held',
           `${target} has no ${item.weapon.name} for ${definition.name} to imbue`,
         );
+      }
+      // SRD Magic Weapon: "You touch a **nonmagical** weapon." Asked only of a
+      // rider that makes the weapon magic, because that is the spell printing
+      // the word — Shillelagh prints neither half. See `makesMagical`.
+      if (imbues.makesMagical === true) {
+        const magical = magicalWeaponProblem(state, supply.content, casterId, definition, targets, named);
+        if (magical !== null) return magical;
       }
     }
 
@@ -4686,6 +4695,60 @@ function creatureWardAgainst(state: GameState, who: CharacterId, school: string)
     const record = state.ongoing[castingId];
     if (record?.wardsTargets === undefined || record.wardsTargets.school !== school) continue;
     if (isOn(state, record, who)) return record.spell;
+  }
+  return null;
+}
+
+/**
+ * SRD Magic Weapon: "You touch a **nonmagical** weapon. Until the spell ends,
+ * that weapon **becomes a magic weapon**." (W9-S4)
+ *
+ * Two ways a weapon is magic already, each asked where its fact lives. The
+ * record: a +1 Longsword is a magic item, which `isMagicalItem` derives from
+ * what the record has grown. And a running casting: a rider on this weapon,
+ * held by the creature this casting touches, whose spell's own rider says the
+ * weapon became a magic one — read through the casting's record to its
+ * `spellId` and then the book, because the rider carries neither. A rider
+ * from a feature (SRD Sacred Weapon) has no casting and says no such thing.
+ *
+ * **A recast is not in its own way.** SRD Magic Weapon: "The spell ends early
+ * if you cast it again" — the castings `replacedCastings` would end are the
+ * ones this casting takes away, so their riders are passed over.
+ */
+function magicalWeaponProblem(
+  state: GameState,
+  content: Content,
+  casterId: CharacterId,
+  definition: SpellDefinition,
+  targets: readonly CharacterId[],
+  weapon: string,
+): Result<never> | null {
+  const item = content.item(weapon);
+  if (item !== null && isMagicalItem(item)) {
+    return err(
+      'weapon_already_magical',
+      `${definition.name} is cast on a nonmagical weapon, and a ${item.weapon?.name ?? item.name} is a magic item`,
+    );
+  }
+  const replaced = new Set(
+    replacedCastings(state, casterId, definition, targets).flatMap((event) =>
+      event.type === 'spell-ended' ? [event.castingId] : [],
+    ),
+  );
+  for (const target of targets) {
+    for (const rider of state.creatures[target]?.weaponRiders ?? []) {
+      if (rider.weapon !== weapon) continue;
+      const castingId = castingIdOf(rider.source);
+      if (castingId === null || replaced.has(castingId)) continue;
+      const record = state.ongoing[castingId];
+      if (record === undefined) continue;
+      const imbuedBy = content.spell(record.spellId);
+      if (imbuedBy === null || weaponRiderOf(imbuedBy)?.makesMagical !== true) continue;
+      return err(
+        'weapon_already_magical',
+        `${definition.name} is cast on a nonmagical weapon, and ${target}’s ${item?.weapon?.name ?? weapon} is a magic weapon while ${record.spell} (${castingId}) runs`,
+      );
+    }
   }
   return null;
 }

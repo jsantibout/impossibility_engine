@@ -6138,6 +6138,91 @@ function checkSharesDamage(
 }
 
 /**
+ * The rules W9-S4 added about what a casting may be aimed at, each `true` or
+ * absent, and each where a reader will find it.
+ *
+ * - `area.pointOnUnoccupiedGround` (SRD Flaming Sphere) is a rule about the
+ *   point, so it sits on the one member that is conjured at a point: a Sphere
+ *   whose `origin` is `point`. On anything else the point it speaks of is not
+ *   the caster's to choose.
+ * - `weapon-rider.makesMagical` (SRD Magic Weapon) is read off the rider the
+ *   pre-flight finds, `weaponRiderOf`, and a fist is not a weapon.
+ * - `targets.objectOrSelf` (SRD Light) admits the caster, so it needs
+ *   `self: true` or the casting refuses the caster too, and it names one
+ *   object — `casterOnly`'s two rules, for `casterOnly`'s two reasons.
+ */
+function checkWhatACastingMayBeAimedAt(
+  definition: SpellDefinition,
+  found: SpellDefinitionProblem[],
+): void {
+  const objectOrSelf = (definition.targets as { readonly objectOrSelf?: unknown }).objectOrSelf;
+  if (objectOrSelf !== undefined) {
+    if (objectOrSelf !== true) {
+      found.push({
+        field: 'targets.objectOrSelf',
+        code: 'malformed_field',
+        reason: 'a spell is cast on an object nobody else carries or it is not; the only value is true',
+      });
+    } else {
+      if (definition.targets.self !== true) {
+        found.push({
+          field: 'targets.objectOrSelf',
+          code: 'object_or_self_without_self',
+          reason:
+            '`objectOrSelf` admits the caster, who carries the object, so the spell must admit the caster: write `self: true` beside it',
+        });
+      }
+      if (definition.targets.count !== 1) {
+        found.push({
+          field: 'targets.count',
+          code: 'object_or_self_count',
+          reason: `the clause is about one object; \`objectOrSelf\` with a count of ${definition.targets.count} names more than the sentence does`,
+        });
+      }
+    }
+  }
+
+  definition.effects.forEach((effect, i) => {
+    if (effect.kind !== 'weapon-rider') return;
+    const makesMagical = (effect as { readonly makesMagical?: unknown }).makesMagical;
+    if (makesMagical === undefined) return;
+    if (makesMagical !== true) {
+      found.push({
+        field: `effects[${i}].makesMagical`,
+        code: 'malformed_field',
+        reason: 'a spell makes the weapon a magic weapon or it does not; the only value is true',
+      });
+    } else if (effect.unarmed === true) {
+      found.push({
+        field: `effects[${i}].makesMagical`,
+        code: 'magical_fist',
+        reason: 'a rider on the Unarmed Strike imbues no weapon, so there is no weapon for it to make magic',
+      });
+    }
+  });
+
+  const area = definition.area as
+    | { readonly kind?: unknown; readonly origin?: unknown; readonly pointOnUnoccupiedGround?: unknown }
+    | undefined;
+  if (typeof area === 'object' && area !== null && area.pointOnUnoccupiedGround !== undefined) {
+    if (area.pointOnUnoccupiedGround !== true) {
+      found.push({
+        field: 'area.pointOnUnoccupiedGround',
+        code: 'malformed_field',
+        reason: 'a point is held to an empty space on the floor or it is not; the only value is true',
+      });
+    } else if (area.kind !== 'sphere' || area.origin !== 'point') {
+      found.push({
+        field: 'area.pointOnUnoccupiedGround',
+        code: 'ground_point_without_point',
+        reason:
+          'the clause holds the point a thing is conjured at to an empty space on the ground, and only a Sphere placed at a point you choose has one',
+      });
+    }
+  }
+}
+
+/**
  * SRD Nondetection's "can't be targeted by any Divination spell": a ward held
  * by a creature for a span, against one of the eight schools — see
  * `SpellDefinition.wardsTargets`. A ward on nobody, or one that ends the moment
@@ -8167,6 +8252,7 @@ export function checkSpellDefinition(
   checkWeaponAttack(definition, found);
   checkCastingRepeatLifetime(definition, found);
   checkSaveOnTheHit(definition, found);
+  checkWhatACastingMayBeAimedAt(definition, found);
 
   const activation = definition.activation;
   if (

@@ -277,7 +277,7 @@ describe('the clause is the spell’s, not the mechanism’s', () => {
 
   it('measures the burn from the point and the light over the area', () => {
     expect(sphere?.areaTrigger?.within).toBe(5);
-    expect(sphere?.area).toEqual({ kind: 'sphere', radius: 20, origin: 'point' });
+    expect(sphere?.area).toEqual({ kind: 'sphere', radius: 20, origin: 'point', pointOnUnoccupiedGround: true });
     expect(sphere?.areaLight).toEqual({ level: 'bright', dimBeyond: 20 });
   });
 

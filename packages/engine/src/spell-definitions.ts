@@ -4001,6 +4001,20 @@ export type SpellEffect =
        * components.
        */
       readonly damageTypes?: readonly string[];
+      /**
+       * SRD Magic Weapon: "that weapon **becomes a magic weapon**".
+       *
+       * Read by the casting pre-flight of any spell whose rider carries it:
+       * a weapon that is magic already — its record says so
+       * (`isMagicalItem`), or a running casting whose rider carries this made
+       * it so — is refused `weapon_already_magical`, which is "You touch a
+       * **nonmagical** weapon". So a second caster's Magic Weapon on the
+       * first's Longsword is refused, while SRD Shillelagh, which imbues a
+       * Club and prints no such sentence, leaves it off and is never in the
+       * way. Nothing is pinned for the fold, because the fold never asks.
+       * Refused beside {@link unarmed}: a fist is not a weapon. (W9-S4)
+       */
+      readonly makesMagical?: true;
     }
   /**
    * The weapon attack the casting **itself** makes.
@@ -4730,6 +4744,21 @@ export type SpellArea =
        * every other area in the book. (W7-S21)
        */
       readonly standsApart?: true;
+      /**
+       * SRD Flaming Sphere: "You create a 5-foot-diameter sphere of fire in an
+       * **unoccupied space on the ground** within range."
+       *
+       * Two refusals on the point, before anything is spent: a point whose
+       * space somebody occupies is `point_occupied`, read off the lattice as
+       * every other space rule is, and a point above the lattice floor is
+       * `point_not_on_ground` — the floor `altitudeOf` calls the only one the
+       * engine has, so a ledge is a fiction the lattice does not hold. The
+       * point is where the conjured thing sits, which is why it is a rule of
+       * the point and not of the template it lights. Absent is every other
+       * point in the book: Fireball's bead may burst in a creature's space or
+       * in the air. (W9-S4)
+       */
+      readonly pointOnUnoccupiedGround?: true;
     }
   | {
       readonly kind: 'cylinder';
@@ -5476,6 +5505,21 @@ export interface TargetRule {
    * only count "you and nobody else" can have.
    */
   readonly casterOnly?: true;
+  /**
+   * SRD *Light*: "You touch one Large or smaller object that **isn't being
+   * worn or carried by someone else**."
+   *
+   * {@link casterOnly}'s neighbour: the caster is admitted — the object is in
+   * their hand, and the casting names its bearer — and so is a record whose
+   * **own** creature type is the Object type a declared object arrives with
+   * (`declareObject`), which nobody carries. Anybody else is carrying the
+   * thing for themselves and is refused `carried_by_someone_else`, in the
+   * cast and in the shortlist. The record's own type, not what magic sees: a
+   * Mask changes what spells believe a creature is, not that it is one.
+   * Written with `self: true` and `count: 1`, which the validator holds it
+   * to. (W9-S4)
+   */
+  readonly objectOrSelf?: true;
   /**
    * SRD "each creature of your choice", which names no number at all.
    *

@@ -817,8 +817,9 @@ describe('an executed spell with a clause nobody sorted is not executed', () => 
       .filter((one) => one.wait === 'definition')
       .map((one) => one.id)
       .sort();
-    // Flame Blade and Produce Flame left when W9-S1 wrote their light.
-    expect(pending).toEqual(['nondetection']);
+    // Flame Blade and Produce Flame left when W9-S1 wrote their light, and
+    // Nondetection in W9-S4: `targets.optional` was the definition it owed.
+    expect(pending).toEqual([]);
     for (const id of pending) {
       expect(unsortedInReach()[id], id).toBeUndefined();
       expect((ADJUDICATED[id] ?? []).map((entry) => entry.why), id).toContain('expressible');

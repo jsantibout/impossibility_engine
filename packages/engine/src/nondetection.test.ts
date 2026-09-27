@@ -1,6 +1,13 @@
 import { SPELL_DEFINITIONS, SRD_CONTENT } from '@ie/content';
 import { describe, expect, it } from 'vitest';
-import { asCharacterId, expect as unwrap, isErr, type CharacterId } from '@ie/shared';
+import {
+  asCharacterId,
+  contextRequestsOf,
+  expect as unwrap,
+  isErr,
+  isNeedsContext,
+  type CharacterId,
+} from '@ie/shared';
 import type { CharacterSheet } from './character.js';
 import { createRng, type Rng } from './dice.js';
 import { createRollIssuer } from './rolls.js';
@@ -8,7 +15,8 @@ import { fold, type GameEvent, type GameState } from './events.js';
 import { remaining, spellSlotKey } from './resources.js';
 import { declaredCasting } from './spellcasting.js';
 import { checkSpellDefinitionValue } from './spell-schema.js';
-import { endOngoingSpell, resolveSpell } from './commands.js';
+import { declareObject, endOngoingSpell, resolveSpell } from './commands.js';
+import { dmDecisionsIn } from './spell-definitions.js';
 
 /**
  * SRD Nondetection:
@@ -115,10 +123,12 @@ describe('the definition', () => {
   it('wards its target against Divination for eight hours, and hands the sensors to the table', () => {
     expect(definition().wardsTargets).toEqual({ school: 'divination' });
     expect(definition().durationSeconds).toBe(28_800);
-    expect(definition().unmodelled).toHaveLength(1);
-    // The sensors went to the table in the book's words (W8-S26); the place
-    // or the object is the one line owed.
+    // Nothing is owed any more (W9-S4): the object is a declared record the
+    // casting names without asking its consent, and the place is the table's.
+    expect(definition().unmodelled ?? []).toEqual([]);
+    expect(definition().targets).toEqual({ count: 1, self: true, willing: true, optional: true });
     expect(definition().dmDecides ?? []).toEqual([
+      'The target can be a willing creature, or it can be a place or an object no larger than 10 feet in any dimension.',
       "The target can't be targeted by any Divination spell or perceived through magical scrying sensors.",
     ]);
     expect(checkSpellDefinitionValue(definition())).toEqual([]);
@@ -168,5 +178,77 @@ describe('a creature hidden from Divination magic', () => {
     const withSight: GameEvent[] = [...log, { type: 'sight-declared', from: RANGER, to: WIZARD, seen: true }];
     const out = resolveSpell(state(withSight), RANGER, { spellId: 'hunters-mark', targets: [WIZARD], slotLevel: 1 }, supply('mark'));
     expect(out.ok).toBe(true);
+  });
+});
+
+/**
+ * "The target can be a willing creature, or it can be a place or an object no
+ * larger than 10 feet in any dimension." (W9-S4)
+ *
+ * Three answers to one sentence. A **place** is nobody named — the casting
+ * goes through and the ward is handed to the table in the book's words. An
+ * **object** is a declared record, and has no will to be asked about. A
+ * **creature** is still asked, exactly as before.
+ */
+describe('a place, an object, or a willing creature', () => {
+  const CHEST = id('chest');
+
+  const withChest = (): readonly GameEvent[] => {
+    const declared = unwrap(
+      declareObject(state(SETUP), SRD_CONTENT, CHEST, {
+        name: 'chest',
+        material: 'wood',
+        size: 'small',
+        build: 'resilient',
+      }),
+      'the chest',
+    );
+    return [
+      ...SETUP,
+      ...declared,
+      { type: 'creature-placed', id: CHEST, placement: { from: { creature: WIZARD }, feet: 5, bearing: 180 } },
+      { type: 'sight-declared', from: RANGER, to: CHEST, seen: true },
+    ];
+  };
+
+  it('wards a place: the casting names nobody, and the ward goes to the table in the book’s words', () => {
+    const out = unwrap(
+      resolveSpell(state(SETUP), WIZARD, { spellId: 'nondetection', targets: [], slotLevel: 3 }, supply()),
+      'Nondetection on a room',
+    );
+    expect(out.events.some((event) => event.type === 'spell-cast')).toBe(true);
+    expect(dmDecisionsIn(out.unverified)).toContain(
+      'The target can be a willing creature, or it can be a place or an object no larger than 10 feet in any dimension.',
+    );
+    expect(state([...SETUP, ...out.events]).ongoing[out.castingId!]?.aimed).toEqual([]);
+  });
+
+  it('wards a declared chest without asking it for consent, and a Divination aimed at it is refused', () => {
+    const log = withChest();
+    const cast = resolveSpell(
+      state(log),
+      WIZARD,
+      { spellId: 'nondetection', targets: [CHEST], slotLevel: 3 },
+      supply(),
+    );
+    expect(isNeedsContext(cast)).toBe(false);
+    const ward = unwrap(cast, 'Nondetection on the chest');
+
+    const after = state([...log, ...ward.events]);
+    const out = resolveSpell(after, RANGER, { spellId: 'hunters-mark', targets: [CHEST], slotLevel: 1 }, supply('mark'));
+    expect(isErr(out) && out.code).toBe('warded');
+    expect(isErr(out) && out.reason).toContain('Nondetection');
+  });
+
+  it('still asks whether a goblin nobody named willing consents', () => {
+    const out = resolveSpell(
+      state(SETUP),
+      WIZARD,
+      { spellId: 'nondetection', targets: [GOBLIN], slotLevel: 3 },
+      supply(),
+    );
+    expect(isNeedsContext(out)).toBe(true);
+    expect(isErr(out) && out.code).toBe('consent_not_stated');
+    expect(contextRequestsOf(out).map((one) => one.kind)).toEqual(['route']);
   });
 });

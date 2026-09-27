@@ -354,6 +354,9 @@ const aimedAt = (definition: (typeof SPELL_DEFINITIONS)[number]) => {
     // on the Raven's own square and pointed east would catch nobody; from the
     // shrine it reaches the Raven five feet along, which is the one creature
     // this sweep has standing east.
+    // **And a point that must be an empty space on the floor** (SRD Flaming
+    // Sphere, W9-S4) goes where nobody stands: five feet west of the shrine,
+    // because the raven holds the square to the east.
     ...(definition.area?.origin === 'point'
       ? {
           at:
@@ -361,7 +364,9 @@ const aimedAt = (definition: (typeof SPELL_DEFINITIONS)[number]) => {
               ? { x: 50, y: 55, z: 0 }
               : definition.area.kind === 'cube'
                 ? { x: 50, y: 50, z: 0 }
-                : { x: 55, y: 50, z: 0 },
+                : definition.area.kind === 'sphere' && definition.area.pointOnUnoccupiedGround === true
+                  ? { x: 45, y: 50, z: 0 }
+                  : { x: 55, y: 50, z: 0 },
         }
       : {}),
     // **And a casting that keeps a place of its own takes one** — W8-S26
