@@ -117,7 +117,11 @@ export const placementSchema = z
   .object({
     fromLandmark: z.string().min(1).optional().describe('Landmark to measure from.'),
     fromCreature: creatureId.optional().describe('Creature to measure from.'),
-    feet: z.number().finite().nonnegative().describe('How far from it to end up.'),
+    feet: z
+      .number()
+      .finite()
+      .nonnegative()
+      .describe('Feet from that landmark or creature where it ends up; not the distance moved.'),
     bearing: z
       .number()
       .finite()

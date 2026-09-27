@@ -401,10 +401,14 @@ describe('toolSchemas', () => {
     // +1,563 bytes on each. And the DM's alone: `declare_portal_height` (how
     // high the rope rose, a fact about the room the §10 falling ruling keeps
     // off a model's door), 127 → 129 tools; +2,373 bytes in all.
+    // And for W9-T, `placementSchema.feet` says it is the distance from the
+    // anchor where the creature ends up and not the distance moved — a model
+    // read it as the walk. Fifty-one bytes wherever a placement is published:
+    // +867 on the player's door and +1,173 on the DM's, no tool added.
     expect(toolSchemas(player())).toHaveLength(100);
     expect(toolSchemas(dm())).toHaveLength(132);
-    expect(JSON.stringify(toolSchemas(player())).length).toBe(164494);
-    expect(JSON.stringify(toolSchemas(dm())).length).toBe(221522);
+    expect(JSON.stringify(toolSchemas(player())).length).toBe(165361);
+    expect(JSON.stringify(toolSchemas(dm())).length).toBe(222695);
   });
 });
 
