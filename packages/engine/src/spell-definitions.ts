@@ -5310,9 +5310,11 @@ export interface TargetRule {
    * SRD *Animal Messenger*: "A **Tiny** Beast of your choice that you can see
    * within range."
    *
-   * The first of the three facts `a-target-rule-the-format-cannot-state`
-   * names — a size, a Challenge Rating and an ability score — and the only one
-   * of them the engine holds. It is read through `effectiveSizeOf`, so the
+   * One of the target rules `a-target-rule-the-format-cannot-state` names
+   * among those built and no longer its own — beside the Challenge Rating
+   * (`save.autoSucceedIf.challengeRatingAbove`), `casterOnly` and the rules
+   * W9-S4 built; what the id still holds is a different fact each time, and
+   * its description says which. It is read through `effectiveSizeOf`, so the
    * answer is the one every other size rule gets: the size an active feature
    * prints, then the size somebody stated, then the map's.
    *
@@ -5356,10 +5358,10 @@ export interface TargetRule {
    * Points and isn't dead**."
    *
    * The fourth clause of this kind and the first that reads **vitals**, which
-   * is the reading `a-target-rule-the-format-cannot-state` lost on its way
-   * through the three facts it does name: this is neither a type, nor armour,
-   * nor a size, nor a moment — it is the state a creature is in while it is on
-   * the floor, and the engine holds it authoritatively in two fields.
+   * no fact `a-target-rule-the-format-cannot-state` has named, built or
+   * still owed: this is neither a type, nor armour, nor a size, nor a moment
+   * — it is the state a creature is in while it is on the floor, and the
+   * engine holds it authoritatively in two fields.
    *
    * **Both halves, because the sentence has two and each alone is wrong.** A
    * creature above 0 Hit Points is not dying; a corpse is past being saved and
