@@ -129,7 +129,6 @@ import {
 } from '../spell-definitions.js';
 import { castsAtWill, type CastingRoute } from '../spellcasting.js';
 import {
-  castingIdOf,
   castingNumber,
   castingSource,
   type CastingNumbers,
@@ -193,6 +192,7 @@ import { teleportTo } from './teleport.js';
 import { payCastingDamageCost } from './damage.js';
 import {
   castingsEndedBy,
+  magicalByCasting,
   ongoingSpellsOn,
   replacedCastings,
   underTheKeptPoint,
@@ -4727,11 +4727,9 @@ function creatureWardAgainst(state: GameState, who: CharacterId, school: string)
  *
  * Two ways a weapon is magic already, each asked where its fact lives. The
  * record: a +1 Longsword is a magic item, which `isMagicalItem` derives from
- * what the record has grown. And a running casting: a rider on this weapon,
- * held by the creature this casting touches, whose spell's own rider says the
- * weapon became a magic one — read through the casting's record to its
- * `spellId` and then the book, because the rider carries neither. A rider
- * from a feature (SRD Sacred Weapon) has no casting and says no such thing.
+ * what the record has grown. And a running casting that made it one, held by
+ * the creature this casting touches — `magicalByCasting`, the reading SRD
+ * Corrosive Form's "nonmagical weapon" shares (W9-T).
  *
  * **A recast is not in its own way.** SRD Magic Weapon: "The spell ends early
  * if you cast it again" — the castings `replacedCastings` would end are the
@@ -4758,19 +4756,12 @@ function magicalWeaponProblem(
     ),
   );
   for (const target of targets) {
-    for (const rider of state.creatures[target]?.weaponRiders ?? []) {
-      if (rider.weapon !== weapon) continue;
-      const castingId = castingIdOf(rider.source);
-      if (castingId === null || replaced.has(castingId)) continue;
-      const record = state.ongoing[castingId];
-      if (record === undefined) continue;
-      const imbuedBy = content.spell(record.spellId);
-      if (imbuedBy === null || weaponRiderOf(imbuedBy)?.makesMagical !== true) continue;
-      return err(
-        'weapon_already_magical',
-        `${definition.name} is cast on a nonmagical weapon, and ${target}’s ${item?.weapon?.name ?? weapon} is a magic weapon while ${record.spell} (${castingId}) runs`,
-      );
-    }
+    const record = magicalByCasting(state, content, target, weapon, replaced);
+    if (record === null) continue;
+    return err(
+      'weapon_already_magical',
+      `${definition.name} is cast on a nonmagical weapon, and ${target}’s ${item?.weapon?.name ?? weapon} is a magic weapon while ${record.spell} (${record.castingId}) runs`,
+    );
   }
   return null;
 }

@@ -44,6 +44,8 @@ import { printedCorrosion } from '../monster.js';
 import { distanceBetween } from '../positioning.js';
 import { effectiveConditions, sensesPerceiving, sheetAsItStands } from '../standing.js';
 import { dealSpellDamage } from './damage.js';
+import { magicalByCasting } from './ongoing.js';
+import { isMagicalItem } from '../catalogue.js';
 import { type Supply } from './casting.js';
 import { rollRecorded } from '../rolls.js';
 import { recordD20Test, rollSpellDice, savingSupport } from './rolls.js';
@@ -441,8 +443,10 @@ export function answerTheBlow(
  * - **contact** — a weapon swung or thrown, never the bow that loosed an arrow
  *   (the arrow is the ammunition sentence, which is owed);
  * - **the copy in hand** — the equipped record for the weapon's id;
- * - **nonmagical** — no grant the catalogue gives the item and no requirement
- *   to attune, and no casting or feature imbuing this weapon. The judgement is
+ * - **nonmagical** — not a magic item by its record (`isMagicalItem`, or grants
+ *   the equip event pinned), and no running casting whose spell says the
+ *   weapon became a magic one (`magicalByCasting`, SRD Magic Weapon's reading;
+ *   a Shillelagh's club is still a club). The judgement is
  *   the engine's reading of the record and is said out loud where it wore
  *   something, because a weapon a table has made magical some other way is a
  *   fact only the table holds.
@@ -470,11 +474,14 @@ export function wearTheWeapon(
   const record = striker.equipped.find((held) => held.id === weapon);
   const item = content.item(weapon);
   if (record === undefined || item === null || item.weapon === null) return nothing;
+  // Magic Weapon's reading of "nonmagical", and no other (W9-T): a magic item
+  // by its record — the catalogue's or the one the equip event pinned — or a
+  // weapon a running casting made a magic one. A rider that says no such
+  // thing (SRD Shillelagh, a feature's) leaves a club a club.
   const magical =
-    item.grants !== undefined ||
-    item.attunement !== undefined ||
+    isMagicalItem(item) ||
     (record.grants?.length ?? 0) > 0 ||
-    striker.weaponRiders.some((rider) => rider.weapon === weapon);
+    magicalByCasting(state, content, attacker, weapon) !== null;
   if (magical) return nothing;
 
   const eaten = (record.penalty ?? 0) + corrosion.weaponPenalty;

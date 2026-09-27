@@ -28,11 +28,14 @@ import {
   placeCreatureInScene,
   resolveAttack,
   resolveMove,
+  resolveSpell,
   resolveTurn,
   setScene,
   settleDamage,
 } from './commands.js';
 import { createCharacter, type CharacterChoices } from './creation.js';
+import { spellSlotKey } from './resources.js';
+import { declaredCasting } from './spellcasting.js';
 import { createRng, type Rng } from './dice.js';
 import { applyEvent, fold, type GameEvent, type GameState } from './events.js';
 import { createRollIssuer } from './rolls.js';
@@ -369,6 +372,82 @@ describe('SRD Corrosive Form: the acid back, and the weapon worn down', () => {
     ].reduce(applyEvent, beside('black-pudding', 'mace'));
     const settled = unwrap(settleDamage(held, supply()), 'the settlement');
     expect(penaltyOn(settled.events.reduce(applyEvent, held), 'mace')).toBe(1);
+  });
+
+  /**
+   * "Any **nonmagical** weapon", read as SRD Magic Weapon's "You touch a
+   * nonmagical weapon" reads it (W9-T): the record is a magic item, or a
+   * running casting's rider says the spell made the weapon a magic one
+   * (`weapon-rider.makesMagical`). SRD Shillelagh prints no such sentence —
+   * the club's die grows and its damage may turn to Force, and it is still a
+   * club — so the pudding eats it as it eats any other.
+   */
+  describe('what the form reads as magical (W9-T)', () => {
+    /** Bren, a caster of both spells, before the ooze. */
+    const imbuing = (weapon: string): GameState =>
+      [
+        {
+          type: 'spellcasting-declared' as const,
+          id: BREN,
+          spellcasting: declaredCasting({
+            ability: 'wis',
+            cantrips: ['shillelagh'],
+            prepared: ['magic-weapon'],
+          }),
+        },
+        {
+          type: 'resource-pool-declared' as const,
+          id: BREN,
+          pool: { key: spellSlotKey(2), label: 'level 2', max: 2, recovers: 'long-rest' as const },
+        },
+      ].reduce(applyEvent, beside('gray-ooze', weapon));
+
+    const cast = (state: GameState, spellId: string, weapon: string, slotLevel?: number): GameState =>
+      unwrap(
+        resolveSpell(
+          state,
+          BREN,
+          { spellId, targets: [BREN], weapon, ...(slotLevel === undefined ? {} : { slotLevel }) },
+          supply('imbue'),
+        ),
+        spellId,
+      ).events.reduce(applyEvent, state);
+
+    it('wears down a Club under Shillelagh, which the spell never made magic', () => {
+      const state = cast(imbuing('club'), 'shillelagh', 'club');
+      expect(state.creatures[BREN]!.weaponRiders).toHaveLength(1);
+      const hit = swing(state, 'club');
+      expect(penaltyOn(hit.events.reduce(applyEvent, state), 'club')).toBe(1);
+    });
+
+    it('spares a Longsword under Magic Weapon, which "becomes a magic weapon"', () => {
+      const state = cast(imbuing('longsword'), 'magic-weapon', 'longsword', 2);
+      const hit = swing(state, 'longsword');
+      expect(hit.events.some((event) => event.type === 'damage-taken' && event.id === OOZE)).toBe(
+        true,
+      );
+      expect(penaltyOn(hit.events.reduce(applyEvent, state), 'longsword')).toBe(0);
+    });
+
+    it('wears the same Longsword down once the Magic Weapon has ended', () => {
+      const imbued = cast(imbuing('longsword'), 'magic-weapon', 'longsword', 2);
+      const castingId = Object.values(imbued.ongoing).find((one) => one.spellId === 'magic-weapon')!
+        .castingId;
+      const ended = applyEvent(imbued, {
+        type: 'spell-ended',
+        castingId,
+        on: null,
+        reason: 'dismissed',
+      });
+      const hit = swing(ended, 'longsword');
+      expect(penaltyOn(hit.events.reduce(applyEvent, ended), 'longsword')).toBe(1);
+    });
+
+    it('spares a +1 Longsword, which is a magic item', () => {
+      const state = imbuing('longsword-plus-1');
+      const hit = swing(state, 'longsword-plus-1');
+      expect(penaltyOn(hit.events.reduce(applyEvent, state), 'longsword-plus-1')).toBe(0);
+    });
   });
 
   it('asks nothing of a ranged hit, which touches the ooze with nothing the engine tracks', () => {

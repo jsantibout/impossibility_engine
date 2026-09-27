@@ -38,8 +38,9 @@ import {
   ranged,
   type SpellActivation,
   type SpellDefinition,
+  weaponRiderOf,
 } from '../spell-definitions.js';
-import { castingNumber, type OngoingSpell } from '../spells.js';
+import { castingIdOf, castingNumber, type OngoingSpell } from '../spells.js';
 import { type ActivateSpellCommand } from './activation.js';
 import { ROUTE_REQUIRED } from './command.js';
 
@@ -256,6 +257,44 @@ export function castingsEndedBy(
   const held = state.creatures[casterId]?.concentration ?? null;
   if (concentrates && held !== null) ended.add(held.castingId);
   return ended;
+}
+
+/**
+ * The running casting that has made this creature's weapon a magic one, or
+ * null.
+ *
+ * SRD Magic Weapon: "that weapon **becomes a magic weapon**." A rider on the
+ * weapon, held by this creature, whose casting is still running and whose
+ * spell's own rider says so (`weapon-rider.makesMagical`) — read through the
+ * record to its `spellId` and then the book, because the rider carries
+ * neither. A rider from a feature (SRD Sacred Weapon) has no casting and says
+ * no such thing, and neither does SRD Shillelagh's.
+ *
+ * The one reading of "a magic weapon while a spell runs", for every sentence
+ * that asks whether a weapon is **nonmagical**: Magic Weapon's own target
+ * rule, and SRD Corrosive Form's "Any nonmagical weapon" (W9-T). The weapon's
+ * record is the other half, and is `isMagicalItem`'s. `passing` is the
+ * castings the caller knows are about to end — a recast is not in its own
+ * way.
+ */
+export function magicalByCasting(
+  state: GameState,
+  content: Content,
+  holder: CharacterId,
+  weapon: string,
+  passing: ReadonlySet<string> = new Set(),
+): OngoingSpell | null {
+  for (const rider of state.creatures[holder]?.weaponRiders ?? []) {
+    if (rider.weapon !== weapon) continue;
+    const castingId = castingIdOf(rider.source);
+    if (castingId === null || passing.has(castingId)) continue;
+    const record = state.ongoing[castingId];
+    if (record === undefined) continue;
+    const imbuedBy = content.spell(record.spellId);
+    if (imbuedBy === null || weaponRiderOf(imbuedBy)?.makesMagical !== true) continue;
+    return record;
+  }
+  return null;
 }
 
 /**

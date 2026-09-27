@@ -16,7 +16,7 @@ import {
   ok,
   type Result,
 } from '@ie/shared';
-import { CONFERRED_LEVEL, itemChargePool } from '../catalogue.js';
+import { CONFERRED_LEVEL, isMagicalItem, itemChargePool } from '../catalogue.js';
 import {
   modifierFor,
   proficiencyBonus,
@@ -1156,8 +1156,10 @@ function imbuedWeapon(
     // this is the honest reading of its absence rather than a guess: every one
     // of the SRD's twenty-eight Melee Weapons table rows carries none of the
     // three, and every magic weapon built on one of those rows carries at
-    // least one.
-    if ((item.grants ?? []).length > 0 || item.attunement !== undefined) {
+    // least one. The record's half of Magic Weapon's reading, `isMagicalItem`
+    // (W9-T); the charge pool is refused above for its own reason, and a
+    // running casting cannot have made magic a weapon not yet conjured.
+    if (isMagicalItem(item)) {
       return err(
         'weapon_is_magical',
         `${named} is a magic item, and ${definition.name} conjures a weapon off the Weapons table; bonding a magic weapon is the half of the sentence this feature does not offer`,
