@@ -4098,17 +4098,25 @@ const ENDING_EVENTS = ["'concentration-ended'", "'spell-ended'"];
 
 const castingEndersIn = (source: string): ReadonlySet<string> => reachedFrom(source, [], ENDING_EVENTS);
 
-/** Which declarations ask `mayAct` in their own body — the code, not the prose. */
-const guardedIn = (source: string): ReadonlySet<string> =>
+/**
+ * Which declarations ask `mayAct` in their own body — the code, not the prose.
+ *
+ * `guard` widens it to the debt half alone: since E-DOWN a door that is not
+ * the creature's own act (a forced move, a relocation, the turn boundary)
+ * asks `owedRefusal` without asking the actor, and it is guarded against the
+ * world's debts all the same — which is the question the casting-ender sweep
+ * below is about.
+ */
+const guardedIn = (source: string, guard: RegExp = /\bmayAct\s*\(/): ReadonlySet<string> =>
   new Set(
     functionsIn(source)
       .filter((fn) =>
-        /\bmayAct\s*\(/.test(
-          fn.body.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, ''),
-        ),
+        guard.test(fn.body.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '')),
       )
       .map((fn) => fn.name),
   );
+
+const DEBT_GUARD = /\b(?:mayAct|owedRefusal)\s*\(/;
 
 /**
  * One spender, run against a world that owes a mandatory area effect.
@@ -5004,7 +5012,7 @@ describe('every command that ends a casting asks whether it may, or says why not
   const enders = [...castingEndersIn(all)]
     .filter((name) => COMMAND_SURFACE.has(name) && !spenders.has(name))
     .sort();
-  const guarded = guardedIn(all);
+  const guarded = guardedIn(all, DEBT_GUARD);
 
   /** The analysis is not vacuous: it finds the shape it is shown. */
   it('would find a casting-ender if one were added', () => {

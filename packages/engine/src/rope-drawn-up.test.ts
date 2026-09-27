@@ -205,6 +205,24 @@ describe('SRD Rope Trick: "which can be pulled into or dropped out of it"', () =
     expect(elsewhereOf(inside, BIRD)?.kind).toBe('extradimensional');
   });
 
+  /**
+   * E-DOWN asks a creature entering whether it can move at all — and a
+   * flier's answer is its flight. A Specter has no walking Speed, so a climb
+   * measured against the walk would have refused it at a door it reaches on
+   * the wing.
+   */
+  it('lets a flier with no walking Speed in, measured by its flight', () => {
+    const { state, castingId } = hung(30);
+    const SPECTER = id('specter');
+    const arrived = after(state, [
+      { ...added(SPECTER, { fly: 50 }), sheet: { ...sheet({ fly: 50 }), baseSpeed: 0 } } as GameEvent,
+      { type: 'creature-placed', id: SPECTER, placement: { from: { landmark: 'the door' }, feet: 10, bearing: 90 } },
+    ]);
+    const flown = climbTo(arrived, SPECTER, 30, 'fly');
+    const inside = after(flown, unwrapped(enter(flown, SPECTER, castingId), 'the specter drifts in').events);
+    expect(elsewhereOf(inside, SPECTER)?.kind).toBe('extradimensional');
+  });
+
   it('is drawn only by a creature inside', () => {
     const { state, castingId } = withFighterInside();
     const outside = drawWayIn(state, ROGUE, SRD_CONTENT, { castingId, up: true });

@@ -1048,7 +1048,11 @@ export function enterElsewhere(
       if (state.pendingMove !== null) {
         return err('move_pending', `${state.pendingMove.mover} is already mid-move; settle it first`);
       }
-      const owedHere = mayAct(state, who, { move: 'climb' });
+      // SRD Rope Trick: "climb into the extradimensional space by moving up
+      // the rope" — the creature's own movement, so its Speed is asked: the
+      // climb's, or the flight's for a creature that reaches the portal on
+      // wings (below), which a Specter with no walking Speed does.
+      const owedHere = mayAct(state, who, { move: hasSpeedInModeOn(state, who, 'fly') ? 'fly' : 'climb' });
       if (owedHere !== null) return owedHere;
       const creature = creatureOf(state, who);
       if (creature === null) return unknownCreature(who);

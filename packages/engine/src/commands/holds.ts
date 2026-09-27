@@ -31,7 +31,7 @@ import {
   type PendingMove,
   type PendingTest,
 } from '../events.js';
-import { isIncapacitated } from '../conditions.js';
+import { isIncapacitated, speedPinnedByCondition } from '../conditions.js';
 import { moveCreature } from '../positioning.js';
 import { effectiveConditions, speedForMoveIn } from '../standing.js';
 import { type OwedAreaEffect } from '../spells.js';
@@ -355,15 +355,23 @@ export function unsettledRefusal(state: GameState, who: CharacterId): Err | null
  *   creature — whose Speed the SRD leaves alone — may still walk.
  *   Unconscious, Paralyzed and Petrified stop a move through their Speed of 0,
  *   which is the sentence each of them prints.
+ * - `{ move, paidBy: 'allowance' }` — the creature's own movement, paid out
+ *   of feet something else handed it: a readied move's Reaction, the fifteen
+ *   feet an Unseen Servant is commanded. The Speed is not what pays, so it is
+ *   not asked — an Unseen Servant has none of its own to be 0 — but a
+ *   condition that holds the creature at a Speed of 0 still holds it
+ *   (`speedPinnedByCondition`): a netted servant goes nowhere.
  * - `'alive'` — refused dead, and nothing else. For a choice that costs no
  *   action at all (letting a Concentration go, dismissing a spell), and for a
  *   door that measures the move against a rule of its own rather than the
  *   mover's Speed: standing up (`cannot_stand`, SRD "If your Speed is 0, you
- *   can't right yourself"), a Darkmantle letting go on the five feet its line
- *   prints despite the Speed its hold pinned at 0, and a move somebody else
- *   pays for — a readied move's Reaction, an Unseen Servant's command.
+ *   can't right yourself"), and a Darkmantle letting go on the five feet its
+ *   line prints despite the Speed its hold pinned at 0.
  */
-export type Doing = 'act' | 'alive' | { readonly move: MovementMode };
+export type Doing =
+  | 'act'
+  | 'alive'
+  | { readonly move: MovementMode; readonly paidBy?: 'allowance' };
 
 /** The walk, which is what "voluntary movement" is unless a mode is named. */
 export const WALKING: Doing = { move: 'walk' };
@@ -418,8 +426,13 @@ export function actorRefusal(state: GameState, who: CharacterId, doing: Doing): 
     return err('incapacitated', `${who} is Incapacitated and can take no action, Bonus Action or Reaction`);
   }
   if (typeof doing === 'object') {
-    const speed = speedForMoveIn(state, who, doing.move);
-    if (speed !== null && speed <= 0) {
+    // A mode with no Speed at all (null) is the move's own `no_such_speed`.
+    const speed = doing.paidBy === 'allowance' ? null : speedForMoveIn(state, who, doing.move);
+    const stopped =
+      doing.paidBy === 'allowance'
+        ? speedPinnedByCondition(effectiveConditions(state, who))
+        : speed !== null && speed <= 0;
+    if (stopped) {
       return err('no_speed', `${who}'s Speed is 0, so ${who} cannot move of their own accord`);
     }
   }

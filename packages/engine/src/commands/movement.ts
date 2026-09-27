@@ -399,12 +399,15 @@ export function moveWithin(
     // drag, a fall happen to the dead and the Unconscious exactly as to anyone,
     // and provoke nothing, because none of them is the creature's own movement.
     // A move paid for out of something other than the mover's Speed — a
-    // readied move's Reaction, a summons' commanded feet — asks only whether
-    // the mover is alive, and is measured against the `allowance` it was given.
+    // readied move's Reaction, a summons' commanded feet — is still the
+    // mover's own movement, so a corpse makes none and a condition that holds
+    // the mover at a Speed of 0 holds it here too; the feet are measured
+    // against the `allowance` it was given rather than against a Speed.
+    const mode = command.mode ?? 'walk';
     const owedHere =
       command.forced === true
         ? owedRefusal(state, id)
-        : mayAct(state, id, allowance === null ? { move: command.mode ?? 'walk' } : 'alive');
+        : mayAct(state, id, allowance === null ? { move: mode } : { move: mode, paidBy: 'allowance' });
     if (owedHere !== null) return owedHere;
 
     const mover = creatureOf(state, id);
@@ -470,7 +473,6 @@ export function moveWithin(
     // Goblin asked to fly is told it cannot fly, not asked which spaces it
     // flew over.
     const sheet = sheetAsItStands(state, id) ?? mover.sheet;
-    const mode = command.mode ?? 'walk';
     const way = wayOf(state, id, mode);
     if (!way.ok) return way;
 

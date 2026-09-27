@@ -274,6 +274,26 @@ describe('commanding the servant', () => {
     expect(isErr(again) && again.code).toBe('no_bonus_action');
   });
 
+  /**
+   * E-DOWN: the fifteen feet are the spell's rather than a Speed of the
+   * servant's, but the move is still the servant's own — so a net that holds
+   * it at a Speed of 0 holds it, and nothing moves.
+   */
+  it('refuses a servant a condition holds at a Speed of 0', () => {
+    const { log, servant } = inTheFight();
+    const netted = state([
+      ...log,
+      { type: 'condition-applied', id: servant, condition: 'restrained', source: 'a net' },
+    ]);
+    const held = commandSummons(
+      netted,
+      WIZ,
+      { who: servant, to: { from: { creature: servant }, feet: 15, bearing: 90 }, commandId: 'netted' },
+      supply('order'),
+    );
+    expect(isErr(held) && held.code).toBe('no_speed');
+  });
+
   it('is refused past the fifteen feet, for a creature the wizard does not hold, and for one whose spell prints no command', () => {
     const { log, servant } = inTheFight();
     const far = commandSummons(
