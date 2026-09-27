@@ -130,8 +130,19 @@ describe('a lit torch, moved and covered through the door', () => {
 
   it('refuses a spell whose light is on no object', () => {
     const { t } = lit();
+    const armour = expectOk(
+      t.call('cast_spell', { caster: 'ander', spellId: 'mage-armor', targets: ['ander'], slotLevel: 1 }),
+    );
+
+    const refused = t.call('move_cast_light', { castingId: String(armour.castingId), covered: true });
+    expect(refused.status).toBe('refused');
+    expect(refused.status === 'refused' && refused.code).toBe('no_object');
+  });
+
+  it('refuses a casting that is not running', () => {
+    const { t } = lit();
 
     const refused = t.call('move_cast_light', { castingId: 'cast:99', covered: true });
-    expect(refused.status).toBe('refused');
+    expect(refused.status === 'refused' && refused.code).toBe('not_ongoing');
   });
 });

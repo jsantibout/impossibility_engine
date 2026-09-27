@@ -19,6 +19,7 @@ import {
   activateSpell,
   declareObject,
   dropConjured,
+  equipItem,
   evokeConjured,
   moveCastLight,
   resolveSpell,
@@ -642,18 +643,104 @@ describe('the mutual dispel, on a light that moves or is covered', () => {
     r.move(darkness, { to: { creature: STONE } });
     r.move(darkness, { covered: true });
 
-    // A Light beside the covered stone: nothing of the Darkness overlaps it.
+    // A Light on the druid, thirty feet from the stone, for the uncovering
+    // below to find. (Its own laying could not have dispelled the Darkness
+    // either way: an incoming Light is level 0 and a Darkness level 2.)
     const light = r.cast('light', { targets: [DRUID] });
     // And a Daylight laid over the covered stone finds no Darkness to put out.
     const daylight = r.cast('daylight', { at: at(140, 100), slotLevel: 3 });
     expect(r.state.ongoing[darkness]).toBeDefined();
-    expect(r.state.ongoing[light]).toBeDefined();
     r.push({ type: 'spell-ended', castingId: daylight, on: null, reason: 'dismissed' });
 
     // Uncovered: the Darkness is pinned again, and the Light (level 0) goes.
     r.move(darkness, { covered: false });
     expect(r.state.ongoing[light]).toBeUndefined();
     expect(r.light(at(130, 100)).level).toBe('darkness');
+  });
+});
+
+describe('a conjured light and the mutual dispel', () => {
+  /**
+   * SRD Darkness puts out "an area of Bright Light or Dim Light created by a
+   * spell of level 2 or lower" — Flame Blade is level 2 — and a blade that has
+   * been let go of sheds no light, so there is no area of it to overlap.
+   */
+  it('puts out a Flame Blade in hand, and not one that has been let go of', () => {
+    // The ally is in the room already; this gives them the Darkness to cast.
+    const held = room(...caster(ALLY).slice(1));
+    const blade = held.cast('flame-blade', { targets: [DRUID], slotLevel: 2 });
+    held.cast('darkness', { at: at(110, 100), slotLevel: 2 }, ALLY);
+    expect(held.state.ongoing[blade]).toBeUndefined();
+
+    const dropped = room(...caster(ALLY).slice(1));
+    const second = dropped.cast('flame-blade', { targets: [DRUID], slotLevel: 2 });
+    dropped.run('let go', (state) => dropConjured(state, SRD_CONTENT, DRUID, 'flame-blade'));
+    dropped.cast('darkness', { at: at(110, 100), slotLevel: 2 }, ALLY);
+    expect(dropped.state.ongoing[second]).toBeDefined();
+  });
+});
+
+describe('what this track leaves owed, pinned so it is paid on purpose', () => {
+  /**
+   * The recast of a conjured thing with the other hand full: the book frees
+   * the hand the old casting held, and the pre-flight counts it before the
+   * old casting ends. Filed on both definitions under
+   * `what-a-creature-is-holding`; the count is the pre-flight's to fix.
+   */
+  it('refuses a Produce Flame recast by a caster with a Shield in the other hand', () => {
+    const r = room({
+      type: 'items-gained',
+      id: DRUID,
+      items: [{ id: 'shield', quantity: 1 }],
+      source: 'the pack',
+    });
+    r.run('the shield', (state) => equipItem(state, SRD_CONTENT, DRUID, 'shield'));
+    r.cast('produce-flame', { targets: [DRUID] });
+    const again = resolveSpell(r.state, DRUID, { spellId: 'produce-flame', targets: [DRUID] }, supply(r.state));
+
+    expect(isErr(again) && again.code).toBe('no_free_hand');
+  });
+
+  /**
+   * SRD Starry Wisp's glow names no running casting — its casting is
+   * Instantaneous — so a Darkness laid over it has nothing to end, and the
+   * magical Dim Light lifts the magical Darkness where they overlap until its
+   * own deadline. Filed on Darkness under the light shape.
+   */
+  it('leaves Starry Wisp’s glow standing under a Darkness', () => {
+    const r = new Room([
+      ...caster(DRUID),
+      ...caster(ALLY),
+      added(SNEAK, { stated: { armorClass: 1, proficiencyBonus: 2, initiative: 0 } }, 'goblins'),
+      {
+        type: 'spellcasting-declared',
+        id: DRUID,
+        spellcasting: declaredCasting({ ability: 'wis', classId: 'druid', cantrips: ['starry-wisp'], prepared: [] }),
+      },
+      { type: 'scene-set', extent: { width: 400, depth: 400, height: 40 } },
+      placed(DRUID, at(100, 100)),
+      placed(ALLY, at(105, 100)),
+      placed(SNEAK, at(100, 130)),
+      { type: 'sight-declared', from: DRUID, to: SNEAK, seen: true },
+      {
+        type: 'combat-started',
+        combatants: [
+          { id: DRUID, initiative: 20, speed: 30 },
+          { id: ALLY, initiative: 15, speed: 30 },
+          { id: SNEAK, initiative: 10, speed: 30 },
+        ],
+      },
+    ]);
+    r.push(
+      ...unwrap(
+        resolveSpell(r.state, DRUID, { spellId: 'starry-wisp', targets: [SNEAK] }, supply(r.state, 'wisp')),
+        'wisp',
+      ).events,
+    );
+    r.run('the druid’s turn ends', (state) => resolveTurn(state, supply(state, 'turn')));
+    r.cast('darkness', { at: at(100, 130), slotLevel: 2 }, ALLY);
+
+    expect(r.light(at(100, 130))).toMatchObject({ level: 'dim', magical: true });
   });
 });
 
