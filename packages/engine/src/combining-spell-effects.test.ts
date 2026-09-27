@@ -466,6 +466,16 @@ describe('Bless beside a Potion of Heroism, which is "the effect of the Bless sp
     // The potion was drunk second, so it is the one that applies.
     expect(game.saveDice()).toEqual(['Potion of Heroism']);
   });
+
+  /**
+   * The other order, where the source strings sort the wrong way round —
+   * `item:…` after `Bless#…` — so only the order the fold stamped can say
+   * which is the more recent.
+   */
+  it('red: drunk first and blessed after, the Bless applies', () => {
+    const game = new Game().drink('potion-of-heroism').turn().cast(CLERIC, 'bless', [FIGHTER]);
+    expect(game.saveDice()).toEqual(['Bless']);
+  });
 });
 
 describe('two Slows from two casters on one goblin', () => {
