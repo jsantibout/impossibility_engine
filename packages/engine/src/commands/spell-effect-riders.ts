@@ -877,9 +877,9 @@ export function applyRiders(
  *
  * **And the id, where there is one**, which is the spell a bonus, a Speed or a
  * rule hung here is the effect of — SRD "Combining Spell Effects", read by
- * `strongestOfEachEffect`. A deferred debt pins no id, so what it lands is its
- * own identity: the one road a rider reaches the world by without its
- * definition in hand.
+ * `strongestOfEachEffect`. A deferred debt pins no id and needs none: what it
+ * may carry is a condition, a drop or a spend (`DeferredRiderSet`), and none
+ * of those is a family that collapses.
  */
 export type RiderSpell = Pick<SpellDefinition, 'name' | 'level' | 'activation'> & {
   readonly id?: string;
