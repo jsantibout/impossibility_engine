@@ -343,10 +343,12 @@ export type AreaSaveModeStanding = {
  * standing has no moment at which it could be rolled — it would be thrown
  * afresh on every read of a number that is supposed to be stable.
  *
- * **Stacked by the spell's name and not by the casting**, which is SRD's own
- * sentence: "when two or more game features have the same name, only the
- * effects of one of them — the most potent — apply". Two Pass without Traces
- * over one Rogue are +10, exactly as two Rings of Protection are +1.
+ * **Stacked by the spell's name and not by the casting.** SRD 5.2.1's
+ * "Combining Spell Effects" says the same spell's effects do not combine and
+ * the most potent applies. (The wider "same name" rule for every game feature
+ * is the 2014 rules', not SRD 5.2.1's; the engine holds it as its reading —
+ * W9-C.) Two Pass without Traces over one Rogue are +10, exactly as two Rings
+ * of Protection are +1.
  */
 export type AreaBonusStanding = WhollyInside & {
   readonly kind: 'bonus';
@@ -4168,9 +4170,9 @@ export function standingSaveBonuses(
  * one of that function's readings because they are the same sentence: the
  * modifier is the **holder's**, read off their sheet as it stands rather than
  * off the sheet of whoever is rolling; the floor is the feature's own "(minimum
- * of +1)"; and the best is kept per feature, because "when two or more game
- * features have the same name, only the effects of one of them — the most
- * potent — apply".
+ * of +1)"; and the best is kept per feature — the engine's "same name, most
+ * potent" reading, which SRD 5.2.1 prints for spells only ("Combining Spell
+ * Effects") and the 2014 rules gave every game feature.
  *
  * The skill is the whole of the narrowing. A feature that named none would be
  * a bonus to every ability check, which is `flat-bonus`'s shape and is refused
@@ -4241,9 +4243,9 @@ export function standingCheckBonuses(
  *
  * **Summed across features, and the best of any one of them.** A Robe of the
  * Archmagi and an Innate Sorcery are different sentences on different pages
- * and both are true at once; two allies radiating one named aura are the SRD's
- * "when two or more game features have the same name, only the effects of one
- * of them — the most potent — apply", which is the rule
+ * and both are true at once; two allies radiating one named aura count once,
+ * the most potent — the engine's "same name" reading (SRD 5.2.1 prints it for
+ * spells only; the 2014 rules gave it to every game feature), which
  * {@link standingCheckBonuses} already follows for the same reason.
  */
 export function standingSpellSaveDcBonus(
@@ -4386,11 +4388,11 @@ const wielding = (context: { readonly weapon?: Weapon | null; readonly twoHanded
  * item prints. Both are here rather than at their readers because whether a
  * benefit applies changes when somebody walks away, and neither is stored.
  *
- * **Stacking is the SRD's own sentence**, and it is the reason the best is
- * keyed by `feature`. "Different game features can affect a target at the same
- * time. But when two or more game features have the same name, only the
- * effects of one of them — the most potent — apply while the durations of the
- * effects overlap." The granting item's id *is* the name, so a Ring of
+ * **Stacking is the engine's "same name" reading**, and it is the reason the
+ * best is keyed by `feature`: different features apply together, and two of
+ * one name count once, the most potent. SRD 5.2.1 prints that only for spells
+ * ("Combining Spell Effects"); the wider rule is the 2014 rules', held here as
+ * a reading (W9-C). The granting item's id *is* the name, so a Ring of
  * Protection and a Cloak of Protection are +2 and two rings are +1 — the same
  * reading `standingSaveBonuses` takes for two Paladins' auras.
  *
@@ -6705,9 +6707,9 @@ export function combineSpeed(
  * creature.
  *
  * **The casting's spell name travels with each clause**, because one of the
- * readers needs it and none of them should look it up: SRD's "when two or more
- * game features have the same name, only the effects of one of them — the most
- * potent — apply" is what decides two Pass without Traces over one Rogue, and
+ * readers needs it and none of them should look it up: SRD 5.2.1's "Combining
+ * Spell Effects" — the same spell counts once, the most potent — is what
+ * decides two Pass without Traces over one Rogue, and
  * the name is the only fact that answers it. It is the *pinned* display name
  * off the record, so the fold's rule holds here too and no reader opens a
  * catalogue.
@@ -6798,10 +6800,10 @@ export function areaStandingOn(
  * inside is doing to its checks. All three are derived on every read, and this
  * one changes when anybody walks.
  *
- * **Keyed by the spell's name for the SRD's own reason**: "when two or more
- * game features have the same name, only the effects of one of them — the most
- * potent — apply while the durations of the effects overlap." Two Pass without
- * Traces over one Rogue are +10. "Most potent" is read as the larger number,
+ * **Keyed by the spell's name for SRD 5.2.1's "Combining Spell Effects"**: the
+ * same spell's effects do not combine while their durations overlap, and the
+ * most potent applies. Two Pass without Traces over one Rogue are +10. "Most
+ * potent" is read as the larger number,
  * which is the reading {@link standingBonuses} already takes and leaves a
  * penalty unsettled in exactly the same way.
  *
@@ -6882,9 +6884,9 @@ function areaDefenses(
  *
  * **The instance is sourced on the spell's pinned name rather than on the
  * casting**, so two Spheres over one goblin are one instance and not two. That
- * is the same reading the bonus beside it takes and for the SRD's own reason —
- * "when two or more game features have the same name, only the effects of one
- * of them applies" — and it costs nothing either way, because a condition is a
+ * is the same reading the bonus beside it takes and for SRD 5.2.1's
+ * "Combining Spell Effects" — the same spell counts once — and it costs
+ * nothing either way, because a condition is a
  * set: a goblin standing in two Silences is Deafened exactly once whichever
  * spelling is used. The name is what a log reader recognises; a casting id
  * would put two indistinguishable instances on a creature to say one thing.

@@ -743,9 +743,9 @@ const NAMED_ITEMS: readonly CatalogueItem[] = [
        * while you wear this cloak."
        *
        * **The Ring of Protection's sentence word for word, on a second name.**
-       * SRD "Combining Game Effects": "when two or more game features have the
-       * same name, only the effects of one of them — the most potent — apply."
-       * Two *different* names both apply, so a character wearing both is +2 —
+       * The engine's "same name, most potent" reading (SRD 5.2.1 prints it for
+       * spells only; the 2014 rules gave it to every game feature): two
+       * *different* names both apply, so a character wearing both is +2 —
        * and the rule is only testable with two items that say the same thing.
        */
       attunement: {},
