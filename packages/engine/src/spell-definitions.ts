@@ -6876,7 +6876,45 @@ export type CastingEndCause =
    * which is the withholding direction. `ends: 'casting'` only: the caster
    * holds nothing to release. (W7-S19)
    */
-  | 'separated-beyond';
+  | 'separated-beyond'
+  /**
+   * SRD Fog Cloud: "It lasts for the duration or until a strong wind (such as
+   * one created by _Gust of Wind_) disperses it." SRD Stinking Cloud prints the
+   * same clause.
+   *
+   * **The fact is two areas meeting**, which the log already holds on both
+   * sides: a casting whose record pins a `disperses` clause
+   * (`AreaDispersalStanding` — SRD Gust of Wind's "The gust disperses gas or
+   * vapor") is a wind, and a `wind-declared` is the table saying one blows,
+   * over a region or the whole scene. Read in `fold/endings.ts` off the two
+   * records' own geometry — some space in both — whenever either could have
+   * moved: the cloud cast into a gale, the gale cast over a cloud, the gust's
+   * caster stepping with a Line it carries, the Line turned. The Tiny Hut
+   * precedent: derived, with no dice, and nobody deciding it. `ends:
+   * 'casting'` only — a cloud is on nobody. (W9-S2)
+   */
+  | 'dispersed-by-wind'
+  /**
+   * The table's word that a cause the spell prints has happened — a fact only
+   * the room holds, and an ending the engine owes once somebody says so.
+   *
+   * > SRD Web: "If the webs aren't anchored … the web collapses on itself, and
+   * > the spell ends at the start of your next turn."
+   * > SRD Suggestion: "the spell ends for the target upon completing it."
+   * > SRD Glyph of Warding: "If the surface or object is moved more than 10
+   * > feet from where you cast this spell, the glyph is broken, and the spell
+   * > ends without being triggered."
+   *
+   * **The one member the fold does not read**, and the reason it still names
+   * a fact the log holds: the fact is the declaration itself. `declareEnding`
+   * is the door, and it refuses a phrase the casting's pinned `endsEarly` does
+   * not print — so the word cannot end what the book never said it ends — and
+   * writes the ending as events: a `spell-ended`, or, where the trigger defers
+   * it ({@link CastingEndTrigger.at}), the casting's deadline moved through the
+   * one door every deadline goes through. `CastingEndTrigger.what` is the
+   * phrase. (W9-S2)
+   */
+  | 'the-table-declares';
 
 /**
  * One printed sentence: what happens, and what it ends.
@@ -6912,6 +6950,21 @@ export interface CastingEndTrigger {
    * number. (W7-S19)
    */
   readonly feet?: number;
+  /**
+   * The book's phrase for the cause the table declares — SRD Web's "the webs
+   * are not anchored". Required on `the-table-declares` and refused on every
+   * other cause, as {@link feet} is on `separated-beyond`: it is what a caller
+   * names, and what `declareEnding` matches against the pinned record. (W9-S2)
+   */
+  readonly what?: string;
+  /**
+   * When the declared ending lands, where the book defers it: SRD Web's "the
+   * spell ends **at the start of your next turn**". The casting's own deadline
+   * is moved there, so the ordinary expiry ends it and every sentence the
+   * casting prints stands until then. Only on `the-table-declares`, and only
+   * with `ends: 'casting'` — a deadline is the whole casting's. (W9-S2)
+   */
+  readonly at?: 'start-of-casters-next-turn';
 }
 
 /**
@@ -7124,6 +7177,18 @@ export interface SpellActivation {
    * effects are the branch's — and reaches nobody, so it takes no range.
    */
   readonly reoptions?: true;
+  /**
+   * The book's names for a later action that costs this activation's action
+   * and resolves nothing the engine holds.
+   *
+   * SRD Detect Thoughts: "Until the spell ends, you can activate either effect
+   * as a Magic action on your later turns." Sense Thoughts and Read Thoughts
+   * buy knowledge, which is the table's; the Magic action is the engine's.
+   * Named on the request (`ActivateSpellCommand.errand`), an errand spends
+   * the action, runs no effects, aims at nobody, and is handed over by name.
+   * A name the list does not print is refused. (W9-S2)
+   */
+  readonly errands?: readonly string[];
   /**
    * Whether this action moves what the casting **already granted** onto a new
    * creature.

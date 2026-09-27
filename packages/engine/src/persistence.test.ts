@@ -368,6 +368,7 @@ const KNOWN_EVENT_TYPES: readonly string[] = [
   'utilize-taken',
   'weapon-penalised',
   'weapon-rider-granted',
+  'wind-declared',
 ];
 
 describe('the event vocabulary is a contract', () => {

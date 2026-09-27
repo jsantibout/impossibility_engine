@@ -43,6 +43,9 @@ const send = (tool: string, input: unknown): ToolOutcome =>
  */
 const NO_ARGUMENTS = [
   'declare_dawn',
+  // A strong wind through the whole scene is the commonest answer, so every
+  // field is optional: the room is the table's to describe. (W9-S2)
+  'declare_wind',
   'dismiss_stranded_summons',
   'end_turn',
   'look',

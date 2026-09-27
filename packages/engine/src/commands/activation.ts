@@ -15,13 +15,14 @@
 
 import { type CharacterId, err, ok, type Result } from '@ie/shared';
 import { spendAction, spendBonusAction } from '../combat.js';
-import { applyEvent, type GameEvent, type GameState } from '../events.js';
+import { type ConditionState } from '../conditions.js';
+import { applyEvent, type CommandStamp, type GameEvent, type GameState } from '../events.js';
 import { type CommandIdentity, commandOutcome, once } from '../idempotency.js';
 import { type Point } from '../positioning.js';
 import { actionRulesOn, canSee } from '../standing.js';
 import { type SpellActivation } from '../spell-definitions.js';
 import { lightPatchesOf, terrainPatchOf, type Supply } from './casting.js';
-import { castingIdOf, regionOfArea, regionOfCastingArea } from '../spells.js';
+import { castingIdOf, type OngoingSpell, regionOfArea, regionOfCastingArea } from '../spells.js';
 import { creatureOf, unknownCreature } from './command.js';
 import { unsettledRefusal } from './holds.js';
 import {
@@ -146,6 +147,17 @@ export interface ActivateSpellCommand extends CommandIdentity {
    * see **under the cloud**".
    */
   readonly at?: Point;
+  /**
+   * The later action the book names that buys only knowledge — SRD Detect
+   * Thoughts' Sense Thoughts or Read Thoughts. (W9-S2)
+   *
+   * One of {@link SpellActivation.errands}, and refused otherwise
+   * (`unknown_errand`). Named, the activation's action is spent and nothing
+   * else happens: no effect runs, nobody is aimed at — `targets` must be empty
+   * and every other stated fact absent (`errand_takes_nothing`) — and the
+   * errand is handed to the table by name.
+   */
+  readonly errand?: string;
 }
 
 /**
@@ -215,6 +227,79 @@ function markedBy(
     (held) => castingIdOf(held.source) === castingId && held.target !== undefined,
   );
   return rider?.target ?? null;
+}
+
+/**
+ * A later action the book names and the engine resolves nothing of. (W9-S2)
+ *
+ * SRD Detect Thoughts' Sense Thoughts and Read Thoughts: the Magic action is
+ * spent — in a fight, through the same spender every activation uses, so a
+ * spell that forbids the Magic action stops it — and `spell-activated` records
+ * that it was taken. What it buys is handed over under the errand's own name,
+ * the mark `dmDecisionsIn` reads back; the spell's `dmDecides` already carries
+ * the sentences the table answers it with.
+ */
+function runErrand(
+  state: GameState,
+  casterId: CharacterId,
+  conditions: ConditionState,
+  record: OngoingSpell,
+  activation: SpellActivation,
+  command: ActivateSpellCommand,
+  stamp: CommandStamp | null,
+): Result<SpellResolution> {
+  const errand = command.errand!;
+  const errands = activation.errands ?? [];
+  if (!errands.includes(errand)) {
+    return err(
+      'unknown_errand',
+      errands.length === 0
+        ? `${record.spell}'s later action runs no errand; it is taken by naming what it does`
+        : `${record.spell}'s later errands are ${errands.join(' and ')}, not ${errand}`,
+    );
+  }
+  const stated = [
+    command.to,
+    command.via,
+    command.option,
+    command.altitude,
+    command.towards,
+    command.at,
+  ].some((fact) => fact !== undefined);
+  if (command.targets.length > 0 || stated) {
+    return err(
+      'errand_takes_nothing',
+      `${errand} aims at nobody and moves nothing; name the errand alone`,
+    );
+  }
+
+  const events: GameEvent[] = [];
+  const combat = state.combat;
+  if (combat !== null && combat.budgets[casterId] !== undefined) {
+    const spend = { rules: actionRulesOn(state, casterId), as: 'magic' as const };
+    const spent =
+      activation.action === 'bonus-action'
+        ? spendBonusAction(combat, casterId, conditions, spend)
+        : spendAction(combat, casterId, conditions, spend);
+    if (!spent.ok) return spent;
+    events.push(
+      activation.action === 'bonus-action'
+        ? { type: 'bonus-action-spent', id: casterId }
+        : { type: 'action-spent', id: casterId },
+    );
+  }
+  events.push({
+    type: 'spell-activated',
+    castingId: record.castingId,
+    by: casterId,
+    ...(stamp === null ? {} : { command: stamp }),
+  });
+  return ok({
+    events,
+    castingId: record.castingId,
+    outcomes: [],
+    unverified: [handedOver(record.spell, errand)],
+  });
 }
 
 export function activateSpell(
@@ -294,6 +379,16 @@ export function activateSpell(
 
     const caster = creatureOf(state, casterId);
     if (caster === null) return unknownCreature(casterId);
+
+    // — an errand: the action spent, and nothing the engine resolves ——— (W9-S2)
+    //
+    // SRD Detect Thoughts: "you can activate either effect as a Magic action
+    // on your later turns." Sense Thoughts and Read Thoughts buy knowledge the
+    // table answers; the Magic action is the engine's to charge, and charging
+    // it is the whole of what happens here.
+    if (command.errand !== undefined) {
+      return runErrand(state, casterId, caster.conditions, record, activation, command, stamp);
+    }
 
     // **The numbers the casting was made with**, off the record. Re-deriving
     // them from the caster's sheet is how a minute-old Vampiric Touch quietly

@@ -825,9 +825,16 @@ describe('an executed spell with a clause nobody sorted is not executed', () => 
     }
     // One more carries an expressible clause beside a real blocker, and a
     // shape outranks a definition owed — so it waits on the shape, and is
-    // still in the size. (Moonbeam's Dim Light was the other, until W9-S1
-    // wrote it.)
-    for (const id of ['stinking-cloud']) {
+    // still in the size. (Moonbeam's Dim Light and Stinking Cloud's
+    // obscurement were the two, until W9-S1 and W9-S2 wrote them; none is
+    // left, and a new one is named here rather than slipping past.)
+    const besideAShape = ledger.spells
+      .filter((one) => one.wait === 'shape')
+      .filter((one) => (ADJUDICATED[one.id] ?? []).some((entry) => entry.why === 'expressible'))
+      .map((one) => one.id)
+      .sort();
+    expect(besideAShape).toEqual([]);
+    for (const id of besideAShape) {
       expect((ADJUDICATED[id] ?? []).map((entry) => entry.why), id).toContain('expressible');
       expect(ledger.spells.find((one) => one.id === id)?.wait, id).toBe('shape');
     }

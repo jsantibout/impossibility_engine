@@ -1500,6 +1500,27 @@ export type GameEvent =
       readonly id: CharacterId;
       readonly command?: CommandStamp;
     }
+  /**
+   * The table says a strong wind blows. (W9-S2)
+   *
+   * SRD Fog Cloud: "It lasts for the duration or until **a strong wind (such
+   * as one created by _Gust of Wind_)** disperses it." Gust of Wind is the
+   * book's example and not the whole of the sentence: a gale off the sea is a
+   * strong wind too, and the engine holds no weather to derive one from. So
+   * the wind is declared, as cover and light are, and what follows is the
+   * engine's — `fold/endings.ts` ends every running casting that prints
+   * `dispersed-by-wind` whose area meets `region`.
+   *
+   * **A moment rather than a state**: nothing is stored, because the sentence
+   * is about the wind dispersing what is there when it blows. A cloud cast a
+   * minute later into a calm room stands. An absent `region` is the whole
+   * scene.
+   */
+  | {
+      readonly type: 'wind-declared';
+      readonly region?: TerrainRegion;
+      readonly command?: CommandStamp;
+    }
 
   // — conditions ——————————————————————————————————————————————
   | {

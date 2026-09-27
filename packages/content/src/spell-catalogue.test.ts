@@ -808,6 +808,13 @@ describe('every definition in the catalogue actually casts', () => {
       // sight question reads, so it is the patch this asks for.
       expect(out.outcomes).toEqual([]);
       expect(out.events.some((event) => event.type === 'light-declared')).toBe(true);
+    } else if (run.length === 0 && definition.areaObscurement !== undefined) {
+      // A spell whose whole content is the patch it lays, and a spell rather
+      // than a stub: SRD Fog Cloud's Sphere is Heavily Obscured and nothing
+      // happens to anybody at the casting. What it leaves is the bank on the
+      // lattice, pinned into the log. (W9-S2)
+      expect(out.outcomes).toEqual([]);
+      expect(out.events.some((event) => event.type === 'obscurement-declared')).toBe(true);
     } else if (run.length === 0) {
       expect(out.outcomes).toEqual([]);
       expect(out.unverified.length).toBeGreaterThan(0);

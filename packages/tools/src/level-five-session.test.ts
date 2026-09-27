@@ -359,8 +359,9 @@ interface Table {
  *
  * **Chosen on the fight's shape and on nothing the census counts.** A seed
  * picked because its run met no debt would be the count choosing itself: on
- * `-21` the Wizard casts Web, and the two sentences Web still files in
- * `unmodelled` are debts the report prints. Nothing about the script changed
+ * `-21` the Wizard casts Web, and the sentence Web still files in
+ * `unmodelled` — its webs burning, since W9-S2 made their anchoring the
+ * table's word — is a debt the report prints. Nothing about the script changed
  * and nothing it asserts was weakened.
  */
 const SESSION_SEED = 'a-level-five-session-21';

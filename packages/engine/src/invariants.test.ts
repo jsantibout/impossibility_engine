@@ -75,6 +75,8 @@ import {
   declareDifficultTerrain,
   declareLight,
   declareObscurement,
+  declareEnding,
+  declareWind,
   moveCastLight,
   declineOpportunity,
   dropConjured,
@@ -2995,6 +2997,27 @@ const GUARDED: readonly Guarded[] = [
       }),
   },
   /**
+   * The table's strong wind (W9-S2): a momentary fact, and the same id twice
+   * is one gust however many times it is sent.
+   */
+  {
+    name: 'declareWind',
+    log: SETUP,
+    run: (s, commandId) => declareWind(s, { commandId }),
+  },
+  /**
+   * The table's word that a printed cause happened (W9-S2). A retry that got
+   * past the guard would find the glyph gone — the word ended it — and report
+   * `not_ongoing` for an ending that had in fact landed, which is
+   * `triggerGlyph`'s trap one door along.
+   */
+  {
+    name: 'declareEnding',
+    log: glyphed(),
+    run: (s, commandId) =>
+      declareEnding(s, 'cast:1', { what: 'the surface or object is moved more than 10 feet' }, { commandId }),
+  },
+  /**
    * The interruptible casting pair. Both halves need the guard and for
    * different reasons: a retried declaration would open a second casting with
    * a second action gone, and a retried settlement would spend a second slot
@@ -4767,6 +4790,8 @@ const ENDS_A_CASTING_UNGUARDED: Readonly<Record<string, string>> = {
     'the casting it ends is ended by the **book** rather than by anybody acting: SRD Darkness and SRD Daylight put each other out where their areas overlap, and this command is the table saying where the light is. Nobody in the fight spends a thing on a declaration, the dispel is a consequence of the geometry rather than a decision, and a guard would refuse to let a DM describe the room because somebody owed a saving throw — which is `rollImprovisedDamage`’s exemption in the same words',
   moveCastLight:
     'the same book-driven ending `declareLight` is exempt for, reached by the table saying where a lit thing went: SRD Darkness and SRD Daylight put each other out where their areas overlap, so a Daylight carried over a Darkness ends it through the geometry and nobody spends anything on the saying. A guard would refuse a DM to report that the goblin picked the stone up because somebody owed a saving throw',
+  declareEnding:
+    'the table’s word that a cause the spell itself prints has happened — the webs not anchored, the errand done, the chest carried off — so the ending is the **book’s** consequence of a fact about the room, which is `declareLight`’s exemption one declaration along: nobody in the fight spends a thing on it, and a guard would refuse to let the table say the glyph was moved because somebody owed a saving throw (W9-S2)',
   removeCreatureEverywhere:
     'the casting leaves with its caster, and the creature leaving is bookkeeping about the cast rather than an action: refusing it while a debt stood would leave a fight unable to continue without somebody who is already gone',
   dismissStrandedSummons:

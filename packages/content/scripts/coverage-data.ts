@@ -607,10 +607,16 @@ export const VERIFIED_SPELLS: readonly string[] = [
   // Driven end to end in `area-triggers.test.ts`: conjured at a point, a
   // creature starting its turn in the Sphere, the Constitution save rolled at
   // the boundary, the Poisoned landing, and the condition gone when that same
-  // turn ends. Partial as well as verified, which is the pair Spirit Guardians
-  // above already records — the gas runs and the sentence after it does not.
+  // turn ends. And in `dispersed-by-wind.test.ts` (engine): the Sphere Heavily
+  // Obscured so a Dwarf does not see into it, and the cloud ended by a gust's
+  // Line carried onto it by its druid and turned onto it by the Bonus Action.
+  // (W9-S2)
   'stinking-cloud',
   'stoneskin',
+  // `declared-endings.test.ts` (engine): the ogre Charmed, and the table's word
+  // that its suggested activity is complete ending the spell on it — and, on a
+  // two-target homebrew copy, on it and not on the troll beside it. (W9-S2)
+  'suggestion',
   'sunburst',
   // Driven end to end by `spell-options.test.ts` (engine): the wonder named
   // at the casting, its own sentence handed to the table and the other five

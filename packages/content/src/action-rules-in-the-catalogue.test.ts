@@ -342,12 +342,12 @@ describe('Stinking Cloud forbids the action and the Bonus Action it printed', ()
         lasts: 'end-of-current-turn',
       },
     ]);
-    expect(cloud.unmodelled).toEqual([
-      // Reworded by W8-S26, which read both: the first is a definition nobody
-      // wrote, the second a debt on the trigger that ends a casting.
-      'the cloud being Heavily Obscured is not laid: an area that obscures is a kind the engine has — Fog Cloud, Web and Sleet Storm write it — and this definition does not write one',
-      'a strong wind dispersing the cloud is not applied: whether a wind blows is the table’s, and the cloud it would end is a Poisoned every turn and obscurement every sight question reads, so the ending is owed and nothing raises it',
-    ]);
+    // Nothing left: W8-S26 read the last two lines — a definition nobody
+    // wrote, and a debt on the trigger that ends a casting — and W9-S2 wrote
+    // the obscurement and read the wind.
+    expect(cloud.unmodelled ?? []).toEqual([]);
+    expect(cloud.areaObscurement).toEqual({ degree: 'heavily' });
+    expect(cloud.endsEarly).toEqual([{ on: 'dispersed-by-wind', ends: 'casting' }]);
   });
 
   it('refuses the Action of a creature that started its turn in the gas', () => {

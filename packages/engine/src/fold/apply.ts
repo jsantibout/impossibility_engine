@@ -43,10 +43,12 @@ import {
   liftWhatBrokenObjectsHeld,
 } from './expiry.js';
 import {
+  applyEndings,
   closeHealedWounds,
   endEarlyEndedConditions,
   endTriggeredCastings,
   endTriggeredEffects,
+  isEndingsEvent,
 } from './endings.js';
 
 import { applyRoster, isRosterEvent, lapseExpiredControl } from './roster.js';
@@ -996,6 +998,7 @@ function applyOne(state: GameState, event: GameEvent, legacy: Content | null): G
   if (isGrantsEvent(event)) return applyGrants(applying, event);
   if (isRollsEvent(event)) return applyRolls(applying, event);
   if (isDeferredEvent(event)) return applyDeferred(applying, event);
+  if (isEndingsEvent(event)) return applyEndings(applying, event);
 
   return unhandledEvent(event);
 }

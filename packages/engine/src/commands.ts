@@ -342,6 +342,8 @@ export type {
 export { activateSpell } from './commands/activation.js';
 export { triggerGlyph } from './commands/glyph.js';
 export type { TriggerGlyphCommand } from './commands/glyph.js';
+export { declareEnding, declareWind } from './commands/declared-endings.js';
+export type { DeclaredEnding, WindCommand } from './commands/declared-endings.js';
 export type { ActivateSpellCommand } from './commands/activation.js';
 export {
   castPrintedLine,

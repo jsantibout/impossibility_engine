@@ -2432,10 +2432,11 @@ describe('a consumer count is a query', () => {
     for (const id of ['glyph-of-warding']) {
       expect(BLOCKED_ON[id]).toBeUndefined();
       expect(TRACKED_ADJUDICATED[id]).toBeUndefined();
+      // W9-S2: the breaking is the table's word now, and the notice check
+      // is filed to the id W8-S26's note said it wanted.
       expect(ADJUDICATED[id]?.map((e) => e.why)).toEqual([
         'a-creature-type-predicate-an-area-reads',
-        'a-check-another-creature-may-attempt',
-        'a-casting-ended-by-a-trigger',
+        'a-check-a-casting-with-no-deadline-offers',
       ]);
       expect(SRD_CONTENT.spell(id)?.triggered?.storesSpell).toBe(true);
       expect(
@@ -2704,7 +2705,13 @@ describe('a consumer count is a query', () => {
     // glyph moved, a suggestion completed, a curse lifted. The trigger shape
     // now leads the coin flip by four, and nothing was built or retired to get
     // there.
-    expect(leaders).toEqual(['a-casting-ended-by-a-trigger']);
+    //
+    // **And it changed hands back on a build** (W9-S2): a strong wind and the
+    // table's word took six executed spells' clauses off the trigger shape —
+    // Fog Cloud, Stinking Cloud, Gust of Wind's gas, Web's anchoring,
+    // Suggestion's errand and Glyph's surface — so the coin flip leads alone
+    // again and the trigger shape is in the band below it.
+    expect(leaders).toEqual(['a-random-outcome-that-is-not-a-d20']);
     expect(Object.keys(SPLIT_BUNDLES)).toContain('an-action-a-spell-compels-or-forbids');
     // And the split is visible from here rather than only in the record: the
     // bundle stands below the leader, and the largest piece to come out of it
@@ -2775,7 +2782,12 @@ describe('a consumer count is a query', () => {
       // trigger shape rose to lead alone, so the coin flip it had led is the
       // band below it, alone — the second place and the stat block are a
       // consumer and two behind it.
-      'a-random-outcome-that-is-not-a-d20',
+      //
+      // **And W9-S2 swapped them back**: the trigger shape lost six clauses to
+      // a build and fell to meet the second place, a consumer behind the coin
+      // flip.
+      'a-casting-ended-by-a-trigger',
+      'a-second-place-to-put-a-creature',
     ]);
     // **Moved from 20 to 15 by the third catalogue pass, and the total fell
     // further than the tracked column rose.** Twelve undefined spells named
@@ -3365,16 +3377,17 @@ describe('a trigger that ends a casting is a partial build, and the map says whi
       const shapes = (ADJUDICATED[id] ?? []).map((entry) => entry.why);
       expect(shapes, id).not.toContain('a-casting-ended-by-a-trigger');
     }
-    // **Suggestion's damage sentence is closed and a second one is not.** "Or
+    // **Suggestion's damage sentence is closed and so is the second one.** "Or
     // until you or your allies deal damage to the target" is the cause IE-032
     // built; "the spell ends for the target upon completing it" is a different
     // sentence whose fact — the activity done — no consequence event holds,
-    // and W8-S26 filed it here. The claim is that one and only that one.
+    // and W8-S26 filed it here. W9-S2 built the table's word
+    // (`the-table-declares`), and neither is filed here now.
     expect(
       (ADJUDICATED['suggestion'] ?? [])
         .filter((entry) => entry.why === 'a-casting-ended-by-a-trigger')
         .map((entry) => entry.clause),
-    ).toEqual(['upon completing the suggested activity']);
+    ).toEqual([]);
     // **Five of the six leave the map entirely now**, and one of them took two
     // builds to get there: IE-032 closed Mass Suggestion's ending trigger and
     // left its "The duration is longer with a spell slot of level 7 (10 days),

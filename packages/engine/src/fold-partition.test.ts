@@ -34,6 +34,7 @@ import { CASTING_EVENTS } from './fold/casting.js';
 import { COMBAT_EVENTS } from './fold/combat.js';
 import { DEFERRED_EVENTS } from './fold/deferred.js';
 import { ELSEWHERE_EVENTS } from './fold/elsewhere.js';
+import { ENDINGS_EVENTS } from './fold/endings.js';
 import { FEATURES_EVENTS } from './fold/features.js';
 import { GRANTS_EVENTS } from './fold/grants.js';
 import { HOLDS_EVENTS } from './fold/holds.js';
@@ -54,6 +55,7 @@ const CLAIMS: ReadonlyMap<string, readonly string[]> = new Map<string, readonly 
   ['fold/combat.ts', COMBAT_EVENTS],
   ['fold/deferred.ts', DEFERRED_EVENTS],
   ['fold/elsewhere.ts', ELSEWHERE_EVENTS],
+  ['fold/endings.ts', ENDINGS_EVENTS],
   ['fold/features.ts', FEATURES_EVENTS],
   ['fold/grants.ts', GRANTS_EVENTS],
   ['fold/holds.ts', HOLDS_EVENTS],

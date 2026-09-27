@@ -182,9 +182,11 @@ describe('toolSchemas', () => {
     // And three more on the DM's alone for W7-B12: `take_rest_form`,
     // `settle_block_deadlines` and `split_printed_line`.
     // And one on each for W9-S1, `move_cast_light` — where the thing a cast
-    // light is on went, and whether it is covered.
-    expect(toolSchemas(player())).toHaveLength(97);
-    expect(toolSchemas(dm())).toHaveLength(128);
+    // light is on went, and whether it is covered. And two on each for W9-S2:
+    // `declare_wind` and `declare_ending`, the room's weather and the table's
+    // word that a printed cause happened.
+    expect(toolSchemas(player())).toHaveLength(99);
+    expect(toolSchemas(dm())).toHaveLength(130);
     // Re-pinned 2026-09-24 for the printed-lines track, which opened one door
     // on the DM's surface alone: `teleport_printed_line` takes the teleport a
     // stat block prints, at the distance the block prints, to a space the DM
@@ -386,10 +388,14 @@ describe('toolSchemas', () => {
     // used from where the familiar is and are not the caster's own (the
     // owner's option B). One tool both doors publish: 124 bytes on each, and
     // no tool added.
-    expect(toolSchemas(player())).toHaveLength(97);
-    expect(toolSchemas(dm())).toHaveLength(128);
-    expect(JSON.stringify(toolSchemas(player())).length).toBe(160472);
-    expect(JSON.stringify(toolSchemas(dm())).length).toBe(216690);
+    // And for W9-S2, on both doors: `declare_wind` and `declare_ending` added
+    // after `end_ongoing_spell`, and `activate_spell` gains `errand` — SRD
+    // Detect Thoughts' Sense Thoughts and Read Thoughts. 96 → 98 and 127 →
+    // 129 tools; +2,459 bytes on each.
+    expect(toolSchemas(player())).toHaveLength(99);
+    expect(toolSchemas(dm())).toHaveLength(130);
+    expect(JSON.stringify(toolSchemas(player())).length).toBe(162931);
+    expect(JSON.stringify(toolSchemas(dm())).length).toBe(219149);
   });
 });
 

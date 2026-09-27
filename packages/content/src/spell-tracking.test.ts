@@ -2353,6 +2353,10 @@ describe('every spell this batch added is cast for real', () => {
     // `TargetRule.mustBeDying` for the sentence that chooses whom, and
     // `rangeAtLevel` for the Cantrip Upgrade. Nothing is left over.
     'spare-the-dying',
+    // And the fog, whose one line was the wind: a strong wind is a casting
+    // that disperses gas or the table's `declare_wind`, read in the fold.
+    // What is left is the bank it lays, which is executed. (W9-S2)
+    'fog-cloud',
   ];
 
   /**

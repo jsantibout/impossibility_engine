@@ -38,13 +38,21 @@ import {
   castingNumber,
   creaturesStandingInCastingArea,
   type OngoingSpell,
+  regionOfCastingArea,
 } from '../spells.js';
 import { isWoundSource } from '../monster.js';
-import { apartFrom, positionOf } from '../positioning.js';
+import {
+  apartFrom,
+  positionOf,
+  type PositionState,
+  spaceInRegion,
+  type TerrainRegion,
+} from '../positioning.js';
 import type { CastingEndTrigger } from '../spell-definitions.js';
 
 import type { GameEvent } from '../events.js';
 import type { GameState } from '../state.js';
+import { type Applying, seamOf } from './common.js';
 import {
   casterOf,
   endTimedCondition,
@@ -184,6 +192,19 @@ type EndingFact =
       readonly mover: CharacterId;
     }
   /**
+   * A wind may have met a cloud — SRD Fog Cloud's "until a strong wind (such
+   * as one created by _Gust of Wind_) disperses it". (W9-S2)
+   *
+   * `declared` is the table's wind: a region, or the whole scene. Absent, the
+   * winds are the running castings whose record pins a `disperses` clause,
+   * and this says only that one of them or one of the clouds may have moved —
+   * which ones meet is {@link subjectOf}'s question, asked of each cloud.
+   */
+  | {
+      readonly cause: 'dispersed-by-wind';
+      readonly declared?: TerrainRegion | 'everywhere';
+    }
+  /**
    * An item taken off the creature wearing it — SRD Armor of Invulnerability's
    * "or until you are no longer wearing the armor". `unworn` rather than `who`
    * for the reason `to` is not `who`: this is not a deed, and it carries the
@@ -252,7 +273,24 @@ function endingFactsOf(state: GameState, event: GameEvent): readonly EndingFact[
         // And the distance a casting keeps between its two ends — SRD Warding
         // Bond's, SRD Unseen Servant's — asked per record below of whoever moved.
         { cause: 'separated-beyond', mover: event.id },
+        // And SRD Gust of Wind's Line, which "blasts from you" and so walks
+        // with its caster: asked only when the mover carries a wind or a
+        // cloud, so an ordinary step never scans the scene. (W9-S2)
+        ...(carriesWeather(state, event.id) ? [{ cause: 'dispersed-by-wind' } as const] : []),
       ];
+    // SRD Fog Cloud's "until a strong wind … disperses it": the table's wind,
+    // over a region or the whole scene, and the four moments a casting's own
+    // wind or cloud can come to lie somewhere new — cast, turned, moved, or
+    // grown by the bank its slot paid for. (W9-S2)
+    case 'wind-declared':
+      return [{ cause: 'dispersed-by-wind', declared: event.region ?? 'everywhere' }];
+    case 'spell-ongoing':
+      return weatherFact(state, event.casting.castingId);
+    case 'spell-aim-changed':
+    case 'spell-origin-moved':
+      return weatherFact(state, event.castingId);
+    case 'obscurement-declared':
+      return event.source === undefined ? [] : weatherFact(state, event.source);
     case 'damage-taken':
       return [
         // **The three that read the creature the blow landed on**, so a trap
@@ -385,6 +423,12 @@ function subjectOf(
     case 'source-item-removed':
       return null;
 
+    // A cloud is on nobody, so the creature it names is its caster — the
+    // subject `caster-leaves-the-area` names for the same reason — and the
+    // scope is always the whole casting. (W9-S2)
+    case 'dispersed-by-wind':
+      return blownAway(state, record, fact.declared) ? (record.caster as CharacterId) : null;
+
     default:
       return isOn(state, record, fact.who) ? fact.who : null;
   }
@@ -438,6 +482,114 @@ function separatedBeyond(
     if (apart !== null && apart > feet) return other as CharacterId;
   }
   return null;
+}
+
+/** Whether a running casting's area disperses gas — SRD Gust of Wind's Line. (W9-S2) */
+const blowsWind = (record: OngoingSpell): boolean =>
+  record.areaStanding?.some((standing) => standing.kind === 'disperses') === true;
+
+/** Whether a running casting is ended by a strong wind — SRD Fog Cloud. (W9-S2) */
+const windEnds = (record: OngoingSpell): boolean =>
+  record.endsEarly?.some((trigger) => trigger.on === 'dispersed-by-wind') === true;
+
+/** The wind fact, where this casting is a wind or a cloud and not otherwise. */
+function weatherFact(state: GameState, castingId: string): readonly EndingFact[] {
+  const record = state.ongoing[castingId];
+  return record !== undefined && (blowsWind(record) || windEnds(record))
+    ? [{ cause: 'dispersed-by-wind' }]
+    : [];
+}
+
+/** Whether this creature is the caster of a running wind or cloud. */
+function carriesWeather(state: GameState, mover: CharacterId): boolean {
+  return Object.values(state.ongoing).some(
+    (record) => record.caster === mover && (blowsWind(record) || windEnds(record)),
+  );
+}
+
+/** The side of a lattice space, in feet. */
+const SPACE = 5;
+
+/**
+ * Whether two sets of regions share a space of the scene.
+ *
+ * "Some space in both", on the lattice every other area is read on — the
+ * scan {@link lightDispelledBy} makes for the mutual dispel of light, over
+ * {@link spaceInRegion}, the one reader of a region against a space. Stops at
+ * the first shared space. An unplaced carrier covers nothing, which is
+ * `spaceInRegion`'s own answer.
+ */
+function shareASpace(
+  scene: PositionState,
+  these: readonly TerrainRegion[],
+  those: readonly TerrainRegion[],
+): boolean {
+  for (let x = 0; x <= scene.extent.width; x += SPACE) {
+    for (let y = 0; y <= scene.extent.depth; y += SPACE) {
+      for (let z = 0; z <= scene.extent.height; z += SPACE) {
+        const space = { x, y, z };
+        if (
+          these.some((region) => spaceInRegion(scene, region, space)) &&
+          those.some((region) => spaceInRegion(scene, region, space))
+        ) {
+          return true;
+        }
+      }
+    }
+  }
+  return false;
+}
+
+/**
+ * Whether a strong wind reaches this cloud. (W9-S2)
+ *
+ * SRD Fog Cloud: "until a strong wind (such as one created by _Gust of
+ * Wind_) disperses it." The table's wind over the whole scene reaches every
+ * cloud; one over a region, or a running casting's own `disperses` area,
+ * reaches a cloud whose area it shares a space with.
+ *
+ * **The cloud is its pinned area and every patch it laid**: SRD Fog Cloud's
+ * higher slot grows the bank on the lattice and not the template on the
+ * record — see `FOG_CLOUD` — so the bank a level 3 casting spread is fog a
+ * gust can reach. A casting whose area cannot be located, and no patch, is
+ * nowhere, and nowhere is not blown: the withholding direction
+ * {@link casterOutsideArea} takes.
+ */
+function blownAway(
+  state: GameState,
+  record: OngoingSpell,
+  declared: TerrainRegion | 'everywhere' | undefined,
+): boolean {
+  if (declared === 'everywhere') return true;
+  const scene = state.scene;
+  if (scene === null) return false;
+
+  const winds =
+    declared !== undefined
+      ? [declared]
+      : Object.keys(state.ongoing)
+          .sort((a, b) => castingNumber(a) - castingNumber(b))
+          .flatMap((castingId) => {
+            const wind = state.ongoing[castingId];
+            if (wind === undefined || castingId === record.castingId || !blowsWind(wind)) return [];
+            const region = regionOfCastingArea(wind);
+            return region === null ? [] : [region];
+          });
+  if (winds.length === 0) return false;
+
+  const area = regionOfCastingArea(record);
+  const cloud = [
+    ...(area === null ? [] : [area]),
+    ...Object.keys(scene.obscurement)
+      .sort()
+      .flatMap((name) => {
+        const patch = scene.obscurement[name];
+        return patch?.source === record.castingId ? [patch.region] : [];
+      }),
+  ];
+  if (cloud.length === 0) return false;
+
+  return shareASpace(scene, winds, cloud);
 }
 
 /** One casting to end, and whether it ends outright or on one creature. */
@@ -531,6 +683,33 @@ const endingKey = (castingId: string, subject: CharacterId): string =>
  * drive: a strike on a charmed Beast by an invisible ally is two causes off
  * one `damage-taken`.
  */
+/**
+ * The event this module owns: the table's strong wind. (W9-S2)
+ *
+ * **A seam that writes nothing**, the shape `fold/rolls.ts` keeps for
+ * `roll-recorded`: a wind is a moment rather than a state, and what it does —
+ * disperse every cloud it reaches — is {@link endTriggeredCastings}' derived
+ * reading of the same event, run after this.
+ */
+export const ENDINGS_EVENTS = ['wind-declared'] as const;
+
+/** The narrowed union this seam reduces, `Extract`ed from the list above. */
+export type EndingsEvent = Extract<GameEvent, { type: (typeof ENDINGS_EVENTS)[number] }>;
+
+/** Whether an event is this seam's. Built from the same list, so the two cannot drift. */
+export const isEndingsEvent = seamOf(ENDINGS_EVENTS);
+
+/**
+ * Reduce one of this seam's events. Exported so `applyOne` may call it and for
+ * no other reason.
+ */
+export function applyEndings({ next }: Applying, event: EndingsEvent): GameState {
+  // One member, so there is nothing to switch on: the type is the whole of
+  // the claim, and `applyOne`'s own backstop sees what no seam claims.
+  void event;
+  return next;
+}
+
 export function endTriggeredCastings(state: GameState, event: GameEvent): GameState {
   const facts = endingFactsOf(state, event);
   if (facts.length === 0) return state;

@@ -2804,13 +2804,20 @@ export const SUGGESTION: SpellDefinition = {
   // "for the duration or until you or your allies deal damage to the target",
   // and the paragraph's last sentence says which scope the book means: "the
   // spell ends for the target upon completing it".
-  endsEarly: [{ on: 'caster-or-ally-damages-target', ends: 'target' }],
+  //
+  // "The suggested activity can continue for the entire duration, but if the
+  // suggested activity can be completed in a shorter time, the spell ends for
+  // the target upon completing it." Whether it is complete is the table's to
+  // say (`declare_ending`), and the ending is the engine's: the spell ends on
+  // that target and the Charmed condition with it. (W9-S2)
+  endsEarly: [
+    { on: 'caster-or-ally-damages-target', ends: 'target' },
+    { on: 'the-table-declares', what: 'the suggested activity is complete', ends: 'target' },
+  ],
   // The suggestion itself, in the book's words (W8-S26): what is suggested,
   // whether it sounds achievable and how the Charmed target goes about it are
   // a compulsion the table adjudicates — the owner's ruling of 2026-09-24 — and
-  // nothing the engine holds reads any of it. What does read the table's fact
-  // is the ending: completing the activity ends the spell on the target, and
-  // the Charmed condition with it.
+  // nothing the engine holds reads any of it.
   dmDecides: [
     'The suggestion must sound achievable and not involve anything that would obviously deal damage to the target or its allies.',
     'For example, you could say, "Fetch the key to the cult\'s treasure vault, and give the key to me."',
@@ -2818,7 +2825,6 @@ export const SUGGESTION: SpellDefinition = {
     'The Charmed target pursues the suggestion to the best of its ability.',
   ],
   unmodelled: [
-    'the spell ending for the target upon completing the suggested activity is not applied: whether the activity is complete is the table’s, and the Charmed condition it would lift is state every roll against the target reads',
     'the target must be able to hear and understand you: neither a Deafened target nor one that shares no language with the caster is refused',
   ],
 };
@@ -4128,18 +4134,29 @@ export const WEB: SpellDefinition = {
     ],
   },
   durationSeconds: 3600,
-  // **Both debts, and both are the table's fact read by a rule** (W8-S26).
-  // Whether the webs are anchored is a fact about the room, and what follows
-  // from it — the spell ending at the start of the caster's next turn — takes
-  // the Difficult Terrain, the obscurement and every Restrained off the
-  // lattice. Whether a Cube of web meets fire is the table's too, and what
-  // follows is 2d4 Fire the engine must throw and a Cube that stops holding
-  // anybody. The engine's fire is the Burning hazard, which it holds on a
-  // creature; a web is not one, so nothing the engine holds reads it.
-  unmodelled: [
-    'the webs collapsing when they are not anchored between two solid masses, which is a fact about the room — and the spell ending at the start of your next turn when they do, which nothing raises',
-    'the webs being flammable, and the 2d4 Fire damage a burning cube deals',
+  // "If the webs aren't anchored between two solid masses (such as walls or
+  // trees) or layered across a floor, wall, or ceiling, the web collapses on
+  // itself, and the spell ends at the start of your next turn." Whether they
+  // are anchored is a fact about the room, so it is the table's word
+  // (`declare_ending`); what follows is the engine's — the casting's deadline
+  // moves to the start of the caster's next turn, and the ordinary expiry
+  // takes the Difficult Terrain, the obscurement and every Restrained off the
+  // lattice when it arrives. (W9-S2)
+  endsEarly: [
+    {
+      on: 'the-table-declares',
+      what: 'the webs are not anchored',
+      ends: 'casting',
+      at: 'start-of-casters-next-turn',
+    },
   ],
+  // **One debt left, and it is not a cause** (W8-S26, W9-S2). Whether a Cube
+  // of web meets fire is the table's to say, and what follows is a 5-foot Cube
+  // of the area burning away with 2d4 Fire the engine must throw at the start
+  // of a turn in it: ending **part** of a casting, which neither scope an
+  // ending has can say. The engine's fire is the Burning hazard, which it
+  // holds on a creature; a web is not one.
+  unmodelled: ['the webs being flammable, and the 2d4 Fire damage a burning cube deals'],
 };
 
 /**
@@ -4189,6 +4206,9 @@ export const STINKING_CLOUD: SpellDefinition = {
   range: { kind: 'ranged', feet: 90 },
   targets: { count: 0 },
   area: { kind: 'sphere', radius: 20, origin: 'point' },
+  // "The cloud is Heavily Obscured." Fog Cloud's field, and the same degree.
+  // (W9-S2)
+  areaObscurement: { degree: 'heavily' },
   effects: [],
   areaTrigger: {
     at: 'start-of-turn',
@@ -4217,10 +4237,11 @@ export const STINKING_CLOUD: SpellDefinition = {
     ],
   },
   durationSeconds: 60,
-  unmodelled: [
-    'the cloud being Heavily Obscured is not laid: an area that obscures is a kind the engine has — Fog Cloud, Web and Sleet Storm write it — and this definition does not write one',
-    'a strong wind dispersing the cloud is not applied: whether a wind blows is the table’s, and the cloud it would end is a Poisoned every turn and obscurement every sight question reads, so the ending is owed and nothing raises it',
-  ],
+  // "The cloud lingers in the air for the duration or until a strong wind
+  // (such as the one created by _Gust of Wind_) disperses it." A casting whose
+  // area disperses gas, or the table's `declare_wind`, meeting the Sphere ends
+  // it — see `FOG_CLOUD`. (W9-S2)
+  endsEarly: [{ on: 'dispersed-by-wind', ends: 'casting' }],
 };
 
 export const WATER_BREATHING: SpellDefinition = {
@@ -7728,11 +7749,10 @@ export const SCRYING: SpellDefinition = {
  * > "You activate one of the effects below. Until the spell ends, you can
  * > activate either effect as a Magic action on your later turns."
  *
- * Tracked on the machinery beside it rather than on any of it. A `SpellActivation`
- * runs an attack or moves an area on a later turn, and neither of this spell's
- * two options is either: one senses thoughts, which is narration, and the other
- * probes a mind and makes its owner save — a later action that forces a saving
- * throw, which has the machinery beside it and no consumer.
+ * The probe is the activation's effect list: a later action that forces a
+ * saving throw. Sense Thoughts and Read Thoughts are its **errands** — a Magic
+ * action spent on knowledge the table answers, so the activation names them
+ * and taking one charges the action and runs nothing. (W9-S2)
  */
 export const DETECT_THOUGHTS: SpellDefinition = {
   id: 'detect-thoughts',
@@ -7752,6 +7772,10 @@ export const DETECT_THOUGHTS: SpellDefinition = {
     action: 'action',
     range: { kind: 'ranged', feet: 30 },
     label: 'Detect Thoughts (probing deeper)',
+    // "Until the spell ends, you can activate either effect as a Magic action
+    // on your later turns." What they reveal is handed over below; the Magic
+    // action is charged. (W9-S2)
+    errands: ['Sense Thoughts', 'Read Thoughts'],
     effects: [
       {
         kind: 'save',
@@ -7782,9 +7806,6 @@ export const DETECT_THOUGHTS: SpellDefinition = {
     'The spell is blocked by 1 foot of stone, dirt, or wood; 1 inch of metal; or a thin sheet of lead.',
     "You learn what is most on the target's mind right now.",
     "If the target doesn't know any languages and isn't telepathic, you learn nothing.",
-  ],
-  unmodelled: [
-    'the Magic action a later Sense Thoughts or Read Thoughts costs is not spent: the spell prints "you can activate either effect as a Magic action on your later turns", and the probe is the one later step the engine takes and charges',
   ],
 };
 
@@ -8639,9 +8660,12 @@ export const FOG_CLOUD: SpellDefinition = {
   areaObscurement: { degree: 'heavily', radiusPerSlotLevelAbove: 20 },
   effects: [],
   durationSeconds: 3600,
-  unmodelled: [
-    '"until a strong wind (such as one created by Gust of Wind) disperses it" is not applied: whether a wind blows is the table’s, and the fog it would end is obscurement every sight question reads, so the ending is owed and nothing raises it',
-  ],
+  // "It lasts for the duration or until a strong wind (such as one created by
+  // _Gust of Wind_) disperses it." Gust of Wind is the example and not the
+  // whole: a wind is any running casting whose area disperses gas, or the
+  // table's `declare_wind`, and the fold ends the fog when the two share a
+  // space — the bank a higher slot spread included. (W9-S2)
+  endsEarly: [{ on: 'dispersed-by-wind', ends: 'casting' }],
 };
 
 /**
@@ -9194,6 +9218,10 @@ export const GUST_OF_WIND: SpellDefinition = {
   // the patch walks with the druid; the Bonus Action below is what re-lays it
   // when the *bearing* changes, because that is the one fact a region pins.
   areaTerrain: { costPerFoot: 2, onlyTowards: 'caster' },
+  // "The gust disperses gas or vapor." A clause of the Line, so it blows where
+  // the Line does — carried with the druid, turned with the Bonus Action — and
+  // a running Fog Cloud or Stinking Cloud whose area it meets ends. (W9-S2)
+  areaStanding: [{ kind: 'disperses', what: 'gas' }],
   effects: [
     {
       kind: 'save',
@@ -9239,13 +9267,12 @@ export const GUST_OF_WIND: SpellDefinition = {
     effects: [],
   },
   durationSeconds: 60,
-  // Two debts, not one handover (W8-S26). The gas the gust disperses is not
-  // only the table's: a Fog Cloud or a Stinking Cloud is a casting whose
-  // obscurement every sight question reads. And the 50 percent is a die the
-  // engine should throw; the lantern it would put out is light the table
-  // declares, which is the object the light shape has left.
+  // Two debts, and both are the flames (W8-S26, W9-S2). The gas the gust
+  // disperses is `areaStanding` above. The candles it snuffs and the 50
+  // percent a lantern gets are light the table declares on a thing the engine
+  // does not hold, which is the object the light shape has left.
   unmodelled: [
-    'the gas and vapor the gust disperses are not dispersed: a Fog Cloud or a Stinking Cloud in the Line goes on standing, because nothing ends another casting on an area’s say-so — the candles the same sentence snuffs are light the table declares and takes away',
+    'the candles and similar unprotected flames the gust extinguishes in the area are not put out: a candle’s light is a patch the table declares on a thing the engine does not hold, so the Line takes nothing off the lattice',
     'the protected flames’ "50 percent chance to extinguish them" is not thrown: a lantern is light the table declares on a thing the engine does not hold, so the die has nothing to land on',
   ],
 };
@@ -15243,6 +15270,17 @@ export const GLYPH_OF_WARDING: SpellDefinition = {
     ],
   },
   untilDispelled: true,
+  // "If the surface or object is moved more than 10 feet from where you cast
+  // this spell, the glyph is broken, and the spell ends without being
+  // triggered." How far a thing moved is the table's to watch and say
+  // (`declare_ending`); the rune ending unfired is the engine's. (W9-S2)
+  endsEarly: [
+    {
+      on: 'the-table-declares',
+      what: 'the surface or object is moved more than 10 feet',
+      ends: 'casting',
+    },
+  ],
   dmDecides: [
     'You inscribe it either on a surface (such as a table or a section of floor) or within an object that can be closed (such as a book or chest) to conceal the glyph.',
     "You can also set conditions for creatures that don't trigger the glyph, such as those who say a certain password.",
@@ -15250,7 +15288,6 @@ export const GLYPH_OF_WARDING: SpellDefinition = {
   unmodelled: [
     'refining the trigger so that only creatures of certain types set it off is not applied: the rune catches whoever stands in the Sphere when the DM says it went off, and a predicate over a creature type is a filter an area does not read',
     'the Wisdom (Perception) check against your spell save DC to notice the glyph is not offered by the casting: a check a casting offers rides on its timer, and a glyph that lasts until dispelled has none, so the DM calls for it and states a DC the rules fix',
-    'the glyph breaking when the surface or object it is on is moved more than 10 feet is not applied: how far a thing moved is the table’s to watch, and no door lets it end the casting, so the rune stays armed',
   ],
 };
 
