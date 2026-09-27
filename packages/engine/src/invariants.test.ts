@@ -75,6 +75,7 @@ import {
   declareDifficultTerrain,
   declareLight,
   declareObscurement,
+  moveCastLight,
   declineOpportunity,
   dropConjured,
   dropItem,
@@ -1599,6 +1600,28 @@ const dropped = (): readonly GameEvent[] => [
   ...unwrap(dropItem(fold('s', SETUP), SRD_CONTENT, A, { item: 'longsword' }), 'put down'),
 ];
 
+/** A holding a Light on itself, which `moveCastLight` covers (W9-S1). */
+const lit = (): readonly GameEvent[] => {
+  const armed: readonly GameEvent[] = [
+    ...SETUP,
+    {
+      type: 'spellcasting-declared',
+      id: A,
+      spellcasting: declaredCasting({
+        ability: 'int',
+        prepared: ['inflict-wounds', 'disguise-self', 'light'],
+      }),
+    },
+  ];
+  return [
+    ...armed,
+    ...unwrap(
+      resolveSpell(fold('s', armed), A, { spellId: 'light', targets: [A] }, supply()),
+      'light',
+    ).events,
+  ];
+};
+
 const blademless = (): readonly GameEvent[] => {
   const armed: readonly GameEvent[] = [
     ...SETUP,
@@ -1619,7 +1642,7 @@ const blademless = (): readonly GameEvent[] => {
   const cast = [
     ...armed,
     ...unwrap(
-      resolveSpell(fold('s', armed), A, { spellId: 'flame-blade', targets: [], slotLevel: 2 }, supply()),
+      resolveSpell(fold('s', armed), A, { spellId: 'flame-blade', targets: [A], slotLevel: 2 }, supply()),
       'flame-blade',
     ).events,
   ];
@@ -2946,6 +2969,17 @@ const GUARDED: readonly Guarded[] = [
         level: 'bright',
         commandId,
       }),
+  },
+  {
+    /**
+     * The cover going over a lit torch (W9-S1). A retry is the same bowl; a
+     * second call under a new id re-lays the same patch, which is harmless and
+     * is what taking the bowl off and putting it back would write.
+     */
+    name: 'moveCastLight',
+    log: lit(),
+    run: (s, commandId) =>
+      moveCastLight(s, SRD_CONTENT, Object.keys(s.ongoing).sort()[0]!, { covered: true, commandId }),
   },
   {
     name: 'declareObscurement',
@@ -4731,6 +4765,8 @@ const ENDS_A_CASTING_UNGUARDED: Readonly<Record<string, string>> = {
     'the same moment reached through the dice, which is the whole of what it adds: it rolls Initiative and hands the order to beginCombat, so the casting it can end is the one that boundary’s payout ends, and it is exempt for the same reason and no other',
   declareLight:
     'the casting it ends is ended by the **book** rather than by anybody acting: SRD Darkness and SRD Daylight put each other out where their areas overlap, and this command is the table saying where the light is. Nobody in the fight spends a thing on a declaration, the dispel is a consequence of the geometry rather than a decision, and a guard would refuse to let a DM describe the room because somebody owed a saving throw — which is `rollImprovisedDamage`’s exemption in the same words',
+  moveCastLight:
+    'the same book-driven ending `declareLight` is exempt for, reached by the table saying where a lit thing went: SRD Darkness and SRD Daylight put each other out where their areas overlap, so a Daylight carried over a Darkness ends it through the geometry and nobody spends anything on the saying. A guard would refuse a DM to report that the goblin picked the stone up because somebody owed a saving throw',
   removeCreatureEverywhere:
     'the casting leaves with its caster, and the creature leaving is bookkeeping about the cast rather than an action: refusing it while a debt stood would leave a fight unable to continue without somebody who is already gone',
   dismissStrandedSummons:

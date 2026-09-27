@@ -4,7 +4,7 @@
  */
 import { describe, expect, it } from 'vitest';
 import { SRD_CONTENT } from '@ie/content';
-import { createCampaign, createDmSurface, type ToolOutcome } from '@ie/tools';
+import { createCampaign, createDmSurface, TOOL_NAMES, type ToolOutcome } from '@ie/tools';
 
 const wizard = (): Record<string, unknown> => ({
   name: 'Ander',
@@ -76,5 +76,62 @@ describe('a lit torch, seen from the door', () => {
     expectOk(t.call('cast_spell', { caster: 'ander', spellId: 'light', targets: ['ander'] }));
     const after = t.look().creatures.find((one) => one.id === 'ander');
     expect(after?.light).toEqual({ level: 'bright', magical: true });
+  });
+});
+
+/**
+ * The same torch, handed on and covered (W9-S1): `move_cast_light` keeps the
+ * casting's own patch, so `look` reads it where the torch went and reads
+ * nothing while a cloak is over it.
+ */
+describe('a lit torch, moved and covered through the door', () => {
+  const lit = () => {
+    const t = table('a-torch-handed-on');
+    expectOk(t.call('create_character', { id: 'ander', choices: wizard() }));
+    expectOk(t.call('declare_side', { who: 'ander', side: 'party' }));
+    expectOk(t.call('set_scene', { width: 60, depth: 40, height: 20 }));
+    expectOk(t.call('add_landmark', { name: 'the stair', at: { x: 10, y: 10 } }));
+    expectOk(t.call('place_creature', { who: 'ander', fromLandmark: 'the stair', feet: 0 }));
+    const cast = expectOk(
+      t.call('cast_spell', { caster: 'ander', spellId: 'light', targets: ['ander'] }),
+    );
+    return { t, castingId: String(cast.castingId) };
+  };
+  const anders = (t: ReturnType<typeof table>) =>
+    t.look().creatures.find((one) => one.id === 'ander')?.light;
+
+  it('is a door the player’s surface holds', () => {
+    expect(TOOL_NAMES).toContain('move_cast_light');
+  });
+
+  it('puts the light out while it is covered, and back when it is not', () => {
+    const { t, castingId } = lit();
+
+    expectOk(t.call('move_cast_light', { castingId, covered: true }));
+    expect(anders(t)).toBeNull();
+
+    expectOk(t.call('move_cast_light', { castingId, covered: false }));
+    expect(anders(t)).toEqual({ level: 'bright', magical: true });
+  });
+
+  it('leaves the light where it was set down', () => {
+    const { t, castingId } = lit();
+
+    expectOk(t.call('move_cast_light', { castingId, at: { x: 55, y: 35 } }));
+    expect(anders(t)).toBeNull();
+  });
+
+  it('takes a place or a creature, not both', () => {
+    const { t, castingId } = lit();
+
+    const both = t.call('move_cast_light', { castingId, onto: 'ander', at: { x: 40, y: 30 } });
+    expect(both.status).toBe('invalid');
+  });
+
+  it('refuses a spell whose light is on no object', () => {
+    const { t } = lit();
+
+    const refused = t.call('move_cast_light', { castingId: 'cast:99', covered: true });
+    expect(refused.status).toBe('refused');
   });
 });

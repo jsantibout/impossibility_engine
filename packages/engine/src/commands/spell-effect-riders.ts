@@ -26,7 +26,7 @@ import {
   type Result,
 } from '@ie/shared';
 import { resolveDuration, timeView } from '../time.js';
-import { type RepeatSave } from '../timers.js';
+import { type RepeatSave, timerKey } from '../timers.js';
 import { applyEvent, type GameEvent, type GameState } from '../events.js';
 import {
   type ConditionRider,
@@ -824,12 +824,34 @@ export function applyRiders(
   // The same landing the `light` effect kind takes, reached from the other
   // host: two hosts, one geometry. Sourced to the casting, so a dispel, a
   // broken Concentration and the deadline all take it away.
+  //
+  // **Or to a deadline of its own**, where the rider names one — SRD Starry
+  // Wisp's "until the end of your next turn", on a cantrip whose casting is
+  // over the instant it resolves and never reaches `state.ongoing`, so a
+  // patch sourced to it would be gone before anybody read it. The glow
+  // schedules the `grants` timer a `modifiers` rider with that `lasts`
+  // schedules, on the same key — Starry Wisp's denied benefit and its glow
+  // share one deadline, and the second scheduling merely re-pins it — and
+  // lapses with that key rather than with the casting. The key is also what
+  // the casting's own ending sweeps (`releaseCasting`, `releaseOnTarget`), so
+  // a glow on a casting that does run is still put out when it ends early.
   if (riders.light !== undefined) {
+    const wants = riderDuration(riders.light.lasts, casterId, target);
+    let lapsesWith: string | undefined;
+    if (wants !== undefined) {
+      const hook = { kind: 'grants', on: target, source } as const;
+      const timer = schedule(current, hook, wants);
+      if (!timer.ok) return timer;
+      events.push(timer.value);
+      current = applyEvent(current, timer.value);
+      lapsesWith = timerKey(hook);
+    }
     const shed = lightShedOn(current, target, riders.light, {
       name: definition.name,
       source,
-      castingId,
+      castingId: lapsesWith === undefined ? castingId : null,
       spellLevel: definition.level,
+      ...(lapsesWith === undefined ? {} : { lapsesWith }),
     });
     held.add(target);
     events.push(...shed.events);

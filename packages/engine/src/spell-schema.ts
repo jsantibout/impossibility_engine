@@ -37,6 +37,7 @@ import type {
   ConditionRider,
   DeferredMoment,
   DiceScaling,
+  LightOnObject,
   LightRider,
   ModifierRider,
   OutcomeRiders,
@@ -3124,6 +3125,54 @@ function checkShedLight(
   }
 }
 
+/** The readings {@link SpellDefinition.lightOnObject} may take, as data. */
+const LIGHT_ON_OBJECT: readonly string[] = ['always', 'or-a-point'] satisfies readonly LightOnObject[];
+
+/**
+ * Whether a spell that says its light may hang on a thing has a light to hang.
+ *
+ * `moveCastLight` re-lays the casting's own patches, so the field is a promise
+ * about which patches a casting of this spell will have laid: `'always'` moves
+ * what a `light` effect lays on the creature the casting names (SRD Light,
+ * Continual Flame), and `'or-a-point'` moves what `areaLight` lays over a
+ * Sphere at a point (SRD Darkness, Daylight). A spell carrying the field and
+ * neither would offer a door that refuses every call, which is the
+ * benefit-nothing-reads failure this file exists for.
+ */
+function checkLightOnObject(definition: SpellDefinition, found: SpellDefinitionProblem[]): void {
+  const reading = definition.lightOnObject;
+  if (reading === undefined) return;
+  if (!LIGHT_ON_OBJECT.includes(reading as string)) {
+    found.push({
+      field: 'lightOnObject',
+      code: 'bad_light_on_object',
+      reason: `"${String(reading)}" is not a reading of a light on a thing; the vocabulary prints ${LIGHT_ON_OBJECT.join(' and ')}`,
+    });
+    return;
+  }
+  if (reading === 'always') {
+    const effects = Array.isArray(definition.effects) ? definition.effects : [];
+    if (!effects.some((effect) => (effect as { readonly kind?: unknown } | null)?.kind === 'light')) {
+      found.push({
+        field: 'lightOnObject',
+        code: 'light_on_object_without_light',
+        reason:
+          'a light that is always on a thing is the `light` effect laid on the creature or object the casting names, and this definition writes none',
+      });
+    }
+    return;
+  }
+  const area = definition.area as { readonly kind?: unknown; readonly origin?: unknown } | undefined;
+  if (definition.areaLight === undefined || area?.kind !== 'sphere' || area.origin !== 'point') {
+    found.push({
+      field: 'lightOnObject',
+      code: 'light_on_object_without_light',
+      reason:
+        'a light cast at a point or on a thing is the `areaLight` a Sphere at a point lays, which becomes an Emanation from the thing it is moved onto; this definition lays no such light',
+    });
+  }
+}
+
 /**
  * The ways a settled outcome moves a creature, as data.
  *
@@ -3459,6 +3508,13 @@ function checkRiders(
       )
     ) {
       checkShedLight(riders.light, `${path}.light`, found);
+      // And the deadline of its own a glow may carry — see `LightRider.lasts`
+      // — read by the one checker every other rider's `lasts` is.
+      checkRiderDuration(
+        (riders.light as { readonly lasts?: RiderDuration }).lasts,
+        `${path}.light`,
+        found,
+      );
     }
   }
 }
@@ -6367,7 +6423,19 @@ function grantCarried(given: SpellEffect): string | null {
       // held to one branch up. It carries no `lasts`, for the reason that kind
       // carries none: every SRD sentence in this position runs for the spell's
       // own duration.
-      if ((effect as { readonly light?: unknown }).light !== undefined) {
+      //
+      // **Unless it says when it goes out** — SRD Starry Wisp's "until the end
+      // of your next turn", the one sentence in this position that does not
+      // run for the spell's duration. `LightRider.lasts` is that deadline, and
+      // the patch lapses with the timer it schedules, which is the escape the
+      // `modifiers` riders above already take.
+      const glow = (effect as { readonly light?: unknown }).light;
+      if (
+        glow !== undefined &&
+        (typeof glow !== 'object' ||
+          glow === null ||
+          (glow as { readonly lasts?: unknown }).lasts === undefined)
+      ) {
         return 'light the target sheds';
       }
       // **And the slot a success fills, which leaves the same things
@@ -8415,6 +8483,7 @@ export function checkSpellDefinition(
   checkSharesDamage(definition, lasts, found);
   checkSummonCommand(definition, lasts, found);
   checkWardsTargets(definition, lasts, found);
+  checkLightOnObject(definition, found);
 
   // — a grant with nothing to hang on ——————————————————————————————————————
   //
@@ -8482,6 +8551,10 @@ export function checkSpellDefinition(
     definition.activation === undefined &&
     definition.areaTrigger === undefined &&
     definition.conjures === undefined &&
+    // The light an area sheds is laid by the casting and read by every sight
+    // question, so a spell whose whole content it is — SRD Darkness and
+    // Daylight, once their object was built (W9-S1) — resolves something.
+    definition.areaLight === undefined &&
     // A spell whose whole content is its branches says what it does one level
     // down, and `checkOptions` holds each of them to saying it.
     definition.options === undefined &&

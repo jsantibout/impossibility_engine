@@ -86,6 +86,7 @@ export {
   declareFalling,
   declareLight,
   declareObscurement,
+  moveCastLight,
 } from './commands/facts.js';
 export {
   awardItems,

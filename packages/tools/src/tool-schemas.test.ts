@@ -181,8 +181,10 @@ describe('toolSchemas', () => {
     // And one more on the DM's alone for I-E9, `printed_line_catch`.
     // And three more on the DM's alone for W7-B12: `take_rest_form`,
     // `settle_block_deadlines` and `split_printed_line`.
-    expect(toolSchemas(player())).toHaveLength(96);
-    expect(toolSchemas(dm())).toHaveLength(127);
+    // And one on each for W9-S1, `move_cast_light` — where the thing a cast
+    // light is on went, and whether it is covered.
+    expect(toolSchemas(player())).toHaveLength(97);
+    expect(toolSchemas(dm())).toHaveLength(128);
     // Re-pinned 2026-09-24 for the printed-lines track, which opened one door
     // on the DM's surface alone: `teleport_printed_line` takes the teleport a
     // stat block prints, at the distance the block prints, to a space the DM
@@ -376,10 +378,14 @@ describe('toolSchemas', () => {
     // and `cast_printed_line`'s description names the trait a coven casts
     // through. 124 → 127 tools; +3,750 bytes. The player's surface is
     // unchanged.
-    expect(toolSchemas(player())).toHaveLength(96);
-    expect(toolSchemas(dm())).toHaveLength(127);
-    expect(JSON.stringify(toolSchemas(player())).length).toBe(158726);
-    expect(JSON.stringify(toolSchemas(dm())).length).toBe(214944);
+    // And for W9-S1, both doors: `move_cast_light` added after
+    // `declare_light` (a cast light moved with its object or covered, the
+    // casting's identity kept). 96 → 97 and 127 → 128 tools; +1,622 bytes on
+    // each.
+    expect(toolSchemas(player())).toHaveLength(97);
+    expect(toolSchemas(dm())).toHaveLength(128);
+    expect(JSON.stringify(toolSchemas(player())).length).toBe(160348);
+    expect(JSON.stringify(toolSchemas(dm())).length).toBe(216566);
   });
 });
 

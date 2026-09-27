@@ -122,8 +122,16 @@ const owning = (...items: readonly string[]): readonly GameEvent[] => [
   },
 ];
 
+// Goodberry names nobody; Flame Blade is on its caster, who names themselves.
 const cast = (log: readonly GameEvent[], spellId: string, slotLevel: number) =>
-  run(log, (state) => resolveSpell(state, DRUID, { spellId, targets: [], slotLevel }, supply(state)));
+  run(log, (state) =>
+    resolveSpell(
+      state,
+      DRUID,
+      { spellId, targets: spellId === 'flame-blade' ? [DRUID] : [], slotLevel },
+      supply(state),
+    ),
+  );
 
 const berryLine = (log: readonly GameEvent[]) =>
   carrying(fold('grove', log), DRUID).find((held) => held.id === 'goodberry');
@@ -191,7 +199,7 @@ describe('SRD Flame Blade, and the hand it is evoked in', () => {
     const refused = resolveSpell(
       state,
       DRUID,
-      { spellId: 'flame-blade', targets: [], slotLevel: 2 },
+      { spellId: 'flame-blade', targets: [DRUID], slotLevel: 2 },
       supply(state),
     );
     expect(isErr(refused) && refused.code).toBe('no_free_hand');

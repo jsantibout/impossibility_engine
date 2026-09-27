@@ -801,6 +801,13 @@ describe('every definition in the catalogue actually casts', () => {
       // creature it is on takes. A casting that resolves nothing here is
       // correct; the activation is where the spell is.
       expect(out.outcomes).toEqual([]);
+    } else if (run.length === 0 && definition.areaLight !== undefined) {
+      // And a spell whose whole content is the light it lays: SRD Darkness and
+      // SRD Daylight, once their object was built (W9-S1), leave nothing for
+      // the table and land on nobody — what they resolve is the patch every
+      // sight question reads, so it is the patch this asks for.
+      expect(out.outcomes).toEqual([]);
+      expect(out.events.some((event) => event.type === 'light-declared')).toBe(true);
     } else if (run.length === 0) {
       expect(out.outcomes).toEqual([]);
       expect(out.unverified.length).toBeGreaterThan(0);

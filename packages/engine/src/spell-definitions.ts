@@ -1751,7 +1751,23 @@ export interface LightRider {
   readonly radius: number;
   /** SRD "Dim Light for an additional N feet": a dim sphere N wider. */
   readonly dimBeyond?: number;
+  /**
+   * A deadline of the glow's own, where it goes out before the casting does.
+   *
+   * SRD Starry Wisp: "On a hit … **until the end of your next turn**, it emits
+   * Dim Light in a 10-foot radius". The host is an Instantaneous cantrip, so a
+   * glow that lasted as long as the casting would last no time at all — or,
+   * sourced to a casting that never becomes an ongoing record, for ever. The
+   * same escape the `modifiers` riders take: `applyRiders` schedules the
+   * `grants` timer those riders schedule, on the same key, and the patches it
+   * lays lapse with that timer (`LatticePatch.lapsesWith`). Absent is the
+   * casting's own lifetime, which is SRD Faerie Fire's "for the duration".
+   */
+  readonly lasts?: RiderDuration;
 }
+
+/** The two readings a spell's light may hang on a thing under — see {@link SpellDefinition.lightOnObject}. */
+export type LightOnObject = 'always' | 'or-a-point';
 
 /**
  * Slots of the target's own turn a settled outcome spends, and what the book
@@ -5844,6 +5860,28 @@ export interface SpellDefinition {
    */
   readonly areaObscurement?: AreaObscurement;
   /**
+   * The spell's light may hang on **a thing** and go where the thing goes —
+   * read by `moveCastLight` alone, at command time, and never by the fold.
+   *
+   * - `'always'` — SRD Light ("You touch one Large or smaller object"), SRD
+   *   Continual Flame ("A flame springs from an object that you touch"): the
+   *   light is on an object, carried by the creature the casting names or
+   *   standing as a declared object, and the table moves it when the object
+   *   moves — handed to somebody else, set on a table, thrown — or covers it.
+   * - `'or-a-point'` — SRD Darkness and SRD Daylight: "Alternatively, you cast
+   *   the spell on an object that isn't being worn or carried, causing the
+   *   Darkness to fill a 15-foot Emanation originating from that object.
+   *   Covering that object with something opaque, such as a bowl or helm,
+   *   blocks the Darkness." A casting at a point stays at the point; one laid
+   *   on a declared object standing where it was cast becomes an Emanation
+   *   from that object, and is then the object's to carry and to cover.
+   *
+   * Absent is every other spell, whose light is on nothing that moves apart
+   * from a creature: Faerie Fire's outline, Starry Wisp's mote, Produce
+   * Flame's flame in the hand, Moonbeam's Cylinder.
+   */
+  readonly lightOnObject?: LightOnObject;
+  /**
    * SRD "you can designate creatures to be unaffected by it".
    *
    * Two spells print it — Spirit Guardians and Alarm — which is what makes it
@@ -8033,6 +8071,9 @@ export function riderDurations(
         found.push(rider.lasts);
       }
     }
+    // And a glow with a deadline of its own — see {@link LightRider.lasts}.
+    const glow = outcomeRidersOf(effect).light?.lasts;
+    if (glow !== undefined) found.push(glow);
   }
   return found;
 }

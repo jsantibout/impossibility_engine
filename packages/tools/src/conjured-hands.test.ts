@@ -145,7 +145,7 @@ describe('Flame Blade’s two halves are two calls', () => {
   it('lets go of the blade and evokes it again, with the casting untouched', () => {
     const t = party('blade');
     expectOk(
-      t.call('cast_spell', { caster: 'fenn', spellId: 'flame-blade', targets: [], slotLevel: 2 }),
+      t.call('cast_spell', { caster: 'fenn', spellId: 'flame-blade', targets: ['fenn'], slotLevel: 2 }),
     );
     expect(lineOf(t, 'flame-blade')?.conjured).toBe('cast:1');
 

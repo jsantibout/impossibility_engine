@@ -426,7 +426,7 @@ describe('the record lives exactly as long as the spell', () => {
   it('expires one casting and leaves a longer one running', () => {
     const g = new Game();
     const bless = g.cast(WIZ, 'bless', [ALLY], 1, 'bless');
-    const blade = g.cast(RIVAL, 'flame-blade', [], 2, 'blade');
+    const blade = g.cast(RIVAL, 'flame-blade', [RIVAL], 2, 'blade');
 
     // Bless is a minute; Flame Blade is ten.
     g.push([{ type: 'time-advanced', seconds: 61, reason: 'a while' }]);
@@ -803,7 +803,7 @@ describe('activating an ongoing spell', () => {
   /** SRD Flame Blade: the casting does nothing and every blow is an activation. */
   it('works for a spell whose casting does nothing at all', () => {
     const g = new Game().push(fighting());
-    const blade = g.cast(WIZ, 'flame-blade', [], 2);
+    const blade = g.cast(WIZ, 'flame-blade', [WIZ], 2);
     // Casting it dealt nobody any damage.
     expect(g.hp(FOE)).toBe(80);
     comeRound(g);
@@ -842,7 +842,7 @@ describe('activating an ongoing spell', () => {
           ],
         },
       ]);
-      const blade = g.cast(WIZ, 'flame-blade', [], 2, 'blade');
+      const blade = g.cast(WIZ, 'flame-blade', [WIZ], 2, 'blade');
       for (let n = 0; n < 2; n += 1) {
         g.push(unwrap(resolveTurn(g.state, supply()), 'turn').events);
       }
@@ -1562,7 +1562,7 @@ describe('Produce Flame hurls its fire on later turns', () => {
   const conjureFlame = (who: CharacterId, seed: string) => {
     const g = new Game([...FLAME_SETUP]);
     const conjured = unwrap(
-      resolveSpell(g.state, who, { spellId: 'produce-flame', targets: [] }, hitting(seed)),
+      resolveSpell(g.state, who, { spellId: 'produce-flame', targets: [who] }, hitting(seed)),
       'produce flame',
     );
     g.push(conjured.events);
@@ -1593,22 +1593,21 @@ describe('Produce Flame hurls its fire on later turns', () => {
   };
 
   /**
-   * The casting resolves nothing — conjuring a flame is not an attack — and
-   * says so, which is the obligation `spell-catalogue.test.ts` holds every
-   * definition with an empty effect list to.
+   * The casting strikes nothing — conjuring a flame is not an attack — and
+   * what it does resolve is the flame's light, on the caster who names
+   * themselves (W9-S1; `light-on-a-thing.test.ts` measures it).
    */
-  it('conjures a flame that hurts nobody, and names the light it leaves to the DM', () => {
+  it('conjures a flame that hurts nobody and sheds its light on the caster', () => {
     const g = new Game([...FLAME_SETUP]);
     const out = unwrap(
-      resolveSpell(g.state, WIZ, { spellId: 'produce-flame', targets: [] }, hitting('quiet')),
+      resolveSpell(g.state, WIZ, { spellId: 'produce-flame', targets: [WIZ] }, hitting('quiet')),
       'produce flame',
     );
     g.push(out.events);
 
-    expect(out.outcomes).toEqual([]);
+    expect(out.outcomes.map((outcome) => outcome.target)).toEqual([WIZ]);
     expect(g.hp(FOE)).toBe(80);
-    // The light is a definition nobody wrote (W8-S26), and still reported.
-    expect(out.unverified.join(' ')).toContain('Dim Light beyond it are not shed');
+    expect(out.events.some((event) => event.type === 'light-declared')).toBe(true);
     expect(ongoingSpellOf(g.state, out.castingId!)?.spellId).toBe('produce-flame');
   });
 
@@ -1682,7 +1681,7 @@ describe('Produce Flame hurls its fire on later turns', () => {
   it('ends its own earlier casting when the caster conjures another flame', () => {
     const { g, conjured } = hurl(WIZ, 'again');
     const second = unwrap(
-      resolveSpell(g.state, WIZ, { spellId: 'produce-flame', targets: [] }, hitting('second')),
+      resolveSpell(g.state, WIZ, { spellId: 'produce-flame', targets: [WIZ] }, hitting('second')),
       'second flame',
     );
     g.push(second.events);
@@ -1696,8 +1695,9 @@ describe('Produce Flame hurls its fire on later turns', () => {
 
   /**
    * **The sixty feet are the activation's, not the spell's.** SRD prints
-   * Range: Self, so the casting aims at nobody; naming a target is refused,
-   * and the distance is checked on each later hurl instead.
+   * Range: Self, so the casting is on the caster and nobody else; naming
+   * anybody else is refused, and the distance is checked on each later hurl
+   * instead.
    */
   it('refuses a casting aimed at somebody, because its Range is Self', () => {
     const g = new Game([...FLAME_SETUP]);
@@ -1708,7 +1708,7 @@ describe('Produce Flame hurls its fire on later turns', () => {
       hitting('aimed'),
     );
     expect(isErr(out)).toBe(true);
-    if (isErr(out)) expect(out.code).toBe('takes_no_target');
+    if (isErr(out)) expect(out.code).toBe('not_the_caster');
   });
 });
 

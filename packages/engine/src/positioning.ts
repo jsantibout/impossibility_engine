@@ -2247,6 +2247,25 @@ export interface LatticePatch {
    * ordinary case and not a missing link.
    */
   readonly source?: string;
+  /**
+   * The key of the timer this fact lapses with, where it has a deadline of its
+   * own that is not its casting's.
+   *
+   * SRD Starry Wisp: "until the end of your next turn, it emits Dim Light in a
+   * 10-foot radius" — on an Instantaneous cantrip, so there is no casting in
+   * `state.ongoing` for `source` to name and the glow would never go out. The
+   * rider that lays the patch schedules the same `grants` timer its other
+   * riders run under, and names that timer's key here; {@link livePatchesOf}
+   * drops the patch the moment the key is gone from `state.timers`, which is
+   * when the deadline fires and when the grants are released early — the same
+   * derived-at-the-read lifetime `source` gives, over the other record.
+   *
+   * Additive and absent everywhere before it. It is also the field SRD Ice
+   * Storm's "the ground … is Difficult Terrain until the end of your next turn"
+   * would lay its ground with (`difficult-terrain-an-area-creates`, out of
+   * reach); nothing writes that yet.
+   */
+  readonly lapsesWith?: string;
 }
 
 /**
@@ -2416,6 +2435,36 @@ export interface LightPatch extends LatticePatch {
    * the extra question.
    */
   readonly sunlight?: boolean;
+  /**
+   * SRD Light: "Covering the object with something opaque blocks the light";
+   * SRD Darkness and SRD Daylight print the same sentence of a bowl or a helm.
+   *
+   * **A covered patch fills no area.** {@link lightAt} reads past it, so the
+   * room is exactly as lit as it would be with the patch gone, and
+   * {@link lightDispelledBy} reads past it too — a covered Darkness neither
+   * puts out a Daylight nor is put out by one, because there is no area of
+   * Darkness for the book's "overlaps" to find. The casting runs on
+   * underneath, which is the whole difference between covering a light and
+   * ending it: uncovering re-pins the patch, and the dispel runs then as it
+   * runs on any pinning. Absent is uncovered, which is every patch written
+   * before the field existed.
+   */
+  readonly covered?: true;
+  /**
+   * The conjured thing whose holder this light shines from, by catalogue id —
+   * SRD Flame Blade's "If you let go of the blade, it disappears", and the
+   * light it sheds with it.
+   *
+   * The patch's origin is the creature, and it lights only while that
+   * creature holds a line of this id that the patch's own casting conjured.
+   * Let go of, the blade takes its light away; evoked again, the light comes
+   * back; neither writes an event about the light, because nothing about the
+   * light changed — what changed is the hand, which the inventory already
+   * records. Read by {@link lightAt}'s gather and nowhere else:
+   * {@link livePatchesOf} serves the ground and the fog as well, and neither
+   * of them is held in a hand.
+   */
+  readonly whileHolding?: string;
 }
 
 /** A patch of the room hard to see through for a reason that is not the light. */
@@ -2440,6 +2489,9 @@ export function declareLightPatch(
     readonly source?: string;
     readonly magical?: { readonly spellLevel: number };
     readonly sunlight?: boolean;
+    readonly covered?: true;
+    readonly whileHolding?: string;
+    readonly lapsesWith?: string;
   } = {},
 ): Result<PositionState> {
   if (patch.trim().length === 0) {
@@ -2451,7 +2503,7 @@ export function declareLightPatch(
       `${String(level)} is not a level of light; the glossary prints ${LIGHT_LEVELS.join(', ')}`,
     );
   }
-  const { source, magical, sunlight } = options;
+  const { source, magical, sunlight, covered, whileHolding, lapsesWith } = options;
   if (magical !== undefined && !Number.isInteger(magical.spellLevel)) {
     return err(
       'bad_spell_level',
@@ -2479,6 +2531,9 @@ export function declareLightPatch(
         ...(source === undefined ? {} : { source }),
         ...(magical === undefined ? {} : { magical }),
         ...(sunlight === undefined ? {} : { sunlight }),
+        ...(covered === undefined ? {} : { covered }),
+        ...(whileHolding === undefined ? {} : { whileHolding }),
+        ...(lapsesWith === undefined ? {} : { lapsesWith }),
       },
     },
   });
@@ -2748,6 +2803,8 @@ export function livePatchesOf<T extends LatticePatch>(
       const patch = patches[name];
       if (patch === undefined) return [];
       if (patch.source !== undefined && state.ongoing[patch.source] === undefined) return [];
+      // And a patch with a deadline of its own — see `LatticePatch.lapsesWith`.
+      if (patch.lapsesWith !== undefined && state.timers[patch.lapsesWith] === undefined) return [];
       return [[name, patch] as const];
     });
 }
@@ -2902,11 +2959,43 @@ const UNLIT: LightHere = { level: null, magical: false, sunlight: false, patches
 export function lightAt(state: GameState, space: Point): LightHere {
   const scene = state.scene;
   if (scene === null) return UNLIT;
-  return brightnessAt(
-    scene,
-    [...livePatchesOf(state, scene.light), ...carriedLight(state)],
-    space,
-  );
+  return brightnessAt(scene, [...shiningPatchesOf(state), ...carriedLight(state)], space);
+}
+
+/**
+ * The declared patches of light that are **shining**: live, uncovered, and —
+ * where the light is a conjured thing's — still in the hand.
+ *
+ * {@link livePatchesOf} answers whether a patch is still there at all, for the
+ * ground and the fog as much as the light; this narrows it by the two things
+ * only a light can be. A covered lamp is there and lights nothing
+ * ({@link LightPatch.covered}); a Flame Blade let go of is there, its casting
+ * running, and lights nothing until it is evoked again
+ * ({@link LightPatch.whileHolding}). One gather for both readers of the room's
+ * light, `lightAt` and `lightDispelledBy`, so a light that is not shining
+ * cannot light a square and cannot be dispelled by a Darkness that finds no
+ * area of it to overlap.
+ */
+function shiningPatchesOf(state: GameState): readonly (readonly [string, LightPatch])[] {
+  const scene = state.scene;
+  if (scene === null) return [];
+  return livePatchesOf(state, scene.light).filter(([, patch]) => {
+    if (patch.covered === true) return false;
+    if (patch.whileHolding === undefined) return true;
+    // The holder is the creature the patch is carried by, and the line is the
+    // one this patch's own casting conjured — a second Flame Blade from
+    // another casting in the other hand is not this one.
+    const origin = patch.region.origin;
+    if (!('creature' in origin)) return false;
+    const holder = state.creatures[origin.creature];
+    return (
+      holder !== undefined &&
+      holder.inventory.some(
+        (line) =>
+          line.id === patch.whileHolding && line.casting === patch.source && line.quantity > 0,
+      )
+    );
+  });
 }
 
 /**
@@ -3107,7 +3196,10 @@ export function lightDispelledBy(
     patch.source !== undefined &&
     (level === 'darkness' ? patch.level !== 'darkness' : patch.level === 'darkness');
 
-  const candidates = livePatchesOf(state, scene.light).filter(([, patch]) => opposes(patch));
+  // **Only a light that is shining**, because the book's word is "overlaps"
+  // and a covered lamp or a blade let go of has no area to overlap — see
+  // {@link shiningPatchesOf}.
+  const candidates = shiningPatchesOf(state).filter(([, patch]) => opposes(patch));
   if (candidates.length === 0) return [];
 
   // **Castings, not patches**, which is what the early exit below has to

@@ -294,7 +294,7 @@ export const MISSING_SHAPES = {
   'an-area-trigger-measured-from-a-point':
     '`docs/design/casting.md` names it spell by spell: "Ending a turn within 5 feet of a point, and a point rolled into a creature’s space | Flaming Sphere". `AreaTrigger` hangs off a template, and a reach measured from the casting’s own origin is what `CastingOrigin.reach` answers for an attack and for nothing that fires on its own.',
   'light-and-obscurement-the-scene-holds':
-    '**built as P3-S, and this is what is left of it.** The description before this one said light and obscurement were facts nothing in state held — "no square is lit or unlit, and so Darkvision has never had the rule it is a rule about and no casting can shed, quench or obscure anything" — and `docs/design/light-and-sight.md` is the design the owner ruled on, all five decisions, on 2026-09-21. Every one of them is executed: light and obscurement are records of patches on the lattice beside `terrain`, each carrying a region and the `source` casting that lapses it; `lightAt` takes the strongest of the ambient and the patches with the book’s own exception, that nonmagical light does not lift magical darkness; `obscurementAt` takes the greater of what was declared and what the level implies; the sight question gained one step between the declaration and the sense, where Blindsight and Truesight defeat anything, Darkvision turns nonmagical darkness into dim and Devil’s Sight defeats the magical kind; sunlight is Bright Light with a flag, which a `StandingRequirement` reads; and an undeclared scene is undeclared rather than bright. Darkness, Daylight, Fog Cloud and Web’s obscurement half are written on it, and Hide no longer needs the table to state a fog it can see. **And a sixth thing left by the same build**: a glow hung off a settled outcome rather than off a casting, which is SRD Faerie Fire’s "objects and **affected** creatures shed Dim Light in a 10-foot radius" — `OutcomeRiders.light`, landed through the same `lightShedOn` the effect kind takes, so that spell has left this id. **What is left is not about light at all: it is the object.** SRD Light, Continual Flame and Dancing Lights shed from *a thing* — a touched object, four floating motes — and Darkness and Daylight each print an alternative form originating from one, with a bowl that can be put over it; the note’s own vocabulary is "a point, or carried by a creature", because the engine holds no objects for a patch to hang on and inventing a position for one would be the table’s job done badly. The second residue is the **trigger**: the mutual dispel runs "on pinning a patch", so a spell that puts darkness out without laying any light of its own — Sunburst’s flash — can reach `lightDispelledBy` by no route. Beyond the spells the same note listed what waited on a stat block rather than on this shape, and **that half is built**: the parser types the sunlight sentences, the five unconditional Illuminations and Shadow Stealth, and `adaptMonster` compiles Sunlight Sensitivity and Sunlight Weakness onto the sheet as the standing effects the `in-sunlight` requirement gates — so a kobold read out of the catalogue by id has its Disadvantage, and Daylight is sunlight (the owner, 2026-09-22, on the book’s own word against the 2014 errata). Three residues are left and each is a rule rather than a sentence. **The shed light has nowhere to go**: a patch is declared and never derived, so the five Illuminations and the magmin’s gated sixth are read and spent by nobody, and lighting a creature’s own space from its sheet is a derivation `lightAt` does not make. **Shadow Stealth is an economy**: the Hide is built and the Bonus Action that buys it in Dim Light or Darkness needs a light-gated grant no `StandingRequirement` states. And **the vampires burn**: their Sunlight prints Sunlight Sensitivity behind "takes 20 Radiant damage if it starts its turn in sunlight", which is damage dealt at a turn boundary, so the line is refused whole rather than read down to the half that fits.',
+    '**built as P3-S, and this is what is left of it.** The description before this one said light and obscurement were facts nothing in state held — "no square is lit or unlit, and so Darkvision has never had the rule it is a rule about and no casting can shed, quench or obscure anything" — and `docs/design/light-and-sight.md` is the design the owner ruled on, all five decisions, on 2026-09-21. Every one of them is executed: light and obscurement are records of patches on the lattice beside `terrain`, each carrying a region and the `source` casting that lapses it; `lightAt` takes the strongest of the ambient and the patches with the book’s own exception, that nonmagical light does not lift magical darkness; `obscurementAt` takes the greater of what was declared and what the level implies; the sight question gained one step between the declaration and the sense, where Blindsight and Truesight defeat anything, Darkvision turns nonmagical darkness into dim and Devil’s Sight defeats the magical kind; sunlight is Bright Light with a flag, which a `StandingRequirement` reads; and an undeclared scene is undeclared rather than bright. A glow hung off a settled outcome is `OutcomeRiders.light` (SRD Faerie Fire), with a deadline of its own where the sentence prints one (`LightRider.lasts`, SRD Starry Wisp’s "until the end of your next turn", lapsing with the rider’s timer rather than the casting). **The object is built too** (W9-S1): a cast light keeps its casting’s identity as the thing it is on moves — `moveCastLight` re-lays the casting’s own patches onto a new bearer, a declared object or a point, keeps what makes them magical and the casting’s, and lays a Darkness or Daylight cast at a declared object’s space on that object as an Emanation — and a patch may be **covered**, which fills no area, lights nothing and neither dispels nor is dispelled until it is uncovered and pinned again; a conjured blade’s light shines only while the blade is held. And the light a creature sheds from its own sheet is derived rather than declared — `carriedLight` reads the Illuminations and a running feature’s light off the sheet — so the stat-block half the same note listed is built as well. What is left is four residues, none of them the object. **Gust of Wind’s flames**: its 50 percent chance to put out "candles and similar unprotected flames in the area" needs a table-declared flame the engine holds a kind for, so the d100 has something to land on — a declared patch of light is a room fact and says nothing about being a flame or being protected. **Sunburst’s flash**: the mutual dispel runs "on pinning a patch", and a spell that puts Darkness out without laying any light of its own reaches `lightDispelledBy` by no route (level 8, out of reach). **Shadow Stealth is an economy**: the Hide is built and the Bonus Action that buys it in Dim Light or Darkness needs a light-gated grant no `StandingRequirement` states. And **the vampires burn**: their Sunlight prints Sunlight Sensitivity behind "takes 20 Radiant damage if it starts its turn in sunlight", which is damage dealt at a turn boundary, so the line is refused whole rather than read down to the half that fits.',
   'a-world-fact-nothing-can-represent':
     'PROGRESS.md’s category C, named spell by spell: "**Meld into Stone** (every mechanical clause it has — 6d6 Force, 50 Force, Disadvantage on Perception, Prone on expulsion — hangs off “you are inside a rock”, which is a state nothing can hold)". Not a mechanism that is missing; a fact the world model has no room for, and inventing one is not on.',
 } as const;
@@ -828,16 +828,6 @@ export const ADJUDICATED: Readonly<Record<string, readonly Adjudication[]>> = {
       note: 'SRD gates the *removal* of the condition behind a save, and a save is raised here only by a turn boundary; nothing puts one in front of another effect’s cure.',
     },
   ],
-  // One of the three spells P3-S moved out of the tracked bucket, and the only
-  // one whose leftover sentence still trips a marker. Darkness's twin of it
-  // does not, so it carries no entry at all.
-  'continual-flame': [
-    {
-      clause: 'the flame springs from an object',
-      why: 'light-and-obscurement-the-scene-holds',
-      note: 'W8-S26 re-read this as a debt, and this id’s own description names the spell: "What is left is not about light at all: it is the object." The light is laid on the creature the casting names as the bearer, so a flame set on a table or a sconce is a point the table has to light by hand, and the Bright and Dim Light it sheds are read by every sight question.',
-    },
-  ],
   'counterspell': [
     {
       clause: 'the qualifier is not checked',
@@ -848,22 +838,8 @@ export const ADJUDICATED: Readonly<Record<string, readonly Adjudication[]>> = {
   'dancing-lights': [
     {
       clause: 'the engine lays one dim patch for all four',
-      why: 'light-and-obscurement-the-scene-holds',
-      note: 'W8-S26 re-read this as a debt, and this id’s own description names the spell: Dancing Lights sheds from a thing — four floating motes — and the engine lays one Dim patch at one point. Where the other three lights are, the twenty feet that must lie between them and the one that goes out past the spell’s range are all light a sight question reads.',
-    },
-  ],
-  darkness: [
-    {
-      clause: 'the 15-foot Emanation originating from it',
-      why: 'light-and-obscurement-the-scene-holds',
-      note: 'W8-S26 read this line for the first time. This id’s own description names it: Darkness prints "an alternative form originating from" an object, "with a bowl that can be put over it", and the engine holds no object for a patch to hang on. Magical Darkness is read by every sight question and by Daylight’s dispel, so where it sits and whether a helm covers it are debts.',
-    },
-  ],
-  daylight: [
-    {
-      clause: 'the object the spell may be cast on instead',
-      why: 'light-and-obscurement-the-scene-holds',
-      note: 'W8-S26 re-read this as a debt, and this id’s own description names the spell: Daylight prints an Emanation originating from an object, and a bowl or a helm over it, and the engine holds no object for a patch to hang on. Sunlight is read by every sight question and by Sunlight Sensitivity, so where it shines from is not the table’s alone.',
+      why: 'a-wall-or-several-templates-in-one-area',
+      note: 'W9-S1 re-filed this from the light shape, which has nothing left to give it: the light is laid, magical and moved by the Bonus Action. What is missing is the geometry — four Spheres of Dim Light in one casting, each placed where the caster says, a 20-foot tether between one light and the next, and a range each light keeps on its own or vanishes past — which is several templates in one area, this id’s shape exactly. The table places the one patch where the nearest mote is.',
     },
   ],
   'detect-thoughts': [
@@ -942,13 +918,6 @@ export const ADJUDICATED: Readonly<Record<string, readonly Adjudication[]>> = {
       note: 'W8-S26 read this line for the first time, and it is this id word for word: "A casting that chooses per creature … is the same gap." The casting states one ability and every target gets Advantage on that one, so an upcast that gives the Rogue Dexterity and the Fighter Strength is refused its second choice.',
     },
   ],
-  'faerie-fire': [
-    {
-      clause: 'the objects in the Cube are not outlined',
-      why: 'light-and-obscurement-the-scene-holds',
-      note: 'W8-S26 read this line for the first time. The affected creatures’ glow left this id when `OutcomeRiders.light` was built, and what the description says is left is the object. An outlined chest sheds Dim Light that a sight question would read, and the Advantage on attacks against an outlined object is a roll the engine makes against declared objects.',
-    },
-  ],
   'feather-fall': [
     {
       clause: 'the rate of descent is not slowed',
@@ -990,13 +959,6 @@ export const ADJUDICATED: Readonly<Record<string, readonly Adjudication[]>> = {
       clause: 'rises as a Zombie',
       why: 'a-stat-block-created-mid-fight',
       note: 'SRD: "A Humanoid killed by this spell rises at the start of your next turn as a **Zombie**", one "that follows your verbal orders". Nothing creates a creature from a stat block during play, which is the summons seam every Conjure waits on.',
-    },
-  ],
-  'flame-blade': [
-    {
-      clause: 'the Bright Light in a 10-foot radius',
-      why: 'expressible',
-      note: 'W8-S26 read this line for the first time, and it said light is not modelled, which has been false since P3-S. A `light` effect carried by a creature is what SRD Light is written with, and `checkSpellDefinition` takes one on this definition; nobody wrote it. The ledger counts it under waits on a definition.',
     },
   ],
   'flaming-sphere': [
@@ -1181,14 +1143,9 @@ export const ADJUDICATED: Readonly<Record<string, readonly Adjudication[]>> = {
   // described rather than a shape being removed.
   light: [
     {
-      clause: 'the spell targets an object, and objects are not modelled',
-      why: 'light-and-obscurement-the-scene-holds',
-      note: 'W8-S26 re-read this as a debt, and this id’s own description names the spell among the three that shed from a thing. The light is laid on the creature named as the bearer; a lit stone thrown across a room is a patch the table re-declares by hand, and every sight question reads it.',
-    },
-    {
-      clause: 'covering the object with something opaque',
-      why: 'light-and-obscurement-the-scene-holds',
-      note: 'W8-S26 re-read this as a debt. SRD: "Covering the object with something opaque blocks the light." A covered light is no light, and every sight question reads the patch that is left on. The object and what is over it are this id’s residue.',
+      clause: 'whether the object is worn or carried by someone else is not checked',
+      why: 'a-target-rule-the-format-cannot-state',
+      note: 'W9-S1 built the object and the cover and re-filed the half that is left, which is about who may be named rather than about light. SRD: "You touch one Large or smaller object that isn’t being worn or carried by someone else." The casting names a creature as the bearer — the caster, or a declared object — and nothing refuses a bearer who is somebody else, or an object larger than Large. A target rule the format cannot state, and W9-S4’s to write (`TargetRule.objectOrSelf` with the size bound beside it).',
     },
   ],
   'magic-circle': [
@@ -1240,11 +1197,6 @@ export const ADJUDICATED: Readonly<Record<string, readonly Adjudication[]>> = {
     },
   ],
   moonbeam: [
-    {
-      clause: 'the Dim Light that fills the Cylinder for the duration is not laid',
-      why: 'expressible',
-      note: 'W8-S26 read this line for the first time, and it said light is not modelled, which has been false since P3-S. `areaLight` on a Cylinder is what Flaming Sphere writes on its Sphere, laid again by the activation that moves it, and `checkSpellDefinition` takes one on this definition; nobody wrote it.',
-    },
     {
       clause: 'a shape-shifted creature reverting to its true form',
       why: 'a-standing-effect-derived-from-where-a-creature-stands',
@@ -1320,13 +1272,6 @@ export const ADJUDICATED: Readonly<Record<string, readonly Adjudication[]>> = {
       clause: 'remain within range for the spell',
       why: 'a-casting-ended-by-a-trigger',
       note: 'W8-S26 re-read this as a debt. Range is measured when the rite settles, and a creature that walked away during the ten minutes and came back is healed; a target leaving the range during the casting drops out of it by the book. The closest id: a consequence raised by two creatures drifting apart, which this description names for Warding Bond.',
-    },
-  ],
-  'produce-flame': [
-    {
-      clause: 'the Bright Light in a 20-foot radius',
-      why: 'expressible',
-      note: 'W8-S26 read this line for the first time, and it said light is not modelled, which has been false since P3-S. A `light` effect carried by a creature is what SRD Light is written with, and `checkSpellDefinition` takes one on this definition; nobody wrote it.',
     },
   ],
   'remove-curse': [
@@ -1420,13 +1365,6 @@ export const ADJUDICATED: Readonly<Record<string, readonly Adjudication[]>> = {
       clause: 'Wisdom (Perception or Survival) check against your spell save DC',
       why: 'table',
       note: 'The reading that lets the handed-over sentence past the marker rule (W8-S26). The marker fires on the check, which the casting offers to anybody who takes the Search action whatever the table reads; who has to make it — a creature that could not see the area when the spell was cast — is a fact about a moment gone by, and what it buys is knowing, which changes nothing the engine holds.',
-    },
-  ],
-  'starry-wisp': [
-    {
-      clause: 'the target emits Dim Light in a 10-foot radius',
-      why: 'light-and-obscurement-the-scene-holds',
-      note: 'W8-S26 read this line for the first time. A glow hung off a settled outcome is built — Faerie Fire’s `light` rider — and it lasts as long as the casting; `checkSpellDefinition` refuses one on this cantrip (grant_without_lifetime) because an Instantaneous casting is over the moment it resolves and the rider has no deadline of its own. This id’s description says the glow left it and what remains is the object, so it is the closest rather than the residue: the gap is a lifetime on a light rider, and the light is read by every sight question.',
     },
   ],
   'stinking-cloud': [
