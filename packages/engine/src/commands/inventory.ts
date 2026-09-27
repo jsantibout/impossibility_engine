@@ -402,7 +402,17 @@ const ATTUNEMENT_LIMIT = 3;
  * it: this is a question a command asks, and the answer is the catalogue as it
  * stands today.
  */
-export function handsInUse(state: GameState, content: Content, id: CharacterId): number {
+export function handsInUse(
+  state: GameState,
+  content: Content,
+  id: CharacterId,
+  /**
+   * Castings about to end, whose conjured lines are therefore about to leave
+   * the hand — a recast that ends the casting it replaces (W9-T). See
+   * {@link freeHands}.
+   */
+  ending: ReadonlySet<string> = new Set(),
+): number {
   const creature = creatureOf(state, id);
   if (creature === null) return 0;
 
@@ -427,7 +437,11 @@ export function handsInUse(state: GameState, content: Content, id: CharacterId):
   // The door is the rule; this is arithmetic over what the door let through.
   const conjured = carrying(state, id).reduce(
     (total, line) =>
-      total + (line.casting === undefined && line.feature === undefined ? 0 : (line.hands ?? 0)),
+      total +
+      ((line.casting === undefined && line.feature === undefined) ||
+      (line.casting !== undefined && ending.has(line.casting))
+        ? 0
+        : (line.hands ?? 0)),
     0,
   );
   return wielded + conjured;
@@ -440,11 +454,22 @@ export function handsInUse(state: GameState, content: Content, id: CharacterId):
  * `createCharacter` equips a starting package without asking, and a stat block
  * may print three weapons — and the honest answer to "how many are free" is
  * none rather than a negative number nothing could interpret.
+ *
+ * **`ending` is the hands a casting frees by being made.** SRD Produce Flame:
+ * "The spell ends if you cast it again" — and the old flame leaves the hand
+ * the new one appears in. A casting that is about to end holds nothing the
+ * casting ending it needs to count. Empty everywhere but the pre-flight that
+ * knows which castings it ends (`castingsEndedBy`). (W9-T)
  */
-export function freeHands(state: GameState, content: Content, id: CharacterId): number {
+export function freeHands(
+  state: GameState,
+  content: Content,
+  id: CharacterId,
+  ending: ReadonlySet<string> = new Set(),
+): number {
   const creature = creatureOf(state, id);
   if (creature === null) return 0;
-  return Math.max(0, handsOf(creature.sheet) - handsInUse(state, content, id));
+  return Math.max(0, handsOf(creature.sheet) - handsInUse(state, content, id, ending));
 }
 
 /**

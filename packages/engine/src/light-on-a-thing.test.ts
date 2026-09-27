@@ -17,6 +17,7 @@ import { checkSpellDefinitionValue } from './spell-schema.js';
 import { canSee, rollModesFor } from './standing.js';
 import {
   activateSpell,
+  carrying,
   declareObject,
   dropConjured,
   equipItem,
@@ -680,26 +681,89 @@ describe('a conjured light and the mutual dispel', () => {
   });
 });
 
-describe('what this track leaves owed, pinned so it is paid on purpose', () => {
-  /**
-   * The recast of a conjured thing with the other hand full: the book frees
-   * the hand the old casting held, and the pre-flight counts it before the
-   * old casting ends. Filed on both definitions under
-   * `what-a-creature-is-holding`; the count is the pre-flight's to fix.
-   */
-  it('refuses a Produce Flame recast by a caster with a Shield in the other hand', () => {
-    const r = room({
+describe('the recast’s free hand (W9-T)', () => {
+  /** A druid with a Shield strapped to one arm and the other hand free. */
+  const shielded = () =>
+    room({
       type: 'items-gained',
       id: DRUID,
       items: [{ id: 'shield', quantity: 1 }],
       source: 'the pack',
-    });
-    r.run('the shield', (state) => equipItem(state, SRD_CONTENT, DRUID, 'shield'));
-    r.cast('produce-flame', { targets: [DRUID] });
-    const again = resolveSpell(r.state, DRUID, { spellId: 'produce-flame', targets: [DRUID] }, supply(r.state));
+    }).run('the shield', (state) => equipItem(state, SRD_CONTENT, DRUID, 'shield'));
 
-    expect(isErr(again) && again.code).toBe('no_free_hand');
+  /** Every patch lit at the druid's feet, by name. */
+  const patchesHere = (r: Room) => r.light(at(100, 100)).patches;
+
+  /**
+   * SRD Produce Flame: "The spell ends if you cast it again." The recast ends
+   * the old casting, and with it the flame in the hand — so the hand the new
+   * flame appears in is the one the old flame leaves, and a Shield in the
+   * other is no reason to refuse.
+   */
+  it('recasts Produce Flame with a Shield in the other hand, and the old flame’s light goes', () => {
+    const r = shielded();
+    const first = r.cast('produce-flame', { targets: [DRUID] });
+    const second = r.cast('produce-flame', { targets: [DRUID] });
+
+    expect(r.state.ongoing[first]).toBeUndefined();
+    expect(r.state.ongoing[second]).toBeDefined();
+    const flames = carrying(r.state, DRUID).filter((held) => held.id === 'produce-flame');
+    expect(flames.map((held) => held.casting)).toEqual([second]);
+    expect(patchesHere(r).length).toBeGreaterThan(0);
+    expect(patchesHere(r).some((name) => name.includes(first))).toBe(false);
+    expect(patchesHere(r).every((name) => name.includes(second))).toBe(true);
   });
+
+  /**
+   * SRD Flame Blade has no "if you cast it again"; it is Concentration, and
+   * SRD: "You lose Concentration on an effect the moment you start casting a
+   * spell that requires Concentration." The second blade's casting ends the
+   * first, and the first blade leaves the hand the second is evoked in.
+   */
+  it('recasts Flame Blade with a Shield in the other hand, and the old blade’s light goes', () => {
+    const r = shielded();
+    const first = r.cast('flame-blade', { targets: [DRUID], slotLevel: 2 });
+    const second = r.cast('flame-blade', { targets: [DRUID], slotLevel: 2 });
+
+    expect(r.state.ongoing[first]).toBeUndefined();
+    expect(r.state.creatures[DRUID]!.concentration?.castingId).toBe(second);
+    const blades = carrying(r.state, DRUID).filter((held) => held.id === 'flame-blade');
+    expect(blades.map((held) => held.casting)).toEqual([second]);
+    expect(patchesHere(r).length).toBeGreaterThan(0);
+    expect(patchesHere(r).some((name) => name.includes(first))).toBe(false);
+    expect(patchesHere(r).every((name) => name.includes(second))).toBe(true);
+  });
+
+  /**
+   * A different spell ends nothing: Produce Flame is not Concentration and
+   * does not replace a Flame Blade, so a Shield and a blade leave no hand
+   * for the flame. And a Flame Blade over a Produce Flame ends nothing
+   * either — Produce Flame holds no Concentration to lose.
+   */
+  it('still refuses a different conjured spell with both hands full', () => {
+    const blade = shielded();
+    blade.cast('flame-blade', { targets: [DRUID], slotLevel: 2 });
+    const flame = resolveSpell(
+      blade.state,
+      DRUID,
+      { spellId: 'produce-flame', targets: [DRUID] },
+      supply(blade.state),
+    );
+    expect(isErr(flame) && flame.code).toBe('no_free_hand');
+
+    const lit = shielded();
+    lit.cast('produce-flame', { targets: [DRUID] });
+    const sword = resolveSpell(
+      lit.state,
+      DRUID,
+      { spellId: 'flame-blade', targets: [DRUID], slotLevel: 2 },
+      supply(lit.state),
+    );
+    expect(isErr(sword) && sword.code).toBe('no_free_hand');
+  });
+});
+
+describe('what this track leaves owed, pinned so it is paid on purpose', () => {
 
   /**
    * SRD Starry Wisp's glow names no running casting — its casting is

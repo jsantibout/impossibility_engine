@@ -227,6 +227,38 @@ export function replacedCastings(
 }
 
 /**
+ * Every running casting a casting of this spell ends by being made — the
+ * ones {@link replacedCastings} ends, and the one the caster is concentrating
+ * on where the new casting takes Concentration of its own. SRD: "You lose
+ * Concentration on an effect the moment you start casting a spell that
+ * requires Concentration."
+ *
+ * Asked by a pre-flight that needs to know what the casting frees before it
+ * is made: SRD Produce Flame's "The spell ends if you cast it again" and SRD
+ * Flame Blade's Concentration both take the old thing out of the hand the new
+ * one appears in (W9-T). `concentrates` is the caller's, because whether a
+ * casting takes Concentration is read at its level and casting time
+ * (`concentrationAt`, and a casting of a minute or more), which the caller
+ * has worked out and this does not repeat.
+ */
+export function castingsEndedBy(
+  state: GameState,
+  casterId: CharacterId,
+  definition: SpellDefinition,
+  targets: readonly CharacterId[],
+  concentrates: boolean,
+): ReadonlySet<string> {
+  const ended = new Set(
+    replacedCastings(state, casterId, definition, targets).flatMap((event) =>
+      event.type === 'spell-ended' ? [event.castingId] : [],
+    ),
+  );
+  const held = state.creatures[casterId]?.concentration ?? null;
+  if (concentrates && held !== null) ended.add(held.castingId);
+  return ended;
+}
+
+/**
  * The carried areas this move would sweep across spaces nobody named.
  *
  * **The same hole Moonbeam's route had, arriving from the other direction.**

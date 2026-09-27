@@ -955,13 +955,6 @@ export const ADJUDICATED: Readonly<Record<string, readonly Adjudication[]>> = {
       note: 'SRD: "A Humanoid killed by this spell rises at the start of your next turn as a **Zombie**", one "that follows your verbal orders". Nothing creates a creature from a stat block during play, which is the summons seam every Conjure waits on.',
     },
   ],
-  'flame-blade': [
-    {
-      clause: 'casting it again while the blade and something else fill both hands',
-      why: 'what-a-creature-is-holding',
-      note: 'W9-S1, on review; the seam was on main before this track. SRD Flame Blade evokes the blade "in your free hand", and a second casting ends the first — the Concentration it takes ends the old one, and the old blade goes with it. The pre-flight counts free hands on the state before the new casting ends anything, so a caster holding a Shield and the old blade is refused `no_free_hand`. Letting go first (`dropConjured`) is the workaround the table has; the count belongs in the pre-flight, in the file that owns it.',
-    },
-  ],
   'freezing-sphere': [
     {
       clause: 'freezing a body of water',
@@ -1226,13 +1219,6 @@ export const ADJUDICATED: Readonly<Record<string, readonly Adjudication[]>> = {
       clause: 'remain within range for the spell',
       why: 'a-casting-ended-by-a-trigger',
       note: 'W8-S26 re-read this as a debt. Range is measured when the rite settles, and a creature that walked away during the ten minutes and came back is healed; a target leaving the range during the casting drops out of it by the book. The closest id: a consequence raised by two creatures drifting apart, which this description names for Warding Bond.',
-    },
-  ],
-  'produce-flame': [
-    {
-      clause: 'casting it again while the flame and something else fill both hands',
-      why: 'what-a-creature-is-holding',
-      note: 'W9-S1, on review. The flame is a conjured thing in a hand now, which a Two-Handed swing and a Somatic component read; SRD "The spell ends if you cast it again" frees that hand, and the pre-flight counts free hands before the recast ends the old casting, so a caster with a Shield in the other hand is refused `no_free_hand`. Flame Blade’s seam, met by a cantrip a druid recasts often; letting go first (`dropConjured`) is the workaround the table has.',
     },
   ],
   'remove-curse': [

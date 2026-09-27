@@ -191,7 +191,12 @@ import {
 import { unsettledRefusal } from './holds.js';
 import { teleportTo } from './teleport.js';
 import { payCastingDamageCost } from './damage.js';
-import { ongoingSpellsOn, replacedCastings, underTheKeptPoint } from './ongoing.js';
+import {
+  castingsEndedBy,
+  ongoingSpellsOn,
+  replacedCastings,
+  underTheKeptPoint,
+} from './ongoing.js';
 import {
   attunementProblem,
   maskProblem,
@@ -841,21 +846,6 @@ export function castOrRelease(
       if (!pinned.ok) return turnContextFor(pinned, wants, casterId);
     }
 
-    // SRD Flame Blade: "You evoke a fiery blade in your **free hand**." A
-    // spell that puts something in a hand needs one, and asking here — before
-    // the slot, the action and the first die — is what makes a caster with
-    // both hands full pay nothing for finding out. See `ConjuredItems`.
-    if (definition.conjures !== undefined) {
-      const wants = conjuredHands(definition.conjures);
-      const free = freeHands(state, supply.content, casterId);
-      if (wants > free) {
-        return err(
-          'no_free_hand',
-          `${definition.name} puts ${supply.content.item(definition.conjures.item)?.name ?? definition.conjures.item} in ${casterId}'s hand${wants === 1 ? '' : 's'}, and ${free === 0 ? 'both are' : 'not enough is'} full`,
-        );
-      }
-    }
-
     // SRD Divine Smite is cast "immediately after hitting a target", so the
     // attack is the thing it needs and this command has none to give it. SRD
     // Ensnaring Strike prints the same casting time over a saving throw
@@ -1045,6 +1035,38 @@ export function castOrRelease(
     );
     if (!altered.ok) return altered;
     const castLevel = altered.value.castLevel;
+
+    // SRD Flame Blade: "You evoke a fiery blade in your **free hand**." A
+    // spell that puts something in a hand needs one, and asking here — before
+    // the slot, the action and the first die — is what makes a caster with
+    // both hands full pay nothing for finding out. See `ConjuredItems`.
+    //
+    // **The hand a recast frees is free** (W9-T). SRD Produce Flame: "The
+    // spell ends if you cast it again"; SRD Flame Blade takes Concentration,
+    // which the old blade's casting loses the moment this one starts. Either
+    // way the old thing leaves the hand the new one appears in, so the count
+    // passes over what the castings this one ends are holding — asked after
+    // the level and the casting time, because whether this casting takes
+    // Concentration is read at both. No targets: a conjured thing is in its
+    // caster's hand, and every casting of the caster's own that a recast ends
+    // is found without them.
+    if (definition.conjures !== undefined) {
+      const wants = conjuredHands(definition.conjures);
+      const ending = castingsEndedBy(
+        state,
+        casterId,
+        definition,
+        [],
+        concentrationAt(definition, castLevel) || altered.value.castingTime === 'long',
+      );
+      const free = freeHands(state, supply.content, casterId, ending);
+      if (wants > free) {
+        return err(
+          'no_free_hand',
+          `${definition.name} puts ${supply.content.item(definition.conjures.item)?.name ?? definition.conjures.item} in ${casterId}'s hand${wants === 1 ? '' : 's'}, and ${free === 0 ? 'both are' : 'not enough is'} full`,
+        );
+      }
+    }
     // What this definition knowingly leaves out, and — under a mark of its own
     // — the printed text the book leaves to whoever is running the table. The
     // two travel together because they are one question for the narrating

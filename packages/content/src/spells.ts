@@ -6084,9 +6084,6 @@ export const FLAME_BLADE: SpellDefinition = {
       },
     ],
   },
-  unmodelled: [
-    'casting it again while the blade and something else fill both hands is refused for want of a free hand: the new casting ends the old one and frees its hand, and the free hand is counted before the old casting ends',
-  ],
 };
 
 /**
@@ -6167,9 +6164,6 @@ export const PRODUCE_FLAME: SpellDefinition = {
       },
     ],
   },
-  unmodelled: [
-    'casting it again while the flame and something else fill both hands is refused for want of a free hand: the recast ends the old flame and frees its hand, and the free hand is counted before the old casting ends',
-  ],
 };
 
 // — Advantage and Disadvantage a spell grants ————————————————————————————————
