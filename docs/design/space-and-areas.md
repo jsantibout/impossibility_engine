@@ -101,6 +101,12 @@ that has ended is a debt the turn refuses to advance past, on
 and leaves the exit to a command, because where the creature climbs out is a
 choice.
 
+Magic Circle's barrier puts a Charisma save on a return from the Ethereal
+Plane into its Cylinder, and on the way out of a reversed one (W9-S3). Rope
+Trick's way in hangs at a height the table declares (`declare_portal_height`),
+and the rope can be drawn up or let down (`draw_rope`), which gates
+`climb_into_space`.
+
 ## Movement and teleportation
 
 `resolveMove` spends movement, checks the passage of every space a route

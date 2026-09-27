@@ -42,7 +42,7 @@ for exactly this reason.
 
 | Ledger | Size | Waits on an engine shape | Waits on a definition | Waits on none | Read to the end, handed over whole |
 |---|---|---|---|---|---|
-| Spells in reach, not executed | 29 spells | 29 | 0 | 0 | 33 |
+| Spells in reach, not executed | 27 spells | 27 | 0 | 0 | 33 |
 | Features manual, or a pool with nothing to buy | 0 features | 0 | 0 | 0 | 0 |
 | Items a level 1–5 party can buy | 157 items | 0 | 0 | 157 | 0 |
 | Glossary general rules nothing executes | 23 rules | 0 | 0 | 23 | 0 |
@@ -71,7 +71,6 @@ exactly the silently-missing entry this report’s header refuses.
 |---|---|---|
 | `a-target-rule-the-format-cannot-state` | 4 | 3 |
 | `a-casting-ended-by-a-trigger` | 3 | 2 |
-| `what-a-creature-is-holding` | 3 | 2 |
 | `a-standing-effect-derived-from-where-a-creature-stands` | 2 | 2 |
 | `light-and-obscurement-the-scene-holds` | 2 | 2 |
 | `a-fact-only-the-table-can-declare` | 3 | 1 |
@@ -94,6 +93,7 @@ exactly the silently-missing entry this report’s header refuses.
 | `an-action-a-spell-compels-or-forbids` | 1 | 0 |
 | `an-effect-that-fires-when-the-casting-ends` | 1 | 0 |
 | `an-effect-that-suppresses-other-magic` | 1 | 0 |
+| `what-a-creature-is-holding` | 1 | 0 |
 
 **Blocks** is every spell of this population the shape touches;
 **finishes** is what it is the *only* blocker for — the column a tranche
@@ -112,12 +112,6 @@ sums to the population.
 - **Prayer of Healing** (level 2) — executed-partial — also waits on 2
 - **Web** (level 2) — executed-partial
 - **Remove Curse** (level 3) — executed-partial
-
-#### `what-a-creature-is-holding` — blocks 3, finishes 2
-
-- **Produce Flame** (level 0) — executed-partial
-- **Flame Blade** (level 2) — executed-partial
-- **Heat Metal** (level 2) — executed-partial — also waits on 1
 
 #### `a-standing-effect-derived-from-where-a-creature-stands` — blocks 2, finishes 2
 
@@ -211,6 +205,10 @@ sums to the population.
 #### `an-effect-that-suppresses-other-magic` — blocks 1, finishes 0
 
 - **Wind Wall** (level 3) — executed-partial — also waits on 1
+
+#### `what-a-creature-is-holding` — blocks 1, finishes 0
+
+- **Heat Metal** (level 2) — executed-partial — also waits on 1
 
 #### Waiting on a definition — 0
 

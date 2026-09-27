@@ -29,7 +29,8 @@ as `{ sense, feet }`, off a feature, a casting, or **a stat block's printed
 Senses line** (W8-S25: parsed into `specialSenses` and compiled onto the sheet
 by `printedSenses`; "unimpeded by magical Darkness" is a `sees-through`
 darkness grant beside it; a Wild Shape form carries the block's senses and
-drops the druid's species ones, keeping class ones) — and `sightBetween`
+sets aside every species trait's standing effect — owner, 2026-09-27 —
+keeping class ones) — and `sightBetween`
 consults it only where nobody has declared anything: self → declaration → declared Total Cover silences →
 a sight-sense in range → `null`. **Three** questions sit on it: `canSee`
 (every "a creature you can see"); `canSomehowSee` (Invisible's clause;
@@ -244,4 +245,6 @@ Darkness and Daylight, whose point-cast Sphere becomes an Emanation from a
 declared object standing where it was cast). A patch may also be **covered**:
 a covered patch fills no area, so `lightAt` reads past it and it neither
 dispels nor is dispelled; uncovering re-pins it and the mutual dispel runs as
-on any pinning.
+on any pinning. A conjured blade's light shines only while it is held
+(`whileHolding`), and a glow hung on a settled outcome may run out before its
+casting does (`LightRider.lasts`, Starry Wisp).

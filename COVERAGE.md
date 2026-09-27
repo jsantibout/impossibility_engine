@@ -28,7 +28,7 @@ than to the table.
 
 | Parsed | Tracked | Executed | of which partial | Verified |
 |---|---|---|---|---|
-| 339 | 143 (42.2%) | 192 (56.6%) | 54 | 163 (48.1%) |
+| 339 | 143 (42.2%) | 192 (56.6%) | 52 | 163 (48.1%) |
 
 A **tracked** spell is not a half-finished executed one. Disguise Self will
 never be executed, because what the caster looks like is not arithmetic;
@@ -112,7 +112,7 @@ a plain statement of what the table decides.
 - **Fire Bolt** (cantrip) — verified
 - **Fire Shield** (level 4) — verified
 - **Fireball** (level 3) — verified
-- **Flame Blade** (level 2) — verified, partial — a clause the engine owns is still unbuilt
+- **Flame Blade** (level 2) — verified
 - **Flame Strike** (level 5) — verified
 - **Flaming Sphere** (level 2) — verified
 - **Fly** (level 3) — verified
@@ -175,7 +175,7 @@ a plain statement of what the table decides.
 - **Poison Spray** (cantrip) — verified
 - **Prayer of Healing** (level 2) — verified, partial — a clause the engine owns is still unbuilt
 - **Prestidigitation** (cantrip) — verified
-- **Produce Flame** (cantrip) — verified, partial — a clause the engine owns is still unbuilt
+- **Produce Flame** (cantrip) — verified
 - **Protection from Energy** (level 3) — verified
 - **Protection from Evil and Good** (level 1) — verified
 - **Protection from Poison** (level 2) — verified
@@ -455,7 +455,6 @@ of *Tracked* and is never added to it.
 | `an-area-trigger-on-the-casters-turn` | 4 | 0 | 0 | 0 | 4 | 0 | 0 |
 | `an-outcome-that-reads-the-targets-hit-points` | 4 | 0 | 0 | 0 | 4 | 0 | 0 |
 | `damage-with-neither-an-attack-roll-nor-a-save` | 4 | 0 | 0 | 1 | 3 | 0 | 0 |
-| `what-a-creature-is-holding` | 4 | 0 | 0 | 4 | 0 | 0 | 0 |
 | `a-casting-dismissed-early` | 3 | 0 | 0 | 1 | 2 | 1 | 0 |
 | `a-repeat-save-counted-to-a-tally` | 3 | 0 | 0 | 1 | 2 | 0 | 0 |
 | `a-repeat-save-that-does-something-on-a-failure` | 3 | 0 | 0 | 2 | 1 | 0 | 0 |
@@ -464,6 +463,7 @@ of *Tracked* and is never added to it.
 | `an-effect-that-fires-when-the-casting-ends` | 3 | 0 | 0 | 1 | 2 | 0 | 0 |
 | `healing-that-raises-the-dead` | 3 | 0 | 0 | 0 | 3 | 0 | 0 |
 | `light-and-obscurement-the-scene-holds` | 3 | 0 | 0 | 3 | 0 | 0 | 0 |
+| `a-check-a-casting-with-no-deadline-offers` | 2 | 0 | 0 | 1 | 1 | 0 | 0 |
 | `a-condition-immunity-narrowed-to-its-source` | 2 | 0 | 0 | 0 | 2 | 0 | 0 |
 | `a-dc-the-caster-does-not-set` | 2 | 0 | 0 | 0 | 2 | 0 | 0 |
 | `a-flat-amount-with-no-dice` | 2 | 0 | 0 | 0 | 1 | 0 | 1 |
@@ -479,10 +479,9 @@ of *Tracked* and is never added to it.
 | `an-area-that-filters-its-catch` | 2 | 0 | 0 | 1 | 1 | 0 | 0 |
 | `falling` | 2 | 0 | 0 | 1 | 1 | 0 | 0 |
 | `movement-modes` | 2 | 0 | 0 | 1 | 1 | 0 | 0 |
+| `what-a-creature-is-holding` | 2 | 0 | 0 | 2 | 0 | 0 | 0 |
 | `a-cap-on-how-many-castings-run-at-once` | 1 | 0 | 0 | 0 | 1 | 1 | 0 |
 | `a-casting-that-casts-another-spell` | 1 | 0 | 0 | 0 | 0 | 0 | 1 |
-| `a-check-a-casting-with-no-deadline-offers` | 1 | 0 | 0 | 1 | 0 | 0 | 0 |
-| `a-check-another-creature-may-attempt` | 1 | 0 | 0 | 0 | 1 | 0 | 0 |
 | `a-duration-earlier-castings-lengthen` | 1 | 0 | 0 | 1 | 0 | 0 | 0 |
 | `a-duration-the-chosen-branch-sets` | 1 | 0 | 0 | 1 | 0 | 0 | 0 |
 | `a-duration-the-slot-changes` | 1 | 0 | 0 | 0 | 1 | 0 | 0 |

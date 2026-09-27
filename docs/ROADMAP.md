@@ -1164,13 +1164,13 @@ against three.
   `src/ui/**` reads, and nothing under `src/ui` importing
   `src/domain/encounter.ts` again. The one step cheaper before the adapter
   than after.
-- `[ ]` **I-A2 Tool schemas.** `src/engine/tool-schemas.ts`: the DM surface's
+- `[x]` **I-A2 Tool schemas.** `src/engine/tool-schemas.ts`: the DM surface's
   definitions through `z.toJSONSchema` with `{ io: 'input' }`, `$schema` and
   the safe-integer bounds stripped, emitted in the surface's own sorted
   order, filtered to the tools the model may hold; a test pins the count and
   byte length so an engine change shows as a diff. (I-E2 does the same on
   the engine side; one implementation, wherever it lands first.)
-- `[ ]` **I-A3 The session loop.** `src/engine/engine-session.ts`: one
+- `[x]` **I-A3 The session loop.** `src/engine/engine-session.ts`: one
   request per player turn with the frozen persona as the cached prefix,
   `observe()` appended as a message and never in the top-level system
   prompt, the model's function calls dispatched through `surface.call` with
@@ -1184,20 +1184,20 @@ against three.
   called only by the adapter downstream of the treasure table; a per-turn
   transcript of `{call, outcome}` persisted beside the events and shown on
   `/dev/maestro`.
-- `[ ]` **I-A4 Scene setup in code.** `src/engine/scene-setup.ts`:
+- `[x]` **I-A4 Scene setup in code.** `src/engine/scene-setup.ts`:
   `create_character` from a `builds.mjs` entry (with the existing
   `ALPHA_GRANT` as `dmGrants`), `add_creature`, `set_scene`, `add_landmark`,
   `place_creature`, `declare_side`, before the model's first turn.
-- `[ ]` **I-A5 The feed from events.** `roll-recorded` (with its sourced
+- `[x]` **I-A5 The feed from events.** `roll-recorded` (with its sourced
   contributions, so a plaque can say `16 + 1 + 2 (Alert) = 19`),
   `damage-dice-recorded` (every die with its disposition and what replaced
   it) and `damage-taken` rendered into the existing `CombatPlaque` and
   `MechanicalResultCard`; vitality buckets derived from `observe()`; the
   withhold-narration-until-settled gate kept.
-- `[ ]` **I-A6 `npm run engine:smoke`**, offline, no model: setup plus a
+- `[x]` **I-A6 `npm run engine:smoke`**, offline, no model: setup plus a
   scripted attack and `end_turn`, every event and outcome printed. The
   regression test for everything above.
-- `[ ]` **I-A7 One live turn** under `GAME_RUNTIME=impossibility-engine`:
+- `[x]` **I-A7 One live turn** under `GAME_RUNTIME=impossibility-engine`:
   "I swing at the goblin" becomes `move` and `attack`, the plaque shows the
   dice, the model narrates the damage the log says; a test asserts cached
   prompt tokens on the second turn. **This is milestone I-1.**
@@ -3363,3 +3363,41 @@ I-1/F2 is in flight (close to reach; a turn acts only from the player's side;
 a refused-only turn is told, not thrown — the coordinator's ruling, from rule
 6). **Owner, for I-2:** five live playtest scenarios of about twenty turns,
 an AI player, and the AI DM deciding loot and level-ups itself.
+
+Appended 2026-09-26, late — wave nine closed, **milestone I-1 reached**:
+
+- **The same spell counts once** (W9-C). SRD "Combining Spell Effects" read
+  at the readers: two Blesses one d4, two Hastes +2 AC and one extra action,
+  the stronger of two castings or else the later (`same-effect.ts`;
+  `effectOf` and a fold-stamped `appliedAt` on bonuses, action rules and speed
+  grants). A Potion of Speed is Haste and a Potion of Heroism Bless
+  (`confers.effectOf`, validated). No number moved. **Attribution corrected:**
+  SRD 5.2.1 prints the rule for spells only; the wider "same name, most
+  potent" rule every feature follows here is the 2014 rules', held as the
+  engine's reading — eight comments that quoted it as SRD now say so.
+  **W9-C2, deferred:** Aid's maximum, Enlarge/Reduce, damage reductions and
+  penalties, passive defenses, jumps, Haste's lethargy under a potion.
+- **The tidy** (W9-T). A recast's free hand (`castingsEndedBy`): Produce Flame
+  and Flame Blade finish; a `casterOnly` casting naming nobody is cast on its
+  caster. Corrosive Form reads "nonmagical" as Magic Weapon does (a Shillelagh
+  club corrodes; so does a feature-ridden weapon, which the SRD never calls
+  magical). Flaming Sphere's roll keeps to the ground and its ram stops in the
+  creature's space, as printed. Symbol re-filed and
+  `a-check-another-creature-may-attempt` retired; Cloak of Arachnida climbs.
+  Placement `feet` now says "Feet from that landmark or creature where it ends
+  up; not the distance moved" — a model read the old words as the walk.
+  **Spells in reach, not executed: 29 → 27.** Pins: player 100 / 165361, DM
+  132 / 222695. **Left:** the Rust Monster's Antennae read neither
+  "nonmagical" nor "metal" (a parser field); a conjured pact weapon is never
+  corroded; Roving's climb and swim (content, level 6).
+- **Infinite Realms, milestone I-1.** F2 made the swing land (close to reach;
+  a turn acts only from the player's side; a refused-only turn is told). F3
+  measured the cache: a per-turn developer message broke the shared prefix
+  (0 cached on turn two, twice); the table now travels in the user message
+  (13,694 cached, twice). Two consecutive live runs: turn one's swing matched
+  `roll-recorded`, narration complete, turn two read 13,609 cached tokens of
+  14,402, no guard refusal left standing. About $0.007 a two-turn run. `attack`
+  reaches the model without `hold`; a refusal leaves no measurement in the
+  chronicle. **Next, I-2:** persistence (I-A8/I-A9), a level-up through the
+  app, and the owner's five live playtest scenarios (an AI player; the AI DM
+  awards loot and levels).

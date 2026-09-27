@@ -60,6 +60,14 @@ the casting. A smite cast on a hit keeps its record and timer when the spell
 prints a duration (`castOnHit`), which is how Shining Smite's minute and
 Concentration are enforced; Divine Smite is Instantaneous and leaves none.
 
+A casting also ends on **the table's word** (W9-S2). `declareWind` records a
+strong wind, and the fold ends every running casting that prints
+`dispersed-by-wind` whose area the wind reaches (Fog Cloud, Stinking Cloud).
+`declareEnding` matches a phrase against the casting's pinned `endsEarly`
+(Suggestion's errand done, a Glyph's surface moved, Web's anchor gone) and
+ends it `spent`, or moves its deadline through `schedule` where the book
+defers the ending.
+
 ## A summons and its one lifetime
 
 A casting that leaves a record holds its creature there and takes it away
@@ -106,6 +114,10 @@ is refused for a spell without the tag. Where no route supplies the spell,
 `chooseRoute` asks the caster's sheet for a licence — SRD Ritual Adept's
 `ritual-from-book` standing grant — and a class whose `book` holds the spell
 casts it as its own, unprepared. The book being in hand is the table's.
+
+A kept bond pins what the creature leaves behind (`leavesBehind`, W9-S3): at
+every departure — the drop to 0, the pocket, the replacement — its equipped
+and carried lines are unequipped and dropped in its own space before it goes.
 
 ## The effect vocabulary
 
