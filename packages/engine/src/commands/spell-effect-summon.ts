@@ -44,7 +44,7 @@ import { castingSource } from '../spells.js';
 import type { ControlledBond, CreatureState } from '../state.js';
 import { sceneFor, unknownCreature } from './command.js';
 import { applyConditionTo } from './conditions.js';
-import { removeCreatureEverywhere, settleDeparture, summonCreature } from './creatures.js';
+import { leavingBehind, removeCreatureEverywhere, settleDeparture, summonCreature } from './creatures.js';
 import { undeadForbiddenProblem, walkingBodyProblem } from './spell-effect-creatures.js';
 import { type EffectContext, type EffectOfKind } from './spell-effect-context.js';
 
@@ -132,6 +132,17 @@ export function resolveSummonEffect(
   let current = world;
   if (effect.kept !== undefined) {
     for (const held of keptBy(current, casterId, definition.id)) {
+      // **What the creature leaves, before it goes** — W9-S3. SRD Find Steed:
+      // "When it disappears, it leaves behind anything it was wearing or
+      // carrying", and the steed a second casting replaces disappears. SRD Find
+      // Familiar's "adopt a new eligible form" is modelled as this same
+      // departure and a new arrival, so the old form's gear lands in its space
+      // rather than vanishing with a creature the log no longer holds. Read off
+      // the bond the old creature was bound on, not off this casting.
+      const left = leavingBehind(current, ctx.supply.content, held);
+      if (!left.ok) return left;
+      events.push(...left.value);
+      current = left.value.reduce(applyEvent, current);
       const gone = removeCreatureEverywhere(current, held);
       if (!gone.ok) return gone;
       events.push(...gone.value);
@@ -173,6 +184,9 @@ export function resolveSummonEffect(
             // familiar can deliver the touch ... within 100 feet of you",
             // pinned for the same reason the pocket is.
             ...(effect.kept.delivers === undefined ? {} : { delivers: effect.kept.delivers }),
+            // And its sentence about what the creature leaves behind when it
+            // goes, pinned so the departure opens no book. (W9-S3)
+            ...(effect.kept.leavesBehind === true ? { leavesBehind: true as const } : {}),
             // SRD Wild Companion: a lifetime the *feature* puts on the bond,
             // over what the spell prints — read off the route the casting came
             // by, and dated so a rest already taken does not count.

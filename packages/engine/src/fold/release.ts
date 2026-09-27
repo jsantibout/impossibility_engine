@@ -25,7 +25,8 @@
 import type { CharacterId } from '@ie/shared';
 import { applyCondition, conditionInstanceId, removeConditionInstance } from '../conditions.js';
 import { endOfNextTurn, resolveDuration } from '../time.js';
-import { settleToGround } from '../positioning.js';
+import { altitudeOf, settleToGround, type PositionState } from '../positioning.js';
+import { hasSpeedInModeOn } from '../standing.js';
 import {
   type EffectTarget,
   type ScheduledDamage,
@@ -34,7 +35,7 @@ import {
 } from '../timers.js';
 import { castingIdOf, castingNumber, type AreaTriggerStamp, type OngoingSpell } from '../spells.js';
 
-import type { CreatureState, GameState, PendingCasting } from '../state.js';
+import type { CreatureState, FallMoment, GameState, PendingCasting } from '../state.js';
 
 /**
  * A grant a running effect hung on a creature, read only for what hung it.
@@ -319,6 +320,14 @@ export function releaseCasting(
     // them one at a time here is how a fifth would come to be forgotten.
     updated = withoutGrants(updated, (source) => castingIdOf(source) === castingId);
 
+    // **And the other half of the same question, with a fall for its answer.**
+    // SRD Fly: "When the spell ends, the target falls if it is still aloft
+    // unless it can stop the fall." Asked of the creature as the grants have
+    // just left it, and derived with no event for the landing's reason above.
+    // See {@link fallsWhenReleased}.
+    const fall = fallsWhenReleased(state, scene, creature, updated, (source) => castingIdOf(source) === castingId);
+    if (fall !== null) updated = { ...updated, falling: fall };
+
     if (key === casterId && updated.concentration?.castingId === castingId) {
       updated = { ...updated, concentration: null };
     }
@@ -567,6 +576,51 @@ function landsWhenReleased(
 }
 
 /**
+ * The fall a release leaves a creature in, or null where it leaves none —
+ * W9-S3.
+ *
+ * SRD *Fly*: "When the spell ends, the target falls if it is still aloft
+ * unless it can stop the fall." {@link landsWhenReleased}'s sibling, and asked
+ * at both doors for its reason: a deadline arriving and a dispel aimed at one
+ * target are the same ending, and two readers of the rule would come to
+ * disagree about who drops. Four facts, all already in state:
+ *
+ * - **aloft**: the lattice holds the creature above its floor, the only floor
+ *   the engine has ({@link altitudeOf}) — read off the scene as the release
+ *   leaves it, so a creature a lift this casting held has just set down is not
+ *   aloft;
+ * - **this casting gave it a Fly Speed**: a grant in `speedModifiers` naming a
+ *   fly mode under the casting's source, read *before* the grants go;
+ * - **it has none left**: {@link hasSpeedInModeOn} asked of the creature as
+ *   the release leaves it — a printed Fly Speed, another casting's, an item's
+ *   or a form's are each a way it stops the fall, and none is this rule's to
+ *   take away;
+ * - **nothing holds it up**: no lift is left on it, which is SRD Levitate
+ *   stopping the fall.
+ *
+ * The moment is `fall-declared`'s — the turn and the clock — with the height
+ * pinned, because it is the one number here the scene supplied: see
+ * {@link FallMoment.from}. Feather Fall answers through the window the moment
+ * opens, exactly as it answers a declared one.
+ */
+function fallsWhenReleased(
+  state: GameState,
+  scene: PositionState | null,
+  before: CreatureState,
+  after: CreatureState,
+  doomed: (source: string) => boolean,
+): FallMoment | null {
+  if (scene === null) return null;
+  if (!before.speedModifiers.some((grant) => grant.mode === 'fly' && doomed(grant.source))) return null;
+  const from = altitudeOf(scene, before.id);
+  if (from === null || from <= 0) return null;
+  if (after.lifts.length > 0) return null;
+  const released: GameState = { ...state, creatures: { ...state.creatures, [before.id]: after } };
+  if (hasSpeedInModeOn(released, before.id, 'fly')) return null;
+  return { turn: state.combat?.turnsTaken ?? null, elapsed: state.elapsed, from };
+}
+
+/**
  * Add a declared casting, keeping the record in casting-number order.
  *
  * Ids run in sequence and a declaration always allocates the next one, so
@@ -742,14 +796,19 @@ export function releaseOnTarget(
       ? settleToGround(base.scene, targetId)
       : base.scene;
 
+  // **And the fall the other door raises**, on the one creature this call is
+  // about: a Dispel Magic aimed at one of two flying targets drops that one.
+  const fall = fallsWhenReleased(base, scene, creature, released, (source) => castingIdOf(source) === castingId);
+
   // **And the same lethargy the other door lays**, on the one creature this
   // call is about. SRD Haste's "when the spell ends" is as true of a Dispel
   // Magic aimed at the hasted fighter as of the minute running out.
   const record = base.ongoing[castingId];
+  const landing = { ...released, conditions, ...(fall === null ? {} : { falling: fall }) };
   const left =
     record === undefined || record.onEnd === undefined
-      ? { creature: { ...released, conditions }, timers: [] as readonly TimedEffect[] }
-      : landEndRiders(base, { ...released, conditions }, record);
+      ? { creature: landing, timers: [] as readonly TimedEffect[] }
+      : landEndRiders(base, landing, record);
   for (const laid of left.timers) timers[timerKey(laid.target)] = laid;
 
   return {

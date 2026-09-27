@@ -456,6 +456,23 @@ export interface OngoingSpell {
    */
   readonly origin?: Point;
   /**
+   * That the way into this casting's place has been drawn up — W9-S3.
+   *
+   * SRD Rope Trick: "That space can be reached by climbing the rope, which can
+   * be pulled into or dropped out of it." Written by `way-in-drawn`; absent is
+   * a rope that hangs, which is every record written before the field. Read by
+   * `enterElsewhere`, which refuses a climber while it is set and still admits
+   * a creature that reaches the portal without the rope.
+   */
+  readonly wayInClosed?: true;
+  /**
+   * How high above {@link origin} the way in opens, as the table stated it —
+   * W9-S3. SRD Rope Trick's portal "at the rope's upper end", which is where
+   * the rope stopped rising: a fact about the room (`way-in-height-declared`).
+   * Absent until somebody says, and the climb asks for it.
+   */
+  readonly wayInHeight?: number;
+  /**
    * Which way a directional area was laid, for a Cone, Cube or Line.
    *
    * The one fact about a persistent area that **cannot be reconstructed**. The

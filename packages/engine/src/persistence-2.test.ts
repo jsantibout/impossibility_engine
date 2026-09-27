@@ -1031,6 +1031,16 @@ const UNCOVERED_EVENT_TYPES: readonly string[] = [
   // sword and off the swing by name, the sword broken at −5 through the door
   // every lost item leaves by, and the mail worn down beside it by the same
   // clause.
+  // A casting's way in drawn up, and the height it hangs at — SRD Rope Trick's
+  // rope, "which can be pulled into or dropped out of it", and its portal "at
+  // the rope's upper end" (W9-S3). Neither log was written when a place had a
+  // door that could be shut or a height the table stated: both fixtures fold
+  // to exactly the states they always folded to with the two fields absent on
+  // every ongoing record. `rope-drawn-up.test.ts` folds both and drives them
+  // end to end: the height asked for and pinned, the climb to the portal, the
+  // rope drawn up against a climber and not a flier, and let down again.
+  'way-in-drawn',
+  'way-in-height-declared',
   'weapon-penalised',
   'weapon-rider-granted',
 ];

@@ -96,6 +96,7 @@ import {
   declareCreatureHeads,
   declareDamageType,
   declareObject,
+  declareWayInHeight,
   forcePrintedSave,
   liftConditionFrom,
   loseItems,
@@ -1743,6 +1744,36 @@ const DECLARE_OBJECT = tool({
 });
 
 /**
+ * How high a casting's way in hangs — SRD Rope Trick's rope, W9-S3.
+ *
+ * "One end of it hovers upward until the rope hangs perpendicular to the
+ * ground or the rope reaches a ceiling": where that ceiling is is a fact about
+ * the room, and the owner's §10 falling ruling puts a door that states a
+ * height on the DM's surface alone. The engine checks only that the portal is
+ * inside the room; the climb to it is measured and charged from there.
+ */
+const DECLARE_PORTAL_HEIGHT = tool({
+  name: 'declare_portal_height',
+  description:
+    'State how high the way into a casting’s place hangs above its point — SRD Rope Trick’s rope rises until it hangs straight or meets a ceiling, and the portal opens at its top. That height is a fact about the room and yours to state. The engine pins it on the running casting, measures `climb_into_space` from the portal, and refuses a height above the room’s ceiling or a casting that opens no such place. State it again to correct it.',
+  mutates: true,
+  establishes: ['scene'],
+  input: z.strictObject({
+    castingId: z.string().min(1).describe('The casting whose way in this is, from `look`.'),
+    feet: z.number().int().min(1).describe('How many feet above the casting’s point the portal hangs.'),
+  }),
+  run: (context, args) =>
+    settleEvents(
+      context,
+      declareWayInHeight(context.campaign.state(), context.campaign.content, args.castingId, {
+        feet: args.feet,
+        ...identity(context),
+      }),
+      { castingId: args.castingId, feet: args.feet },
+    ),
+});
+
+/**
  * The tools a model may never reach, in the stable sorted order the prompt
  * cache depends on.
  */
@@ -2276,15 +2307,20 @@ const SHIFT_PLANE_PRINTED_LINE = tool({
   run: (context, args) =>
     settle(
       context,
-      takePrintedPlaneShift(context.campaign.state(), who(args.who), {
-        line: args.line,
-        ...(args.companions === undefined ? {} : { companions: args.companions.map(who) }),
-        ...(args.to === undefined ? {} : { to: placementOf(args.to) }),
-        ...(args.returns === undefined
-          ? {}
-          : { returns: args.returns.map((entry) => ({ who: who(entry.who), to: placementOf(entry) })) }),
-        ...identity(context),
-      }),
+      takePrintedPlaneShift(
+        context.campaign.state(),
+        who(args.who),
+        {
+          line: args.line,
+          ...(args.companions === undefined ? {} : { companions: args.companions.map(who) }),
+          ...(args.to === undefined ? {} : { to: placementOf(args.to) }),
+          ...(args.returns === undefined
+            ? {}
+            : { returns: args.returns.map((entry) => ({ who: who(entry.who), to: placementOf(entry) })) }),
+          ...identity(context),
+        },
+        context.campaign.supply(),
+      ),
       (value) => value.events,
       (value) => ({
         ...lineTaken(context, ['stated-action-taken', 'stated-bonus-action-taken'], value.duplicate, args.who),
@@ -2619,6 +2655,7 @@ export const DM_ONLY_TOOLS: readonly ToolDefinition[] = [
   DECLARE_DAMAGE_TYPE,
   DECLARE_HEADS,
   DECLARE_OBJECT,
+  DECLARE_PORTAL_HEIGHT,
   END_CONDITION,
   FORCE_PRINTED_SAVE,
   PRINTED_LINE_CATCH,

@@ -570,6 +570,16 @@ const DECLARATIONS: Readonly<
    */
   declareObject: { tool: 'declare_object', dmOnly: true },
   /**
+   * **A height, and the DM's alone for the reason `declare_heads` is: it is a
+   * number the table states about the room in front of it.** SRD Rope Trick's
+   * rope "hovers upward until the rope hangs perpendicular to the ground or
+   * the rope reaches a ceiling", and where the ceiling is is fiction the
+   * lattice does not hold. The owner's §10 falling ruling put a door stating
+   * such a height on this surface and no other; a model stating it would be
+   * choosing how hard its players have to climb. (W9-S3)
+   */
+  declareWayInHeight: { tool: 'declare_portal_height', dmOnly: true },
+  /**
    * **Withheld until this batch, and the reason it gave has stopped being
    * true.** The line here read "the clock and what a morning refills, which is
    * the rest slice `definitions.ts` says is left for a later batch. It also
@@ -1179,6 +1189,9 @@ const KIND_SETTLED_BY: Readonly<Record<string, ContextRequestKind | null>> = {
   // here worth hitting" is not a fact with a shape. So it settles no kind, in
   // the reading `declareLight` above already takes.
   declareObject: null,
+  // A climb into a place stops on it, and asks as a fact about the room:
+  // `scene`, which the DM's door declares it establishes. (W9-S3)
+  declareWayInHeight: 'scene',
 };
 
 /**

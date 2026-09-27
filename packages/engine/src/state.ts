@@ -310,6 +310,22 @@ export interface KeptBond {
    * is SRD Find Steed's steed.
    */
   readonly delivers?: { readonly within: number };
+  /**
+   * SRD Find Familiar: "Whenever the familiar drops to 0 Hit Points or
+   * disappears into the pocket dimension, it leaves behind in its space
+   * anything it was wearing or carrying." SRD Find Steed: "When it disappears,
+   * it leaves behind anything it was wearing or carrying." — W9-S3.
+   *
+   * Pinned from the spell at the binding, so a departure a year later opens no
+   * book. Read by the two departures a kept creature has — `dismissStrandedSummons`
+   * and `dismissKeptSummons` — and by the replacement a second casting makes,
+   * each of which puts every line the creature holds on the floor of its own
+   * space before it goes (`leavingBehind`). Absent for a bond whose spell prints
+   * no such sentence: what that creature held goes with it, as it goes with
+   * every creature that leaves the game — the owner ruled on 2026-09-27 that
+   * the sentence is each spell's own and not a rule of departure.
+   */
+  readonly leavesBehind?: true;
 }
 
 /**
@@ -1487,14 +1503,28 @@ export interface LastDamage {
  * the window — the turn it happened on in combat, the clock instant outside
  * one — because they are the two facts the engine already holds about "now".
  *
- * **There is no height, no rate and no landing here**, and a reader tempted to
- * add one should read {@link GameEvent} on `fall-declared` first: every one of
- * the three is a number the SRD makes the table's, and a fall that the engine
- * claimed to measure would be the engine inventing it.
+ * **There is no rate and no landing here**, and a reader tempted to add one
+ * should read {@link GameEvent} on `fall-declared` first: both are numbers the
+ * SRD makes the table's, and a fall that the engine claimed to measure would
+ * be the engine inventing it.
  */
 export interface FallMoment {
   readonly turn: number | null;
   readonly elapsed: number;
+  /**
+   * The height the fall began at, where the **lattice** supplied it rather
+   * than the table — W9-S3.
+   *
+   * SRD Fly: "When the spell ends, the target falls if it is still aloft." The
+   * fold sets that fall itself, with no event (`fold/release.ts`), and the one
+   * height it can know is the altitude the scene holds for the creature at
+   * that moment, which is pinned here so the landing reads the number the
+   * scene gave rather than asking the table for one it never had to state.
+   * `heightFallen` reads it before anything else, and only while the creature
+   * is still at that altitude. Absent on a declared fall, which carries no
+   * height and asks for one as it always did.
+   */
+  readonly from?: number;
 }
 
 /**

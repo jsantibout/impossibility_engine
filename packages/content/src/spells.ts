@@ -3768,9 +3768,12 @@ export const FLY: SpellDefinition = {
   // other way it ends.
   effects: [{ kind: 'speed', change: 'at-least', feet: 60, mode: 'fly', hover: true }],
   durationSeconds: 600,
-  unmodelled: [
-    'the fall when the spell ends on a creature still aloft is not raised: the creature has no Fly Speed left for `flightLost` to find stopped, so it hangs where it was until the table declares the fall',
-  ],
+  // "When the spell ends, the target falls if it is still aloft unless it can
+  // stop the fall." Read off the grant above and performed by the release,
+  // at both doors out of a casting: a target the lattice holds above its floor,
+  // left with no Fly Speed of its own or another's and no lift, is falling
+  // from that height (W9-S3). Feather Fall answers through the window the
+  // fall opens; the landing is `resolveFall`'s, off the pinned height.
 };
 
 /**
@@ -5059,20 +5062,19 @@ export const ROPE_TRICK: SpellDefinition = {
     },
   ],
   durationSeconds: 3600,
-  // The rope's hanging and what those inside see go to the table in the
-  // book's words (W8-S26): the engine holds the space as a place creatures
-  // are, not a thing on the lattice, and a creature elsewhere declares nothing
-  // about anybody in the scene. The rope pulled up is not the table's alone —
-  // it is the way in, and `enterElsewhere` goes on letting creatures climb it —
-  // and neither is the climb, which the book prices and entering the space
-  // does not.
+  // What those inside see goes to the table in the book's words (W8-S26): the
+  // engine holds the space as a place creatures are, not a thing on the
+  // lattice, and a creature elsewhere declares nothing about anybody in the
+  // scene. The rope's hanging is the room's too — how high it rises before a
+  // ceiling stops it — and the DM states that height on the record
+  // (`declareWayInHeight`), which the way in is then measured from: the portal
+  // is at the rope's top, a creature climbs to it by an ordinary move the
+  // movement rules charge, and enters within five feet of it. "Which can be
+  // pulled into or dropped out of it" is `drawWayIn`, a creature inside's to
+  // take, and a drawn rope refuses every climber that would need it (W9-S3).
   dmDecides: [
     'One end of it hovers upward until the rope hangs perpendicular to the ground or the rope reaches a ceiling.',
     "Attacks, spells, and other effects can't pass into or out of the space, but creatures inside it can see through the portal.",
-  ],
-  unmodelled: [
-    'the rope being pulled into or dropped out of the space is not applied: a rope pulled up is a way in that is gone, and the climb into the space is offered whether it hangs or not',
-    'the climb up the rope is not a move on the lattice: entering the space is a command that spends no movement, where the book has the creature climb the rope and pay for the climb',
   ],
 };
 
@@ -14516,7 +14518,11 @@ export const FIND_FAMILIAR: SpellDefinition = {
       // what it hears until the start of your next turn, gaining the benefits
       // of any special senses it has." The permission is this sentence, and
       // `borrowSenses` is the door that reads it.
-      kept: { pocket: { within: 30 }, delivers: { within: 100 }, lends: true },
+      // "Whenever the familiar drops to 0 Hit Points or disappears into the
+      // pocket dimension, it leaves behind in its space anything it was
+      // wearing or carrying." Pinned on the bond, and the departures put it
+      // down (W9-S3).
+      kept: { pocket: { within: 30 }, delivers: { within: 100 }, lends: true, leavesBehind: true },
       cannotAttack: true,
     },
   ],
@@ -14528,9 +14534,6 @@ export const FIND_FAMILIAR: SpellDefinition = {
   dmDecides: [
     'Your familiar acts independently of you, but it obeys your commands.',
     '_Telepathic Connection._ While your familiar is within 100 feet of you, you can communicate with it telepathically.',
-  ],
-  unmodelled: [
-    'what it leaves behind in its space when it disappears is not left: nothing puts what it was wearing or carrying onto the floor the engine keeps when it drops to 0 or is dismissed for a while',
   ],
 };
 
@@ -14593,7 +14596,11 @@ export const FIND_STEED: SpellDefinition = {
       armorClass: { base: 10, perSpellLevel: 1 },
       hitPoints: { base: 5, perSpellLevel: 10 },
       speeds: { fly: { feet: 60, fromSpellLevel: 4 } },
-      kept: { untilSummonerDies: true },
+      // "The steed disappears if it drops to 0 Hit Points or if you die … When
+      // it disappears, it leaves behind anything it was wearing or carrying."
+      // Both on the bond; a second casting's replacement is a disappearance
+      // too, and puts the gear down (W9-S3).
+      kept: { untilSummonerDies: true, leavesBehind: true },
       sharesCastersInitiative: true,
     },
   ],
@@ -14605,7 +14612,6 @@ export const FIND_STEED: SpellDefinition = {
   // and are executed.
   unmodelled: [
     'the controlled-mount rules the steed is ridden under are not applied: while its rider is up, the book lets it take only the Dash, Disengage and Dodge actions and move as the rider directs, and nothing narrows a mount’s turn',
-    'the gear the steed leaves behind when it disappears is not left: nothing puts what it was wearing or carrying onto the floor the engine keeps when it goes',
   ],
   // What the steed looks like, what it says and what it does with a turn its
   // rider cannot direct are the table's (W8-S26). The last is the question
@@ -15298,12 +15304,20 @@ export const MAGIC_CIRCLE: SpellDefinition = {
   // hold. The Charmed and Frightened halves are refused by the Immunity above
   // whatever the table reads, and the sentence trips the condition marker on
   // them; `ADJUDICATED` anchors the reading to it.
+  //
+  // **Interplanar travel is the save's other road, and the engine holds one
+  // plane besides this one** (W9-S3): the barrier's save is rolled for a
+  // creature coming back from the Ethereal Plane into the Cylinder (and, with
+  // the magic reversed, leaving it for the Ethereal), by every road the engine
+  // has back from there — a return after Blink ends, Blink's own return at the
+  // start of a turn, a stat block's step off the plane. An extradimensional
+  // space and a creature's insides are not planes and ask nothing. What is left
+  // is arrival from a plane the engine does not hold, which reads nothing it
+  // holds, and so is the table's in the book's own words.
   dmDecides: [
     'Glowing runes appear wherever the Cylinder intersects with the floor or other surface.',
     "• Targets within the Cylinder can't be possessed by or gain the Charmed or Frightened condition from the creature.",
-  ],
-  unmodelled: [
-    'interplanar travel is not modelled — there is one scene — so the save is raised for a teleport and for nothing else',
+    'If the creature tries to use teleportation or interplanar travel to do so, it must first succeed on a Charisma saving throw.',
   ],
 };
 

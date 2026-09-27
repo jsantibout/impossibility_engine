@@ -150,7 +150,9 @@ import {
   takePrintedTeleport,
   commandSummons,
   borrowSenses,
+  declareWayInHeight,
   dismissKeptSummons,
+  drawWayIn,
   enterElsewhere,
   escapeFromInside,
   pullOutOfCreature,
@@ -2060,7 +2062,11 @@ const INSIDE: readonly GameEvent[] = [
 /** And with the turn passed to B, so the escape has an Action to spend. */
 const INSIDE_THEIR_TURN: readonly GameEvent[] = [...INSIDE, { type: 'turn-advanced' }];
 
-/** A's Rope Trick hanging beside B, with room inside for B to climb. */
+/**
+ * A's Rope Trick hanging beside B, with room inside for B to climb — and, since
+ * W9-S3, the height the table stated for its portal: five feet up, which a
+ * creature standing beside the rope is within reach of.
+ */
 const ROPED: readonly GameEvent[] = (() => {
   const roped: readonly GameEvent[] = [
     ...SETUP.map((event) =>
@@ -2083,8 +2089,18 @@ const ROPED: readonly GameEvent[] = (() => {
     ),
     'the rope',
   );
-  return [...roped, ...cast.events];
+  return [
+    ...roped,
+    ...cast.events,
+    { type: 'way-in-height-declared', castingId: cast.castingId!, feet: 5 },
+  ];
 })();
+
+/** And B inside it, where the rope is drawn up from. (W9-S3) */
+const ROPED_INSIDE: readonly GameEvent[] = [
+  ...ROPED,
+  ...unwrap(enterElsewhere(fold('s', ROPED), B, SRD_CONTENT, { castingId: 'cast:1' }), 'B climbs in').events,
+];
 
 /** An owl A keeps on Find Familiar's terms, with the pocket the spell prints. */
 const KEPT: readonly GameEvent[] = [
@@ -2493,6 +2509,19 @@ const GUARDED: readonly Guarded[] = [
     name: 'enterElsewhere',
     log: ROPED,
     run: (s, commandId) => enterElsewhere(s, B, SRD_CONTENT, { castingId: 'cast:1', commandId }),
+  },
+  // The rope drawn up and the height it hangs at — W9-S3. A retry that was not
+  // guarded would be refused as a rope already up, and would write the height
+  // a second time.
+  {
+    name: 'drawWayIn',
+    log: ROPED_INSIDE,
+    run: (s, commandId) => drawWayIn(s, B, SRD_CONTENT, { castingId: 'cast:1', up: true, commandId }),
+  },
+  {
+    name: 'declareWayInHeight',
+    log: ROPED,
+    run: (s, commandId) => declareWayInHeight(s, SRD_CONTENT, 'cast:1', { feet: 20, commandId }),
   },
   // The two ways out of a creature a printed line offers — W7-B10. A retry
   // that was not guarded would roll a second check and, on a success, stand
