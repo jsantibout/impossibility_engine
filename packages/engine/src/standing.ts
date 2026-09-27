@@ -203,6 +203,7 @@ export type StandingReach =
  * | Wind Wall, "ordinary projectiles … are deflected upward and miss automatically" | {@link AreaDeflectionStanding} |
  * | Magic Circle, "Disadvantage on attack rolls against targets within the Cylinder" | {@link AreaAttackModeStanding} |
  * | Magic Circle, "Targets within the Cylinder can't … gain the Charmed or Frightened condition from the creature" | {@link AreaConditionImmunityStanding} |
+ * | Gust of Wind, "The gust disperses gas or vapor" | {@link AreaDispersalStanding} |
  * | Conjure Animals, "You have Advantage on Strength saving throws while you're within 5 feet of the pack" | {@link AreaSaveModeStanding} |
  */
 export type AreaStanding =
@@ -216,7 +217,8 @@ export type AreaStanding =
   | AreaWardStanding
   | AreaDeflectionStanding
   | AreaAttackModeStanding
-  | AreaConditionImmunityStanding;
+  | AreaConditionImmunityStanding
+  | AreaDispersalStanding;
 
 /**
  * How much of a creature has to be in the area for a clause to reach it.
@@ -600,6 +602,26 @@ export type AreaConditionImmunityStanding = AreaSide & {
   /** The causer's creature types the Immunity holds against; `'stated'` until the casting fills it. */
   readonly fromTypes?: readonly string[] | 'stated';
 };
+
+/**
+ * SRD Gust of Wind: "The gust **disperses gas or vapor**."
+ *
+ * **The one clause here that is about another casting rather than about a
+ * creature**, and it is a clause of the area for the reason the others are:
+ * what it reaches is whatever the pinned area lies over, and it moves when the
+ * area does — with the caster who carries the Line, and with the Bonus Action
+ * that turns it. Nothing reads it per creature. `fold/endings.ts` reads it
+ * against every running casting that prints `dispersed-by-wind` (SRD Fog
+ * Cloud, Stinking Cloud), and ends the one whose area meets it.
+ *
+ * `what` is the one thing the book says a wind disperses, so it is the one
+ * value: a clause that blew away something else would be a sentence nothing
+ * in the vocabulary reads. (W9-S2)
+ */
+export interface AreaDispersalStanding {
+  readonly kind: 'disperses';
+  readonly what: 'gas';
+}
 
 /**
  * Which castings a `casting-damage` grant reaches.

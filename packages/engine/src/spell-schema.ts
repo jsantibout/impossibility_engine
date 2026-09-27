@@ -723,6 +723,7 @@ function checkChoiceOption(
  * | `deflects-projectiles` | Wind Wall | nothing: it is a fact with no fields |
  * | `attack-mode` | Magic Circle | Advantage or Disadvantage, and the attacker's types it reaches |
  * | `condition-immunity` | Magic Circle | the SRD's conditions, and the causer's types it holds against |
+ * | `disperses` | Gust of Wind | what it disperses, which is gas |
  *
  * `statesTypes` is whether the definition prints a choice of types for the
  * casting to fill in: a clause saying `'stated'` on a spell that prints none
@@ -852,6 +853,18 @@ function checkAreaStanding(
       return;
 
     case 'deflects-projectiles':
+      return;
+
+    // SRD Gust of Wind: "The gust disperses gas or vapor." One thing a wind
+    // blows away, and so one value. (W9-S2)
+    case 'disperses':
+      if (standing['what'] !== 'gas') {
+        found.push({
+          field: `${path}.what`,
+          code: 'unknown_dispersal',
+          reason: `a wind disperses gas, which is what a cloud’s dispersed-by-wind reads; ${nameOf(standing['what'])} is nothing any casting is ended by`,
+        });
+      }
       return;
 
     case 'wards-magic': {
@@ -989,7 +1002,7 @@ function checkAreaStanding(
       found.push({
         field: `${path}.kind`,
         code: 'unknown_area_standing',
-        reason: `"${String(standing['kind'])}" is not something an area does to a creature standing in it; the engine derives a Speed, a bonus, a condition, a defence, an attack mode and a condition Immunity, refuses a Verbal casting, a crossing and a warded casting, and deflects a projectile`,
+        reason: `"${String(standing['kind'])}" is not something an area does to a creature standing in it; the engine derives a Speed, a bonus, a condition, a defence, an attack mode and a condition Immunity, refuses a Verbal casting, a crossing and a warded casting, deflects a projectile, and disperses gas`,
       });
   }
 }
@@ -5683,6 +5696,10 @@ export const END_TRIGGER_CAUSES: ReadonlySet<string> = new Set([
   // SRD Warding Bond's two, and Unseen Servant's sixty feet. (W7-S19)
   'caster-drops-to-0',
   'separated-beyond',
+  // SRD Fog Cloud's strong wind, and the table's word that a printed cause
+  // happened. (W9-S2)
+  'dispersed-by-wind',
+  'the-table-declares',
 ]);
 
 /** What a trigger may end: the casting, or the casting on one creature. */
@@ -5708,6 +5725,8 @@ const CAUSES_OUTSIDE_THE_CASTING: ReadonlySet<string> = new Set([
   // separation is about the pair. (W7-S19)
   'caster-drops-to-0',
   'separated-beyond',
+  // And a cloud is on nobody: a wind disperses the whole of it. (W9-S2)
+  'dispersed-by-wind',
 ]);
 
 /**
@@ -5900,7 +5919,90 @@ function checkEndsEarly(
         reason: `"${String(on)}" prints no distance; only a separation carries feet`,
       });
     }
+
+    checkDeclaredEnding(trigger as unknown as Record<string, unknown>, path, found);
   });
+}
+
+/**
+ * SRD Detect Thoughts' "you can activate either effect as a Magic action on
+ * your later turns", held to what a name needs to be named by. (W9-S2)
+ *
+ * A list of distinct, non-empty names, because a caller says one and the
+ * command matches it: an empty list is a field saying nothing, a blank name
+ * is one nobody can say, and a repeated name is one sentence written twice.
+ */
+function checkErrands(errands: unknown, found: SpellDefinitionProblem[]): void {
+  if (errands === undefined) return;
+  const names = Array.isArray(errands) ? (errands as unknown[]) : null;
+  const bad =
+    names === null ||
+    names.length === 0 ||
+    names.some((name) => typeof name !== 'string' || name.trim().length === 0) ||
+    new Set(names).size !== names.length;
+  if (bad) {
+    found.push({
+      field: 'activation.errands',
+      code: 'bad_errands',
+      reason: `an activation’s errands are the book’s names for them, a list of distinct non-empty strings; got ${nameOf(errands)}`,
+    });
+  }
+}
+
+/**
+ * The table's word, held to the two fields it carries. (W9-S2)
+ *
+ * `what` is the phrase a caller names and `declareEnding` matches, so the
+ * cause without one could never be declared, and any other cause carrying one
+ * would be a field nothing reads — `feet`'s rule, one field along. `at` moves
+ * the casting's own deadline, so it belongs to this cause alone, names the one
+ * deferral the book prints (SRD Web's "at the start of your next turn"), and
+ * ends the whole casting: a deadline is not one target's.
+ */
+function checkDeclaredEnding(
+  trigger: Record<string, unknown>,
+  path: string,
+  found: SpellDefinitionProblem[],
+): void {
+  const { on, what, at, ends } = trigger;
+  const declared = on === 'the-table-declares';
+
+  if (declared) {
+    if (typeof what !== 'string' || what.trim().length === 0) {
+      found.push({
+        field: `${path}.what`,
+        code: 'bad_end_trigger_what',
+        reason: `the table’s word names the phrase the book prints, a non-empty string, so a caller can say it; got ${String(what)}`,
+      });
+    }
+  } else if (what !== undefined) {
+    found.push({
+      field: `${path}.what`,
+      code: 'bad_end_trigger_what',
+      reason: `"${String(on)}" is a fact the log holds, not a phrase the table declares; only the-table-declares carries one`,
+    });
+  }
+
+  if (at === undefined) return;
+  if (!declared) {
+    found.push({
+      field: `${path}.at`,
+      code: 'bad_end_trigger_at',
+      reason: `"${String(on)}" ends a casting when it happens; only the table’s word may defer the ending`,
+    });
+  } else if (at !== 'start-of-casters-next-turn') {
+    found.push({
+      field: `${path}.at`,
+      code: 'bad_end_trigger_at',
+      reason: `the one deferral the book prints is the start of the caster’s next turn, not ${String(at)}`,
+    });
+  } else if (ends !== 'casting') {
+    found.push({
+      field: `${path}.at`,
+      code: 'bad_end_trigger_at',
+      reason: 'a deferred ending moves the casting’s own deadline, which is the whole casting’s and not one target’s',
+    });
+  }
 }
 
 /**
@@ -8050,6 +8152,7 @@ export function checkSpellDefinition(
         });
       }
     }
+    checkErrands((activation as { errands?: unknown }).errands, found);
     if (
       activation.range === undefined &&
       definition.origin === undefined &&
@@ -8482,6 +8585,11 @@ export function checkSpellDefinition(
     definition.activation === undefined &&
     definition.areaTrigger === undefined &&
     definition.conjures === undefined &&
+    // A bank of fog the casting lays on the lattice is something the engine
+    // resolves — every sight question reads it. SRD Fog Cloud owes nothing
+    // else once its wind is read, and is the first definition to say only
+    // that. (W9-S2)
+    definition.areaObscurement === undefined &&
     // A spell whose whole content is its branches says what it does one level
     // down, and `checkOptions` holds each of them to saying it.
     definition.options === undefined &&

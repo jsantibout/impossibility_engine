@@ -169,10 +169,12 @@ import {
   declareCreatureType,
   declareDawn,
   declareDifficultTerrain,
+  declareEnding,
   declareLight,
   declareObscurement,
   declareFalling,
   declareSightBetween,
+  declareWind,
   declineDamageReaction,
   declineOpportunity,
   declineTestReaction,
@@ -3283,6 +3285,13 @@ const ACTIVATE_SPELL = tool({
       .describe(
         'Where a template this action draws is centred — Call Lightning’s "targeting the same point or a different one". Required by an action that calls something down on a point and refused by every other; the engine checks the point is still under the cloud and refuses one beyond it before the action is spent.',
       ),
+    errand: z
+      .string()
+      .min(1)
+      .optional()
+      .describe(
+        'A later action the spell names that only buys knowledge — Detect Thoughts’ Sense Thoughts or Read Thoughts. The engine spends the action, rolls nothing, aims at nobody, and hands what it reveals to the table. Send `targets` empty and nothing else beside it; a name the spell does not print is refused.',
+      ),
   }),
   run: (context, args) => {
     const state = context.campaign.state();
@@ -3308,6 +3317,9 @@ const ACTIVATE_SPELL = tool({
           // And where a template this action draws is centred, which is a place
           // rather than a bearing — see `ActivateSpellCommand.at`.
           ...(args.at === undefined ? {} : { at: point(args.at) }),
+          // And the errand a knowledge-only action names — see
+          // `ActivateSpellCommand.errand`. (W9-S2)
+          ...(args.errand === undefined ? {} : { errand: args.errand }),
           ...identity(context),
         },
         context.campaign.supply(),
@@ -3448,6 +3460,97 @@ const END_ONGOING_SPELL = tool({
         who(args.caster),
         args.castingId,
         args.on === undefined ? null : who(args.on),
+        identity(context),
+      ),
+      { ended: args.castingId },
+    ),
+});
+
+/**
+ * The table says a strong wind blows. (W9-S2)
+ *
+ * SRD Fog Cloud and SRD Stinking Cloud last "until a strong wind (such as one
+ * created by _Gust of Wind_) disperses it". Gust of Wind needs no declaring —
+ * its Line disperses what it meets on its own — but it is the book's example
+ * and not the whole of the sentence, and the engine holds no weather. So the
+ * wind is the table's fact, and which clouds it reaches is the engine's.
+ *
+ * **It takes what `declare_light` takes, and nothing more**: a point and a
+ * radius, which are the room's, both optional because the whole scene is the
+ * commonest answer — and both or neither, because a point with no reach and a
+ * reach from nowhere are not a place.
+ */
+const DECLARE_WIND = tool({
+  name: 'declare_wind',
+  description:
+    'Say a strong wind blows — a gale through a broken window, a blast down a shaft. SRD Fog Cloud and Stinking Cloud last until a strong wind disperses them, and the engine ends every such cloud the wind reaches, with the obscurement and the gas that go with it. Name `at` and `radius` for where it blows, or leave both out for the whole scene. Gust of Wind needs no declaring: its own Line disperses the clouds it meets.',
+  mutates: true,
+  input: z.object({
+    at: pointSchema
+      .optional()
+      .describe('The middle of where it blows. Leave it and `radius` out and it blows through the whole scene.'),
+    radius: z
+      .number()
+      .finite()
+      .nonnegative()
+      .optional()
+      .describe('How far it reaches from there, in feet. 0 is the one space. Sent with `at` or not at all.'),
+  }),
+  run: (context, args) => {
+    if ((args.at === undefined) !== (args.radius === undefined)) {
+      return invalid(
+        'malformed_arguments',
+        'declare_wind takes `at` and `radius` together for a place, or neither for the whole scene',
+        [{ path: args.at === undefined ? 'at' : 'radius', message: 'sent without its pair' }],
+      );
+    }
+    return settleEvents(
+      context,
+      declareWind(context.campaign.state(), {
+        ...(args.at === undefined || args.radius === undefined
+          ? {}
+          : {
+              region: {
+                origin: areaPointAt(point(args.at)),
+                shape: { kind: 'sphere', radius: args.radius },
+              },
+            }),
+        ...identity(context),
+      }),
+      { established: 'wind' },
+    );
+  },
+});
+
+/**
+ * The table's word that a cause a running spell prints has happened. (W9-S2)
+ *
+ * SRD Web ends when its webs are not anchored, SRD Suggestion when the
+ * activity is complete, SRD Glyph of Warding when its surface is carried off
+ * — three facts only the room holds, and three endings the engine owes once
+ * somebody says so. **The phrase is the spell's**, matched against what the
+ * casting pinned; a phrase it does not print is refused with the ones it does,
+ * so the refusal is how a caller who does not know them learns them.
+ */
+const DECLARE_ENDING = tool({
+  name: 'declare_ending',
+  description:
+    'Say that something a running spell prints as its own ending has happened — the webs are not anchored, the suggested activity is complete, the surface or object is moved more than 10 feet. The phrase is the spell’s own and the engine matches it against the casting: send one the spell does not print and the refusal lists the ones it does. The engine then ends the spell, on the one creature it happened to where the spell ends for a target (name them in `on`), and at the moment the spell names where it names one — Web collapses at the start of its caster’s next turn.',
+  mutates: true,
+  input: z.object({
+    castingId: z.string().min(1).describe('From the cast_spell that started it.'),
+    what: z.string().min(1).describe('The phrase the spell prints for what happened, e.g. the webs are not anchored.'),
+    on: creatureId
+      .optional()
+      .describe('The creature it happened to, for a spell that ends for one target — whose suggested activity is complete.'),
+  }),
+  run: (context, args) =>
+    settleEvents(
+      context,
+      declareEnding(
+        context.campaign.state(),
+        args.castingId,
+        { what: args.what, ...(args.on === undefined ? {} : { on: who(args.on) }) },
         identity(context),
       ),
       { ended: args.castingId },
@@ -6166,6 +6269,8 @@ export const TOOLS: readonly ToolDefinition[] = [
   END_FEATURE,
   END_ATTUNEMENT,
   END_ONGOING_SPELL,
+  DECLARE_WIND,
+  DECLARE_ENDING,
   END_SPELL_ON_SELF,
   END_REST,
   END_TURN,

@@ -181,8 +181,10 @@ describe('toolSchemas', () => {
     // And one more on the DM's alone for I-E9, `printed_line_catch`.
     // And three more on the DM's alone for W7-B12: `take_rest_form`,
     // `settle_block_deadlines` and `split_printed_line`.
-    expect(toolSchemas(player())).toHaveLength(96);
-    expect(toolSchemas(dm())).toHaveLength(127);
+    // And two on each for W9-S2: `declare_wind` and `declare_ending`, the
+    // room's weather and the table's word that a printed cause happened.
+    expect(toolSchemas(player())).toHaveLength(98);
+    expect(toolSchemas(dm())).toHaveLength(129);
     // Re-pinned 2026-09-24 for the printed-lines track, which opened one door
     // on the DM's surface alone: `teleport_printed_line` takes the teleport a
     // stat block prints, at the distance the block prints, to a space the DM
@@ -376,10 +378,14 @@ describe('toolSchemas', () => {
     // and `cast_printed_line`'s description names the trait a coven casts
     // through. 124 → 127 tools; +3,750 bytes. The player's surface is
     // unchanged.
-    expect(toolSchemas(player())).toHaveLength(96);
-    expect(toolSchemas(dm())).toHaveLength(127);
-    expect(JSON.stringify(toolSchemas(player())).length).toBe(158726);
-    expect(JSON.stringify(toolSchemas(dm())).length).toBe(214944);
+    // And for W9-S2, on both doors: `declare_wind` and `declare_ending` added
+    // after `end_ongoing_spell`, and `activate_spell` gains `errand` — SRD
+    // Detect Thoughts' Sense Thoughts and Read Thoughts. 96 → 98 and 127 →
+    // 129 tools; +2,459 bytes on each.
+    expect(toolSchemas(player())).toHaveLength(98);
+    expect(toolSchemas(dm())).toHaveLength(129);
+    expect(JSON.stringify(toolSchemas(player())).length).toBe(161185);
+    expect(JSON.stringify(toolSchemas(dm())).length).toBe(217403);
   });
 });
 

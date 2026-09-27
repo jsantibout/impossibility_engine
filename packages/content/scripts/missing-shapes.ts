@@ -108,7 +108,7 @@ export const MISSING_SHAPES = {
   'a-repeat-save-raised-by-a-trigger':
     'a repeat save raised by something that happened — taking damage, having moved, coming within a distance, another effect trying to cure it. The turn hook is the only thing that raises one, which `docs/design/time-and-turns.md` states outright: "Raising is derived; rolling is commanded ... `turn-advanced` *raises* the saves the boundary owes". The fourth of the four mechanisms the audit found bundled under `a-repeat-save-beyond-the-turn-hook`.',
   'a-casting-ended-by-a-trigger':
-    'a casting ends by its deadline, by Concentration, by a dispel or by a recast — `docs/design/casting.md`, "Lifecycle, and the one place it ends". IE-032 built the fifth way for **five** transcribed causes: the target attacks, deals damage or casts, the target dons armour, and the caster or an ally damages the target. What is left is every cause whose fact no consequence event holds and every consequence the two scopes cannot express — **any** damage from anybody (Modify Memory, Sleep, Sequester, Phantom Steed, Project Image, Eyebite), a distance two creatures drift apart (Faithful Hound, Warding Bond, Antilife Shell), a running total dealt (Guardian of Faith), a condition the caster chooses at the casting (Sequester), leaving an area (Tiny Hut), dropping to 0 Hit Points (Gaseous Form, Warding Bond), another spell ending this one (Geas, Contact Other Plane), a Temporary Hit Point total running out (Polymorph), the target dying (True Polymorph), and ending **one effect** of a casting rather than the casting (Mislead, whose double outlives its invisibility). Letting go of an object stood in that list and does not now: `GrantedWeaponRider.endsWhenLetGo` in packages/engine/src/standing.ts is the sixth cause, and `settleWeaponRiders` ends the casting when the weapon the rider pinned is no longer among the ids in its holder’s inventory. What Shillelagh still waits on is not the cause but the **declaration** — a `weapon-rider` effect has no field to print the clause with, and it may not be assumed of every rider, because Magic Weapon imbues a weapon for an hour and prints no such sentence.',
+    'a casting ends by its deadline, by Concentration, by a dispel or by a recast — `docs/design/casting.md`, "Lifecycle, and the one place it ends". IE-032 built the fifth way, `endsEarly` in spell-definitions.ts, and its causes have grown one sentence at a time since: the target attacks, deals damage, casts or dons armour; the caster or an ally damages it; it takes any damage or drops to 0; a summon takes damage or drops; a sleeper is shaken awake; the caster leaves the area, drops to 0 or is separated past a distance. **W9-S2 built two more and they finished six spells between them**: a strong wind (`dispersed-by-wind`, read off a casting whose area pins `disperses` or a `wind-declared`), which is Fog Cloud and Stinking Cloud and what Gust of Wind blows; and the table’s word that a cause the spell prints has happened (`the-table-declares`, a phrase the record pins and `declareEnding` matches), which is Web’s webs not anchored, Suggestion’s activity complete and a glyph’s surface moved. **What is left in reach is three sentences, and each is more than a cause.** SRD Remove Curse ends **curses**: which of the castings and marks a creature holds is a curse is a fact nothing records. SRD Web’s fire burns away a 5-foot Cube of the area and deals 2d4 Fire at the turn start in it, which is ending **part** of a casting — neither scope says it. And SRD Prayer of Healing’s targets must remain within range for the ten minutes, which is a drift measured during a rite rather than at its end. **Out of level-5 reach** the id still holds Sequester’s condition the caster chooses, Polymorph’s Temporary Hit Points running out, Geas and its punishment, Mislead’s double outliving its invisibility, the Arcane Hand, Astral Projection and Simulacrum dropping to 0, Maze’s escape, Modify Memory’s damage or another spell, and the Hat of Disguise.',
   'a-fact-only-the-table-can-declare':
     'a fact the engine does not hold and cannot derive, which a rule then reads — how well you know a creature, whether you are outdoors in a storm, whether you are fighting it. Declared cover, declared sight and declared allegiance are the discipline CLAUDE.md already draws for this; the audit (§4) is where these clauses were found filed as a selector problem when what they want is the fact. **IE-030 built the fought fact**: `CastSpellRequest.fought` carries it, the five spells that read it as Advantage are finished, and SRD Enthrall reads the same fact as an automatic success through `autoSucceedIf: { fought: true }`. What is left under this id is every other fact of the kind — how well you know a creature, whether you are outdoors — that no request yet states.',
   'an-automatic-success-by-creature-type':
@@ -217,6 +217,10 @@ export const MISSING_SHAPES = {
     '**Built, and the id is empty.** `replacesPriorCasting` in spell-definitions.ts is the cap the SRD writes twice — "The hand vanishes ... if you cast this spell again" — and it is a cap of **one**, applied by ending the prior casting. `maxRunning` is the same field with a number in it and `replacedCastings` is one arithmetic for both sentences: the oldest castings by this caster of this spell end until the new one is the last that fits. SRD Prestidigitation’s three is the only spell in the book that writes it and is executed off it. Kept rather than deleted because an id is a key two branches append to, and because the reading it records — ending the oldest rather than refusing the fourth — is the one a later homebrew spell will meet.',
   'a-duration-the-slot-changes':
     'PROGRESS.md, on Major Image: "Concentration and duration that **change with the slot level** ... which `SpellDefinition` cannot express". **IE-035 built the half that is a longer span**: `durationAtSlot` is a per-definition table of slot level to seconds, read where the deadline is scheduled, and the six spells printing the SRD’s "Your Concentration can last longer with a spell slot of…" — Hex, Hunter’s Mark, the three Dominates — and SRD Mass Suggestion’s "The duration is longer with…" all read their own table. **And the Concentration half is built too**: `concentrationEndsAtSlot` is the slot from which a spell stops requiring Concentration, which SRD Bestow Curse prints at level 5 and SRD Major Image prints at level 4, beside its other clause. **And the ending half is built now too**: `untilDispelledAtSlot` is the slot from which a casting stops having a deadline at all, which SRD Major Image prints at level 4 beside its Concentration clause — so that spell is executed and the field it wanted is the third of the family, read by `untilDispelledAt` where the deadline would have been scheduled. SRD Bestow Curse’s level 9 slot prints the same "lasts until dispelled" and reads the same field. What is left under this id is an ending that is **not** the absence of one: SRD Geas’s level 9 slot makes the spell last "until it is ended by one of the spells mentioned above" — one spell naming another as its ending, which no field here says and a table of seconds could not.',
+  'a-duration-the-chosen-branch-sets':
+    'a duration a casting’s chosen branch sets rather than the spell. `SpellOption` in spell-definitions.ts carries a branch’s effects, its area clauses and its own handovers, and no duration: the deadline is the definition’s, scheduled once whichever branch ran. SRD Thaumaturgy prints six wonders under one minute and calls two of them instantaneous, so every casting leaves a record the cap of three counts, and a door flung open counts against Booming Voice. W8-S26 filed it under `a-duration-the-slot-changes` as the closest id; the duration is the branch’s, not the slot’s. W9-S2 minted this one as filing only.',
+  'a-duration-earlier-castings-lengthen':
+    'a duration that earlier castings of the same spell lengthen. SRD Arcanist’s Magic Aura, cast on the same target every day for thirty days, lasts until dispelled. `durationAtSlot` and `untilDispelledAtSlot` in spell-definitions.ts read the slot in hand, and nothing in the vocabulary counts the castings of a spell a creature has had before — the log holds every one and no field asks. W8-S26 filed it under `a-duration-the-slot-changes` as the closest id; W9-S2 minted this one as filing only.',
   'a-deadline-anchored-to-a-rest':
     '`docs/design/time-and-turns.md`: "`duration.ts` has two types" — "A span of time" and "A moment in the turn order". A rest is neither, and the SRD anchors effects to one constantly. The clock records `lastShortRestAt` and a rest is a span the engine measures, so the fact is there and no deadline can name it.',
   'an-effect-that-fires-when-the-casting-ends':
@@ -291,6 +295,8 @@ export const MISSING_SHAPES = {
     '**Built, and what is left of the id is two readings rather than a gap.** `PROGRESS.md` named it among the mechanics the drained shapes left behind: "an outcome-scoped child effect (Ice Knife’s explosion, Hideous Laughter’s two conditions, **Sleet Storm’s broken Concentration**)" — `OutcomeRiders` landed with conditions, modifiers and delayed damage, and ending the target’s Concentration was the one consequence in that sentence that got no slot. `OutcomeRiders.breaksConcentration` is that slot now: read off the creature at the moment the outcome settles, landed as the `concentration-ended` every other ending writes, and silent where the target was holding nothing. Sleet Storm is executed off it. The two claimants left are each blocked on something else — SRD Earthquake is level 8 and nobody has re-read its paragraph since, and the Thunderous Greatclub’s tremor waits on an item being able to force a save at all.',
   'a-check-another-creature-may-attempt':
     '**Built, for the one spell that printed it.** `docs/design/spell-definitions.md`, on the check a spell offers: "**Who may attempt it is derived from what the timer sits on** — an effect on a creature is that creature’s to shake off, a casting with no victim is anybody’s to see through." The derivation has its third branch now: `SpellCheck.byAnotherWithinReach` is the clause, `EffectCheck` pins it, and `availableChecks` / `resolveEffectCheck` admit a creature within five feet of the condition’s holder, measured off the map. SRD Ensnaring Strike — "The target or a creature within reach of it can take an action to make a Strength (Athletics) check" — is executed off it, with `onSuccess: end-casting` beside it because that sentence ends the spell. What is left under this name is the *other* attempter the note imagined: shaking a sleeper awake is `shaken-awake`, an ending a creature performs rather than a check it rolls, and no SRD spell offers a check to somebody who is neither the holder nor within reach. SRD Spike Growth stood here too and no longer does: its Search-action check was anybody’s to attempt all along, and what it waited on was a **choice of skill** — `SpellCheck.skills` is the list the spell prints, `EffectCheckCommand.skill` the attempter’s pick, refused off the list and never defaulted.',
+  'a-check-a-casting-with-no-deadline-offers':
+    'a check a casting offers when the casting has no timer for the check to ride on. `SpellDefinition.check` in spell-definitions.ts is pinned onto the casting’s timer, which is where `availableChecks` finds it, and a casting that lasts until dispelled schedules no timer — so `checkSpellDefinition` refuses a check on one. SRD Glyph of Warding prints the sentence SRD Spike Growth prints, a Wisdom (Perception) check against the caster’s spell save DC to notice it, on a glyph that runs until dispelled or triggered. W8-S26 filed it under `a-check-another-creature-may-attempt` as the closest id, whose residue is a different attempter; W9-S2 minted this one as filing only, to be built beside Glyph’s other blocker.',
   'an-area-trigger-measured-from-a-point':
     '`docs/design/casting.md` names it spell by spell: "Ending a turn within 5 feet of a point, and a point rolled into a creature’s space | Flaming Sphere". `AreaTrigger` hangs off a template, and a reach measured from the casting’s own origin is what `CastingOrigin.reach` answers for an attack and for nothing that fires on its own.',
   'light-and-obscurement-the-scene-holds':
@@ -668,8 +674,8 @@ export const ADJUDICATED: Readonly<Record<string, readonly Adjudication[]>> = {
   'arcanists-magic-aura': [
     {
       clause: 'thirty consecutive daily castings',
-      why: 'a-duration-the-slot-changes',
-      note: 'SRD: "If you cast the spell on the same target every day for 30 days, the illusion lasts until dispelled." The Mask it would keep is a creature type `mustBeType` reads on every casting, so the permanence is read; what is missing is a duration that something other than the casting itself changes. The closest id: it names a duration a casting’s circumstances lengthen, built for the slot, and a count of earlier castings is the circumstance here. W8-S26.',
+      why: 'a-duration-earlier-castings-lengthen',
+      note: 'SRD: "If you cast the spell on the same target every day for 30 days, the illusion lasts until dispelled." The Mask it would keep is a creature type `mustBeType` reads on every casting, so the permanence is read; what is missing is a duration that earlier castings of the spell lengthen, which is this id. W8-S26 filed it under the slot’s id as the closest; W9-S2 minted its own.',
     },
   ],
   banishment: [
@@ -866,13 +872,6 @@ export const ADJUDICATED: Readonly<Record<string, readonly Adjudication[]>> = {
       note: 'W8-S26 re-read this as a debt, and this id’s own description names the spell: Daylight prints an Emanation originating from an object, and a bowl or a helm over it, and the engine holds no object for a patch to hang on. Sunlight is read by every sight question and by Sunlight Sensitivity, so where it shines from is not the table’s alone.',
     },
   ],
-  'detect-thoughts': [
-    {
-      clause: 'the Magic action a later Sense Thoughts or Read Thoughts costs',
-      why: 'an-action-a-spell-compels-or-forbids',
-      note: 'W8-S26 split this from the knowledge, which is handed over. SRD: "Until the spell ends, you can activate either effect as a Magic action on your later turns." The probe is the one later step the definition’s activation charges; a later Sense Thoughts or Read Thoughts buys only knowledge, and still costs the Action — which nothing spends. That is this id’s errand member: an action a spell hands over for something no spender is told apart by, as Wind Walk’s Magic action to begin reverting is.',
-    },
-  ],
   'dimension-door': [
     {
       clause: 'the willing creature who comes along',
@@ -1013,13 +1012,6 @@ export const ADJUDICATED: Readonly<Record<string, readonly Adjudication[]>> = {
       note: 'W8-S26 read this line for the first time. SRD: "When the spell ends, the target falls if it is still aloft unless it can stop the fall." The creature is at an elevation the lattice holds and the landing is `resolveFall`’s, so the fall is read; what is missing is anything raising it when a Fly Speed goes away, because `flightLost` answers no-flight for a creature with none left.',
     },
   ],
-  'fog-cloud': [
-    {
-      clause: 'whether a wind blows is the table',
-      why: 'a-casting-ended-by-a-trigger',
-      note: 'W8-S26 re-read this as a debt. Whether a strong wind blows is the table’s, and what follows is not: the fog ends, and with it the Heavily Obscured every sight question reads. This id is every cause whose fact no consequence event holds, and the wind is one — the ending itself is a door the engine has.',
-    },
-  ],
   'freezing-sphere': [
     {
       clause: 'freezing a body of water',
@@ -1053,13 +1045,8 @@ export const ADJUDICATED: Readonly<Record<string, readonly Adjudication[]>> = {
     },
     {
       clause: 'to notice the glyph is not offered by the casting',
-      why: 'a-check-another-creature-may-attempt',
-      note: 'W8-S26 re-read this as a debt. SRD: "The glyph is nearly imperceptible and requires a successful Wisdom (Perception) check against your spell save DC to notice." Spike Growth writes the same sentence as a check the casting offers, and `checkSpellDefinition` refuses one here because a check rides on the casting’s timer and a glyph that lasts until dispelled has none — so the DM states a DC the rules fix. **No id names that gap**, a check on a casting with no deadline: this one built the checks a casting offers and its residue is a different attempter, so it is named as the closest rather than a shape being minted by a reading.',
-    },
-    {
-      clause: 'the glyph breaking when the surface or object it is on is moved',
-      why: 'a-casting-ended-by-a-trigger',
-      note: 'W8-S26 read this line for the first time. SRD: "If the surface or object is moved more than 10 feet from where you cast this spell, the glyph is broken, and the spell ends without being triggered." How far a thing moved is the table’s to watch; the ending is read, since an armed rune is one the DM’s door can still fire. A cause whose fact no consequence event holds, which is this id.',
+      why: 'a-check-a-casting-with-no-deadline-offers',
+      note: 'W8-S26 re-read this as a debt, and W9-S2 re-filed it to the id it names. SRD: "The glyph is nearly imperceptible and requires a successful Wisdom (Perception) check against your spell save DC to notice." Spike Growth writes the same sentence as a check the casting offers, and `checkSpellDefinition` refuses one here because a check rides on the casting’s timer and a glyph that lasts until dispelled has none — so the DM states a DC the rules fix. A check on a casting with no deadline, which is this id.',
     },
   ],
   goodberry: [
@@ -1071,9 +1058,9 @@ export const ADJUDICATED: Readonly<Record<string, readonly Adjudication[]>> = {
   ],
   'gust-of-wind': [
     {
-      clause: 'the gas and vapor the gust disperses',
-      why: 'a-casting-ended-by-a-trigger',
-      note: 'W8-S26 re-read this as a debt. SRD: "The gust disperses gas or vapor, and it extinguishes candles and similar unprotected flames in the area." A Fog Cloud or a Stinking Cloud in the Line is a casting whose obscurement and whose Poisoned are read afterwards, so dispersing one is ending a casting on a cause no consequence event holds. The candles in the same sentence are light the table declares.',
+      clause: 'the candles and similar unprotected flames the gust extinguishes',
+      why: 'light-and-obscurement-the-scene-holds',
+      note: 'W9-S2 split this from the gas, which the Line disperses now. SRD: "The gust disperses gas or vapor, and it extinguishes candles and similar unprotected flames in the area." A candle’s light is a patch the table declares and every sight question reads; what the Line would put out is a light-shedding thing the engine does not hold, which this id’s description names as all that is left of it — the object, the same want as the lantern’s 50 percent beside it.',
     },
     {
       clause: '50 percent chance to extinguish them',
@@ -1429,28 +1416,11 @@ export const ADJUDICATED: Readonly<Record<string, readonly Adjudication[]>> = {
       note: 'W8-S26 read this line for the first time. A glow hung off a settled outcome is built — Faerie Fire’s `light` rider — and it lasts as long as the casting; `checkSpellDefinition` refuses one on this cantrip (grant_without_lifetime) because an Instantaneous casting is over the moment it resolves and the rider has no deadline of its own. This id’s description says the glow left it and what remains is the object, so it is the closest rather than the residue: the gap is a lifetime on a light rider, and the light is read by every sight question.',
     },
   ],
-  'stinking-cloud': [
-    {
-      clause: 'the cloud being Heavily Obscured is not laid',
-      why: 'expressible',
-      note: 'W8-S26 read this line for the first time, and it said obscurement is not modelled, which has been false since P3-S. `areaObscurement` is what Fog Cloud, Web and Sleet Storm write, and `checkSpellDefinition` takes one on this definition; nobody wrote it.',
-    },
-    {
-      clause: 'a strong wind dispersing the cloud',
-      why: 'a-casting-ended-by-a-trigger',
-      note: 'W8-S26 read this line for the first time. Whether a strong wind blows is the table’s, and what follows is not: the cloud ends, and with it the Poisoned it forces every turn and the obscurement a sight question reads. A cause whose fact no consequence event holds, which is this id.',
-    },
-  ],
   suggestion: [
-    {
-      clause: 'upon completing the suggested activity',
-      why: 'a-casting-ended-by-a-trigger',
-      note: 'W8-S26 split this from the suggestion, which is handed over. SRD: "The suggested activity can continue for the entire duration, but if the suggested activity can be completed in a shorter time, the spell ends for the target upon completing it." Whether it is complete is the table’s; the Charmed condition the ending lifts is state every roll against the target reads. A cause whose fact no consequence event holds, which is this id.',
-    },
     {
       clause: 'the target must be able to hear and understand you',
       why: 'a-target-rule-the-format-cannot-state',
-      note: 'W8-S26 read this line for the first time. The Deafened condition is state the engine holds, and so are the languages a creature knows; a casting at a Deafened target, or at one sharing no language with the caster, is one the book refuses and the engine does not. A target rule the format cannot state, which is this id.',
+      note: 'W8-S26 read this line for the first time, and W9-S2 corrected what it said about languages. The Deafened condition is state the engine holds. The languages a creature knows are held only on a character’s record (`CreatureState.character`): `adaptMonster` compiles no Languages line, so a stat block knows none the engine can read. A casting at a Deafened target, or at a character sharing no language with the caster, is one the book refuses and the engine does not — a target rule the format cannot state, which is this id. The stat-block half waits on a Languages-line track in W8-S25’s pattern, after B12.',
     },
   ],
   sunbeam: [
@@ -1470,8 +1440,8 @@ export const ADJUDICATED: Readonly<Record<string, readonly Adjudication[]>> = {
   thaumaturgy: [
     {
       clause: 'the cap counts every casting',
-      why: 'a-duration-the-slot-changes',
-      note: 'W8-S26 read this line for the first time. The cap of three is `maxRunning` and is built; what the definition cannot say is that two of its six branches are instantaneous inside a spell that lasts a minute, so every casting leaves a record the cap counts — and Booming Voice’s Advantage is a mode a fourth casting can end early when a door flung open counted against the three. The closest id: a duration something other than the spell’s own line decides, built for the slot, where here it is the branch.',
+      why: 'a-duration-the-chosen-branch-sets',
+      note: 'W8-S26 read this line for the first time. The cap of three is `maxRunning` and is built; what the definition cannot say is that two of its six branches are instantaneous inside a spell that lasts a minute, so every casting leaves a record the cap counts — and Booming Voice’s Advantage is a mode a fourth casting can end early when a door flung open counted against the three. A duration the chosen branch sets, which is this id: W8-S26 filed it under the slot’s id as the closest, and W9-S2 minted its own.',
     },
   ],
   // **Executed by `maxRunning` and by the branches**, and the entry that
@@ -1480,14 +1450,9 @@ export const ADJUDICATED: Readonly<Record<string, readonly Adjudication[]>> = {
   // with nowhere to stand.
   web: [
     {
-      clause: 'the webs collapsing when they are not anchored',
-      why: 'a-casting-ended-by-a-trigger',
-      note: 'W8-S26 re-read this as a debt. SRD: "If the webs aren’t anchored between two solid masses (such as walls or trees) or layered across a floor, wall, or ceiling, the web collapses on itself, and the spell ends at the start of your next turn." Anchoring is a fact about the room, and the ending it causes takes the Difficult Terrain, the obscurement and every Restrained off the lattice. A cause whose fact no consequence event holds, which is this id.',
-    },
-    {
       clause: 'the webs being flammable',
       why: 'a-casting-ended-by-a-trigger',
-      note: 'W8-S26 re-read this as a debt, and settled the question the brief asked: is a web a thing fire reads? It is not. The engine’s fire is the Burning hazard, which it holds on a creature, and a web is not one. SRD: "Any 5-foot Cube of webs exposed to fire burns away in 1 round, dealing 2d4 Fire damage to any creature that starts its turn in the fire." Exposure is the table’s fact and both consequences are read — dice the engine must throw, and a Cube that stops holding anybody. Ending part of a casting on a cause no event holds is the closest id.',
+      note: 'W8-S26 re-read this as a debt, and settled the question the brief asked: is a web a thing fire reads? It is not. The engine’s fire is the Burning hazard, which it holds on a creature, and a web is not one. SRD: "Any 5-foot Cube of webs exposed to fire burns away in 1 round, dealing 2d4 Fire damage to any creature that starts its turn in the fire." W9-S2 built the table’s word, and this is not a cause of that kind: exposure is the table’s to say, but what follows is **one Cube** of the area burning away while the rest stands, with 2d4 the engine must throw at the start of a turn in it — ending part of a casting, which neither scope an ending has can say. Still this id, for that.',
     },
   ],
   weird: [

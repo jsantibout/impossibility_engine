@@ -1033,6 +1033,13 @@ const UNCOVERED_EVENT_TYPES: readonly string[] = [
   // clause.
   'weapon-penalised',
   'weapon-rider-granted',
+  // The table's strong wind (W9-S2). Neither log was written when a wind
+  // could be declared or a cloud printed what disperses it, and the event
+  // writes no state of its own — so both fold to exactly the states they
+  // always folded to. `dispersed-by-wind.test.ts` folds it and drives it end
+  // to end: every fog in the scene gone under a wind with no region, and only
+  // the one a region touches under one with.
+  'wind-declared',
 ];
 
 /** What the pair must cover between them, whatever else changes. */

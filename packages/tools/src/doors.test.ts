@@ -536,6 +536,12 @@ const DECLARATIONS: Readonly<
   // class of number `declare_difficult_terrain` already takes here.
   declareLight: { tool: 'declare_light' },
   declareObscurement: { tool: 'declare_obscurement' },
+  // The room's weather and the table's word that a cause a spell prints has
+  // happened (W9-S2). Both are the room: a wind takes `declare_light`'s point
+  // and radius and no number of its own, and the word is a phrase the
+  // casting's own record prints.
+  declareWind: { tool: 'declare_wind' },
+  declareEnding: { tool: 'declare_ending' },
   // The first door on either surface that takes a number, and the DM's alone:
   // the count sizes an Attack action, so a model stating it would be writing
   // itself attacks, while the table stating it is reporting the creature in
@@ -1169,6 +1175,11 @@ const KIND_SETTLED_BY: Readonly<Record<string, ContextRequestKind | null>> = {
   // a command to stop on and a kind here would be one nothing raises.
   declareLight: null,
   declareObscurement: null,
+  // Null, and not a hole: no command stops because nobody has said a wind
+  // blows or a web is anchored — a cloud stands and a web holds until
+  // somebody says otherwise, which is the reading `declareLight` takes.
+  declareWind: null,
+  declareEnding: null,
   declareFalling: null,
   declareCreatureDead: null,
   declareResourcePool: null,

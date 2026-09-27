@@ -2516,7 +2516,10 @@ describe('every member of the definition format has a user or a written exemptio
       // the definition's own `requiresSight?`, both written by Blink.
       "SpellEffect.at='end-of-turn' + AreaTrigger.at='end-of-turn' + SpellRepeatSave.at='end-of-turn'",
       "SpellEffect.at='start-of-turn' + AreaTrigger.at='start-of-turn' + SpellRepeatSave.at='start-of-turn'",
-      'SpellEffect.at? + AreaTrigger.at?',
+      // And SRD Web's deferral, `CastingEndTrigger.at?`, on the same bare
+      // probe (W9-S2): Web writes it, and Blink writes the other two, so the
+      // row masks nothing.
+      'SpellEffect.at? + AreaTrigger.at? + CastingEndTrigger.at?',
       'SpellEffect.requiresSight? + SpellDefinition.requiresSight?',
       // **The second row that masks, and it is named because it does.** The
       // span a *deepening* may carry — `SpellRepeatSave.onFailure.lasts`,

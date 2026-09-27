@@ -841,8 +841,10 @@ describe('the mark is written only from a filed field', () => {
       // A spell's `dmDecides`, a branch's `handsOver`, a granted route's
       // `handOver` — the three a casting reports.
       'commands/spell-resolution.ts': 3,
-      // An activated spell's branch `handsOver`.
-      'commands/activation.ts': 1,
+      // An activated spell's branch `handsOver`, and the errand an activation
+      // names — `SpellActivation.errands`, SRD Detect Thoughts' Sense Thoughts
+      // and Read Thoughts — handed over under its own name. (W9-S2)
+      'commands/activation.ts': 2,
       // A chance spell's `dmDecides`, withheld from what a torn fan reports.
       'commands/spell-effect-chance.ts': 1,
       // A stat block's `forTheTable`, through `reportFiled` and nowhere else.

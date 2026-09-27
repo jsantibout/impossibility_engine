@@ -822,10 +822,11 @@ describe('an executed spell with a clause nobody sorted is not executed', () => 
       expect(unsortedInReach()[id], id).toBeUndefined();
       expect((ADJUDICATED[id] ?? []).map((entry) => entry.why), id).toContain('expressible');
     }
-    // Two more carry an expressible clause beside a real blocker, and a shape
-    // outranks a definition owed — so they wait on the shape, and are still
-    // in the size.
-    for (const id of ['moonbeam', 'stinking-cloud']) {
+    // One more carries an expressible clause beside a real blocker, and a
+    // shape outranks a definition owed — so it waits on the shape, and is
+    // still in the size. (Stinking Cloud was the second: W9-S2 wrote its
+    // obscurement and read its wind, and it left the ledger.)
+    for (const id of ['moonbeam']) {
       expect((ADJUDICATED[id] ?? []).map((entry) => entry.why), id).toContain('expressible');
       expect(ledger.spells.find((one) => one.id === id)?.wait, id).toBe('shape');
     }
