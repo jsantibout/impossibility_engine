@@ -218,6 +218,9 @@ export function applyScene({ state, next }: Applying, event: SceneEvent): GameSt
             ...(event.source === undefined ? {} : { source: event.source }),
             ...(event.magical === undefined ? {} : { magical: event.magical }),
             ...(event.sunlight === undefined ? {} : { sunlight: event.sunlight }),
+            ...(event.covered === undefined ? {} : { covered: event.covered }),
+            ...(event.whileHolding === undefined ? {} : { whileHolding: event.whileHolding }),
+            ...(event.lapsesWith === undefined ? {} : { lapsesWith: event.lapsesWith }),
           }),
         ),
       };

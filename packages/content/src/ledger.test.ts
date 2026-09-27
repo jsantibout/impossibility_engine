@@ -817,15 +817,17 @@ describe('an executed spell with a clause nobody sorted is not executed', () => 
       .filter((one) => one.wait === 'definition')
       .map((one) => one.id)
       .sort();
-    expect(pending).toEqual(['flame-blade', 'nondetection', 'produce-flame']);
+    // Flame Blade and Produce Flame left when W9-S1 wrote their light.
+    expect(pending).toEqual(['nondetection']);
     for (const id of pending) {
       expect(unsortedInReach()[id], id).toBeUndefined();
       expect((ADJUDICATED[id] ?? []).map((entry) => entry.why), id).toContain('expressible');
     }
-    // Two more carry an expressible clause beside a real blocker, and a shape
-    // outranks a definition owed — so they wait on the shape, and are still
-    // in the size.
-    for (const id of ['moonbeam', 'stinking-cloud']) {
+    // One more carries an expressible clause beside a real blocker, and a
+    // shape outranks a definition owed — so it waits on the shape, and is
+    // still in the size. (Moonbeam's Dim Light was the other, until W9-S1
+    // wrote it.)
+    for (const id of ['stinking-cloud']) {
       expect((ADJUDICATED[id] ?? []).map((entry) => entry.why), id).toContain('expressible');
       expect(ledger.spells.find((one) => one.id === id)?.wait, id).toBe('shape');
     }

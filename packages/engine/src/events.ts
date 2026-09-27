@@ -3637,6 +3637,12 @@ export type GameEvent =
       readonly magical?: { readonly spellLevel: number };
       readonly sunlight?: boolean;
       readonly source?: string;
+      /** Something opaque is over the thing it shines from — see `LightPatch.covered`. Additive; absent everywhere before it. */
+      readonly covered?: true;
+      /** The conjured thing it shines from while held — see `LightPatch.whileHolding`. Additive; absent everywhere before it. */
+      readonly whileHolding?: string;
+      /** The timer it lapses with — see `LatticePatch.lapsesWith`. Additive; absent everywhere before it. */
+      readonly lapsesWith?: string;
       readonly command?: CommandStamp;
     }
   /**

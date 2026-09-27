@@ -12,17 +12,24 @@
  * turn or the clock, with nothing to take back.
  */
 
-import { type CharacterId, DAMAGE_TYPES, err, ok, type Result } from '@ie/shared';
+import { type CharacterId, DAMAGE_TYPES, err, needsContext, ok, type Result } from '@ie/shared';
+import { type Content } from '../content.js';
 import { type GameEvent, type GameState } from '../events.js';
 import { type CommandIdentity, once } from '../idempotency.js';
+import { OBJECT_CREATURE_TYPE } from '../objects.js';
 import {
+  type AreaOrigin,
+  CUBE,
+  creaturesInArea,
   DIFFICULT_TERRAIN,
   declareDifficultPatch,
   declareLightPatch,
   declareObscuringPatch,
   lightDispelledBy,
   type LightLevel,
+  type LightPatch,
   type ObscurementDegree,
+  positionOf,
   type TerrainRegion,
 } from '../positioning.js';
 import { creatureOf, sceneFor, unknownCreature } from './command.js';
@@ -343,6 +350,212 @@ export function declareLight(
             }),
           )),
     ]);
+  });
+}
+
+export interface MoveCastLightCommand extends CommandIdentity {
+  /**
+   * Where the thing the light is on has gone: a creature carrying it, a
+   * declared object it now sits on, or a point it was set down or thrown to.
+   * Absent leaves it where it is.
+   */
+  readonly to?: AreaOrigin;
+  /**
+   * Whether something opaque is over it — see `LightPatch.covered`. Absent
+   * leaves the cover as it was; `false` takes the bowl off.
+   */
+  readonly covered?: boolean;
+}
+
+/**
+ * Move or cover the thing a running casting's light is on.
+ *
+ * `docs/design/light-and-sight.md`'s first ruling put light on the lattice and
+ * said "Light on a thrown rock is a point the table re-declares when the rock
+ * moves". The re-declaration went through {@link declareLight}, which lays a
+ * *table* patch — no `source`, so the light outlived a dispel and a broken
+ * Concentration, and no `magical`, so Darkness's "nonmagical light can't
+ * illuminate it" and the mutual dispel stopped applying to it. This is the
+ * same re-declaration **keeping the casting's identity**: every patch in
+ * `scene.light` whose `source` is the casting is written again under its own
+ * name with its origin moved, keeping `magical`, `sunlight`, `source`,
+ * `whileHolding` and `lapsesWith` as they were. The owner approved the door
+ * and the "covered" state it adds on 2026-09-27.
+ *
+ * **Which spells, read from content at command time** — the definition's
+ * `lightOnObject`, which the fold never reads:
+ *
+ * - `'always'` (SRD Light, Continual Flame): the light is on an object, so it
+ *   may go to any creature (the bearer it is handed to, or a declared object
+ *   it is set on) or any point (where it was put down), and it may be
+ *   covered.
+ * - `'or-a-point'` (SRD Darkness, Daylight): a casting at a point stays there
+ *   and cannot be covered — there is no object for a bowl to go over. It may
+ *   be laid on a declared object **standing in the space it was centred on**,
+ *   which is the book's "you cast the spell on an object" told afterwards, and
+ *   its Sphere becomes an Emanation of the same radius from that object: "the
+ *   Darkness … fill[s] a 15-foot Emanation originating from that object".
+ *   Once on an object it goes where the object goes — picked up, carried, set
+ *   down — and may be covered.
+ *
+ * **Covered is a reading, and it is stated in the note**: a covered patch
+ * fills no area, so it neither dispels nor is dispelled, and uncovering it
+ * re-pins it — the dispel runs then, exactly as it runs on any pinning.
+ *
+ * Every refusal is a wrong fact rather than a missing one, except an object
+ * nobody has placed where its place is the question.
+ */
+export function moveCastLight(
+  state: GameState,
+  content: Content,
+  castingId: string,
+  command: MoveCastLightCommand = {},
+): Result<GameEvent[]> {
+  const { to, covered } = command;
+
+  return once(state, `move-cast-light:${castingId}`, { ...command }, () => [], (stamp) => {
+    const record = state.ongoing[castingId];
+    if (record === undefined) {
+      return err(
+        'not_ongoing',
+        `no casting ${castingId} is running, so there is no light of it to move or to cover`,
+      );
+    }
+    const reading = content.spell(record.spellId)?.lightOnObject;
+    if (reading === undefined) {
+      return err(
+        'no_object',
+        `${record.spell} prints no object for its light to be on; what it lights goes where the spell says, and moving it is not a thing the book lets anybody do`,
+      );
+    }
+    if (to === undefined && covered === undefined) {
+      return err(
+        'nothing_to_move',
+        `say where the thing ${record.spell} is on has gone, or whether something is over it`,
+      );
+    }
+
+    const scene = sceneFor(state, castingId, `where ${record.spell}’s light is`);
+    if (!scene.ok) return scene;
+
+    const laid = Object.keys(scene.value.light)
+      .sort()
+      .flatMap((name): (readonly [string, LightPatch])[] => {
+        const patch = scene.value.light[name];
+        return patch !== undefined && patch.source === castingId ? [[name, patch]] : [];
+      });
+    const first = laid[0];
+    if (first === undefined) {
+      return err(
+        'no_light_laid',
+        `${record.spell} (${castingId}) laid no light on the lattice — it was cast before there was a scene to lay it in — so there is nothing to move; declareLight lights the spot`,
+      );
+    }
+
+    if (to !== undefined && 'creature' in to && creatureOf(state, to.creature) === null) {
+      return unknownCreature(to.creature);
+    }
+
+    // **A Darkness or a Daylight cast at a point is on nothing.** Its Sphere
+    // is the one shape a casting on an object never has — laid on one, it is
+    // an Emanation from then on — so the shape says which of the book's two
+    // readings this casting is under, with nothing else to remember.
+    const atItsPoint = reading === 'or-a-point' && first[1].region.shape.kind !== 'emanation';
+    if (atItsPoint) {
+      const castAt = first[1].region.origin;
+      if (to === undefined || !('creature' in to)) {
+        return err(
+          'not_an_object',
+          `${record.spell} was cast at a point and is on no object, so there is nothing to ${to === undefined ? 'put a bowl over' : 'carry it anywhere'}; only a casting laid on an object moves or is covered`,
+        );
+      }
+      const onto = creatureOf(state, to.creature);
+      // The record's own type and not what magic believes of it: a Mask that
+      // makes a creature read as something else to spells does not make it a
+      // thing that isn't being worn or carried.
+      if (onto === null || onto.creatureType !== OBJECT_CREATURE_TYPE) {
+        return err(
+          'not_an_object',
+          `${to.creature} is not an object, and ${record.spell} is cast on "an object that isn’t being worn or carried"`,
+        );
+      }
+      if (positionOf(scene.value, to.creature) === null) {
+        return needsContext(
+          'unplaced',
+          `nobody has said where ${to.creature} is, and ${record.spell} goes on an object standing where it was cast`,
+          [
+            {
+              kind: 'position',
+              subject: to.creature,
+              need: `where ${to.creature} is`,
+              because: `${record.spell} goes on an object standing where it was cast`,
+              satisfyWith: `a placeCreatureInScene command for ${to.creature}`,
+            },
+          ],
+        );
+      }
+      // The space the casting was centred on: every space a 2½-foot Sphere
+      // from that point reaches, which is the one space for a point at a
+      // space's middle and the four around a corner.
+      const there =
+        'creature' in castAt
+          ? null
+          : creaturesInArea(
+              scene.value,
+              castAt,
+              { kind: 'sphere', radius: CUBE / 2 },
+              { includeOrigin: true },
+            );
+      if (there === null || !there.ok || !there.value.includes(to.creature)) {
+        return err(
+          'not_where_it_was_cast',
+          `${to.creature} is not standing where ${record.spell} was cast, so it is not the object the spell was cast on`,
+        );
+      }
+    }
+
+    const regionFor = (patch: LightPatch): TerrainRegion => {
+      if (to === undefined) return patch.region;
+      const shape = patch.region.shape;
+      return {
+        origin: to,
+        shape:
+          atItsPoint && shape.kind === 'sphere'
+            ? { kind: 'emanation', distance: shape.radius }
+            : shape,
+      };
+    };
+
+    const events: GameEvent[] = [];
+    const dispelled = new Set<string>();
+    for (const [name, patch] of laid) {
+      const region = regionFor(patch);
+      const hidden = covered ?? patch.covered === true;
+      events.push({
+        type: 'light-declared',
+        patch: name,
+        region,
+        level: patch.level,
+        ...(patch.magical === undefined ? {} : { magical: patch.magical }),
+        ...(patch.sunlight === undefined ? {} : { sunlight: patch.sunlight }),
+        ...(patch.source === undefined ? {} : { source: patch.source }),
+        ...(hidden ? { covered: true as const } : {}),
+        ...(patch.whileHolding === undefined ? {} : { whileHolding: patch.whileHolding }),
+        ...(patch.lapsesWith === undefined ? {} : { lapsesWith: patch.lapsesWith }),
+        // The stamp once, on the first of them, as every batch carries it.
+        ...(stamp === null || events.length > 0 ? {} : { command: stamp }),
+      });
+      // Pinned again, so the book's dispel runs as it runs on any pinning —
+      // and a covered patch fills no area, so it puts nothing out.
+      if (hidden || patch.magical === undefined) continue;
+      for (const other of lightDispelledBy(state, region, patch.level, patch.magical.spellLevel)) {
+        if (other !== castingId) dispelled.add(other);
+      }
+    }
+    for (const other of [...dispelled].sort()) {
+      events.push({ type: 'spell-ended', castingId: other, on: null, reason: 'dispelled' });
+    }
+    return ok(events);
   });
 }
 

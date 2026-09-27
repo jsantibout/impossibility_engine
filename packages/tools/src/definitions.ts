@@ -172,6 +172,7 @@ import {
   declareLight,
   declareObscurement,
   declareFalling,
+  moveCastLight,
   declareSightBetween,
   declineDamageReaction,
   declineOpportunity,
@@ -2109,6 +2110,63 @@ const DECLARE_LIGHT = tool({
       }),
       { established: 'light', patch: args.patch },
     ),
+});
+
+/**
+ * Where the thing a cast light is on has gone, and whether it is covered —
+ * the re-declaration `docs/design/light-and-sight.md`'s first ruling asks the
+ * table for, keeping the casting's identity (owner, 2026-09-27).
+ *
+ * `declare_light` re-lit a thrown stone by laying a *table* patch, which no
+ * dispel found and no broken Concentration put out. This door moves the
+ * casting's own patches: SRD Light and Continual Flame go wherever their
+ * object goes and may be covered — "Covering the object with something opaque
+ * blocks the light" — and a Darkness or a Daylight cast at a declared object's
+ * space may be laid on that object, becoming an Emanation from it that then
+ * goes where it goes and can have a bowl put over it.
+ *
+ * **A table fact and no number**, on the surface `declare_light` sits on
+ * (roadmap §1 rule 2: a declared fact ships its tool). Which spells may do
+ * which is the engine's to say, off the definition, and it refuses the rest.
+ */
+const MOVE_CAST_LIGHT = tool({
+  name: 'move_cast_light',
+  description:
+    'Say where the thing a running spell’s light is on has gone, or that something opaque is now over it. For Light and Continual Flame the light is on an object: name the creature now carrying it (`onto`), the declared object it was set on (`onto`), or the point it was put down or thrown to (`at`), and say `covered: true` when a cloak or a bowl goes over it and `covered: false` when it comes off. For Darkness and Daylight cast at a point, `onto` a declared object standing in the space the spell was cast at lays the spell on that object, as the book’s cast-on-an-object form; after that it moves and covers like Light. The light keeps being the spell’s: a dispel or a broken Concentration still ends it, and a covered light lights nothing, dispels nothing and cannot be dispelled until it is uncovered. Give `onto` or `at`, not both.',
+  mutates: true,
+  input: z.object({
+    castingId: z.string().min(1).describe('The running spell whose light it is, from `look`.'),
+    onto: creatureId
+      .optional()
+      .describe('The creature now carrying the thing, or the declared object it now sits on.'),
+    at: pointSchema.optional().describe('Where the thing was put down or landed.'),
+    covered: z
+      .boolean()
+      .optional()
+      .describe('True when something opaque is put over it; false when that comes off.'),
+  }),
+  run: (context, args) => {
+    if (args.onto !== undefined && args.at !== undefined) {
+      return invalid('malformed_arguments', 'move_cast_light takes `onto` or `at`, not both', [
+        { path: 'at', message: 'give `onto` or `at`, not both' },
+      ]);
+    }
+    const to =
+      args.onto !== undefined
+        ? { creature: asCharacterId(args.onto) }
+        : args.at !== undefined
+          ? areaPointAt(point(args.at))
+          : undefined;
+    return settleEvents(
+      context,
+      moveCastLight(context.campaign.state(), context.campaign.content, args.castingId, {
+        ...(to === undefined ? {} : { to }),
+        ...(args.covered === undefined ? {} : { covered: args.covered }),
+        ...identity(context),
+      }),
+      { moved: 'cast light', castingId: args.castingId },
+    );
+  },
 });
 
 /**
@@ -6148,6 +6206,7 @@ export const TOOLS: readonly ToolDefinition[] = [
   DECLARE_DIFFICULT_TERRAIN,
   DECLARE_FALLING,
   DECLARE_LIGHT,
+  MOVE_CAST_LIGHT,
   DECLARE_OBSCUREMENT,
   DECLARE_SIDE,
   DECLARE_SIGHT,

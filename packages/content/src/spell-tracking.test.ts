@@ -2322,6 +2322,12 @@ describe('every spell this batch added is cast for real', () => {
     // per-creature choice and suppression. Each casts and hands nothing over.
     'bestow-curse',
     'calm-emotions',
+    // And the one whose object W9-S1 built and left nothing behind: SRD
+    // Daylight lays its Sphere at a point, and the form cast on an object — an
+    // Emanation carried with it, and a bowl or a helm over it — is
+    // `moveCastLight`'s. (Darkness's twin of it still owes a line about a glow
+    // on its own deadline, which the ordinary sweep below reads.)
+    'daylight',
     'enthrall',
     'expeditious-retreat',
     // The fifth, and it prints nothing the engine leaves alone: the die that

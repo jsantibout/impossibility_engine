@@ -116,6 +116,26 @@ const CONJURED_ITEMS: readonly CatalogueItem[] = [
     contents: [],
     hands: 1,
   },
+  {
+    /**
+     * SRD Produce Flame: "A flickering flame appears in your hand and remains
+     * there for the duration."
+     *
+     * Flame Blade's reading one level down: the hurl is the spell's own Magic
+     * action, so what the catalogue holds is the thing that takes a hand — a
+     * hand a Two-Handed swing and a Somatic component both read. The light
+     * the flame sheds is the spell's, shining while the flame is held.
+     */
+    id: 'produce-flame',
+    name: 'Produce Flame',
+    kind: 'gear',
+    weightLb: 0,
+    costCp: null,
+    armor: null,
+    weapon: null,
+    contents: [],
+    hands: 1,
+  },
 ];
 
 /**

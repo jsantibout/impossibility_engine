@@ -483,17 +483,21 @@ describe('Darkness is cast rather than refused', () => {
 
   /**
    * **It resolves no *effect* and it is no longer silent.** The clause this
-   * file used to assert — that four or more sentences were handed over — is
-   * down to one, and the sentence that replaced them is the Sphere: an area
-   * with a light level over it, which is a thing `lightAt` reads at every
-   * question about who can see whom.
+   * file used to assert — that four or more sentences were handed over — went
+   * to one, and the sentence that replaced them is the Sphere: an area with a
+   * light level over it, which is a thing `lightAt` reads at every question
+   * about who can see whom. The one left was the object, and W9-S1 built it:
+   * `lightOnObject` is the door that lays the casting on a declared object and
+   * covers it. What W9-S1 left in its place is a sentence of the dispel — a
+   * glow on its own deadline names no casting to end.
    */
-  it('darkens its own Sphere, and hands over only the object', () => {
+  it('darkens its own Sphere, and owes only the glow its dispel cannot reach', () => {
     expect(definition?.effects).toEqual([]);
     expect(definition?.area).toEqual({ kind: 'sphere', radius: 15, origin: 'point' });
     expect(definition?.areaLight).toEqual({ level: 'darkness' });
+    expect(definition?.lightOnObject).toBe('or-a-point');
     expect(definition?.unmodelled ?? []).toHaveLength(1);
-    expect((definition?.unmodelled ?? [])[0]).toContain('object');
+    expect((definition?.unmodelled ?? [])[0]).toContain('Starry Wisp');
   });
 });
 

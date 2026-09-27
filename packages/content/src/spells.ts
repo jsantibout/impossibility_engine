@@ -10,7 +10,7 @@
  * the conformance tests check against.
  */
 import { CREATURE_TYPES } from '@ie/engine';
-import type { ModifierRider, SpellDefinition, SpellEffect } from '@ie/engine';
+import type { LightRider, ModifierRider, SpellDefinition, SpellEffect } from '@ie/engine';
 
 /**
  * SRD Fire Bolt:
@@ -793,6 +793,12 @@ function attackCantrip(args: {
    * second attack for the same swing.
    */
   readonly modifiers?: readonly ModifierRider[];
+  /**
+   * Light the hit makes its target shed — SRD Starry Wisp's "it emits Dim
+   * Light in a 10-foot radius". A rider on the same hit, for the reason the
+   * modifiers above are one: a second effect would roll a second attack.
+   */
+  readonly light?: LightRider;
   readonly unmodelled?: readonly string[];
 }): SpellDefinition {
   return {
@@ -812,6 +818,7 @@ function attackCantrip(args: {
         damage: { dice: args.dice, cantripUpgradesAt: [5, 11, 17] },
         damageType: args.damageType,
         ...(args.modifiers === undefined ? {} : { modifiers: args.modifiers }),
+        ...(args.light === undefined ? {} : { light: args.light }),
       },
     ],
     ...(args.unmodelled === undefined ? {} : { unmodelled: args.unmodelled }),
@@ -942,16 +949,16 @@ export const CHILL_TOUCH = attackCantrip({
  * > _Cantrip Upgrade._ "The damage increases by 1d8 when you reach levels 5
  * > (2d8), 11 (3d8), and 17 (4d8)."
  *
- * **Two consequences of one hit, and only one of them is a condition** — which
- * is neither half of what this sentence says. The first half is light the
- * target sheds, and the glow a settled outcome hangs (Faerie Fire's) lasts as
- * long as the casting, which an Instantaneous cantrip does not — so it is a
- * debt on the light shape rather than a line this definition could write
- * (W8-S26); the second is the
- * *loss* of a benefit it would otherwise have, which is the `benefit` rider:
- * the creature stays Invisible and stops getting anything for it, and the
- * deadline is the rider's own because a cantrip's casting is over the instant
- * it resolves. The same argument Chill Touch's refusal makes one spell up.
+ * **Two consequences of one hit, and neither of them is a condition.** The
+ * first half is light the target sheds — the `light` rider Faerie Fire's glow
+ * is written with, carrying a deadline of its own (`LightRider.lasts`, W9-S1),
+ * because the glow a settled outcome hangs otherwise lasts as long as the
+ * casting and an Instantaneous cantrip's casting is over the instant it
+ * resolves. The second is the *loss* of a benefit it would otherwise have,
+ * which is the `benefit` rider: the creature stays Invisible and stops getting
+ * anything for it, and the deadline is the rider's own for the same reason.
+ * The two riders name one deadline, so they share one timer and go together.
+ * The same argument Chill Touch's refusal makes one spell up.
  */
 export const STARRY_WISP = attackCantrip({
   id: 'starry-wisp',
@@ -963,9 +970,9 @@ export const STARRY_WISP = attackCantrip({
   // "until the end of **your** next turn" — the caster's, which is the anchor
   // `end-of-casters-next-turn` names and a full round from the target's own.
   modifiers: [{ kind: 'benefit', denies: 'invisible', lasts: 'end-of-casters-next-turn' }],
-  unmodelled: [
-    'until the end of your next turn the target emits Dim Light in a 10-foot radius',
-  ],
+  // "until the end of your next turn, it emits Dim Light in a 10-foot radius":
+  // the glow, on the same hit and the same deadline.
+  light: { level: 'dim', radius: 10, lasts: 'end-of-casters-next-turn' },
 });
 
 /**
@@ -1876,6 +1883,9 @@ export const MOONBEAM: SpellDefinition = {
   range: { kind: 'ranged', feet: 120 },
   targets: { count: 0 },
   area: { kind: 'cylinder', radius: 5, height: 40, origin: 'point' },
+  // "Until the spell ends, Dim Light fills the Cylinder" — laid over the
+  // Cylinder at the casting and again wherever the Magic action moves it.
+  areaLight: { level: 'dim' },
   effects: [
     {
       kind: 'save-damage',
@@ -1916,7 +1926,6 @@ export const MOONBEAM: SpellDefinition = {
     effects: [],
   },
   unmodelled: [
-    'the Dim Light that fills the Cylinder for the duration is not laid: an area that sheds light is a kind the engine has — Flaming Sphere writes it and its activation lays it again where it rolls — and this definition does not write one',
     'a shape-shifted creature reverting to its true form on a failed save, and being unable to shape-shift until it leaves the Cylinder, are not applied: a creature holds a shape now, and no outcome ends one and no area forbids taking one',
   ],
 };
@@ -3711,7 +3720,16 @@ export const MAGE_HAND: SpellDefinition = {
  * > **Duration:** 1 hour.
  * > "You touch one Large or smaller object that isn't being worn or carried by
  * > someone else. Until the spell ends, the object sheds Bright Light in a
- * > 20-foot radius and Dim Light for an additional 20 feet."
+ * > 20-foot radius and Dim Light for an additional 20 feet. The light can be
+ * > colored as you like."
+ * > "Covering the object with something opaque blocks the light."
+ *
+ * **The light is on a thing, and goes where the thing goes** (W9-S1). The
+ * casting names the creature carrying the object, or a declared object it is
+ * set on, and the patches are laid on that record; `lightOnObject: 'always'`
+ * is what lets `moveCastLight` hand the object to somebody else, set it down
+ * at a point, or put something opaque over it — re-laying the casting's own
+ * patches, so a dispel still finds them and Darkness's rules still apply.
  */
 export const LIGHT: SpellDefinition = {
   id: 'light',
@@ -3729,10 +3747,11 @@ export const LIGHT: SpellDefinition = {
   effects: [{ kind: 'light', level: 'bright', radius: 20, dimBeyond: 20 }],
   durationSeconds: 3600,
   replacesPriorCasting: true,
+  lightOnObject: 'always',
   unmodelled: [
-    'the spell targets an object, and objects are not modelled: the casting names the creature carrying it, and which object that is, and whether it is worn or carried by someone else, are the DM’s. An object nobody carries is a point the table lights with `declare_light`',
-    'covering the object with something opaque is the DM’s, because what is over an object is a fact about an object',
+    'whether the object is worn or carried by someone else is not checked: the casting names any creature as the bearer',
   ],
+  dmDecides: ['The light can be colored as you like.'],
 };
 
 /**
@@ -4422,7 +4441,13 @@ export const ARCANE_LOCK: SpellDefinition = {
  * > _Level 2 Evocation (Cleric, Druid, Wizard)._ **Casting Time:** Action.
  * > **Range:** Touch. **Duration:** Until dispelled.
  * > "A flame springs from an object that you touch. The effect casts Bright
- * > Light in a 20-foot radius and Dim Light for an additional 20 feet."
+ * > Light in a 20-foot radius and Dim Light for an additional 20 feet. It
+ * > looks like a regular flame, but it creates no heat and consumes no fuel.
+ * > The flame can be covered or hidden but not smothered or quenched."
+ *
+ * Light's shape (W9-S1): the flame is on a thing carried by the creature the
+ * casting names, or set on a declared object, and `moveCastLight` moves it
+ * with the thing or covers it. What it looks like is the table's.
  */
 export const CONTINUAL_FLAME: SpellDefinition = {
   id: 'continual-flame',
@@ -4437,8 +4462,10 @@ export const CONTINUAL_FLAME: SpellDefinition = {
   targets: { count: 1, self: true },
   effects: [{ kind: 'light', level: 'bright', radius: 20, dimBeyond: 20 }],
   untilDispelled: true,
-  unmodelled: [
-    'the flame springs from an object, and objects are not modelled: the casting names the creature carrying it, and which object was touched is the DM’s. An object set down for good is a point the table lights with `declare_light`',
+  lightOnObject: 'always',
+  dmDecides: [
+    'It looks like a regular flame, but it creates no heat and consumes no fuel.',
+    'The flame can be covered or hidden but not smothered or quenched.',
   ],
 };
 
@@ -5987,9 +6014,13 @@ export const VAMPIRIC_TOUCH: SpellDefinition = {
  * > spell slot level above 2."
  *
  * The second member of the later-turn family, and the one that proves the
- * shape is a shape: **the casting itself does nothing at all.** Evoking the
- * blade is not an attack, so the spell's own effect list is empty and every
- * blow it ever strikes comes through the activation.
+ * shape is a shape: **the casting itself strikes nothing.** Evoking the blade
+ * is not an attack, so every blow it ever strikes comes through the
+ * activation; what the casting's own list holds is the light, "The flaming
+ * blade sheds Bright Light in a 10-foot radius and Dim Light for an
+ * additional 10 feet", laid on the caster — who names themselves, as Blur's
+ * caster does — and shining only while the blade is in hand
+ * (`LightPatch.whileHolding`, W9-S1).
  *
  * The blade is in the caster's hand, which is why this belongs to the family
  * that works today rather than to the one that does not: nothing has a
@@ -6003,8 +6034,10 @@ export const FLAME_BLADE: SpellDefinition = {
   castingTime: 'bonus-action',
   concentration: true,
   range: { kind: 'self' },
-  targets: { count: 0 },
-  effects: [],
+  // The caster and nobody else: the blade is in the caster's hand, and so is
+  // the light it sheds.
+  targets: { count: 1, self: true, casterOnly: true },
+  effects: [{ kind: 'light', level: 'bright', radius: 10, dimBeyond: 10 }],
   durationSeconds: 600,
   // SRD: "You evoke a fiery blade in your **free hand** ... If you let go of
   // the blade, it disappears, but you can evoke the blade again as a Bonus
@@ -6027,7 +6060,7 @@ export const FLAME_BLADE: SpellDefinition = {
     ],
   },
   unmodelled: [
-    'the Bright Light in a 10-foot radius and the Dim Light beyond it are not shed: a `light` its wielder carries is a kind the engine has, and this definition does not write one',
+    'casting it again while the blade and something else fill both hands is refused for want of a free hand: the new casting ends the old one and frees its hand, and the free hand is counted before the old casting ends',
   ],
 };
 
@@ -6048,8 +6081,12 @@ export const FLAME_BLADE: SpellDefinition = {
  * > (2d8), 11 (3d8), and 17 (4d8)."
  *
  * Flame Blade's shape at cantrip level, and the third member of the family:
- * the casting itself resolves nothing \u2014 conjuring a flame is not an attack \u2014
- * and every bolt the spell ever throws comes through the activation.
+ * the casting itself strikes nothing \u2014 conjuring a flame is not an attack \u2014
+ * and every bolt the spell ever throws comes through the activation. What the
+ * casting does hold is the flame and its light (W9-S1): the flame is a
+ * conjured thing in the caster's hand, as Flame Blade's blade is, and the
+ * Bright and Dim Light are a `light` effect on the caster, who names
+ * themselves, shining "While there" \u2014 while the flame is in the hand.
  *
  * **The 60 feet are the activation's, not the spell's.** SRD prints
  * **Range: Self**, because what the casting reaches is the caster's own hand;
@@ -6074,9 +6111,16 @@ export const PRODUCE_FLAME: SpellDefinition = {
   concentration: false,
   // "Range: Self" \u2014 the flame appears in the caster's hand.
   range: { kind: 'self' },
-  targets: { count: 0 },
-  // Conjuring the flame is not an attack; the spell's whole content is below.
-  effects: [],
+  // The caster and nobody else, whose hand the flame is in.
+  targets: { count: 1, self: true, casterOnly: true },
+  // "it sheds Bright Light in a 20-foot radius and Dim Light for an
+  // additional 20 feet" \u2014 while it is in the hand; conjuring it is not an
+  // attack, and the bolts are below.
+  effects: [{ kind: 'light', level: 'bright', radius: 20, dimBeyond: 20 }],
+  // "A flickering flame appears in your hand and remains there for the
+  // duration": a thing in a hand, which a Two-Handed swing and the free hand
+  // a Somatic component wants both read. The book prints no evoking it again.
+  conjures: { item: 'produce-flame', count: 1, hands: 1 },
   // "Duration: 10 minutes."
   durationSeconds: 600,
   // "The spell ends if you cast it again."
@@ -6099,7 +6143,7 @@ export const PRODUCE_FLAME: SpellDefinition = {
     ],
   },
   unmodelled: [
-    'the Bright Light in a 20-foot radius and the Dim Light beyond it are not shed: a `light` its caster carries is a kind the engine has, and this definition does not write one',
+    'casting it again while the flame and something else fill both hands is refused for want of a free hand: the recast ends the old flame and frees its hand, and the free hand is counted before the old casting ends',
   ],
 };
 
@@ -8338,6 +8382,13 @@ export const DANCING_LIGHTS: SpellDefinition = {
  * whose casting is of level 3 or lower where the two Spheres overlap, which
  * is this spell's printed threshold and the other half of the pair Darkness
  * prints.
+ *
+ * **The object is built** (W9-S1): `lightOnObject: 'or-a-point'` lets
+ * `moveCastLight` lay a casting made at a declared object's space on that
+ * object, where the Sphere becomes a 60-foot Emanation — and the Dim Light
+ * beyond it an Emanation 60 feet wider, read as the same sentence about the
+ * other form — which then goes where the object goes, and which a bowl or a
+ * helm covers.
  */
 export const DAYLIGHT: SpellDefinition = {
   id: 'daylight',
@@ -8350,11 +8401,9 @@ export const DAYLIGHT: SpellDefinition = {
   targets: { count: 0 },
   area: { kind: 'sphere', radius: 60, origin: 'point' },
   areaLight: { level: 'bright', dimBeyond: 60, sunlight: true },
+  lightOnObject: 'or-a-point',
   effects: [],
   durationSeconds: 3600,
-  unmodelled: [
-    'the object the spell may be cast on instead, the 60-foot Emanation it carries, and covering it with a bowl or a helm are the DM’s; the engine holds no objects for an Emanation to originate from',
-  ],
 };
 
 /**
@@ -8390,9 +8439,12 @@ export const DAYLIGHT: SpellDefinition = {
  * `lightDispelledBy` ends a Bright or Dim patch whose casting is of level 2
  * or lower, which is this spell's printed threshold.
  *
- * What is left is the object: an Emanation originating from a thing that is
- * not a creature, and a bowl put over it. The engine holds no objects, so
- * neither half has anywhere to sit.
+ * **And the object is built** (W9-S1). `lightOnObject: 'or-a-point'` lets
+ * `moveCastLight` lay a casting made at a declared object's space on that
+ * object — "you cast the spell on an object that isn't being worn or
+ * carried" — where the Sphere becomes the 15-foot Emanation originating from
+ * it, carried wherever the object goes, and a bowl or a helm put over it
+ * leaves the room as it would be without it.
  *
  * Sunburst's "This spell dispels Darkness in its area" is still the table's,
  * and the reason has moved a second time: it used to be that no Darkness
@@ -8411,10 +8463,11 @@ export const DARKNESS: SpellDefinition = {
   targets: { count: 0 },
   area: { kind: 'sphere', radius: 15, origin: 'point' },
   areaLight: { level: 'darkness' },
+  lightOnObject: 'or-a-point',
   effects: [],
   durationSeconds: 600,
   unmodelled: [
-    'the object the spell may be cast on instead, the 15-foot Emanation originating from it, and covering it with a bowl or a helm are the DM’s — an Emanation whose origin is an object is not a template the format can state, and the engine holds no objects for one to originate from',
+    'an overlapping glow on a deadline of its own — SRD Starry Wisp’s — is not dispelled: it names no running casting for the dispel to end, so for as long as it lasts it lifts the Darkness where the two overlap',
   ],
 };
 
@@ -8958,9 +9011,13 @@ export const COMMAND: SpellDefinition = {
  * is rolled once, at the cast, exactly as Fireball's is — so the Concentration
  * holds the grant and the Cube is not a place anybody can walk into later.
  *
- * **The objects are still the table's**, and so is the Advantage the outline
- * buys: that sentence is gated on the attacker's sight, which is a pairwise
- * declaration between two creatures rather than a state on the outlined one.
+ * **A declared object is outlined by the engine** (W9-S1, which tested it
+ * rather than assumed it): `declare_object` puts a record with no ability
+ * scores on the lattice, the Cube catches it as it catches a creature, its
+ * Dexterity save fails because an object "fails all saving throws", and the
+ * glow and the Advantage land on it as on anybody who failed —
+ * `faerie-fire-object.test.ts`. An object nobody has declared is the table's
+ * to declare before it matters, which is what the handed-over sentence says.
  */
 export const FAERIE_FIRE: SpellDefinition = {
   id: 'faerie-fire',
@@ -9001,8 +9058,8 @@ export const FAERIE_FIRE: SpellDefinition = {
     },
   ],
   durationSeconds: 60,
-  unmodelled: [
-    'the objects in the Cube are not outlined, and neither is the Dim Light they would shed: objects are not modelled, so which of them the light picks out is the DM’s',
+  dmDecides: [
+    'Objects in a 20-foot Cube within range are outlined in blue, green, or violet light (your choice).',
   ],
 };
 

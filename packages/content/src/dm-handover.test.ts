@@ -349,12 +349,19 @@ const aimedAt = (definition: (typeof SPELL_DEFINITIONS)[number]) => {
     // sleeper's own square rather than five feet east of the shrine, and the Cube
     // covers the creature this casting is aimed at. The anchor space is always in
     // the Cube, so no direction can put the target outside it.
+    // **And a Cube the caster points starts at the shrine itself** (W9-S1):
+    // SRD Faerie Fire's Cube leaves its point of origin out, so one anchored
+    // on the Raven's own square and pointed east would catch nobody; from the
+    // shrine it reaches the Raven five feet along, which is the one creature
+    // this sweep has standing east.
     ...(definition.area?.origin === 'point'
       ? {
           at:
             definition.targets.chosenFromTheArea === true
               ? { x: 50, y: 55, z: 0 }
-              : { x: 55, y: 50, z: 0 },
+              : definition.area.kind === 'cube'
+                ? { x: 50, y: 50, z: 0 }
+                : { x: 55, y: 50, z: 0 },
         }
       : {}),
     // **And a casting that keeps a place of its own takes one** — W8-S26
@@ -509,6 +516,10 @@ describe('the catalogue hands over exactly the text it means to', () => {
       // narration; the ten feet, the thirty, the five and the 3d10 are not.
       'conjure-animals',
       'contact-other-plane',
+      // SRD Continual Flame's look — "It looks like a regular flame, but it
+      // creates no heat and consumes no fuel" — once W9-S1 built the object
+      // it is on and the cover over it.
+      'continual-flame',
       'control-weather',
       'create-food-and-water',
       'create-or-destroy-water',
@@ -531,6 +542,10 @@ describe('the catalogue hands over exactly the text it means to', () => {
       // thrown weapon — fiction the engine holds nothing of, beside four
       // clauses it executes whole.
       'enlarge-reduce',
+      // SRD Faerie Fire's objects: a declared object is outlined by the engine
+      // (W9-S1), and which undeclared ones in the Cube the light picks out is
+      // the table's to say — by declaring them before they matter.
+      'faerie-fire',
       // SRD Fear's compelled Dash — 'moves away from you by the safest route
       // ... unless there is nowhere to move' — under the ruling that a
       // compulsion is adjudicated and never performed: the Action is narrowed
@@ -566,6 +581,8 @@ describe('the catalogue hands over exactly the text it means to', () => {
       'knock',
       'legend-lore',
       'levitate',
+      // SRD Light's colour, once W9-S1 built the object and the cover.
+      'light',
       'locate-animals-or-plants',
       'locate-object',
       'mage-hand',

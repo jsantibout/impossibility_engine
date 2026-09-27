@@ -652,6 +652,13 @@ export function resolveConditionImmunityEffect(
  * leaves `state.ongoing`. A magical darkness the bright patch lands over is
  * put out where the book says it is, by the same `lightDispelledBy` a
  * Daylight uses.
+ *
+ * **And a light a conjured thing sheds goes with the thing.** SRD Flame Blade:
+ * "If you let go of the blade, it disappears" — and "The flaming blade sheds
+ * Bright Light". Where the definition `conjures` an item, the patches carry
+ * its id as `whileHolding`, and `lightAt` reads them only while the bearer
+ * holds that casting's line: nothing is written for the letting go or the
+ * evoking again, because the inventory already says both.
  */
 export function resolveLightEffect(
   ctx: EffectContext,
@@ -665,6 +672,9 @@ export function resolveLightEffect(
     source,
     castingId: ctx.origin.kind === 'casting' ? ctx.origin.castingId : null,
     spellLevel: ctx.origin.kind === 'casting' ? ctx.origin.definition.level : ctx.castLevel,
+    ...(ctx.origin.kind === 'casting' && ctx.origin.definition.conjures !== undefined
+      ? { whileHolding: ctx.origin.definition.conjures.item }
+      : {}),
   });
 
   events.push(...shed.events);
@@ -706,9 +716,13 @@ export function lightShedOn(
     readonly castingId: string | null;
     /** The level the book's mutual dispel compares. */
     readonly spellLevel: number;
+    /** The conjured thing the light shines from while held — see `LightPatch.whileHolding`. */
+    readonly whileHolding?: string;
+    /** The timer key the glow lapses with — see `LatticePatch.lapsesWith`. */
+    readonly lapsesWith?: string;
   },
 ): { readonly events: readonly GameEvent[]; readonly unverified: readonly string[] } {
-  const { name, source, castingId, spellLevel } = by;
+  const { name, source, castingId, spellLevel, whileHolding, lapsesWith: timer } = by;
 
   // A patch lies on the lattice and there is none: the casting runs and is on
   // its bearer, and the light is the table's until a scene exists — the same
@@ -726,7 +740,15 @@ export function lightShedOn(
   // casting **id** — the key `state.ongoing` holds — and not to the labelled
   // source the grants above carry. A light an item confers (none does today)
   // has no record to lapse with and is left standing, as a declared patch is.
-  const lapsesWith = castingId === null ? {} : { source: castingId };
+  //
+  // And the two narrowings a patch may carry beside it: the hand a conjured
+  // light shines from, and the timer a glow with its own deadline goes out
+  // with. Both are pinned, so the fold reads them without a catalogue.
+  const pinned = {
+    ...(castingId === null ? {} : { source: castingId }),
+    ...(whileHolding === undefined ? {} : { whileHolding }),
+    ...(timer === undefined ? {} : { lapsesWith: timer }),
+  };
   const sphere = (radius: number): TerrainRegion => ({
     origin: { creature: target },
     shape: { kind: 'sphere', radius },
@@ -739,7 +761,7 @@ export function lightShedOn(
       region: sphere(light.radius),
       level: light.level,
       magical: { spellLevel },
-      ...lapsesWith,
+      ...pinned,
     },
   ];
   for (const dispelled of lightDispelledBy(state, sphere(light.radius), light.level, spellLevel)) {
@@ -752,7 +774,7 @@ export function lightShedOn(
       region: sphere(light.radius + light.dimBeyond),
       level: 'dim',
       magical: { spellLevel },
-      ...lapsesWith,
+      ...pinned,
     });
   }
 

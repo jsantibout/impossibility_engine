@@ -14,7 +14,7 @@ import { createRng, type Rng } from './dice.js';
 import { createRollIssuer } from './rolls.js';
 import { fold, type GameEvent, type GameState } from './events.js';
 import { declaredCasting } from './spellcasting.js';
-import type { Point } from './positioning.js';
+import { lightAt, type Point } from './positioning.js';
 import { areaStampKey, type AreaMoment } from './spells.js';
 import { commandOutcome } from './idempotency.js';
 import {
@@ -1389,6 +1389,27 @@ describe('replay', () => {
 // — cleanup ——————————————————————————————————————————————————————————————————
 
 describe('a casting that ends takes its moved area and its debts with it', () => {
+  /**
+   * The state with the lattice's lapsed light taken out of it.
+   *
+   * SRD Moonbeam's "Dim Light fills the Cylinder" is a patch on the lattice
+   * (W9-S1), and a patch a casting laid **lapses at the read rather than
+   * being swept** — `LatticePatch.source`: "derived at the moment the question
+   * is asked rather than swept up by a pass of its own", which is how every
+   * Darkness, Web and Fog Cloud has always ended. So the record keeps the
+   * patch and `lightAt` stops reading it the moment the casting is gone; the
+   * two tests below check both halves rather than reading a lapsed patch as a
+   * survivor.
+   */
+  const withoutLapsedLight = (state: GameState, beam: string) => {
+    const scene = state.scene;
+    if (scene === null) return state;
+    const light = Object.fromEntries(
+      Object.entries(scene.light).filter(([, patch]) => patch.source !== beam),
+    );
+    return { ...state, scene: { ...scene, light } };
+  };
+
   const swept = () => {
     const { game, beam } = withBeam();
     game.beamTo(beam, BEAM_EAST, { via: SWEEP_EAST });
@@ -1412,7 +1433,12 @@ describe('a casting that ends takes its moved area and its debts with it', () =>
     // `castingsEnded` is the one deliberate mention a finished casting leaves:
     // the fold remembers it so a `spell-ongoing` naming it again is a corrupt
     // log rather than a resurrection. Everything else must be gone.
-    expect(JSON.stringify({ ...fold('seed', game.log), castingsEnded: [] })).not.toContain(beam);
+    const state = fold('seed', game.log);
+    expect(JSON.stringify({ ...withoutLapsedLight(state, beam), castingsEnded: [] })).not.toContain(
+      beam,
+    );
+    // And the light the beam laid is read by nobody.
+    expect(lightAt(state, BEAM_EAST).patches).toEqual([]);
   });
 
   /**
@@ -1424,7 +1450,11 @@ describe('a casting that ends takes its moved area and its debts with it', () =>
     const beam = game.conjure('moonbeam', SELF_BEAM);
     game.fight().to(DRUID);
     game.beamTo(beam, SELF_END, { via: SELF_SWEEP });
-    expect(JSON.stringify({ ...fold('seed', game.log), castingsEnded: [] })).not.toContain(beam);
+    const state = fold('seed', game.log);
+    expect(JSON.stringify({ ...withoutLapsedLight(state, beam), castingsEnded: [] })).not.toContain(
+      beam,
+    );
+    expect(lightAt(state, SELF_END).patches).toEqual([]);
   });
 });
 

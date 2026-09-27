@@ -232,3 +232,16 @@ Put to the owner as questions at G1 and answered yes to all five, as written.
    Darkvision.
 4. Sunlight is bright light with a flag.
 5. The mutual dispel is in P3-S's scope or deferred; recommended in scope.
+
+**Ruling 1, extended (owner, 2026-09-27; built by W9-S1).** The table's
+re-declaration of a light whose object moved keeps the casting's identity:
+`moveCastLight` (`move_cast_light`) re-lays the casting's own patches under
+their own names with a new origin — a bearer, a declared object or a point —
+keeping `magical`, `sunlight` and `source`, so a dispel and a broken
+Concentration still end it. A definition says which spells may
+(`lightOnObject`: `'always'` for Light and Continual Flame, `'or-a-point'` for
+Darkness and Daylight, whose point-cast Sphere becomes an Emanation from a
+declared object standing where it was cast). A patch may also be **covered**:
+a covered patch fills no area, so `lightAt` reads past it and it neither
+dispels nor is dispelled; uncovering re-pins it and the mutual dispel runs as
+on any pinning.
