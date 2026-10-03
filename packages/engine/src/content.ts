@@ -59,6 +59,7 @@ import type { ActionRule } from './combat.js';
 import { TURN_ANCHORS } from './time.js';
 import { oneShotProblem, rollSelectorProblems } from './roll-modifiers.js';
 import type { ObjectMaterial, ObjectSize } from './objects.js';
+import type { RangedLine } from './monster.js';
 import { CREATURE_TYPES, DM_DECIDES, hasOutcomeRiders } from './spell-definitions.js';
 import type { OutcomeRiders, SpellDefinition } from './spell-definitions.js';
 import {
@@ -192,6 +193,12 @@ export interface ContentInput {
    * number to extrapolate.
    */
   readonly objectSizes?: readonly ObjectSize[];
+  /**
+   * What each stat block's printed ranged line looses, where its name is no
+   * catalogue weapon's — see {@link RangedLine}. Read by name, the
+   * parenthetical left off, so a line printed on three blocks is decided once.
+   */
+  readonly rangedLines?: readonly RangedLine[];
 }
 
 export interface Content {
@@ -211,6 +218,8 @@ export interface Content {
   readonly objectMaterials: readonly ObjectMaterial[];
   /** See {@link ContentInput.objectSizes}. */
   readonly objectSizes: readonly ObjectSize[];
+  /** See {@link ContentInput.rangedLines}. */
+  readonly rangedLines: readonly RangedLine[];
 
   /** The executable definition, or null: the engine can look a spell up but only executes the ones it has been given. */
   readonly spell: (id: string) => SpellDefinition | null;
@@ -228,6 +237,8 @@ export interface Content {
   readonly objectMaterial: (id: string) => ObjectMaterial | null;
   /** The Object Hit Points row for a size, or null where the table prints none. */
   readonly objectSize: (size: string) => ObjectSize | null;
+  /** The projectile table's row for a printed line, by its name with any parenthetical left off, or null. */
+  readonly rangedLineNamed: (name: string) => RangedLine | null;
   /** By the name written on a character sheet, which is what a choice names. */
   readonly languageNamed: (name: string) => LanguageDefinition | null;
   readonly alignmentNamed: (name: string) => AlignmentDefinition | null;
@@ -4756,6 +4767,7 @@ export function checkContent(input: ContentInput): readonly ContentProblem[] {
   const monsters = input.monsters ?? [];
   const objectMaterials = input.objectMaterials ?? [];
   const objectSizes = input.objectSizes ?? [];
+  const rangedLines = input.rangedLines ?? [];
 
   for (const [what, rows] of [
     ['spells', spells],
@@ -4771,6 +4783,7 @@ export function checkContent(input: ContentInput): readonly ContentProblem[] {
     ['monsters', monsters],
     ['objectMaterials', objectMaterials],
     ['objectSizes', objectSizes],
+    ['rangedLines', rangedLines],
   ] as const) {
     for (const id of duplicates(rows.map((row) => row.id))) {
       problems.push({ field: `${what}[${id}]`, code: 'duplicate_id', reason: `${what} holds ${id} twice` });
@@ -4823,6 +4836,25 @@ export function checkContent(input: ContentInput): readonly ContentProblem[] {
         reason: `a hit point maximum is a whole number of at least 1, not ${value}`,
       });
     }
+  }
+
+  // The projectile table is read by the name a line prints, so two rows for
+  // one name are two answers to one question, and a name with a parenthetical
+  // on it is a row nobody's lookup reaches. (E-L2)
+  for (const name of duplicates(rangedLines.map((row) => lineName(row.name)))) {
+    problems.push({
+      field: `rangedLines[${name}]`,
+      code: 'duplicate_name',
+      reason: `rangedLines decides "${name}" twice, and a wall of wind can take only one answer`,
+    });
+  }
+  for (const row of rangedLines) {
+    if (row.name.trim().length > 0 && lineName(row.name) === row.name.trim().toLowerCase()) continue;
+    problems.push({
+      field: `rangedLines[${row.id}].name`,
+      code: 'bad_line_name',
+      reason: `"${row.name}" is not a heading as a block prints it with any "(… Only)" left off, so no line would be read against it`,
+    });
   }
 
   // Languages and alignments are matched by the name on the sheet, so two of
@@ -6191,6 +6223,8 @@ export function createContent(input: ContentInput): Result<Content> {
   const monsterMap = byId(monsters);
   const materialMap = byId(objectMaterials);
   const objectSizeMap = byId(objectSizes);
+  const rangedLines = input.rangedLines ?? [];
+  const rangedLineMap = new Map(rangedLines.map((row) => [lineName(row.name), row]));
   const languageMap = new Map(languages.map((language) => [language.name, language]));
   const alignmentMap = new Map(alignments.map((alignment) => [alignment.name, alignment]));
 
@@ -6208,6 +6242,7 @@ export function createContent(input: ContentInput): Result<Content> {
     monsters,
     objectMaterials,
     objectSizes,
+    rangedLines,
     spell: (id) => spellMap.get(id) ?? null,
     spellEntry: (id) => entryMap.get(id) ?? null,
     classById: (id) => classMap.get(id) ?? null,
@@ -6219,6 +6254,7 @@ export function createContent(input: ContentInput): Result<Content> {
     monsterById: (id) => monsterMap.get(id) ?? null,
     objectMaterial: (id) => materialMap.get(id) ?? null,
     objectSize: (size) => objectSizeMap.get(size) ?? null,
+    rangedLineNamed: (name) => rangedLineMap.get(lineName(name)) ?? null,
     languageNamed: (name) => languageMap.get(name) ?? null,
     alignmentNamed: (name) => alignmentMap.get(name) ?? null,
     expandPack: (id) => {
@@ -6263,6 +6299,7 @@ export function extendContent(base: Content, extra: ContentInput): Result<Conten
     monsters: [...base.monsters, ...(extra.monsters ?? [])],
     objectMaterials: [...base.objectMaterials, ...(extra.objectMaterials ?? [])],
     objectSizes: [...base.objectSizes, ...(extra.objectSizes ?? [])],
+    rangedLines: [...base.rangedLines, ...(extra.rangedLines ?? [])],
   });
 }
 
@@ -6854,6 +6891,28 @@ function parseObjectSize(value: unknown): Result<ObjectSize> {
   return ok(isStringList(examples) ? { ...size, examples } : size);
 }
 
+/** One row of the projectile table, from untyped JSON. (E-L2) */
+function parseRangedLine(value: unknown): Result<RangedLine> {
+  if (!isShape(value)) return err('bad_ranged_line', 'a ranged line is an object');
+  const s = new Shaped(`rangedLines[${isString(value['id']) ? value['id'] : '?'}]`);
+  const row: RangedLine = {
+    id: s.string(value, 'id'),
+    name: s.string(value, 'name'),
+    ordinaryProjectile: s.bool(value, 'ordinaryProjectile'),
+  };
+  const problems = s.problems();
+  return problems.length > 0 ? err('bad_ranged_line', problems.join('; ')) : ok(row);
+}
+
+/**
+ * A printed line's heading as the projectile table reads it: lower case, with
+ * a trailing "(Humanoid or Hybrid Form Only)" left off — the reading
+ * `projectileOfLine` gives a catalogue weapon's name. (E-L2)
+ */
+export function lineName(heading: string): string {
+  return heading.replace(/\s*\(.*\)\s*$/, '').trim().toLowerCase();
+}
+
 function parseAll<T>(
   value: unknown,
   what: string,
@@ -6904,6 +6963,7 @@ export function loadContent(value: unknown): Result<Content> {
       problems,
     ),
     objectSizes: parseAll(value['objectSizes'], 'objectSizes', parseObjectSize, problems),
+    rangedLines: parseAll(value['rangedLines'], 'rangedLines', parseRangedLine, problems),
   };
   if (problems.length > 0) return err('bad_content', problems.slice(0, 5).join('; '));
   return createContent(input);

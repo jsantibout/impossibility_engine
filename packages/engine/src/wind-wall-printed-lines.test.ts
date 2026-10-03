@@ -20,8 +20,12 @@ import { addCreature, resolveAttack, resolveSpell } from './commands.js';
  * looses. **A line named after a catalogue weapon looses that weapon** — a
  * Scout's Longbow is a longbow, an Ogre's Javelin a javelin — so it is read as
  * the weapon and deflected as the weapon is. A line named after nothing in the
- * catalogue — a Manticore's Tail Spike — is still the table's to say, and is
- * still reported.
+ * catalogue is read off the **projectile table** content holds (the owner's
+ * ruling of 2026-10-03: "a content table, decided once"): a Manticore's Tail
+ * Spike is an ordinary projectile and is deflected; a Barbed Devil's Hurl
+ * Flame is fire and a Stone Giant's Boulder is a boulder, and neither is
+ * touched or reported. A line the table leaves out is still the table's to
+ * say, and is still reported.
  */
 
 const id = (s: string) => asCharacterId(s);
@@ -30,6 +34,9 @@ const FIGHTER = id('fighter');
 const SCOUT = id('scout');
 const OGRE = id('ogre');
 const MANTICORE = id('manticore');
+const DEVIL = id('barbed-devil');
+const STONE_GIANT = id('stone-giant');
+const FROST_GIANT = id('frost-giant');
 
 const sheet = (): CharacterSheet => ({
   level: 9,
@@ -88,6 +95,9 @@ const field = (): GameState => {
     [SCOUT, 'scout', 190],
     [OGRE, 'ogre', 200],
     [MANTICORE, 'manticore', 210],
+    [DEVIL, 'barbed-devil', 180],
+    [STONE_GIANT, 'stone-giant', 150],
+    [FROST_GIANT, 'frost-giant', 225],
   ] as const) {
     log.push(...unwrap(addCreature(fold('wind', log), SRD_CONTENT, who, block), block).events);
     log.push(
@@ -126,8 +136,26 @@ describe('SRD Wind Wall and a stat block’s printed ranged line', () => {
     expect(shot.attack?.autoMissed).toContain('Wind Wall');
   });
 
-  it('reports a line named after nothing in the catalogue, and rolls it', () => {
+  it('deflects a line the projectile table calls ordinary: a Manticore’s Tail Spike', () => {
     const shot = shoot(field(), MANTICORE, 'Tail Spike');
+    expect(shot.attack?.hit).toBe(false);
+    expect(shot.attack?.autoMissed).toContain('Wind Wall');
+    expect(shot.unverified.some((line) => line.includes('Wind Wall'))).toBe(false);
+  });
+
+  it('lets fire and a giant’s boulder through, and reports neither', () => {
+    for (const [who, line] of [
+      [DEVIL, 'Hurl Flame'],
+      [STONE_GIANT, 'Boulder'],
+    ] as const) {
+      const shot = shoot(field(), who, line);
+      expect(shot.attack?.autoMissed ?? null, line).toBeNull();
+      expect(shot.unverified.some((said) => said.includes('Wind Wall')), line).toBe(false);
+    }
+  });
+
+  it('still reports a line the table leaves out, and rolls it', () => {
+    const shot = shoot(field(), FROST_GIANT, 'Great Bow');
     expect(shot.attack?.autoMissed ?? null).toBeNull();
     expect(shot.unverified.some((line) => line.includes('Wind Wall'))).toBe(true);
   });
