@@ -330,6 +330,8 @@ export interface EffectContext {
   readonly bonesAt?: readonly Placement[];
   /** The creature the caster chose to ride what it summons — see `CastSpellRequest.rider`. */
   readonly rider?: CharacterId;
+  /** The Hit Point Dice each creature spends of a rest's benefits — see `CastSpellRequest.hitDice`. */
+  readonly hitDice?: Readonly<Record<string, readonly string[]>>;
   /**
    * The weapon a `weapon-rider` effect was aimed at, by catalogue id.
    *

@@ -14288,9 +14288,14 @@ export const REGENERATE: SpellDefinition = {
  * > spell slot level above 2."
  *
  * **The first executed spell in the catalogue whose casting takes ten minutes.**
- * The healing is `heal` with an upcast, over five targets; what it leaves is the
- * Short Rest the same sentence confers, and the once-per-Long-Rest limit beside
- * it.
+ * The healing is `heal` with an upcast, over five targets. The Short Rest the
+ * same sentence confers is `rest-benefits` — the glossary's two benefits, the
+ * pools a Short Rest recovers and the Hit Point Dice each creature names at
+ * the casting, rolled with its own Constitution — and the creature has the
+ * benefits without having rested. "Remain within range for the spell's
+ * entire casting" is read during the ten minutes, by the fold, and a target
+ * that strayed is passed over; "until that creature finishes a Long Rest" is
+ * a mark a finished Long Rest takes away.
  */
 export const PRAYER_OF_HEALING: SpellDefinition = {
   id: 'prayer-of-healing',
@@ -14301,14 +14306,18 @@ export const PRAYER_OF_HEALING: SpellDefinition = {
   castingSeconds: 600,
   concentration: false,
   range: { kind: 'ranged', feet: 30 },
-  targets: { count: 5, self: true },
+  // "Up to five creatures of your choice who remain within range for the
+  // spell's entire casting" — a target farther than the thirty feet at any
+  // moment of the ten minutes is passed over at the settlement — and "A
+  // creature can't be affected by this spell again until that creature
+  // finishes a Long Rest", a mark a finished Long Rest takes away.
+  targets: { count: 5, self: true, remainInRange: true, onceUntilLongRest: true },
   effects: [
+    // "gain the benefits of a Short Rest": the pools a Short Rest recovers,
+    // and the Hit Point Dice each creature names at the casting (`hitDice`).
+    { kind: 'rest-benefits', rest: 'short' },
+    // "and also regain 2d8 Hit Points".
     { kind: 'heal', healing: { dice: '2d8', perSlotLevelAbove: '1d8' }, addSpellcastingModifier: false },
-  ],
-  unmodelled: [
-    'the benefits of a Short Rest are not conferred: a rest is a span the engine measures and its payout is the rest command’s, so no effect hands one over without the hour',
-    '"A creature can’t be affected by this spell again until that creature finishes a Long Rest" is not enforced: a deadline is a span of seconds or a moment in the turn order, and a rest is neither',
-    'that the five must "remain within range for the spell’s entire casting" is not checked — range is measured when the rite settles, and a creature that walked out of range during the ten minutes is not dropped from it',
   ],
 };
 

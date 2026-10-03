@@ -9,9 +9,11 @@
  */
 
 import { type CharacterId, ok, type Result } from '@ie/shared';
-import { applyEvent, type CreatureState, type GameState } from '../events.js';
+import { applyEvent, type CreatureState, type GameEvent, type GameState } from '../events.js';
+import { abilityModifier } from '../character.js';
+import { hitDiceRequested, hitDiceRolled } from '../rest.js';
 import { scaledDiceFor, scaledFlatFor } from '../spell-definitions.js';
-import { castingHealingBonus } from '../standing.js';
+import { castingHealingBonus, sheetAsItStands } from '../standing.js';
 import { healingRuleOf, maximisedHealing } from '../vitals.js';
 import { grantTemporaryHpTo, healCreature } from './creatures.js';
 import { rollSpellDice } from './rolls.js';
@@ -149,6 +151,74 @@ export function resolveHealEffect(
     healed: (current.creatures[target]?.vitals.hp ?? before) - before,
     affected: true,
   });
+  return ok(current);
+}
+
+/**
+ * The benefits of a Short Rest, given without the hour.
+ *
+ * > SRD Prayer of Healing: "gain the benefits of a Short Rest". SRD rules
+ * > glossary, Short Rest: "_Benefits of the Rest._ … **Spend Hit Point Dice.**
+ * > … **Special Feature.** Some features are recharged by a Short Rest."
+ *
+ * **The two benefits, each through the road a rest already takes.** The pools
+ * a Short Rest recovers are restored by the same `resources-restored` the rest
+ * command emits, so whatever a Short Rest gives back — a Second Wind, a Pact
+ * slot, a printed line's recharge — this gives back, and nothing is listed here
+ * that a rest would have to remember too. The Hit Point Dice are the
+ * creature's own, named at the casting (`EffectContext.hitDice`) and rolled by
+ * `hitDiceRolled`, the one place a spent Hit Die is thrown.
+ *
+ * **What a finished rest gives and this does not** is everything a sentence
+ * hangs on *finishing* one: no rest is recorded, no lowered score comes back,
+ * no choice is re-asked — the creature has the benefits, and has not rested.
+ *
+ * A die the creature had at the declaration and has spent since — the rite is
+ * ten minutes long — is said rather than refused: the slot is spent and the
+ * settlement cannot ask again, so what can still be spent is spent and what
+ * cannot is reported.
+ */
+export function resolveRestBenefitsEffect(
+  ctx: EffectContext,
+  target: CharacterId,
+  world: GameState,
+): Result<GameState> {
+  const { name, events, outcomes, unverified } = ctx;
+  let current = world;
+
+  const restored: GameEvent = { type: 'resources-restored', id: target, recovers: 'short-rest' };
+  events.push(restored);
+  current = applyEvent(current, restored);
+
+  const requested = ctx.hitDice?.[target] ?? [];
+  const creature = current.creatures[target];
+  if (requested.length > 0 && creature !== undefined) {
+    const asked = hitDiceRequested(creature, target, requested);
+    if (!asked.ok) {
+      unverified.push(`${name}: ${target}'s Hit Point Dice were not spent — ${asked.reason}`);
+    } else {
+      const sheet = sheetAsItStands(current, target) ?? creature.sheet;
+      const thrown = hitDiceRolled(
+        ctx.supply.issuer,
+        ctx.supply.rng,
+        target,
+        abilityModifier(sheet.abilities.con),
+        asked.value,
+      );
+      if (!thrown.ok) return thrown;
+      events.push(...thrown.value.events);
+      current = thrown.value.events.reduce(applyEvent, current);
+      const regained = thrown.value.spent.reduce((total, die) => total + die.regained, 0);
+      const before = current.creatures[target]?.vitals.hp ?? 0;
+      const healed = healCreature(current, target, regained, {}, ctx.source);
+      if (!healed.ok) return healed;
+      events.push(...healed.value);
+      current = healed.value.reduce(applyEvent, current);
+      outcomes.push({ target, healed: (current.creatures[target]?.vitals.hp ?? before) - before, affected: true });
+      return ok(current);
+    }
+  }
+  outcomes.push({ target, affected: true });
   return ok(current);
 }
 

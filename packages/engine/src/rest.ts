@@ -171,6 +171,81 @@ export interface HitDieSpent {
   readonly regained: number;
 }
 
+/**
+ * Which Hit Point Dice a request names, each with its size — or the refusal
+ * the request earns. Every die is checked before any is rolled: a request for
+ * more dice than are left costs neither a die nor a turn of the generator.
+ *
+ * Written once and asked by both roads a creature spends its dice down — a
+ * rest it finished (`endRest`) and a rest's benefits a spell hands it (SRD
+ * Prayer of Healing's `rest-benefits`).
+ */
+export function hitDiceRequested(
+  creature: CreatureState,
+  id: CharacterId,
+  requested: readonly string[],
+): Result<readonly { readonly key: string; readonly sides: number }[]> {
+  const dice: { readonly key: string; readonly sides: number }[] = [];
+  const needed = new Map<string, number>();
+  for (const key of requested) {
+    const sides = hitDieSides(key);
+    if (sides === null) return err('bad_hit_die', `${key} is not a Hit Die pool`);
+    dice.push({ key, sides });
+    needed.set(key, (needed.get(key) ?? 0) + 1);
+  }
+  for (const [key, count] of needed) {
+    const left = remaining(creature.resources, key);
+    if (left < count) {
+      return err('not_enough_hit_dice', `${id} has ${left} ${key} left, and asked to spend ${count}`);
+    }
+  }
+  return ok(dice);
+}
+
+/**
+ * Hit Point Dice spent: one `resource-spent` and one `roll-recorded` per die,
+ * and what they regained between them.
+ *
+ * SRD: "For each Hit Point Die you spend in this way, roll the die and add your
+ * Constitution modifier to it. You regain Hit Points equal to the total
+ * (minimum of 1 Hit Point)." **No `rolls-issued` and no `healed`**: the caller
+ * owns the generator's accounting and the healing event, so a rest and a
+ * spell each write those once, in their own batch.
+ */
+export function hitDiceRolled(
+  issuer: RollIssuer,
+  rng: Rng,
+  id: CharacterId,
+  constitution: number,
+  dice: readonly { readonly key: string; readonly sides: number }[],
+): Result<{ readonly events: readonly GameEvent[]; readonly spent: readonly HitDieSpent[] }> {
+  const events: GameEvent[] = [];
+  const spent: HitDieSpent[] = [];
+  for (const { key, sides } of dice) {
+    const rolled = rollRecorded(issuer, rng, `1d${sides}`);
+    if (!rolled.ok) return rolled;
+
+    // SRD: "You regain Hit Points equal to the total (minimum of 1)."
+    const natural = rolled.value.total;
+    const gain = Math.max(1, natural + constitution);
+    spent.push({ key, sides, natural, regained: gain });
+
+    events.push(
+      { type: 'resource-spent', id, key, amount: 1 },
+      {
+        type: 'roll-recorded',
+        who: id,
+        label: `Hit Die (d${sides})`,
+        natural,
+        total: natural + constitution,
+        contributions: [{ source: 'Constitution', amount: constitution }],
+        outcome: `${gain} hit points`,
+      },
+    );
+  }
+  return ok({ events, spent });
+}
+
 /** One prepared spell studied out of the list and one studied in. */
 export interface StudiedSpell {
   /** The prepared spell being put down. */
@@ -548,19 +623,9 @@ export function endRest(
 
       // Validate every die before rolling any: a request for more dice than are
       // left must cost neither a die nor a turn of the generator.
-      const needed = new Map<string, number>();
-      for (const key of requested) {
-        const sides = hitDieSides(key);
-        if (sides === null) return err('bad_hit_die', `${key} is not a Hit Die pool`);
-        dice.push({ key, sides });
-        needed.set(key, (needed.get(key) ?? 0) + 1);
-      }
-      for (const [key, count] of needed) {
-        const left = remaining(creature.resources, key);
-        if (left < count) {
-          return err('not_enough_hit_dice', `${id} has ${left} ${key} left, and asked to spend ${count}`);
-        }
-      }
+      const asked = hitDiceRequested(creature, id, requested);
+      if (!asked.ok) return asked;
+      dice.push(...asked.value);
     }
 
     switch (benefit) {
@@ -584,31 +649,11 @@ export function endRest(
           // whole reason the substitution is available here.
           const constitution = abilityModifier(standing.abilities.con);
           const issuedBefore = supply.issuer.count;
-          let regained = 0;
-
-          for (const { key, sides } of dice) {
-            const rolled = rollRecorded(supply.issuer, supply.rng, `1d${sides}`);
-            if (!rolled.ok) return rolled;
-
-            // SRD: "You regain Hit Points equal to the total (minimum of 1)."
-            const natural = rolled.value.total;
-            const gain = Math.max(1, natural + constitution);
-            regained += gain;
-            spent.push({ key, sides, natural, regained: gain });
-
-            events.push(
-              { type: 'resource-spent', id, key, amount: 1 },
-              {
-                type: 'roll-recorded',
-                who: id,
-                label: `Hit Die (d${sides})`,
-                natural,
-                total: natural + constitution,
-                contributions: [{ source: 'Constitution', amount: constitution }],
-                outcome: `${gain} hit points`,
-              },
-            );
-          }
+          const thrown = hitDiceRolled(supply.issuer, supply.rng, id, constitution, dice);
+          if (!thrown.ok) return thrown;
+          events.push(...thrown.value.events);
+          spent.push(...thrown.value.spent);
+          const regained = thrown.value.spent.reduce((total, die) => total + die.regained, 0);
 
           events.push({
             type: 'rolls-issued',

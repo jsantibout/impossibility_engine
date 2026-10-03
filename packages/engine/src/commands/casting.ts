@@ -798,8 +798,12 @@ export interface CastingPlan {
    * is an ordinary `Placement` and there is nothing to normalise.
    */
   readonly bonesAt?: readonly Placement[];
+  /** The range a rite's targets must remain within — see `PendingCasting.stayWithin`. */
+  readonly stayWithin?: number;
   /** The creature the caster chose to ride what it summons — see `CastSpellRequest.rider`. */
   readonly rider?: CharacterId;
+  /** The Hit Point Dice each creature spends of a rest's benefits — see `CastSpellRequest.hitDice`. */
+  readonly hitDice?: Readonly<Record<string, readonly string[]>>;
   /**
    * The spell this casting stores — SRD Glyph of Warding's spell glyph, an
    * hour's rite, so the request is stated now and the stored spell is cast
@@ -1239,7 +1243,11 @@ function castSpellWith(
         ...(command.hold.form === undefined ? {} : { form: command.hold.form }),
         // And where the bones lie, for the same reason.
         ...(command.hold.bonesAt === undefined ? {} : { bonesAt: command.hold.bonesAt }),
+        // And the range a rite's targets must stay within — SRD Prayer of
+        // Healing. See `PendingCasting.stayWithin`.
+        ...(command.hold.stayWithin === undefined ? {} : { stayWithin: command.hold.stayWithin }),
         ...(command.hold.rider === undefined ? {} : { rider: command.hold.rider }),
+        ...(command.hold.hitDice === undefined ? {} : { hitDice: command.hold.hitDice }),
         // And the spell it stores, for the same reason — SRD Glyph of Warding's
         // spell glyph is cast when the rite is finished. (W7-S21)
         ...(command.hold.stores === undefined ? {} : { stores: command.hold.stores }),

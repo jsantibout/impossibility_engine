@@ -2003,6 +2003,18 @@ export type GameEvent =
    * these: a healthy creature taking exactly its maximum in damage drops to 0,
    * it does not die.
    */
+  /**
+   * A spell has affected a creature it may not affect again until the
+   * creature finishes a Long Rest — SRD Prayer of Healing. The spell's id,
+   * pinned so the target rule reads the creature and no book; see
+   * `CreatureState.untilLongRest`. Written by the casting that affected it.
+   */
+  | {
+      readonly type: 'marked-until-long-rest';
+      readonly id: CharacterId;
+      readonly spell: string;
+      readonly command?: CommandStamp;
+    }
   | {
       readonly type: 'creature-died';
       readonly id: CharacterId;

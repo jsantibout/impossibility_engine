@@ -4264,6 +4264,19 @@ function checkEffect(
      * before anybody looks at it, which is the `ends_nothing` defect one kind
      * along.
      */
+    // SRD Prayer of Healing's "the benefits of a Short Rest": the one rest an
+    // effect prints, and the word is the whole of it.
+    case 'rest-benefits': {
+      if ((effect.rest as unknown) !== 'short') {
+        found.push({
+          field: `${path}.rest`,
+          code: 'unknown_rest',
+          reason: `an effect gives the benefits of a Short Rest, and "${String(effect.rest)}" is not one`,
+        });
+      }
+      return;
+    }
+
     case 'revive': {
       if (!Number.isInteger(effect.within) || effect.within < 1) {
         found.push({
@@ -8334,6 +8347,7 @@ export function checkSpellDefinition(
 
   checkSummonTargets(definition, found);
   checkControlledAdmission(definition, found);
+  checkRiteTargetRules(definition, found);
   checkKeptBesideADuration(definition, found);
   checkChanceTargets(definition, found);
   checkWeaponAttack(definition, found);
@@ -10741,6 +10755,37 @@ function checkRaisePlacement(
 }
 
 /**
+ * SRD Prayer of Healing's two target sentences: "who remain within range for
+ * the spell's entire casting" and "can't be affected by this spell again until
+ * that creature finishes a Long Rest". Each is printed or not; the first needs
+ * a rite to remain through and a range to remain within, because an Action has
+ * no "entire casting" and a Touch no feet the fold could measure.
+ */
+function checkRiteTargetRules(definition: SpellDefinition, found: SpellDefinitionProblem[]): void {
+  for (const field of ['remainInRange', 'onceUntilLongRest'] as const) {
+    const said = (definition.targets as unknown as Readonly<Record<string, unknown>>)[field];
+    if (said !== undefined && said !== true) {
+      found.push({
+        field: `targets.${field}`,
+        code: 'malformed_field',
+        reason: 'a target rule either prints this sentence or does not; the only value is true',
+      });
+    }
+  }
+  if (
+    definition.targets.remainInRange === true &&
+    (definition.castingTime !== 'long' || definition.range.kind !== 'ranged')
+  ) {
+    found.push({
+      field: 'targets.remainInRange',
+      code: 'nothing_to_remain_through',
+      reason:
+        'remaining within range for the whole casting needs a casting of a minute or more and a range in feet; this spell has no rite to remain through or no feet to remain within',
+    });
+  }
+}
+
+/**
  * `TargetRule.orControlled` admits a creature the caster controls **through
  * this spell**, and only a `raise` writes such a bond — so a definition that
  * prints the admission and raises nothing has written an admission nobody can
@@ -11019,6 +11064,7 @@ export const EFFECT_KINDS: ReadonlySet<string> = new Set([
   'buff',
   'heal',
   'revive',
+  'rest-benefits',
   'stabilise',
   'preserves',
   'attack-damage',

@@ -740,6 +740,21 @@ export interface CastSpellRequest extends CommandIdentity {
    */
   readonly rider?: CharacterId;
   /**
+   * The Hit Point Dice each creature spends of the rest's benefits a spell
+   * gives it, by pool key and keyed by the creature.
+   *
+   * SRD Prayer of Healing: "gain the benefits of a Short Rest" — and a Short
+   * Rest's first benefit is "Spend Hit Point Dice … You can spend one or more
+   * of your Hit Point Dice to regain Hit Points." How many is the creature's
+   * decision and never a number the engine would roll for it, so it is stated
+   * here as `endRest` takes it, and the engine rolls each die and adds the
+   * Constitution. Refused for a spell that gives no rest's benefits
+   * (`no_rest_benefits`), for a creature the spell is not cast on
+   * (`hit_dice_off_target`), and for a die the creature does not have
+   * (`not_enough_hit_dice`), all before anything is spent.
+   */
+  readonly hitDice?: Readonly<Record<string, readonly string[]>>;
+  /**
    * A spell this casting stores, to take effect when a DM says the casting's
    * trigger occurred — SRD Glyph of Warding's spell glyph: "You can store a
    * prepared spell of level 3 or lower in the glyph by casting it as part of

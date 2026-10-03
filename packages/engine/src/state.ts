@@ -611,6 +611,16 @@ export interface CreatureState {
   /** When their last Long Rest finished, for the sixteen-hour rule. */
   readonly lastLongRestAt: number | null;
   /**
+   * The spells that may not affect this creature again until it finishes a
+   * Long Rest — SRD Prayer of Healing: "A creature can't be affected by this
+   * spell again until that creature finishes a Long Rest." Spell ids, sorted;
+   * added by `marked-until-long-rest`, read by the target rule
+   * (`TargetRule.onceUntilLongRest`), and emptied by a `rest-ended` that
+   * earned a Long Rest's benefits. Absent is no such mark, which is every
+   * creature written before the field existed.
+   */
+  readonly untilLongRest?: readonly string[];
+  /**
    * When a rest that earned a **Short** Rest's benefits last finished.
    *
    * SRD Sorcerous Restoration happens "when you finish a Short Rest", and a
@@ -2173,8 +2183,26 @@ export interface PendingCasting {
    * always did.
    */
   readonly bonesAt?: readonly Placement[];
+  /**
+   * The range, in feet, the declared targets must remain within for the whole
+   * rite — SRD Prayer of Healing: "who remain within range for the spell's
+   * entire casting". Pinned at the declaration from the casting's reach, so
+   * the fold measures the rite by the record and no book. Absent is a casting
+   * that asks no such thing.
+   */
+  readonly stayWithin?: number;
+  /**
+   * The declared targets that have been farther than {@link stayWithin} from
+   * the caster at some moment of the rite, sorted — written by the fold as the
+   * moves happen (`markStrayedTargets`), whoever moved, and never unwritten:
+   * a creature that walked off and came back did not *remain*. The settlement
+   * passes them over.
+   */
+  readonly strayed?: readonly CharacterId[];
   /** The creature the caster chose to ride what it summons — see `CastSpellRequest.rider`. */
   readonly rider?: CharacterId;
+  /** The Hit Point Dice each creature spends of a rest's benefits — see `CastSpellRequest.hitDice`. */
+  readonly hitDice?: Readonly<Record<string, readonly string[]>>;
   /**
    * The spell this casting stores — SRD Glyph of Warding's spell glyph, whose
    * rite takes an hour, so the request is stated at the declaration and the

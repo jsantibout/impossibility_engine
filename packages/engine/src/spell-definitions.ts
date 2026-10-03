@@ -2334,6 +2334,28 @@ export type SpellEffect =
    * which nothing reads. Dying of old age is the table's fact and the
    * revival's to read — see {@link notOfOldAge}.
    */
+  /**
+   * The benefits of a rest, given without the hours.
+   *
+   * > SRD Prayer of Healing: "Up to five creatures … gain the benefits of a
+   * > Short Rest". SRD rules glossary, Short Rest, *Benefits of the Rest*:
+   * > "Spend Hit Point Dice … Special Feature. Some features are recharged
+   * > by a Short Rest."
+   *
+   * **The two benefits the glossary prints, and nothing else.** The pools a
+   * Short Rest recovers are restored — the same `resources-restored` a rest
+   * emits, so a printed line that recharges on a rest comes back too — and the
+   * Hit Point Dice the creature spends are named at the casting
+   * (`CastSpellRequest.hitDice`, keyed by creature) and rolled by the engine
+   * exactly as `endRest` rolls them, Constitution and all. The creature has
+   * not *finished* a rest: no rest is recorded, and what a sentence reads off
+   * a finished one — a lowered score given back, a choice re-asked — is not
+   * given. `rest` is `'short'`, the one rest an effect prints.
+   */
+  | {
+      readonly kind: 'rest-benefits';
+      readonly rest: 'short';
+    }
   | {
       readonly kind: 'revive';
       /**
@@ -5480,6 +5502,31 @@ export interface TargetRule {
    * other list (`controlled_without_a_raise`).
    */
   readonly orControlled?: true;
+  /**
+   * SRD Prayer of Healing: "A creature can't be affected by this spell again
+   * until that creature finishes a Long Rest."
+   *
+   * Every creature the casting affected is marked with the spell
+   * (`CreatureState.untilLongRest`, written by `marked-until-long-rest`), a
+   * marked creature is refused as a target (`affected_until_long_rest`) before
+   * anything is spent, and a Long Rest the creature finishes takes the mark
+   * away. A deadline anchored to a rest rather than to the clock or the turn
+   * order, which is why it is a mark rather than a timer.
+   */
+  readonly onceUntilLongRest?: true;
+  /**
+   * SRD Prayer of Healing: "Up to five creatures of your choice who **remain
+   * within range for the spell's entire casting**".
+   *
+   * Read while a rite of a minute or more is being said: the declaration pins
+   * the range (`PendingCasting.stayWithin`), and a target ever farther than it
+   * from the caster during the rite — whoever moved — is marked strayed on the
+   * declaration by the fold (`PendingCasting.strayed`). The settlement passes
+   * a strayed target over rather than refusing the casting: the book gives the
+   * benefit to those who remained. Only on a casting that takes time to say,
+   * because an Action has no "entire casting" to leave during.
+   */
+  readonly remainInRange?: true;
   /**
    * SRD *Mage Armor*: "You touch a **willing** creature who isn't wearing
    * armor." A good many definitions in reach print the word; `willing.test.ts`
@@ -9037,6 +9084,9 @@ export function numbersRead(definition: SpellDefinition): NumbersRead {
       // And a stabilising reads nothing at all: it carries no number, so there
       // is none of anybody's for it to pin.
       case 'stabilise':
+      // Nor do a rest's benefits: the dice are the creature's own and so is its
+      // Constitution; nothing of the caster's decides either.
+      case 'rest-benefits':
       // Nor does a body kept: the span it takes back is the casting's own and
       // the clock's, and nothing about the caster decides any of it.
       case 'preserves':

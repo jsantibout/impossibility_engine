@@ -168,6 +168,7 @@ import {
   fixedChoiceOf,
 } from './casting.js';
 import { creatureOf, turnContextFor, unknownCreature } from './command.js';
+import { hitDiceRequested } from '../rest.js';
 import {
   chargeSpend,
   itemCastOf,
@@ -246,6 +247,7 @@ import {
 } from './spell-effect-movement.js';
 import {
   resolveHealEffect,
+  resolveRestBenefitsEffect,
   resolveTempHpEffect,
   resolveHealingRuleEffect,
   resolveHitPointMaximumEffect,
@@ -626,14 +628,24 @@ export function resolveDeclaredCast(
       route: chosen.value,
       ...(pending.numbers === undefined ? {} : { numbers: pending.numbers }),
       ...(pending.ability === undefined ? {} : { ability: pending.ability }),
-      targets: pending.targets,
+      // **Less whoever did not remain** — SRD Prayer of Healing's "who remain
+      // within range for the spell's entire casting". The fold marked them as
+      // they strayed (`PendingCasting.strayed`); the book gives the benefit to
+      // those who stayed, so a stray is passed over and said, not refused.
+      targets: pending.targets.filter((target) => !(pending.strayed ?? []).includes(target)),
       // The sixth stated fact, read back off the record beside the targets it
       // is aligned to. A Scorching Ray declared three-and-one settles three
       // and one.
       ...(pending.rollsPerTarget === undefined
         ? {}
         : { rollsPerTarget: pending.rollsPerTarget }),
-      unverified: [...pending.unverified],
+      unverified: [
+        ...pending.unverified,
+        ...(pending.strayed ?? []).map(
+          (who) =>
+            `${definition.name}: ${who} did not remain within ${pending.stayWithin ?? 0} feet for the whole casting and is passed over`,
+        ),
+      ],
       supply,
       castingId: pending.castingId,
       events,
@@ -672,6 +684,7 @@ export function resolveDeclaredCast(
       // they lie before there was a casting to raise anything at.
       ...(pending.bonesAt === undefined ? {} : { bonesAt: pending.bonesAt }),
       ...(pending.rider === undefined ? {} : { rider: pending.rider }),
+      ...(pending.hitDice === undefined ? {} : { hitDice: pending.hitDice }),
       ...(persists(definition)
         ? {
             becomesOngoing: {
@@ -1765,6 +1778,45 @@ export function castOrRelease(
       for (const target of targets) {
         const raisable = reviveProblem(state, target, effect, definition.name);
         if (!raisable.ok) return raisable;
+      }
+    }
+
+    // SRD Prayer of Healing: "A creature can't be affected by this spell again
+    // until that creature finishes a Long Rest." Asked before the slot or the
+    // rite, so a cleric who named the wrong creature has spent nothing.
+    if (definition.targets.onceUntilLongRest === true) {
+      for (const target of targets) {
+        if (state.creatures[target]?.untilLongRest?.includes(definition.id) === true) {
+          return err(
+            'affected_until_long_rest',
+            `${definition.name} has already affected ${target}, and can't again until ${target} finishes a Long Rest`,
+          );
+        }
+      }
+    }
+
+    // And the Hit Point Dice its rest's benefits are spent with — "You can
+    // spend one or more of your Hit Point Dice". The creature's decision, held
+    // to the dice the creature has and to the creatures the spell is cast on,
+    // before anything is spent. See `CastSpellRequest.hitDice`.
+    if (request.hitDice !== undefined) {
+      if (!definition.effects.some((effect) => effect.kind === 'rest-benefits')) {
+        return err(
+          'no_rest_benefits',
+          `${definition.name} gives nobody the benefits of a rest, so no Hit Point Dice are spent of it`,
+        );
+      }
+      for (const [who, keys] of Object.entries(request.hitDice).sort(([a], [b]) => a.localeCompare(b))) {
+        if (!targets.includes(who as CharacterId)) {
+          return err(
+            'hit_dice_off_target',
+            `${definition.name} is not cast on ${who}, so ${who} spends no Hit Point Dice of it`,
+          );
+        }
+        const holder = state.creatures[who];
+        if (holder === undefined) return unknownCreature(who as CharacterId);
+        const asked = hitDiceRequested(holder, who as CharacterId, keys);
+        if (!asked.ok) return asked;
       }
     }
 
@@ -2973,6 +3025,7 @@ function resolveOnTargets(
         ...(request.otherPlane === undefined ? {} : { otherPlane: request.otherPlane }),
         ...(request.bonesAt === undefined ? {} : { bonesAt: request.bonesAt }),
         ...(request.rider === undefined ? {} : { rider: request.rider }),
+        ...(request.hitDice === undefined ? {} : { hitDice: request.hitDice }),
         alters,
         // A released spell leaves the same thing running that a cast one does.
         // This was the one resolution path of three that wrote no record, so a
@@ -3337,6 +3390,13 @@ function resolveOnTargets(
             hold: {
               spellId: request.spellId,
               targets,
+              // SRD Prayer of Healing's "who remain within range for the
+              // spell's entire casting": the range the rite is measured by,
+              // pinned so the fold can mark a target that strays while it is
+              // said. See `TargetRule.remainInRange`.
+              ...(definition.targets.remainInRange === true && altered.reachFeet !== null
+                ? { stayWithin: altered.reachFeet }
+                : {}),
               // **Beside the targets, because it is aligned to them.** A held
               // Scorching Ray settles the split it was declared with; a
               // settlement takes no fresh request, so dropping this would
@@ -3393,6 +3453,7 @@ function resolveOnTargets(
               // states before there is a casting to raise anything at.
               ...(request.bonesAt === undefined ? {} : { bonesAt: request.bonesAt }),
               ...(request.rider === undefined ? {} : { rider: request.rider }),
+              ...(request.hitDice === undefined ? {} : { hitDice: request.hitDice }),
               // And the spell it stores, which is cast when the settlement is
               // — SRD Glyph of Warding's spell glyph. (W7-S21)
               ...(request.stores === undefined ? {} : { stores: request.stores }),
@@ -3523,6 +3584,7 @@ function resolveOnTargets(
       ...(request.otherPlane === undefined ? {} : { otherPlane: request.otherPlane }),
       ...(request.bonesAt === undefined ? {} : { bonesAt: request.bonesAt }),
       ...(request.rider === undefined ? {} : { rider: request.rider }),
+      ...(request.hitDice === undefined ? {} : { hitDice: request.hitDice }),
       alters,
       // The casting this Reaction answers, as an **id** rather than as the record
       // that was read. The resolver looks it up again on the state its own events
@@ -3740,6 +3802,8 @@ function resolveOneEffect(
       return resolveHealEffect(ctx, effect, target, victim, world);
     case 'revive':
       return resolveReviveEffect(ctx, effect, target, world);
+    case 'rest-benefits':
+      return resolveRestBenefitsEffect(ctx, target, world);
     case 'stabilise':
       return resolveStabiliseEffect(ctx, target, world);
     case 'preserves':
@@ -4030,6 +4094,8 @@ export function resolveEffects(
     readonly bonesAt?: readonly Placement[];
     /** The creature the caster chose to ride what it summons — see `CastSpellRequest.rider`. */
     readonly rider?: CharacterId;
+    /** The Hit Point Dice each creature spends of a rest's benefits — see `CastSpellRequest.hitDice`. */
+    readonly hitDice?: Readonly<Record<string, readonly string[]>>;
     /**
      * Which casting a Reaction spell answers, by id.
      *
@@ -4130,6 +4196,7 @@ export function resolveEffects(
     ...(context.otherPlane === undefined ? {} : { otherPlane: context.otherPlane }),
     ...(context.bonesAt === undefined ? {} : { bonesAt: context.bonesAt }),
     ...(context.rider === undefined ? {} : { rider: context.rider }),
+    ...(context.hitDice === undefined ? {} : { hitDice: context.hitDice }),
     ...(context.answers === undefined ? {} : { answers: context.answers }),
     ...(context.alters === undefined ? {} : { alters: context.alters }),
   });
@@ -4308,6 +4375,19 @@ export function resolveEffects(
     );
   }
 
+  // **The creatures this spell may not affect again until they rest** — SRD
+  // Prayer of Healing. Every creature an effect of this casting landed on is
+  // marked, once, with the spell's id; a creature the settlement passed over
+  // was not affected and is not marked. See `TargetRule.onceUntilLongRest`.
+  if (definition.targets.onceUntilLongRest === true) {
+    const affected = [
+      ...new Set(outcomes.filter((one) => one.affected === true).map((one) => one.target as CharacterId)),
+    ].sort();
+    for (const id of affected) {
+      events.push({ type: 'marked-until-long-rest', id, spell: definition.id });
+    }
+  }
+
   // **The casting its own saving throw ended, released below the record it
   // leaves.** SRD Detect Thoughts and SRD Phantasmal Force: "On a successful
   // save, the spell ends." The record is written first because the fold refuses
@@ -4425,6 +4505,8 @@ export interface EffectRun {
   readonly bonesAt?: readonly Placement[];
   /** The creature the caster chose to ride what it summons — see `CastSpellRequest.rider`. */
   readonly rider?: CharacterId;
+  /** The Hit Point Dice each creature spends of a rest's benefits — see `CastSpellRequest.hitDice`. */
+  readonly hitDice?: Readonly<Record<string, readonly string[]>>;
   readonly answers?: string;
   /**
    * What the caster's features do to this casting's damage, and what electing
@@ -4737,6 +4819,7 @@ export function runEffects(
     ...(run.otherPlane === undefined ? {} : { otherPlane: run.otherPlane }),
     ...(run.bonesAt === undefined ? {} : { bonesAt: run.bonesAt }),
     ...(run.rider === undefined ? {} : { rider: run.rider }),
+    ...(run.hitDice === undefined ? {} : { hitDice: run.hitDice }),
     ...(run.answers === undefined ? {} : { answers: run.answers }),
   };
 
