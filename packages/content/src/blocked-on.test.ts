@@ -807,12 +807,19 @@ describe('the condition-immunity family is read sentence by sentence', () => {
     // rather than lost now that the spell is defined: the sentence moved from
     // its blocked-on entry into the definition's own `unmodelled`, where it is
     // handed to the table on every casting. A reading that survives the spell
-    // being written is the reading that was worth doing.
+    // being written is the reading that was worth doing — and then it was
+    // **built** (E-L2): the cloud's Fly Speed carries `occupiesOthers`, so the
+    // line is gone from `unmodelled` because the engine does what it says.
     expect(
       (SRD_CONTENT.spell('gaseous-form')?.unmodelled ?? []).filter((note) =>
         note.includes('The target can enter and occupy the space of another creature'),
       ),
-    ).toHaveLength(1);
+    ).toHaveLength(0);
+    expect(
+      SRD_CONTENT.spell('gaseous-form')?.effects.some(
+        (effect) => effect.kind === 'speed' && effect.occupiesOthers === true,
+      ),
+    ).toBe(true);
     expect(BLOCKED_ON['gaseous-form']).toBeUndefined();
 
     // And the marker list really cannot see those two, which is what makes them
@@ -2322,9 +2329,12 @@ describe('the fought fact is a second build that corrected the query', () => {
     // a patch of terrain, a revival refused. **E-L3 gave two of them a field**:
     // the bones are a pile the DM lays (`declareBones`) and the old age is the
     // DM's ruling on the death (`creature-died.oldAge`), so Animate Dead and
-    // Revivify left the way Call Lightning did.
+    // Revivify left the way Call Lightning did. **And E-L2 gave the third
+    // one**, on the owner's ruling of 2026-10-03: where plants grow is a
+    // stretch the DM describes (`declarePlants`), so Plant Growth left the
+    // same way and the executed population is empty again.
     expect(fact.undefined).toEqual([]);
-    expect(fact.executed).toEqual(['plant-growth']);
+    expect(fact.executed).toEqual([]);
     expect(fact.tracked).toEqual(['scrying']);
   });
 });
@@ -2800,10 +2810,23 @@ describe('a consumer count is a query', () => {
       //
       // **And E-L3 widened it to two by a build**: SRD Prayer of Healing's
       // range for the whole rite is a fold pass now, so the trigger shape lost
-      // a consumer and fell level with the wall-and-templates shape. **E-L1
-      // took another off it** (Remove Curse), so it fell below this band and
-      // the wall shape stands here alone.
-      'a-wall-or-several-templates-in-one-area',
+      // a consumer and fell level with the wall-and-templates shape.
+      //
+      // **And E-L2 widened it to four by two more builds**: SRD Web's fire
+      // took one off the trigger shape and SRD Dancing Lights' several lights
+      // one off the wall-and-templates shape, so both fell level with the
+      // second place and the stat block.
+      //
+      // **And E-L2's owner rulings narrowed it to three** (2026-10-03): SRD
+      // Plant Growth's caster exclusions are a request field pinned onto the
+      // ground (`TerrainRegion.excluding`), so the wall-and-templates shape
+      // lost another consumer and fell below the band.
+      //
+      // **And E-L1 took one more off the trigger shape** (Remove
+      // Curse's curses), merged after E-L2, so it fell below the band and the
+      // second place and the stat block stand in it alone.
+      'a-second-place-to-put-a-creature',
+      'a-stat-block-created-mid-fight',
     ]);
     // **Moved from 20 to 15 by the third catalogue pass, and the total fell
     // further than the tracked column rose.** Twelve undefined spells named
@@ -2995,14 +3018,19 @@ describe('a spell with one blocker is the leverage the map is for', () => {
     // `fall-declared` does not ask. Both were read for the first time and
     // both are filed here, so Feather Fall claims the shape again from the
     // executed column.
+    //
+    // **And it leaves for good, in a third step** (E-L2). The sight gate is
+    // built — `fallAnswerable` reads "you or a creature you can see within 60
+    // feet of you" for the casting and the offer alike — and the sixty feet a
+    // round went to the table under the owner's ruling of 2026-09-27, that the
+    // spell reads only whether the landing falls inside its minute. The shape
+    // keeps the claimants that were never this spell's.
     expect(BLOCKED_ON['feather-fall']).toBeUndefined();
     expect(claimedShapes().has('falling')).toBe(true);
     expect(SRD_CONTENT.spell('feather-fall')?.effects).not.toEqual([]);
     expect(TRACKED_ADJUDICATED['feather-fall']).toBeUndefined();
-    expect((ADJUDICATED['feather-fall'] ?? []).map((entry) => entry.why)).toEqual([
-      'falling',
-      'falling',
-    ]);
+    expect(ADJUDICATED['feather-fall']).toBeUndefined();
+    expect(SRD_CONTENT.spell('feather-fall')?.unmodelled ?? []).toEqual([]);
   });
 });
 

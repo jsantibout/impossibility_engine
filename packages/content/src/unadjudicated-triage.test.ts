@@ -490,15 +490,16 @@ describe('Darkness is cast rather than refused', () => {
    * about who can see whom. The one left was the object, and W9-S1 built it:
    * `lightOnObject` is the door that lays the casting on a declared object and
    * covers it. What W9-S1 left in its place is a sentence of the dispel — a
-   * glow on its own deadline names no casting to end.
+   * glow on its own deadline names no casting to end — and E-L2 built it: the
+   * glow is put out by its timer, and the dispel holds whichever came first at
+   * the threshold the spell prints. Nothing is owed.
    */
-  it('darkens its own Sphere, and owes only the glow its dispel cannot reach', () => {
+  it('darkens its own Sphere, dispels at the level it prints, and owes nothing', () => {
     expect(definition?.effects).toEqual([]);
     expect(definition?.area).toEqual({ kind: 'sphere', radius: 15, origin: 'point' });
-    expect(definition?.areaLight).toEqual({ level: 'darkness' });
+    expect(definition?.areaLight).toEqual({ level: 'darkness', dispels: 2 });
     expect(definition?.lightOnObject).toBe('or-a-point');
-    expect(definition?.unmodelled ?? []).toHaveLength(1);
-    expect((definition?.unmodelled ?? [])[0]).toContain('Starry Wisp');
+    expect(definition?.unmodelled ?? []).toEqual([]);
   });
 });
 

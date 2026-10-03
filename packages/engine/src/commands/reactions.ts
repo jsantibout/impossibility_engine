@@ -87,6 +87,7 @@ import {
 } from './attacks.js';
 import {
   type ConcentrationConsequence,
+  fallAnswerable,
   type Supply,
   resolveDamage,
 } from './casting.js';
@@ -2092,7 +2093,15 @@ export function reactionOpportunities(state: GameState, content: Content): reado
     for (const key of Object.keys(state.creatures).sort()) {
       const who = key as CharacterId;
       if (!canReact(who)) continue;
+      // **Only a fall this caster could be answering** — their own, or one
+      // they see within the trigger's reach — read by the function the
+      // casting's trigger check reads. A fall nobody has said they see is
+      // offered: that is homework the casting asks for, not a refusal.
       for (const chance of spellsFor(who, 'creature-falling')) {
+        const definition = content.spell(chance.id);
+        if (definition === null) continue;
+        const answer = fallAnswerable(state, who, faller, definition);
+        if (!answer.ok && answer.kind === 'refusal') continue;
         found.push({ ...chance, against: faller });
       }
     }

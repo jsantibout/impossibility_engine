@@ -547,6 +547,12 @@ const UNCOVERED_EVENT_TYPES: readonly string[] = [
   // the slot has already gone, the rule that had forbidden the slot winning,
   // the fight nobody is in, and the fact that nothing moves anybody.
   'budget-compelled',
+  // A Cube of SRD Web set alight (E-L2). Neither log was written when a spell
+  // could burn, so both fold to exactly the states they always folded to.
+  // `web-fire.test.ts` folds it and drives it end to end: the 2d4 at a turn
+  // start in the fire, the Cube still web while it burns, and gone — ground,
+  // air and Restrained — when its round is out.
+  'casting-area-burning',
   'casting-continued',
   // What a running casting's saving throw came to, per creature it asked.
   // Neither log was written when a save could record anything but what it
@@ -721,6 +727,12 @@ const UNCOVERED_EVENT_TYPES: readonly string[] = [
   // and left mid-move, two that overlap, a refusal that names what slowed the
   // walker, and a patch that stops charging when its casting stops running.
   'difficult-terrain-declared',
+  // A glow on a deadline of its own put out by SRD Darkness (E-L2). Neither log
+  // was written when a timer could be dispelled, or a glow could lapse with
+  // one, so both fold to exactly the states they always folded to.
+  // `light-on-a-thing.test.ts` folds it and drives it end to end: Starry Wisp's
+  // glow put out by a Darkness laid over it, and by one it lands in.
+  'effect-dispelled',
   // A fall somebody declared. Neither log could carry one: nothing in the
   // engine could say a creature was falling until the window SRD Feather Fall
   // answers needed a fact to read, and both fixtures fold to the states they
@@ -740,6 +752,14 @@ const UNCOVERED_EVENT_TYPES: readonly string[] = [
   // nothing, the lander left standing, the casting ending on that one creature
   // and running on for the other, and an unwarded faller taking the dice.
   'fall-ward-granted',
+  // A protected flame a Gust of Wind's Line reached, tested, and put out or
+  // left burning — E-L2, the owner's ruling of 2026-10-03. Neither log was
+  // written when a declared light could be a flame, so neither owes a throw
+  // and both fold with no `flamesReached` on any casting.
+  // `gust-flames.test.ts` folds it and drives it: the throw owed when the
+  // Line first reaches a lantern, settled once, and owed again only when the
+  // Line comes back onto it.
+  'flame-tested',
   // A creature taking one of the forms its **own** stat block prints — SRD
   // Shape-Shift, on thirteen blocks. Neither log was written when a form could
   // be worn: `CreatureState` had no `form`, the parser read the sentence as
@@ -875,6 +895,13 @@ const UNCOVERED_EVENT_TYPES: readonly string[] = [
   'movement-granted',
   'obscurement-declared',
   'passive-defense-granted',
+  // Where the table says normal plants grow, or that nothing does — SRD Plant
+  // Growth, E-L2, the owner's ruling of 2026-10-03. Neither log describes the
+  // ground, so both scenes fold with no `plants` at all.
+  // `plant-growth.test.ts` folds it and drives it: the casting asked over
+  // undescribed ground, the meadow thickened and the bare court left open,
+  // and the caster's exclusions left out.
+  'plants-declared',
   // A printed line's curse on a creature — W7-B13, SRD Werewolf's Bite.
   // Neither log was written when a creature could carry one, and both fixtures
   // fold to exactly the states they always folded to with `curses` empty on
@@ -965,6 +992,11 @@ const UNCOVERED_EVENT_TYPES: readonly string[] = [
   // which way, nothing rolled or moved by the turning, and a Bonus Action that
   // named no direction refused.
   'spell-aim-changed',
+  // A casting's other templates moved — SRD Dancing Lights' lights 2 to 4 by
+  // the Bonus Action (E-L2). Neither log was written when a casting could lay
+  // more than one template; `dancing-lights.test.ts` folds it and drives the
+  // move, the sixty feet, the Range and the twenty feet that tie the lights.
+  'spell-copies-moved',
   // A casting made and failed — SRD Slow's "a 25 percent chance the spell
   // fails". Neither log was written when a casting could fail after its cost
   // was paid; `slow-somatic.test.ts` folds it and drives both faces of the

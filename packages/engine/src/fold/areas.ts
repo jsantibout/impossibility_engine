@@ -20,11 +20,24 @@ import { timerKey } from '../timers.js';
 import {
   areaStampKey,
   castingIdOf,
+  castingSource,
   creaturesStandingInCastingArea,
+  regionOfCastingArea,
+  removedFromArea,
   type AreaMoment,
   type OngoingSpell,
 } from '../spells.js';
-import type { PositionState, Point } from '../positioning.js';
+import {
+  distanceToPoint,
+  regionAnchor,
+  segmentCrossesRegion,
+  spaceInRegion,
+  spacesInRegion,
+  type PositionState,
+  type Point,
+  type TerrainRegion,
+} from '../positioning.js';
+import { hasExpired, timeView } from '../time.js';
 // **Type-only for the shapes, deliberately.** The fold does not open the spell
 // catalogue: a casting's area and its clauses are pinned on the ongoing record
 // at the cast, so a replay answers out of the log rather than out of this
@@ -388,6 +401,442 @@ export function endConditionsLeftBehind(state: GameState): GameState {
       }
     }
   }
+  return endShapeBarsLeftBehind(current);
+}
+
+/**
+ * SRD Web: "Any 5-foot Cube of webs exposed to fire **burns away in 1 round**."
+ * (E-L2)
+ *
+ * Derived, for the reason every pass here is: nobody decides that the fire has
+ * done its work. A burning Cube whose deadline has arrived moves to the
+ * record's `burnt`, which takes it out of the casting's catch; the patches the
+ * casting laid — its ground, its air, any light — have it taken out of their
+ * regions, so every reader of them leaves it out; and a creature Restrained
+ * "while in the webs" whose only space it was is free, through the same pass
+ * that frees one who walks out. A deadline is read with `hasExpired`, the
+ * reading the expiry pass takes: a fight that ends while the Cube burns lets
+ * it burn out rather than keeping it alight for ever.
+ */
+export function burnAwayCubes(state: GameState): GameState {
+  const burningIds = Object.keys(state.ongoing)
+    .sort()
+    .filter((castingId) => (state.ongoing[castingId]!.burning?.length ?? 0) > 0);
+  if (burningIds.length === 0) return state;
+
+  const view = timeView(state);
+  let current = state;
+  let burned = false;
+  for (const castingId of burningIds) {
+    const record = current.ongoing[castingId]!;
+    const done = record.burning!.filter((cube) => hasExpired(view, cube.until));
+    if (done.length === 0) continue;
+    burned = true;
+    const spaces = done.map((cube) => cube.space);
+    const burnt = [...(record.burnt ?? []), ...spaces];
+    current = {
+      ...current,
+      ongoing: sortedRecord({
+        ...current.ongoing,
+        [castingId]: {
+          ...record,
+          burning: record.burning!.filter((cube) => !done.includes(cube)),
+          burnt,
+        },
+      }),
+    };
+    const scene = current.scene;
+    if (scene !== null) {
+      const cut = <T extends { readonly region: TerrainRegion; readonly source?: string }>(
+        patches: Readonly<Record<string, T>>,
+      ): Readonly<Record<string, T>> =>
+        Object.fromEntries(
+          Object.entries(patches).map(([name, patch]) => [
+            name,
+            patch.source === castingId
+              ? { ...patch, region: { ...patch.region, except: [...(patch.region.except ?? []), ...spaces] } }
+              : patch,
+          ]),
+        );
+      current = {
+        ...current,
+        scene: {
+          ...scene,
+          terrain: cut(scene.terrain),
+          obscurement: cut(scene.obscurement),
+          light: cut(scene.light),
+        },
+      };
+    }
+  }
+  return burned ? endConditionsLeftBehind(current) : current;
+}
+
+/**
+ * SRD Wind Wall: "**The strong wind keeps fog, smoke, and other gases at
+ * bay.**" (E-L2, the owner's ruling of 2026-10-03: the wall clears its own
+ * strip, and gas cannot cross it.)
+ *
+ * Derived, for the reason every pass here is: nobody decides where the fog
+ * stops. A gas is a running casting a strong wind would disperse
+ * (`dispersed-by-wind`); a wall is one whose area keeps gas out
+ * (`keeps-out`). Each space of the gas's area, or of a patch it laid, that
+ * lies in a wall or that a wall stands between and the gas's centre is held
+ * off: written onto the record's `heldOff`, which takes it out of the
+ * casting's catch, and out of the regions of the patches it laid. The cloud is
+ * **not** ended and the rest of it stands; when the last wall goes, it is
+ * whole again. Worked out again only when a wall rises or falls or an area
+ * moves (`heldOffAgainst`), and returns at once where no wall runs beside no
+ * gas, which is nearly always.
+ */
+export function holdGasOffWalls(state: GameState): GameState {
+  const scene = state.scene;
+  if (scene === null) return state;
+  const ids = Object.keys(state.ongoing).sort();
+  const gases = ids.filter(
+    (castingId) =>
+      (state.ongoing[castingId]!.endsEarly ?? []).some((ending) => ending.on === 'dispersed-by-wind') ||
+      state.ongoing[castingId]!.heldOff !== undefined,
+  );
+  if (gases.length === 0) return state;
+  const walls = ids
+    .filter((castingId) =>
+      (state.ongoing[castingId]!.areaStanding ?? []).some(
+        (standing) => standing.kind === 'keeps-out' && standing.what === 'gas',
+      ),
+    )
+    .flatMap((castingId) => {
+      const region = regionOfCastingArea(state.ongoing[castingId]!);
+      return region === null ? [] : [{ castingId, region }];
+    });
+
+  let current = state;
+  let moved = false;
+  for (const castingId of gases) {
+    const record = current.ongoing[castingId]!;
+    const { heldOff: _was, heldOffAgainst: _then, ...bare } = record;
+    void _was;
+    void _then;
+    if (walls.length === 0 && record.heldOff === undefined) continue;
+    const whole = regionOfCastingArea(bare);
+    // The patches this casting laid, whole: a cloud's air can be laid by an
+    // event after the one that set the record running.
+    const laid = (Object.values(scene.terrain) as readonly { readonly region: TerrainRegion; readonly source?: string }[])
+      .concat(Object.values(scene.obscurement), Object.values(scene.light))
+      .filter((patch) => patch.source === castingId)
+      .map(({ region: { except: _e, ...region } }) => region);
+    const against = JSON.stringify({ walls, whole, laid });
+    if (record.heldOffAgainst === against) continue;
+
+    const centre = whole === null ? null : regionAnchor(scene, whole);
+    const heldOff: Point[] = [];
+    if (centre !== null && walls.length > 0) {
+      // **A cloud centred in a wall's own strip has no far side** of that
+      // wall: every line out of the strip would cross it, and the cloud would
+      // lose a whole half. That wall clears its strip and nothing more, so the
+      // rest of the cloud stands, as the ruling says.
+      const snap = (value: number) => Math.floor(value / 5) * 5;
+      const centreSpace = { x: snap(centre.x), y: snap(centre.y), z: snap(centre.z) };
+      const across = walls.map((one) => ({
+        ...one,
+        crossable: !spaceInRegion(scene, one.region, centreSpace),
+      }));
+      const seen = new Set<string>();
+      const regions = [whole!, ...laid];
+      for (const space of regions.flatMap((region) => spacesInRegion(scene, region))) {
+        const key = `${space.x},${space.y},${space.z}`;
+        if (seen.has(key)) continue;
+        seen.add(key);
+        const middle = { x: space.x + 2.5, y: space.y + 2.5, z: space.z + 2.5 };
+        if (
+          across.some(
+            ({ region, crossable }) =>
+              spaceInRegion(scene, region, space) ||
+              (crossable && segmentCrossesRegion(scene, region, centre, middle)),
+          )
+        ) {
+          heldOff.push(space);
+        }
+      }
+    }
+
+    const written: OngoingSpell = walls.length === 0 ? bare : { ...bare, heldOff, heldOffAgainst: against };
+    moved = true;
+    const out = removedFromArea(written);
+    const cut = <T extends { readonly region: TerrainRegion; readonly source?: string }>(
+      patches: Readonly<Record<string, T>>,
+    ): Readonly<Record<string, T>> =>
+      Object.fromEntries(
+        Object.entries(patches).map(([name, patch]) => {
+          if (patch.source !== castingId) return [name, patch];
+          const { except: _e, ...region } = patch.region;
+          void _e;
+          return [name, { ...patch, region: out.length === 0 ? region : { ...region, except: out } }];
+        }),
+      );
+    const sceneNow = current.scene!;
+    current = {
+      ...current,
+      ongoing: sortedRecord({ ...current.ongoing, [castingId]: written }),
+      scene: {
+        ...sceneNow,
+        terrain: cut(sceneNow.terrain),
+        obscurement: cut(sceneNow.obscurement),
+        light: cut(sceneNow.light),
+      },
+    };
+  }
+  return moved ? endConditionsLeftBehind(current) : current;
+}
+
+/**
+ * SRD Dancing Lights: "**a light vanishes if it exceeds the spell's range**."
+ * (E-L2)
+ *
+ * Derived after every event, for the reason every pass here is: nobody decides
+ * that a light the caster walked away from goes out. A light is light 1 at the
+ * casting's point or light 2, 3 or 4 at its copies, and one further than the
+ * Range the record pinned (`keptWithin`) from where its caster now stands is
+ * written onto the record as vanished and its patches taken off the lattice —
+ * for good, so a caster who walks back finds it gone. A caster nobody has
+ * placed measures nothing, and nothing vanishes. Returns at once where no
+ * running casting keeps its lights in range, which is nearly always.
+ */
+export function vanishLightsBeyondRange(state: GameState): GameState {
+  const scene = state.scene;
+  if (scene === null) return state;
+  const keeping = Object.keys(state.ongoing)
+    .sort()
+    .filter((castingId) => state.ongoing[castingId]!.keptWithin !== undefined);
+  if (keeping.length === 0) return state;
+
+  let current = state;
+  for (const castingId of keeping) {
+    const record = current.ongoing[castingId]!;
+    const within = record.keptWithin!;
+    const lights: readonly (Point | undefined)[] = [record.origin, ...(record.copies ?? [])];
+    const gone = new Set(record.vanished ?? []);
+    const newly: number[] = [];
+    lights.forEach((point, i) => {
+      const n = i + 1;
+      if (point === undefined || gone.has(n)) return;
+      const away = distanceToPoint(scene, record.caster as CharacterId, point);
+      if (away.ok && away.value > within) newly.push(n);
+    });
+    if (newly.length === 0) continue;
+
+    const light = { ...current.scene!.light };
+    for (const n of newly) {
+      const suffix = n === 1 ? '' : ` ${n}`;
+      delete light[`${record.spell} light${suffix} (${castingId})`];
+      delete light[`${record.spell} dim light${suffix} (${castingId})`];
+    }
+    current = {
+      ...current,
+      scene: { ...current.scene!, light },
+      ongoing: sortedRecord({
+        ...current.ongoing,
+        [castingId]: { ...record, vanished: [...gone, ...newly].sort((a, b) => a - b) },
+      }),
+    };
+  }
+  return current;
+}
+
+/**
+ * SRD Moonbeam's "can't shape-shift **until it leaves the Cylinder**", lifted
+ * the moment it is true. (E-L2)
+ *
+ * The bar is a `forbids` action rule a reverting outcome hung under the
+ * casting's own source (`OutcomeRiders.revertsShape`), and its lifetime is the
+ * creature's position: the same reading {@link endConditionsLeftBehind} takes
+ * of Web's "while in the webs", asked at the same moments and written as
+ * nothing — leaving is the whole of the ending. A casting that has ended took
+ * its bars with it already, through the source every grant is released by.
+ */
+function endShapeBarsLeftBehind(state: GameState): GameState {
+  const scene = state.scene;
+  if (scene === null) return state;
+  const barred = (rule: { readonly rule: { readonly kind: string } }): boolean =>
+    rule.rule.kind === 'forbids' && (rule.rule as { readonly shapeShifting?: true }).shapeShifting === true;
+  if (!Object.values(state.creatures).some((creature) => creature.actionRules.some(barred))) {
+    return state;
+  }
+
+  let current = state;
+  for (const castingId of Object.keys(state.ongoing).sort()) {
+    const record = current.ongoing[castingId];
+    if (record === undefined) continue;
+    const source = castingSource(record.spell, castingId);
+    const holders = Object.keys(current.creatures)
+      .sort()
+      .filter((who) =>
+        current.creatures[who]!.actionRules.some((held) => held.source === source && barred(held)),
+      ) as CharacterId[];
+    if (holders.length === 0) continue;
+
+    const inside = creaturesStandingInCastingArea(scene, record) ?? new Set<CharacterId>();
+    for (const who of holders) {
+      if (inside.has(who)) continue;
+      const creature = current.creatures[who]!;
+      current = {
+        ...current,
+        creatures: {
+          ...current.creatures,
+          [who]: {
+            ...creature,
+            actionRules: creature.actionRules.filter(
+              (held) => !(held.source === source && barred(held)),
+            ),
+          },
+        },
+      };
+    }
+  }
+  return current;
+}
+
+/**
+ * SRD Sleet Storm's "exposed flames in the area are doused", read against
+ * every burning creature after every event. (E-L2)
+ *
+ * **Derived and eventless, for the reason every pass here is**: nobody decides
+ * that the sleet puts a fire out. A creature can come to be burning in the
+ * Cylinder by catching fire there, by walking in, by being shoved or carried in,
+ * or by the sleet starting over it, and one question asked of the world after
+ * the event is right in every one of them where an event written at each
+ * moment would be right in the moments somebody remembered. SRD Burning: "The
+ * fire also goes out if it is doused" — so the hazard is dropped, and stays
+ * dropped when the creature leaves; a doused fire is over.
+ *
+ * Cheap where it has nothing to do, which is almost always: it returns before
+ * reading any geometry unless somebody is burning **and** a running casting
+ * pins the clause.
+ */
+export function douseStandingFlames(state: GameState): GameState {
+  const scene = state.scene;
+  if (scene === null) return state;
+  const burning = Object.keys(state.creatures)
+    .sort()
+    .filter((who) =>
+      state.creatures[who]!.hazards.some((one) => one.hazard === 'burning'),
+    ) as CharacterId[];
+  if (burning.length === 0) return state;
+
+  const doused = new Set<CharacterId>();
+  for (const castingId of Object.keys(state.ongoing).sort()) {
+    const record = state.ongoing[castingId]!;
+    if (record.areaStanding?.some((standing) => standing.kind === 'douses-flames') !== true) {
+      continue;
+    }
+    const inside = creaturesStandingInCastingArea(scene, record);
+    if (inside === null) continue;
+    for (const who of burning) if (inside.has(who)) doused.add(who);
+  }
+  if (doused.size === 0) return state;
+
+  const creatures = { ...state.creatures };
+  for (const who of doused) {
+    const creature = creatures[who]!;
+    creatures[who] = {
+      ...creature,
+      hazards: creature.hazards.filter((one) => one.hazard !== 'burning'),
+    };
+  }
+  return { ...state, creatures };
+}
+
+/**
+ * The flames a running area puts out, and the throws it owes the ones it may.
+ * (E-L2, the owner's ruling of 2026-10-03)
+ *
+ * SRD Gust of Wind "extinguishes candles and similar **unprotected** flames in
+ * the area" and gives "**protected** flames, such as those of lanterns ... a 50
+ * percent chance"; SRD Sleet Storm douses "**exposed** flames", which reads as
+ * unprotected. A flame is a patch of light the table declared with a kind
+ * (`LightPatch.flame`), and it is where the patch's origin is: the space it
+ * was lit at, or the creature carrying it.
+ *
+ * - An **unprotected** flame either clause reaches goes out: the patch is taken
+ *   off the lattice, derived and eventless as Sleet Storm's dousing of a
+ *   burning creature is. Relit there, it goes out again.
+ * - A **protected** flame Gust's clause (`extinguishes-flames`) reaches is
+ *   owed one throw (`flame-reached`), which `settleAreaEffects` makes. The
+ *   flames the area is on are written onto the record (`flamesReached`), so a
+ *   flame that stays in the Line is owed nothing more and one the Line leaves
+ *   and comes back to — the caster moving, the Line turned, the lantern
+ *   carried — is owed another. Not every round.
+ *
+ * Returns at once where no running casting prints either clause, which is
+ * nearly always.
+ */
+export function windOnFlames(state: GameState): GameState {
+  const scene = state.scene;
+  if (scene === null) return state;
+  const blowing = Object.keys(state.ongoing)
+    .sort()
+    .filter((castingId) =>
+      (state.ongoing[castingId]!.areaStanding ?? []).some(
+        (standing) => standing.kind === 'douses-flames' || standing.kind === 'extinguishes-flames',
+      ),
+    );
+  if (blowing.length === 0) return state;
+
+  let current = state;
+  for (const castingId of blowing) {
+    const record = current.ongoing[castingId]!;
+    const sceneNow = current.scene!;
+    const region = regionOfCastingArea(record);
+    if (region === null) continue;
+    const caught = creaturesStandingInCastingArea(sceneNow, record) ?? new Set<CharacterId>();
+    const reaches = (patch: { readonly region: TerrainRegion }): boolean => {
+      const origin = patch.region.origin;
+      if ('creature' in origin) return caught.has(origin.creature);
+      const anchor = regionAnchor(sceneNow, patch.region);
+      if (anchor === null) return false;
+      const snap = (value: number) => Math.floor(value / 5) * 5;
+      return spaceInRegion(sceneNow, region, { x: snap(anchor.x), y: snap(anchor.y), z: snap(anchor.z) });
+    };
+    const flames = Object.keys(sceneNow.light)
+      .sort()
+      .filter((name) => sceneNow.light[name]!.flame !== undefined && reaches(sceneNow.light[name]!));
+
+    const out = flames.filter((name) => sceneNow.light[name]!.flame === 'unprotected');
+    if (out.length > 0) {
+      current = {
+        ...current,
+        scene: {
+          ...sceneNow,
+          light: Object.fromEntries(Object.entries(sceneNow.light).filter(([name]) => !out.includes(name))),
+        },
+      };
+    }
+
+    if (!(record.areaStanding ?? []).some((standing) => standing.kind === 'extinguishes-flames')) continue;
+    const reached = flames.filter((name) => sceneNow.light[name]!.flame === 'protected');
+    const before = record.flamesReached ?? [];
+    const owed = reached
+      .filter((name) => !before.includes(name))
+      .filter(
+        (name) =>
+          !current.owedAreaEffects.some(
+            (debt) => debt.castingId === castingId && debt.target === name && debt.moment === 'flame-reached',
+          ),
+      )
+      .map((name) => ({ castingId, target: name, moment: 'flame-reached' as const }));
+    if (owed.length > 0) current = { ...current, owedAreaEffects: [...current.owedAreaEffects, ...owed] };
+    if (reached.join('|') !== before.join('|')) {
+      const { flamesReached: _was, ...rest } = record;
+      void _was;
+      current = {
+        ...current,
+        ongoing: sortedRecord({
+          ...current.ongoing,
+          [castingId]: reached.length === 0 ? rest : { ...rest, flamesReached: reached },
+        }),
+      };
+    }
+  }
   return current;
 }
 
@@ -606,9 +1055,16 @@ function raiseArrivalDebts(
  * turn would refuse to advance past for ever. A dead creature takes no turns
  * and enters nothing, so every moment this debt could record is one that can
  * no longer happen to them.
+ *
+ * A flame's throw (`flame-reached`) is addressed to a patch of light rather
+ * than a creature, and is forgiven when the light is gone — put out, or taken
+ * away with whatever cast it — or the wind that owed it has stopped. (E-L2)
  */
 export function dropOrphanedAreaEffects(state: GameState): GameState {
   const live = state.owedAreaEffects.filter((owed) => {
+    if (owed.moment === 'flame-reached') {
+      return state.ongoing[owed.castingId] !== undefined && state.scene?.light[owed.target] !== undefined;
+    }
     const creature = state.creatures[owed.target];
     return creature !== undefined && !creature.vitals.dead;
   });

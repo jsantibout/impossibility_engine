@@ -186,4 +186,82 @@ describe('the table’s word on a web', () => {
     expect(said).toEqual({ ending: castingId, at: 'start-of-casters-next-turn' });
     expect(surface.observe().ongoing.map((one) => one.castingId)).toContain(castingId);
   });
+
+  /**
+   * SRD Web's flammable webs through the door (E-L2): the table says one Cube
+   * met fire, the answer says what is burning, and a space the webs do not
+   * fill — or a Cube already alight — is refused.
+   */
+  it('takes the table’s word that a Cube of webs met fire', () => {
+    const seed = 'a-torch-in-the-web';
+    const weaver = asCharacterId('weaver');
+    const room: readonly GameEvent[] = [
+      {
+        type: 'creature-added',
+        id: weaver,
+        name: 'Weaver',
+        sheet: {
+          level: 5,
+          abilities: { str: 10, dex: 10, con: 10, int: 18, wis: 10, cha: 10 },
+          skills: {},
+          saveProficiencies: [],
+          armor: null,
+          shield: null,
+          armorTraining: { light: false, medium: false, heavy: false, shields: false },
+          baseSpeed: 30,
+          spellcastingAbility: 'int',
+        },
+        maxHp: 30,
+        diesAtZero: false,
+        creatureType: 'Humanoid',
+      },
+      {
+        type: 'spellcasting-declared',
+        id: weaver,
+        spellcasting: declaredCasting({ ability: 'int', prepared: ['web'] }),
+      },
+      {
+        type: 'resource-pool-declared',
+        id: weaver,
+        pool: { key: 'spell-slot:2', label: 'level 2', max: 2, recovers: 'long-rest' },
+      },
+      { type: 'scene-set', extent: { width: 100, depth: 100, height: 20 } },
+      { type: 'landmark-added', name: 'the loom', at: { x: 10, y: 10, z: 0 } },
+      { type: 'creature-placed', id: weaver, placement: { from: { landmark: 'the loom' }, feet: 0 } },
+    ];
+    const before = restoreCampaign({ content: SRD_CONTENT, record: { seed, contentRef: 'srd', log: room } });
+    const spun = unwrap(
+      resolveSpell(
+        before.state(),
+        weaver,
+        { spellId: 'web', targets: [], at: { x: 40, y: 40, z: 0 }, towards: { x: 60, y: 40, z: 0 }, slotLevel: 2 },
+        before.supply(),
+      ),
+      'the web',
+    );
+    const campaign = restoreCampaign({
+      content: SRD_CONTENT,
+      record: { seed, contentRef: 'srd', log: [...room, ...spun.events] },
+    });
+    const surface = createDmSurface(campaign);
+    const castingId = spun.castingId!;
+
+    const lit = expectOk(
+      surface.call({ tool: 'expose_to_fire', input: { castingId, at: { x: 45, y: 40 } }, commandId: 'toolu_torch' }),
+    );
+    expect(lit).toEqual({ burning: castingId });
+
+    const again = surface.call({
+      tool: 'expose_to_fire',
+      input: { castingId, at: { x: 45, y: 40 } },
+      commandId: 'toolu_torch_again',
+    });
+    expect(again.status === 'refused' && again.code).toBe('already_burning');
+    const outside = surface.call({
+      tool: 'expose_to_fire',
+      input: { castingId, at: { x: 90, y: 90 } },
+      commandId: 'toolu_far',
+    });
+    expect(outside.status === 'refused' && outside.code).toBe('outside_area');
+  });
 });

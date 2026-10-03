@@ -603,6 +603,7 @@ const DECLARATIONS: Readonly<
    * Animate Dead reads it.
    */
   declareBones: { tool: 'declare_bones', dmOnly: true },
+  declarePlants: { tool: 'declare_plants', dmOnly: true },
   /**
    * **Who is touching a declared object, and the DM's alone** by the owner's
    * answer of 2026-10-03: a model that could say whose hand is on the gate
@@ -1248,6 +1249,9 @@ const KIND_SETTLED_BY: Readonly<Record<string, ContextRequestKind | null>> = {
   // A Heat Metal at a declared object nobody has said is touched stops on it,
   // and asks as a fact about the room: `scene`, as the bones do. (E-L1)
   declareContact: 'scene',
+  // An Overgrowth over ground nobody has described stops on it, and asks as a
+  // fact about the room: `scene`, as the bones above do. (E-L2)
+  declarePlants: 'scene',
 };
 
 /**

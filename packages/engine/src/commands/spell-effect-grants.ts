@@ -19,7 +19,7 @@ import { ABILITY_NAMES, type CharacterId, err, ok, type Result } from '@ie/share
 import { type D20TestResult, rollSavingThrow } from '../checks.js';
 import { applyEvent, type CreatureState, type GameEvent, type GameState } from '../events.js';
 import { weaponRiderBonusAt, weaponRiderDieAt } from '../spell-definitions.js';
-import { lightDispelledBy, type LightLevel, type TerrainRegion } from '../positioning.js';
+import { dispelOnPinning, type LightLevel, type TerrainRegion } from '../positioning.js';
 import { armorClassOf, sheetAsItStands, speedOf } from '../standing.js';
 import { alteredRiderDice, recordD20Test, savingSupport } from './rolls.js';
 import { complementType, type PassiveDefenseState } from '../passive-defenses.js';
@@ -370,6 +370,7 @@ export function resolveSpeedEffect(
       // now.
       ...(effect.mode === undefined ? {} : { mode: effect.mode }),
       ...(effect.hover === undefined ? {} : { hover: effect.hover }),
+      ...(effect.occupiesOthers === undefined ? {} : { occupiesOthers: effect.occupiesOthers }),
       // Two casters' Longstriders are ten feet, not twenty.
       ...pinnedEffect(ctx),
     },
@@ -667,9 +668,9 @@ export function resolveConditionImmunityEffect(
  * a point deliberately does not have. Magical, because a spell shed it, at
  * the spell's own level, which is what the book's mutual dispel compares; and
  * sourced to the casting, so `livePatchesOf` drops it the moment the casting
- * leaves `state.ongoing`. A magical darkness the bright patch lands over is
- * put out where the book says it is, by the same `lightDispelledBy` a
- * Daylight uses.
+ * leaves `state.ongoing`. No light shed this way prints SRD Darkness's
+ * sentence, so it puts no darkness out — and laid into a Darkness whose level
+ * reaches it, it is the one put out (`dispelOnPinning`). (E-L2)
  *
  * **And a light a conjured thing sheds goes with the thing.** SRD Flame Blade:
  * "If you let go of the blade, it disappears" — and "The flaming blade sheds
@@ -782,9 +783,6 @@ export function lightShedOn(
       ...pinned,
     },
   ];
-  for (const dispelled of lightDispelledBy(state, sphere(light.radius), light.level, spellLevel)) {
-    events.push({ type: 'spell-ended', castingId: dispelled, on: null, reason: 'dispelled' });
-  }
   if (light.dimBeyond !== undefined) {
     events.push({
       type: 'light-declared',
@@ -794,6 +792,24 @@ export function lightShedOn(
       magical: { spellLevel },
       ...pinned,
     });
+  }
+
+  // **No SRD light shed this way prints the dispel**, so laying it puts
+  // nothing out — SRD Darkness's and Daylight's sentences are theirs, and
+  // they are areas (`AreaLight.dispels`). What it may be is put out: a glow on
+  // a deadline of its own laid where a Darkness already stands is dispelled
+  // here, by its timer, because the timer is already in the batch. A glow
+  // sourced to a running casting is put out by the casting's own resolution,
+  // below its record — see `dispelledOnLaying` in `spell-resolution.ts`. (E-L2)
+  if (timer !== undefined && castingId === null) {
+    const verdict = dispelOnPinning(
+      state,
+      sphere(light.radius + (light.dimBeyond ?? 0)),
+      light.level,
+      { spellLevel },
+      { lapsesWith: timer },
+    );
+    if (verdict.itself) events.push({ type: 'effect-dispelled', effectKey: timer });
   }
 
   return { events, unverified: [] };

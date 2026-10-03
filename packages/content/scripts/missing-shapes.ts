@@ -108,7 +108,7 @@ export const MISSING_SHAPES = {
   'a-repeat-save-raised-by-a-trigger':
     'a repeat save raised by something that happened — taking damage, having moved, coming within a distance, another effect trying to cure it. The turn hook is the only thing that raises one, which `docs/design/time-and-turns.md` states outright: "Raising is derived; rolling is commanded ... `turn-advanced` *raises* the saves the boundary owes". The fourth of the four mechanisms the audit found bundled under `a-repeat-save-beyond-the-turn-hook`.',
   'a-casting-ended-by-a-trigger':
-    'a casting ends by its deadline, by Concentration, by a dispel or by a recast — `docs/design/casting.md`, "Lifecycle, and the one place it ends". IE-032 built the fifth way, `endsEarly` in spell-definitions.ts, and its causes have grown one sentence at a time since: the target attacks, deals damage, casts or dons armour; the caster or an ally damages it; it takes any damage or drops to 0; a summon takes damage or drops; a sleeper is shaken awake; the caster leaves the area, drops to 0 or is separated past a distance. **W9-S2 built two more and they finished six spells between them**: a strong wind (`dispersed-by-wind`, read off a casting whose area pins `disperses` or a `wind-declared`), which is Fog Cloud and Stinking Cloud and what Gust of Wind blows; and the table’s word that a cause the spell prints has happened (`the-table-declares`, a phrase the record pins and `declareEnding` matches), which is Web’s webs not anchored, Suggestion’s activity complete and a glyph’s surface moved. **What is left in reach is one sentence, and it is more than a cause.** (SRD Remove Curse ends **curses**, and that is built, E-L1: a spell that lays one is marked `curse` and pinned on its record, and `end-curses` ends it with the printed curses and a cursed item’s Attunement.) SRD Web’s fire burns away a 5-foot Cube of the area and deals 2d4 Fire at the turn start in it, which is ending **part** of a casting — neither scope says it. (SRD Prayer of Healing’s targets remaining within range for the ten minutes, a drift measured during a rite rather than at its end, was the third: E-L3 built it as a fold pass that marks a target strayed as it happens, `PendingCasting.strayed`, and the settlement passes it over.) **Out of level-5 reach** the id still holds Sequester’s condition the caster chooses, Polymorph’s Temporary Hit Points running out, Geas and its punishment, Mislead’s double outliving its invisibility, the Arcane Hand, Astral Projection and Simulacrum dropping to 0, Maze’s escape, Modify Memory’s damage or another spell, and the Hat of Disguise.',
+    'a casting ends by its deadline, by Concentration, by a dispel or by a recast — `docs/design/casting.md`, "Lifecycle, and the one place it ends". IE-032 built the fifth way, `endsEarly` in spell-definitions.ts, and its causes have grown one sentence at a time since: the target attacks, deals damage, casts or dons armour; the caster or an ally damages it; it takes any damage or drops to 0; a summon takes damage or drops; a sleeper is shaken awake; the caster leaves the area, drops to 0 or is separated past a distance. **W9-S2 built two more and they finished six spells between them**: a strong wind (`dispersed-by-wind`, read off a casting whose area pins `disperses` or a `wind-declared`), which is Fog Cloud and Stinking Cloud and what Gust of Wind blows; and the table’s word that a cause the spell prints has happened (`the-table-declares`, a phrase the record pins and `declareEnding` matches), which is Web’s webs not anchored, Suggestion’s activity complete and a glyph’s surface moved. **Nothing is left in reach.** (SRD Remove Curse ends **curses**, and that is built, E-L1: a spell that lays one is marked `curse` and pinned on its record, and `end-curses` ends it with the printed curses and a cursed item’s Attunement.) (SRD Web’s fire was another, ending **part** of a casting, and E-L2 built it: a burning Cube on the record, its 2d4 at the turn boundary, and the Cube taken out of the area when its round is out. SRD Prayer of Healing’s targets remaining within range for the ten minutes, a drift measured during a rite rather than at its end, was the third: E-L3 built it as a fold pass that marks a target strayed as it happens, `PendingCasting.strayed`, and the settlement passes it over.) **Out of level-5 reach** the id still holds Sequester’s condition the caster chooses, Polymorph’s Temporary Hit Points running out, Geas and its punishment, Mislead’s double outliving its invisibility, the Arcane Hand, Astral Projection and Simulacrum dropping to 0, Maze’s escape, Modify Memory’s damage or another spell, and the Hat of Disguise.',
   'a-fact-only-the-table-can-declare':
     'a fact the engine does not hold and cannot derive, which a rule then reads — how well you know a creature, whether you are outdoors in a storm, whether you are fighting it. Declared cover, declared sight and declared allegiance are the discipline CLAUDE.md already draws for this; the audit (§4) is where these clauses were found filed as a selector problem when what they want is the fact. **IE-030 built the fought fact**: `CastSpellRequest.fought` carries it, the five spells that read it as Advantage are finished, and SRD Enthrall reads the same fact as an automatic success through `autoSucceedIf: { fought: true }`. What is left under this id is every other fact of the kind — how well you know a creature, whether you are outdoors — that no request yet states.',
   'an-automatic-success-by-creature-type':
@@ -287,7 +287,7 @@ export const MISSING_SHAPES = {
   // writes as `aimed` — so all three of the spell's sentences land and a shape
   // nothing is blocked on is one the guard deletes.
   'a-random-outcome-that-is-not-a-d20':
-    '**Half built, and the half that is names itself.** PROGRESS.md ranked it "A random outcome that is not a d20 | 1 / 19 | the generator, `parseNotation`", over three different dice: a percentage chance, a 1d10 behaviour table and a 1d100 mishap roll. The **percentage** is built — the `chance` effect throws a d100 against a number the book printed, flat or grown by the castings that have gone before, and the count is the `Tally` a Wind Fan’s uses were already kept in. Augury is executed off it and Gust of Wind’s 50 and Sending’s 5 are writable by it. What is left is every other die in this family, and they are not the same shape twice: a **table** the face indexes into, which needs somewhere for the rows to live, and a die thrown **at a turn boundary** whose face branches — SRD Blink’s 1d6 — which is a payout that can hand over hit points and cannot ask a question. **Two consumers have left the count, and one of them because it was built.** Slow prints a 25 percent chance that a casting with a Somatic component fails; it sat in that spell’s own `unmodelled` list while the engine could not tell what a spell’s components were, and it is executed now (W7-S22) — `SpellEntry.components` carries the book’s V, S and M out of the parsed index, and `ActionRule`’s `casting-chance` throws the same d100 through `thrownAgainst` after the casting’s cost is paid, so a failure keeps the slot spent and writes `spell-fizzled`. **Gust of Wind left for a different reason**: it was tracked and filed here for the 50 percent chance of snuffing a lantern, the push and both saving throws are executed now, and the clause went with it into that spell’s own `unmodelled` list, because the executed map has no marker-less entry form — `Adjudication` carries a clause, a shape and a note, and `CLAUSE_MARKERS` knows dice, saves, checks and twenty other words but not a percentage. So the census fell by one on a day nothing was built, which is what this paragraph exists to say out loud, and the day `Adjudication` gains the null marker `TrackedAdjudication` already has is the day it comes back to this count.',
+    '**Half built, and the half that is names itself.** PROGRESS.md ranked it "A random outcome that is not a d20 | 1 / 19 | the generator, `parseNotation`", over three different dice: a percentage chance, a 1d10 behaviour table and a 1d100 mishap roll. The **percentage** is built — the `chance` effect throws a d100 against a number the book printed, flat or grown by the castings that have gone before, and the count is the `Tally` a Wind Fan’s uses were already kept in. Augury is executed off it, Sending’s 5 is writable by it, and Gust of Wind’s 50 is thrown by the same die (`thrownAgainst`) when its Line reaches a protected flame. What is left is every other die in this family, and they are not the same shape twice: a **table** the face indexes into, which needs somewhere for the rows to live, and a die thrown **at a turn boundary** whose face branches — SRD Blink’s 1d6 — which is a payout that can hand over hit points and cannot ask a question. **Two consumers have left the count, and one of them because it was built.** Slow prints a 25 percent chance that a casting with a Somatic component fails; it sat in that spell’s own `unmodelled` list while the engine could not tell what a spell’s components were, and it is executed now (W7-S22) — `SpellEntry.components` carries the book’s V, S and M out of the parsed index, and `ActionRule`’s `casting-chance` throws the same d100 through `thrownAgainst` after the casting’s cost is paid, so a failure keeps the slot spent and writes `spell-fizzled`. **Gust of Wind left for a different reason**: it was tracked and filed here for the 50 percent chance of snuffing a lantern, the push and both saving throws are executed now, and the clause went with it into that spell’s own `unmodelled` list, because the executed map has no marker-less entry form — `Adjudication` carries a clause, a shape and a note, and `CLAUSE_MARKERS` knows dice, saves, checks and twenty other words but not a percentage. **And E-L2 built it** on the owner’s ruling of 2026-10-03: a declared light may be a protected flame, and the Line reaching one owes a d100 the engine throws (`flame-reached`, settled into `flame-tested`), so Gust of Wind owes nothing and its `unmodelled` list is gone. So the census fell by one on a day nothing was built, which is what this paragraph exists to say out loud, and the day `Adjudication` gains the null marker `TrackedAdjudication` already has is the day it comes back to this count.',
   'a-rest-an-effect-gives-or-denies':
     'a rest is a span the engine measures and its payout is `endRest`’s — `docs/design/time-and-turns.md`, "**A rest is a span, not a button**". **The giving half is built (E-L3)**: the `rest-benefits` effect confers a Short Rest’s two benefits without the hour — the pools a Short Rest recovers, through the `resources-restored` a rest emits, and the Hit Point Dice the creature names, thrown by the one roller `endRest` throws them with — which finished SRD Prayer of Healing. What is left is the other half: nothing takes the benefits away from a rest that was completed.',
   'damage-with-neither-an-attack-roll-nor-a-save':
@@ -320,7 +320,7 @@ export const MISSING_SHAPES = {
   'an-area-trigger-measured-from-a-point':
     '`docs/design/casting.md` names it spell by spell: "Ending a turn within 5 feet of a point, and a point rolled into a creature’s space | Flaming Sphere". `AreaTrigger` hangs off a template, and a reach measured from the casting’s own origin is what `CastingOrigin.reach` answers for an attack and for nothing that fires on its own.',
   'light-and-obscurement-the-scene-holds':
-    '**built as P3-S, and this is what is left of it.** The description before this one said light and obscurement were facts nothing in state held — "no square is lit or unlit, and so Darkvision has never had the rule it is a rule about and no casting can shed, quench or obscure anything" — and `docs/design/light-and-sight.md` is the design the owner ruled on, all five decisions, on 2026-09-21. Every one of them is executed: light and obscurement are records of patches on the lattice beside `terrain`, each carrying a region and the `source` casting that lapses it; `lightAt` takes the strongest of the ambient and the patches with the book’s own exception, that nonmagical light does not lift magical darkness; `obscurementAt` takes the greater of what was declared and what the level implies; the sight question gained one step between the declaration and the sense, where Blindsight and Truesight defeat anything, Darkvision turns nonmagical darkness into dim and Devil’s Sight defeats the magical kind; sunlight is Bright Light with a flag, which a `StandingRequirement` reads; and an undeclared scene is undeclared rather than bright. A glow hung off a settled outcome is `OutcomeRiders.light` (SRD Faerie Fire), with a deadline of its own where the sentence prints one (`LightRider.lasts`, SRD Starry Wisp’s "until the end of your next turn", lapsing with the rider’s timer rather than the casting). **The object is built too** (W9-S1): a cast light keeps its casting’s identity as the thing it is on moves — `moveCastLight` re-lays the casting’s own patches onto a new bearer, a declared object or a point, keeps what makes them magical and the casting’s, and lays a Darkness or Daylight cast at a declared object’s space on that object as an Emanation — and a patch may be **covered**, which fills no area, lights nothing and neither dispels nor is dispelled until it is uncovered and pinned again; a conjured blade’s light shines only while the blade is held. And the light a creature sheds from its own sheet is derived rather than declared — `carriedLight` reads the Illuminations and a running feature’s light off the sheet — so the stat-block half the same note listed is built as well. What is left is five residues, none of them the object. **Gust of Wind’s flames**: its 50 percent chance to put out "candles and similar unprotected flames in the area" needs a table-declared flame the engine holds a kind for, so the d100 has something to land on — a declared patch of light is a room fact and says nothing about being a flame or being protected. **A glow on its own deadline is out of the dispel’s reach**: SRD Starry Wisp’s Dim Light lapses with its rider’s timer and names no running casting, so a Darkness laid over it has nothing to end (filed on Darkness). **Sunburst’s flash**: the mutual dispel runs "on pinning a patch", and a spell that puts Darkness out without laying any light of its own reaches `lightDispelledBy` by no route (level 8, out of reach). **Shadow Stealth is an economy**: the Hide is built and the Bonus Action that buys it in Dim Light or Darkness needs a light-gated grant no `StandingRequirement` states. And **the vampires burn**: their Sunlight prints Sunlight Sensitivity behind "takes 20 Radiant damage if it starts its turn in sunlight", which is damage dealt at a turn boundary, so the line is refused whole rather than read down to the half that fits.',
+    '**built as P3-S, and this is what is left of it.** The description before this one said light and obscurement were facts nothing in state held — "no square is lit or unlit, and so Darkvision has never had the rule it is a rule about and no casting can shed, quench or obscure anything" — and `docs/design/light-and-sight.md` is the design the owner ruled on, all five decisions, on 2026-09-21. Every one of them is executed: light and obscurement are records of patches on the lattice beside `terrain`, each carrying a region and the `source` casting that lapses it; `lightAt` takes the strongest of the ambient and the patches with the book’s own exception, that nonmagical light does not lift magical darkness; `obscurementAt` takes the greater of what was declared and what the level implies; the sight question gained one step between the declaration and the sense, where Blindsight and Truesight defeat anything, Darkvision turns nonmagical darkness into dim and Devil’s Sight defeats the magical kind; sunlight is Bright Light with a flag, which a `StandingRequirement` reads; and an undeclared scene is undeclared rather than bright. A glow hung off a settled outcome is `OutcomeRiders.light` (SRD Faerie Fire), with a deadline of its own where the sentence prints one (`LightRider.lasts`, SRD Starry Wisp’s "until the end of your next turn", lapsing with the rider’s timer rather than the casting). **The object is built too** (W9-S1): a cast light keeps its casting’s identity as the thing it is on moves — `moveCastLight` re-lays the casting’s own patches onto a new bearer, a declared object or a point, keeps what makes them magical and the casting’s, and lays a Darkness or Daylight cast at a declared object’s space on that object as an Emanation — and a patch may be **covered**, which fills no area, lights nothing and neither dispels nor is dispelled until it is uncovered and pinned again; a conjured blade’s light shines only while the blade is held. And the light a creature sheds from its own sheet is derived rather than declared — `carriedLight` reads the Illuminations and a running feature’s light off the sheet — so the stat-block half the same note listed is built as well. What is left is three residues, none of them the object — a fourth, the glow on a deadline of its own that a Darkness could not reach, was built by E-L2: it is put out by the timer it lapses with, and the dispel now holds whichever came first, at the threshold the printing spell carries; and a fifth, Gust of Wind’s flames, was built by E-L2 on the owner’s ruling of 2026-10-03: a declared light may say it is a flame, unprotected or protected (`LightPatch.flame`), the Line and Sleet Storm’s sleet put an unprotected one out, and a protected one the Line reaches is owed one d100 throw. **Sunburst’s flash**: the mutual dispel runs "on pinning a patch", and a spell that puts Darkness out without laying any light of its own reaches `lightDispelledBy` by no route (level 8, out of reach). **Shadow Stealth is an economy**: the Hide is built and the Bonus Action that buys it in Dim Light or Darkness needs a light-gated grant no `StandingRequirement` states. And **the vampires burn**: their Sunlight prints Sunlight Sensitivity behind "takes 20 Radiant damage if it starts its turn in sunlight", which is damage dealt at a turn boundary, so the line is refused whole rather than read down to the half that fits.',
   'a-world-fact-nothing-can-represent':
     'PROGRESS.md’s category C, named spell by spell: "**Meld into Stone** (every mechanical clause it has — 6d6 Force, 50 Force, Disadvantage on Perception, Prone on expulsion — hangs off “you are inside a rock”, which is a state nothing can hold)". Not a mechanism that is missing; a fact the world model has no room for, and inventing one is not on.',
 } as const;
@@ -829,20 +829,14 @@ export const ADJUDICATED: Readonly<Record<string, readonly Adjudication[]>> = {
   // every route the line opens, and a casting with no component left — or one
   // from an item, which "requires no components" — is pinned `componentless`
   // on the record the window reads, which then does not open.
-  'dancing-lights': [
-    {
-      clause: 'the engine lays one dim patch for all four',
-      why: 'a-wall-or-several-templates-in-one-area',
-      note: 'W9-S1 re-filed this from the light shape, which has nothing left to give it: the light is laid, magical and moved by the Bonus Action. What is missing is the geometry — four Spheres of Dim Light in one casting, each placed where the caster says, a 20-foot tether between one light and the next, and a range each light keeps on its own or vanishes past — which is several templates in one area, this id’s shape exactly. The table places the one patch where the nearest mote is.',
-    },
-  ],
-  darkness: [
-    {
-      clause: 'an overlapping glow on a deadline of its own',
-      why: 'light-and-obscurement-the-scene-holds',
-      note: 'W9-S1, on review. SRD Darkness: "If any of this spell’s area overlaps with an area of Bright Light or Dim Light created by a spell of level 2 or lower, that other spell is dispelled." SRD Starry Wisp’s glow is laid with no `source`, because its casting is Instantaneous and never reaches `state.ongoing`; it lapses with the rider’s own timer instead (`LatticePatch.lapsesWith`). `lightDispelledBy` ends castings, and there is none to end — so the Dim Light survives the Darkness for up to a round and, being magical, lifts it. Ending a glow early by releasing its timer is a mechanism of the light shape nobody has written.',
-    },
-  ],
+  // **Dancing Lights files nothing now** (E-L2): the several templates are
+  // `AreaCopies` — up to four lights, each at a point the caster names
+  // (`alsoAt`), tied within twenty feet, moved by number (`alsoTo`), and gone
+  // for good past the Range (`vanishLightsBeyondRange`).
+  // **Darkness files nothing now** (E-L2): the glow on a deadline of its own is
+  // put out by its timer (`effect-dispelled`), and the dispel holds whichever
+  // came first — `dispelOnPinning` at every pinning, `dispelMovedLight` for a
+  // light carried in — at the threshold the spell prints (`areaLight.dispels`).
   'dimension-door': [
     {
       clause: 'the willing creature who comes along',
@@ -907,18 +901,11 @@ export const ADJUDICATED: Readonly<Record<string, readonly Adjudication[]>> = {
   // creature, and `StatedChoice.perTarget` lets the request answer it that way
   // (`choiceByTarget`): each creature's mode takes its own value through the
   // same `statedChoice` the single answer goes through.
-  'feather-fall': [
-    {
-      clause: 'the rate of descent is not slowed',
-      why: 'falling',
-      note: 'W8-S26 read this line for the first time, and this id’s description says it: "the descent rate is a separate absence — nothing measures a descent, so the sixty feet a round has nothing to be measured against". How long a fall takes decides who can act before it lands.',
-    },
-    {
-      clause: 'goes unchecked, as Counterspell',
-      why: 'falling',
-      note: 'W8-S26 re-read this as a debt. The printed casting time is a Reaction taken when the caster or a creature the caster can see falls, and sight is a declared fact `canSee` reads for every other trigger; the window derived from `fall-declared` does not ask it. The closest id — the trigger half of falling is the one this description says is built, and the sight gate on it is not.',
-    },
-  ],
+  // **Feather Fall files nothing now** (E-L2). The sight gate on its trigger is
+  // built — `fallAnswerable` reads "you or a creature you can see within 60 feet
+  // of you" for the casting and for the offer alike — and the rate of descent is
+  // in its `dmDecides` under the owner's ruling of 2026-09-27, that the spell
+  // reads only whether the landing falls inside its minute.
   'find-steed': [
     {
       clause: 'acts independently, focusing on protecting you',
@@ -945,14 +932,11 @@ export const ADJUDICATED: Readonly<Record<string, readonly Adjudication[]>> = {
       note: 'SRD lets the caster keep the globe in hand to be thrown or slung later, or left to detonate on its own. A hand is a fact now and a casting may put a thing in one, but what sits there is an ordinary catalogue item with no state of its own \u2014 and this globe is a held *casting*, which detonates on a later action, may be thrown, and goes off by itself if it is not. Holding it is the half that is built; the rest of the sentence is not.',
     },
   ],
-  'gaseous-form': [
-    {
-      clause: 'can enter and occupy the space of another creature',
-      why: 'a-creature-fact-an-effect-overrides',
-      note: 'W8-S26 read this line for the first time. Occupancy is a rule the engine owns outright and refuses a move into another creature’s space; the cloud may end its move there and the engine refuses it. The closest id: an effect that changes what other rules believe about one creature, which this description built for the creature type and names for two more facts — occupancy is a third.',
-    },
-  ],
-  // **Gaseous Form files nothing now.** Its last entry was "The target can't
+  // **Gaseous Form files nothing now, twice over.** Its occupancy was the last
+  // entry (W8-S26) and E-L2 built it: the cloud's Fly Speed carries
+  // `occupiesOthers`, which `resolveMove` reads to let its own move through and
+  // into anybody's space, writing `intoOccupied` for the fold. The entry before
+  // that one was "The target can't
   // talk", filed against `an-action-the-engine-has-no-spender-for` on the
   // reading that a sentence the engine three-quarters enforces could not go
   // to the table. The owner overruled that on 2026-09-26: the sentence is the
@@ -963,18 +947,6 @@ export const ADJUDICATED: Readonly<Record<string, readonly Adjudication[]>> = {
       clause: 'enough nourishment to sustain a creature for one day',
       why: 'table',
       note: 'The reading that lets the handed-over sentence past the marker rule (W8-S26). SRD: "Eating a berry restores 1 Hit Point, and the berry provides enough nourishment to sustain a creature for one day." The marker fires on the Hit Point, which the berry’s own conferral executes whatever the table reads. The nourishment is read by Malnutrition, a glossary hazard nothing in the engine executes — the reading Create Food and Water was handed over whole on.',
-    },
-  ],
-  'gust-of-wind': [
-    {
-      clause: 'the candles and similar unprotected flames the gust extinguishes',
-      why: 'light-and-obscurement-the-scene-holds',
-      note: 'W9-S2 split this from the gas, which the Line disperses now. SRD: "The gust disperses gas or vapor, and it extinguishes candles and similar unprotected flames in the area." A candle’s light is a patch the table declares and every sight question reads; what the Line would put out is a flame — a table-declared light the engine holds a kind for, unprotected — which this id’s description names among what is left of it as Gust of Wind’s flames, the same want as the lantern’s 50 percent beside it.',
-    },
-    {
-      clause: '50 percent chance to extinguish them',
-      why: 'light-and-obscurement-the-scene-holds',
-      note: 'W8-S26 re-read this as a debt. The 50 percent is a die the engine should throw and a lantern’s light is read by the sight question; what the die would land on is a flame the engine holds no kind for — a declared patch of light says nothing about being a flame or being protected — which this id’s description names among what is left of it as Gust of Wind’s flames.',
     },
   ],
   harm: [
@@ -1116,13 +1088,10 @@ export const ADJUDICATED: Readonly<Record<string, readonly Adjudication[]>> = {
       note: 'SRD: "The target is also unaffected by anything that would sense its emotions or alignment, read its thoughts, or magically detect its location, and no spell—not even _Wish_—can gather information about the target, observe it remotely, or control its mind." The mind-control half is answered by the Charmed Immunity the definition already grants: every spell in this catalogue that controls a mind does it by imposing that condition. The rest reaches nothing — no emotion, alignment, thought, remote sense or scrying result is a fact this engine holds, and no definition asks for one — so the clause is narration the DM owns rather than debt.',
     },
   ],
-  moonbeam: [
-    {
-      clause: 'a shape-shifted creature reverting to its true form',
-      why: 'a-standing-effect-derived-from-where-a-creature-stands',
-      note: 'W8-S26 re-read this as a debt, because the reason it gave, that shape-shifting is not modelled, stopped being true when Wild Shape and the printed shape-shifters were built. A creature holds a shape now; the failed save should end it, and "can’t shape-shift until it leaves the Cylinder" is a refusal derived from where the creature stands, which is this id. The forced revert rides with it.',
-    },
-  ],
+  // **Moonbeam files nothing now** (E-L2). The revert is `OutcomeRiders.revertsShape`:
+  // a failed save ends whatever shape the creature holds — a Wild Shape, a form
+  // its own block prints, a casting that shape-shifts it (`shapeShifts`) — and
+  // hangs a `forbids.shapeShifting` rule the fold lifts when it leaves the area.
   'phantasmal-killer': [
     {
       clause: 'the Wisdom save at the end of each',
@@ -1140,18 +1109,6 @@ export const ADJUDICATED: Readonly<Record<string, readonly Adjudication[]>> = {
       clause: 'can travel 13 miles in an hour',
       why: 'table',
       note: 'The reading that lets the handed-over sentence past the marker rule (W8-S26). SRD: "The steed uses the Riding Horse stat block (see "Monsters"), except it has a Speed of 100 feet and can travel 13 miles in an hour." The marker fires on the Speed, which the `phantom-steed` bestiary entry carries whatever the table reads; the thirteen miles are an overland pace nothing in the engine travels at.',
-    },
-  ],
-  'plant-growth': [
-    {
-      clause: 'the areas the caster excludes from the Sphere are not excluded',
-      why: 'a-wall-or-several-templates-in-one-area',
-      note: 'W8-S26 read this line for the first time. SRD: "You can exclude one or more areas of any size within the spell’s area from being affected." The terrain patch covers the whole Sphere and the ruler charges four feet a foot on every space of it. One area with others cut out of it is several templates in one area, which is this id.',
-    },
-    {
-      clause: 'whether or not normal plants grow there',
-      why: 'a-fact-only-the-table-can-declare',
-      note: 'W8-S26 read this for the first time. SRD: "All normal plants in a 100-foot-radius Sphere centered on that point become thick and overgrown." Where the plants are is a fact only the table holds, and the terrain the ruler charges for is read off it — bare rock inside the Sphere is not overgrown. A fact the table must state that no request yet can.',
     },
   ],
   // **Gone, and it is the spell that shape was named for.** "The spell ends if
@@ -1178,13 +1135,9 @@ export const ADJUDICATED: Readonly<Record<string, readonly Adjudication[]>> = {
   // "One save per ward per turn" stands, and is the engine's rule. The attack
   // roll the ending reads was taken off this map earlier, by
   // `roll-recorded.attackRoll`.
-  'sleet-storm': [
-    {
-      clause: 'the exposed flames the sleet douses are not doused',
-      why: 'a-standing-effect-derived-from-where-a-creature-stands',
-      note: 'W8-S26 filed this on review, after first handing it over. SRD: "The area is Heavily Obscured, and exposed flames in the area are doused." A torch in the open is light the table declares and takes away, but a creature on fire is not: the Burning hazard sits on the creature and deals 1d4 at the start of each of its turns, and `extinguishFire`’s own note names doused as the gap. Standing in the Cylinder is what should put it out, which is a standing effect derived from where a creature stands — the closest id.',
-    },
-  ],
+  // **Sleet Storm files nothing now** (E-L2): "exposed flames in the area are
+  // doused" is `douses-flames`, an `AreaStanding` clause the fold reads against
+  // every burning creature standing in the Cylinder after every event.
   // **The shaking has left this map**, and it left by being built: "someone
   // within 5 feet of it takes an action to shake it out of the spell's effect"
   // is `wakeCreature`, a command that spends the onlooker's Action, measures
@@ -1244,13 +1197,10 @@ export const ADJUDICATED: Readonly<Record<string, readonly Adjudication[]>> = {
   // because two of its six branches are instantaneous inside a spell that
   // lasts a minute, and `SpellOption.instantaneous` is the branch's own
   // Duration — a door flung open leaves no record for the cap to count.
-  web: [
-    {
-      clause: 'the webs being flammable',
-      why: 'a-casting-ended-by-a-trigger',
-      note: 'W8-S26 re-read this as a debt, and settled the question the brief asked: is a web a thing fire reads? It is not. The engine’s fire is the Burning hazard, which it holds on a creature, and a web is not one. SRD: "Any 5-foot Cube of webs exposed to fire burns away in 1 round, dealing 2d4 Fire damage to any creature that starts its turn in the fire." W9-S2 built the table’s word, and this is not a cause of that kind: exposure is the table’s to say, but what follows is **one Cube** of the area burning away while the rest stands, with 2d4 the engine must throw at the start of a turn in it — ending part of a casting, which neither scope an ending has can say. Still this id, for that.',
-    },
-  ],
+  // **Web files nothing now** (E-L2). The flammable webs are `SpellDefinition.flammable`:
+  // the table says a Cube met fire (`exposeToFire`), the turn boundary deals the
+  // 2d4 to a creature starting its turn in it (`burningCubesDue`), and the fold
+  // burns the Cube out of the area when its round is out (`burnAwayCubes`).
   weird: [
     {
       clause: 'deals 5d10 Psychic damage again',
@@ -1284,12 +1234,7 @@ export const ADJUDICATED: Readonly<Record<string, readonly Adjudication[]>> = {
     {
       clause: 'a hurled boulder let through',
       why: 'a-barrier-that-blocks-passage',
-      note: 'W8-S26 read this line for the first time. The barring and the deflection are built as `areaStanding`; what it cannot tell is an arrow from a boulder, because a stat block’s printed line does not say what it looses, so a monster’s ranged shot is made and the wall reported beside it. A creature whose ranged attack should miss automatically is owed that miss. The closest id: what a wall stops crossing it.',
-    },
-    {
-      clause: 'fog, smoke and other gases are not kept at bay',
-      why: 'an-effect-that-suppresses-other-magic',
-      note: 'W8-S26 split this from the loose material, which is handed over. A Fog Cloud or a Stinking Cloud laid across the wall is a casting whose obscurement and Poisoned are read, and nothing lets one area suspend another in the spaces they share. An area that stops magic working inside it is this id.',
+      note: 'W8-S26 read this line for the first time. The barring and the deflection are built as `areaStanding`; what it cannot tell is an arrow from a boulder, because a stat block’s printed line does not say what it looses, so a monster’s ranged shot is made and the wall reported beside it. A creature whose ranged attack should miss automatically is owed that miss. The closest id: what a wall stops crossing it. **E-L2 narrowed it**: a line named after a catalogue weapon that is fired or thrown looses that weapon and is deflected as the weapon is (`projectileOfLine`). The owner ruled on the rest (2026-10-03, "a content table, decided once"): every other printed ranged line is decided in the projectile table (`ranged-lines.ts`) — a Tail Spike deflected, a Boulder or a Hurl Flame untouched. What is left is objects, which are not in the scene, and three lines above CR 5 the table leaves undecided because the book does not settle them (a Frost Giant’s Great Bow, a Solar’s Flying Sword, a Treant’s Hail of Bark).',
     },
   ],
 };

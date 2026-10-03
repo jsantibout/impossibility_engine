@@ -1,8 +1,9 @@
 import { err, ok, type Ability, type CharacterId, type Result, type Skill } from '@ie/shared';
-import type { TurnMoment } from './time.js';
+import type { Deadline, TurnMoment } from './time.js';
 import {
   areaPointAt,
   creaturesInArea,
+  moverInRegionAt,
   type AreaOrigin,
   type AreaShape,
   type Point,
@@ -207,6 +208,20 @@ export interface CastingSaveOutcome {
  * they were named, anything a narrator would like. Those are history, the log
  * has them, and duplicating them here would make two answers to one question.
  */
+/**
+ * One Cube of a casting's area on fire — SRD Web's "Any 5-foot Cube of webs
+ * exposed to fire burns away in 1 round, dealing 2d4 Fire damage to any
+ * creature that starts its turn in the fire". (E-L2)
+ */
+export interface BurningCube {
+  /** The 5-foot space, snapped. */
+  readonly space: Point;
+  /** When it has burned away. */
+  readonly until: Deadline;
+  readonly dice: string;
+  readonly damageType: string;
+}
+
 export interface OngoingSpell {
   /** The casting that created it — the same id every effect already carries. */
   readonly castingId: string;
@@ -670,6 +685,62 @@ export interface OngoingSpell {
    */
   readonly path?: readonly Point[];
   /**
+   * Where the casting's other templates stand — SRD Dancing Lights' lights 2,
+   * 3 and 4, beside {@link origin}, which is light 1. Pinned at the cast and
+   * moved by the Bonus Action (`spell-copies-moved`). See `AreaCopies`. (E-L2)
+   */
+  readonly copies?: readonly Point[];
+  /**
+   * The lights that have gone — SRD Dancing Lights' "a light vanishes if it
+   * exceeds the spell's range" — numbered as the caster numbered them, 1 for
+   * the light at {@link origin}. Written by the fold the moment one is beyond
+   * {@link keptWithin} of its caster, and never taken back. (E-L2)
+   */
+  readonly vanished?: readonly number[];
+  /**
+   * The Range a copy must stay within or vanish, in feet, pinned at the cast
+   * where the definition says so (`AreaCopies.keptInRange`). (E-L2)
+   */
+  readonly keptWithin?: number;
+  /**
+   * The Cubes of this casting's area that are on fire, each until its deadline
+   * — SRD Web's "burns away in 1 round" — with the dice a creature starting its
+   * turn in one takes, pinned off the definition when the table set it alight.
+   * See `SpellDefinition.flammable`. (E-L2)
+   */
+  readonly burning?: readonly BurningCube[];
+  /**
+   * The Cubes of this casting's area that have burned away, which its catch,
+   * its ground and its air no longer cover. Written by the fold when a
+   * burning Cube's deadline arrives, and never taken back. (E-L2)
+   */
+  readonly burnt?: readonly Point[];
+  /**
+   * The spaces of this casting's gas a wall of wind holds off — SRD Wind Wall:
+   * "The strong wind keeps fog, smoke, and other gases at bay" — the wall's own
+   * strip and every space it stands between and the cloud's centre. Derived by
+   * the fold from the walls running (`holdGasOffWalls`) and written with
+   * what it was worked out against (`heldOffAgainst`), so it is worked out again
+   * when one rises or falls and the cloud is whole once none stands. (E-L2,
+   * the owner's ruling of 2026-10-03)
+   */
+  readonly heldOff?: readonly Point[];
+  /**
+   * What {@link heldOff} was worked out against — the walls running, by
+   * casting id and region, and this casting's own region — so the fold works
+   * it out again only when one of them changes.
+   */
+  readonly heldOffAgainst?: string;
+  /**
+   * The protected flames this casting's area is on, by the name of their patch
+   * of light, sorted — SRD Gust of Wind's lanterns. Derived by the fold
+   * (`windOnFlames`): a flame that joins it is owed one throw, and one that
+   * leaves it and comes back is owed another — the owner's "roll once when the
+   * Line first reaches the flame, and again if the Line is moved onto it
+   * later". (E-L2)
+   */
+  readonly flamesReached?: readonly string[];
+  /**
    * The creature types the caster stated, where the spell prints a choice of
    * several — SRD Magic Circle's "Choose one or more of the following types".
    *
@@ -959,6 +1030,21 @@ export function creaturesStandingInCastingArea(
       (spared === undefined || !spared.includes(id)) &&
       (chosen === undefined || chosen.includes(id)),
   );
+  // **And not where the area has burned away** — SRD Web's Cubes gone to fire
+  // (`OngoingSpell.burnt`): a creature every one of whose spaces is ash is
+  // out of the webs. Asked of the same region the ground and the air are read
+  // off, so the three cannot disagree. (E-L2)
+  if ((record.burnt?.length ?? 0) > 0 || (record.heldOff?.length ?? 0) > 0) {
+    const region = regionOfCastingArea(record);
+    return new Set(
+      region === null
+        ? reached
+        : reached.filter((id) => {
+            const at = scene.positions[id];
+            return at !== undefined && moverInRegionAt(scene, region, id, at);
+          }),
+    );
+  }
   return new Set(reached);
 }
 
@@ -1002,9 +1088,13 @@ export function originOfArea(
  * `standing.ts` get their shape from, so a wall's path and a stationary
  * Emanation's point are read off the record in one way.
  */
+export function removedFromArea(record: OngoingSpell): readonly Point[] {
+  return [...(record.burnt ?? []), ...(record.heldOff ?? [])];
+}
+
 export function regionOfCastingArea(record: OngoingSpell): TerrainRegion | null {
   if (record.area === undefined) return null;
-  return regionOfArea(
+  const region = regionOfArea(
     record.area,
     record.caster as CharacterId,
     record.origin,
@@ -1012,6 +1102,10 @@ export function regionOfCastingArea(record: OngoingSpell): TerrainRegion | null 
     record.anchoring ?? 'space',
     record.path,
   );
+  // The Cubes that have burned away, and the gas a wall of wind holds off,
+  // are not the area's any more. (E-L2)
+  const out = removedFromArea(record);
+  return region === null || out.length === 0 ? region : { ...region, except: out };
 }
 
 /**
@@ -1261,9 +1355,19 @@ export type AreaMoment = TurnMoment | 'entry' | 'area-moved';
 export interface OwedAreaEffect {
   /** The casting whose area caught them. Never the spell's name. */
   readonly castingId: string;
+  /** The creature caught — or, at `flame-reached`, the name of the patch of light whose flame the area reached. */
   readonly target: string;
-  readonly moment: AreaMoment;
+  readonly moment: OwedMoment;
 }
+
+/**
+ * When a debt was raised: one of the moments an area catches a creature at,
+ * or `flame-reached` — SRD Gust of Wind's Line arriving at a protected flame,
+ * whose one throw is owed exactly as a creature's save is and settled by the
+ * same command. Kept off {@link AreaMoment}, which is the moments a creature
+ * is caught at and is what a trigger is written against. (E-L2)
+ */
+export type OwedMoment = AreaMoment | 'flame-reached';
 
 /**
  * When a casting's area last caught a creature, and how.
@@ -1391,7 +1495,17 @@ export type OngoingEndReason =
    * It carries an `on` like every other member: "the spell ends" is null, and
    * "ending the spell on itself" names the creature.
    */
-  | 'saved-against';
+  | 'saved-against'
+  /**
+   * The creature it had shape-shifted was made to take its true form back.
+   *
+   * SRD Moonbeam: "if the creature is shape-shifted (as a result of the
+   * _Polymorph_ spell, for example), it reverts to its true form". The casting
+   * that shaped it is released on that creature — written by the rider that
+   * reverted it, in the same batch as the failed save. Its own member, because
+   * nobody dispelled anything and nobody let it go. (E-L2)
+   */
+  | 'reverted';
 
 /**
  * Why a Concentration ended. Every one of these is in the SRD except

@@ -41,6 +41,7 @@ import {
   type Placement,
   type Point,
   type PointAnchoring,
+  type TerrainRegion,
   positionOf,
   snapToSpace,
 } from '../positioning.js';
@@ -48,7 +49,8 @@ import { fallWindowOpen } from '../reactions.js';
 import { typeMagicSees } from '../creature-type.js';
 import { OBJECT_CREATURE_TYPE } from '../objects.js';
 import { effectiveSizeOf } from '../size.js';
-import { canSee, canSeePoint, wardBetween } from '../standing.js';
+import { actionRulesOn, canSee, canSeePoint, wardBetween } from '../standing.js';
+import { refuseShapeShifting } from '../combat.js';
 import { type SlotKind } from '../resources.js';
 import {
   aimedRollsIn,
@@ -350,6 +352,23 @@ export interface CastSpellRequest extends CommandIdentity {
    * Absent for every other area, which is shaped by its own printed dimension.
    */
   readonly path?: readonly Point[];
+  /**
+   * Where the casting's **other** templates go, for a spell that lays several
+   * — SRD Dancing Lights' "up to four torch-size lights within range", the
+   * first at {@link at} and the rest here, in the order they are numbered
+   * (light 2, light 3, light 4). Each is held to the Range, and the whole set
+   * to the distance that ties one to another. Refused on a spell that lays one.
+   * See `AreaCopies`. (E-L2)
+   */
+  readonly alsoAt?: readonly Point[];
+  /**
+   * The areas the caster leaves out of the spell's area — SRD Plant Growth:
+   * "You can exclude one or more areas of any size within the spell's area
+   * from being affected." Pinned onto the ground the casting lays. Refused on
+   * a spell that prints no such sentence. See `AreaTerrain.casterMayExclude`.
+   * (E-L2)
+   */
+  readonly exclude?: readonly TerrainRegion[];
   /**
    * Whether `at` and `towards` name a space or a grid intersection —
    * the vertical edge four spaces share. Defaults to `space`.
@@ -3010,6 +3029,14 @@ export function namedTargets(
         'target_not_falling',
         `${definition.name} is cast on a falling creature, and nobody has said ${target} is falling`,
       );
+    }
+
+    // SRD Moonbeam's "can't shape-shift until it leaves the Cylinder": a
+    // casting whose target shape-shifts — SRD Gaseous Form — is a shape taken,
+    // and the creature it would shape is barred from taking one. (E-L2)
+    if (definition.shapeShifts === true) {
+      const barred = refuseShapeShifting(target, actionRulesOn(state, target));
+      if (!barred.ok) return barred;
     }
 
     // SRD Spare the Dying: "a creature within range that has 0 Hit Points and

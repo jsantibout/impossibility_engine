@@ -43,6 +43,7 @@ import {
 import { isWoundSource } from '../monster.js';
 import {
   apartFrom,
+  dispelOnPinning,
   positionOf,
   type PositionState,
   spaceInRegion,
@@ -1032,4 +1033,83 @@ export function endTriggeredEffects(state: GameState, event: GameEvent): GameSta
     // sentence asking for one.
   }
   return current;
+}
+
+/**
+ * SRD Darkness's dispel, read of a light that **moves** into it. (E-L2)
+ *
+ * "If any of this spell's area overlaps with an area of Bright Light or Dim
+ * Light created by a spell of level 2 or lower, that other spell is
+ * dispelled." A light sourced to a creature — SRD Light on the fighter's
+ * shield, a Flame Blade in the druid's hand, a Faerie Fire glow on a goblin,
+ * or a Darkness cast on an object somebody picks up — moves with that creature
+ * and is never laid again, so the pinning that asks the question in the
+ * commands never runs: the bearer walking into the Darkness *is* the moment.
+ *
+ * **Derived and eventless**, for the reason a lost Concentration is: nobody
+ * decides that a Light carried into a Darkness goes out. Asked only of the
+ * creatures whose position this event changed, and only of the magical
+ * patches carried by one of them, so an ordinary step with no light about
+ * never scans a space. Each such patch asks `dispelOnPinning` both ways, as a
+ * pinning would: what it now puts out, and whether it is now put out.
+ */
+export function dispelMovedLight(before: GameState, state: GameState): GameState {
+  const was = before.scene;
+  const scene = state.scene;
+  if (scene === null || was === null) return state;
+  const movers = new Set(
+    Object.keys(scene.positions).filter((who) => {
+      const now = scene.positions[who];
+      const then = was.positions[who];
+      return now !== undefined && (then === undefined || now.x !== then.x || now.y !== then.y || now.z !== then.z);
+    }),
+  );
+  if (movers.size === 0) return state;
+
+  const carried = (current: GameState) =>
+    Object.keys(current.scene?.light ?? {})
+      .sort()
+      .flatMap((name) => {
+        const patch = current.scene!.light[name]!;
+        const origin = patch.region.origin;
+        if (patch.magical === undefined || patch.covered === true) return [];
+        if (!('creature' in origin) || !movers.has(origin.creature)) return [];
+        if (patch.source !== undefined && current.ongoing[patch.source] === undefined) return [];
+        if (patch.lapsesWith !== undefined && current.timers[patch.lapsesWith] === undefined) return [];
+        return [patch];
+      });
+  if (carried(state).length === 0) return state;
+
+  let current = state;
+  for (const patch of carried(state)) {
+    // Gone already, to an earlier patch's verdict in this same pass.
+    if (patch.source !== undefined && current.ongoing[patch.source] === undefined) continue;
+    if (patch.lapsesWith !== undefined && current.timers[patch.lapsesWith] === undefined) continue;
+    const verdict = dispelOnPinning(current, patch.region, patch.level, patch.magical!, {
+      ...(patch.source === undefined ? {} : { source: patch.source }),
+      ...(patch.lapsesWith === undefined ? {} : { lapsesWith: patch.lapsesWith }),
+    });
+    for (const castingId of verdict.castings) current = dispelCasting(current, castingId);
+    for (const key of verdict.glows) current = dispelGlow(current, key);
+    if (verdict.itself) {
+      if (patch.source !== undefined) current = dispelCasting(current, patch.source);
+      else if (patch.lapsesWith !== undefined) current = dispelGlow(current, patch.lapsesWith);
+    }
+  }
+  return current;
+}
+
+/** A running casting put out by the dispel, through the one door. */
+function dispelCasting(state: GameState, castingId: string): GameState {
+  return state.ongoing[castingId] === undefined
+    ? state
+    : releaseCasting(state, casterOf(state, castingId), castingId);
+}
+
+/** A glow on a deadline of its own put out by the dispel — `effect-dispelled`'s release. */
+function dispelGlow(state: GameState, key: string): GameState {
+  const timer = state.timers[key];
+  return timer === undefined || timer.target.kind !== 'grants'
+    ? state
+    : endTimedGrants(state, key, timer.target);
 }

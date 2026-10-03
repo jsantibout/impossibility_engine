@@ -81,8 +81,10 @@ import { ONGOING_RECORD_VERSION } from '../ongoing-compatibility.js';
 import {
   bonesInSpace,
   creaturesInArea,
+  dispelOnPinning,
   distanceBetween,
   distanceToPoint,
+  plantsUnder,
   pointFromPlacement,
   positionOf,
   snapToSpace,
@@ -117,6 +119,7 @@ import {
   teleportOf,
   weaponRiderOf,
   optionEffects,
+  areaTerrainOf,
   laysTerrain,
   type SpellOption,
   areaStandsApart,
@@ -199,6 +202,8 @@ import { teleportTo } from './teleport.js';
 import { payCastingDamageCost } from './damage.js';
 import {
   castingsEndedBy,
+  copiesTied,
+  copyRegions,
   magicalByCasting,
   ongoingSpellsOn,
   replacedCastings,
@@ -644,7 +649,7 @@ export function resolveDeclaredCast(
     );
 
     /** Where the patches this settlement lays lie — see `terrainPatchOf`. */
-    const settledTerrain =
+    const settledTerrain = groundNarrowed(
       (!laysTerrain(definition) &&
         definition.areaLight === undefined &&
         definition.areaObscurement === undefined) ||
@@ -656,7 +661,9 @@ export function resolveDeclaredCast(
             pending.area?.at,
             pending.area?.towards,
             pending.area?.anchoring ?? 'space',
-          );
+          ),
+      pending.area,
+    );
 
     return charged(resolveEffects(state, pending.caster, caster, definition, {
       castLevel: pending.level,
@@ -1424,7 +1431,20 @@ function castingBody(
       readonly towards?: Point;
       readonly anchoring?: PointAnchoring;
       readonly path?: readonly Point[];
+      readonly copies?: readonly Point[];
+      readonly within?: readonly TerrainRegion[];
+      readonly excluding?: readonly TerrainRegion[];
     } | null = null;
+
+    // — the other templates, where the spell lays several (E-L2) ————————————
+    //
+    // SRD Dancing Lights: "You create up to four torch-size lights within
+    // range", and "A light must be within 20 feet of another light created by
+    // this spell". The first is `at` and is placed below as every area's point
+    // is; the others are held here to the count, the Range and the tie, before
+    // anything is spent.
+    const copies = placedCopies(state, casterId, definition, request, reach);
+    if (!copies.ok) return copies;
 
     if (definition.area !== undefined) {
       // **An Emanation that stays pins the caster's own square.** SRD Tiny
@@ -1540,6 +1560,7 @@ function castingBody(
           ...(isWall && request.path !== undefined
             ? { path: request.path.map(snapToSpace) }
             : {}),
+          ...(copies.value === null ? {} : { copies: copies.value }),
           ...(request.towards === undefined ? {} : { towards: request.towards }),
           // `space` *is* the absence, so a casting that names it explicitly
           // serialises exactly as one that says nothing. Two records that mean
@@ -1573,6 +1594,16 @@ function castingBody(
       if (!named.ok) return named;
       targets = named.value;
     }
+
+    // — where the ground grows, and what its caster leaves out (E-L2) ————————
+    //
+    // SRD Plant Growth: "All normal plants in a 100-foot-radius Sphere" and
+    // "You can exclude one or more areas of any size within the spell's area".
+    // Asked of the area just placed, before anything is spent, and pinned with
+    // it, so the patch it lays and a settlement held open both read it.
+    const ground = narrowedGround(state, casterId, definition, request, area);
+    if (!ground.ok) return ground;
+    if (ground.value !== null && area !== null) area = { ...area, ...ground.value };
 
     // — the ward a casting would cross ——————————————————————————————————————
     //
@@ -2946,6 +2977,12 @@ function resolveOnTargets(
       readonly anchoring?: PointAnchoring;
       /** The spaces a wall runs through — see `OngoingSpell.path`. */
       readonly path?: readonly Point[];
+      /** The casting's other templates — see `OngoingSpell.copies`. (E-L2) */
+      readonly copies?: readonly Point[];
+      /** Where the ground it lays grows — see `TerrainRegion.within`. (E-L2) */
+      readonly within?: readonly TerrainRegion[];
+      /** What the ground it lays leaves out — see `TerrainRegion.excluding`. (E-L2) */
+      readonly excluding?: readonly TerrainRegion[];
     } | null;
     /** The identity the wrapper established, stamped on the casting's event. */
     readonly stamp: CommandStamp | null;
@@ -3052,7 +3089,7 @@ function resolveOnTargets(
    * from the wrong plane. The name is the ground's because the ground was
    * first; the fact is the area's.
    */
-  const terrainRegion =
+  const laidRegion =
     (!laysTerrain(definition) &&
       definition.areaLight === undefined &&
       definition.areaObscurement === undefined) ||
@@ -3069,6 +3106,9 @@ function resolveOnTargets(
           area?.towards ?? carriedAim,
           area?.anchoring ?? 'space',
         );
+  // Narrowed to where the ground grows and less what its caster left out —
+  // SRD Plant Growth — as the casting pinned them. (E-L2)
+  const terrainRegion = groundNarrowed(laidRegion, area);
 
   /**
    * The spell this casting stored, once the casting has actually been made —
@@ -3137,6 +3177,12 @@ function resolveOnTargets(
     // The spaces a wall runs through, the one template that is drawn — see
     // `OngoingSpell.path`.
     ...(area?.path === undefined ? {} : { path: area.path }),
+    // And the casting's other templates, with the Range they vanish beyond —
+    // SRD Dancing Lights' lights 2 to 4. See `OngoingSpell.copies`. (E-L2)
+    ...(area?.copies === undefined ? {} : { copies: area.copies }),
+    ...(definition.areaCopies?.keptInRange === true && definition.range.kind === 'ranged'
+      ? { keptWithin: definition.range.feet }
+      : {}),
     // The facts the caster stated at the casting, kept because every later
     // sentence of the spell reads them and none can be recovered from
     // anything else. **A carried area records no position**: `caster` and the
@@ -4641,6 +4687,10 @@ export function resolveEffects(
         ...(pinnedStanding === undefined ? {} : { areaStanding: pinnedStanding }),
         ...(becomes.types === undefined ? {} : { types: becomes.types }),
         ...(becomes.path === undefined ? {} : { path: becomes.path }),
+        // SRD Dancing Lights' other lights, and the Range they vanish beyond.
+        // (E-L2)
+        ...(becomes.copies === undefined ? {} : { copies: becomes.copies }),
+        ...(becomes.keptWithin === undefined ? {} : { keptWithin: becomes.keptWithin }),
         // And what a DM's decision fires, pinned with the type the caster
         // stated — SRD Glyph of Warding's rune. See `OngoingSpell.triggered`.
         // **Or the spell it stores in the rune's place**, never both — see
@@ -4839,17 +4889,209 @@ export function resolveEffects(
       // which is Instantaneous and so has no record to carry the word.
       context.option ?? becomes?.option,
     ),
+    // Read against the world this casting has already made — the record
+    // written, and a Concentration its caster gave up to cast it already gone
+    // — so a Darkness the caster stopped holding neither puts this out nor is
+    // put out by it. Nothing to fold where the spell sheds no light. (E-L2)
     ...lightPatchesOf(
-      state,
+      definition.areaLight === undefined ? state : events.reduce(applyEvent, state),
       definition,
       castingId,
       context.terrainRegion ?? null,
       becomes !== undefined,
       castLevel,
+      // SRD Dancing Lights' other lights, each laid where the caster put it.
+      // (E-L2)
+      copyRegions(definition, casterId, becomes?.copies),
     ),
   );
 
+  // **A light this casting shed on somebody, laid into a Darkness**, put out
+  // below the record it ends — SRD Darkness's "that other spell is dispelled",
+  // read of a Light, a Flame Blade or a Faerie Fire's glow cast into one.
+  // `lightPatchesOf` asks the same of a spell's area light itself. (E-L2)
+  if (becomes !== undefined && dispelledOnLaying(state, castingId, events)) {
+    events.push({ type: 'spell-ended', castingId, on: null, reason: 'dispelled' });
+  }
+
   return ok({ events, castingId, outcomes, unverified });
+}
+
+
+/**
+ * Where the ground a casting lays grows, and what its caster leaves out of it
+ * — or null for a casting whose ground is the whole of its area. (E-L2, the
+ * owner's ruling of 2026-10-03)
+ *
+ * SRD Plant Growth: "All **normal plants** in a 100-foot-radius Sphere
+ * centered on that point become thick and overgrown", and "You can exclude one
+ * or more areas of any size within the spell's area from being affected."
+ * Where plants grow is the table's (`declarePlants`), read off the scene now
+ * and pinned: the stretches it said grow become `within`, the ones it said
+ * are bare join the caster's exclusions in `excluding`. A Sphere over ground
+ * nobody has described is asked about rather than thickened or left alone,
+ * and an exclusion on a spell that prints none is refused.
+ */
+function narrowedGround(
+  state: GameState,
+  casterId: CharacterId,
+  definition: SpellDefinition,
+  request: CastSpellRequest,
+  placed: { readonly at: Point; readonly towards?: Point; readonly anchoring?: PointAnchoring } | null,
+): Result<{ readonly within?: readonly TerrainRegion[]; readonly excluding?: readonly TerrainRegion[] } | null> {
+  const terrain = areaTerrainOf(definition, request.option);
+  const exclude = request.exclude ?? [];
+  if (exclude.length > 0 && terrain?.casterMayExclude !== true) {
+    return err(
+      'nothing_to_exclude',
+      `${definition.name} prints no area its caster may leave out of it, so there is nothing to exclude`,
+    );
+  }
+  let within: readonly TerrainRegion[] | undefined;
+  let bare: readonly TerrainRegion[] = [];
+  if (
+    terrain?.onlyWhere === 'plants-grow' &&
+    state.scene !== null &&
+    definition.area !== undefined &&
+    placed !== null
+  ) {
+    const covered = regionOfArea(
+      definition.area,
+      casterId,
+      placed.at,
+      placed.towards,
+      placed.anchoring ?? 'space',
+    );
+    if (covered !== null) {
+      const under = plantsUnder(state.scene, covered);
+      if (under === null) {
+        return needsContext(
+          'plants_unstated',
+          `${definition.name} thickens only normal plants, and nobody has said whether any grow under it`,
+          [
+            {
+              kind: 'scene',
+              subject: `the ground under ${definition.name}`,
+              need: 'where normal plants grow in the area, or that none do',
+              because: `${definition.name} thickens "all normal plants" in its area and no other ground, and where plants grow is a fact about the room the engine does not hold`,
+              satisfyWith: 'a declarePlants command over the area',
+            },
+          ],
+        );
+      }
+      within = under.growing;
+      bare = under.bare;
+    }
+  }
+  const excluding = [...bare, ...exclude];
+  if (within === undefined && excluding.length === 0) return ok(null);
+  return ok({
+    ...(within === undefined ? {} : { within }),
+    ...(excluding.length === 0 ? {} : { excluding }),
+  });
+}
+
+/** A laid region narrowed by what its casting pinned — see {@link narrowedGround}. (E-L2) */
+function groundNarrowed(
+  region: TerrainRegion | null,
+  area: { readonly within?: readonly TerrainRegion[]; readonly excluding?: readonly TerrainRegion[] } | null | undefined,
+): TerrainRegion | null {
+  if (region === null || area === null || area === undefined) return region;
+  if (area.within === undefined && area.excluding === undefined) return region;
+  return {
+    ...region,
+    ...(area.within === undefined ? {} : { within: area.within }),
+    ...(area.excluding === undefined ? {} : { excluding: area.excluding }),
+  };
+}
+
+/**
+ * The casting's other templates, held to what the spell prints of them — or
+ * null for a casting that names none. (E-L2)
+ *
+ * SRD Dancing Lights: "You create up to four torch-size lights within range",
+ * "A light must be within 20 feet of another light created by this spell".
+ * The count counts the first, which is `at`; each other point is measured
+ * from the caster as the first is, against the same reach; and the whole set,
+ * the first included, must be tied. A spell that lays one template is refused
+ * the field rather than quietly ignoring it.
+ */
+function placedCopies(
+  state: GameState,
+  casterId: CharacterId,
+  definition: SpellDefinition,
+  request: CastSpellRequest,
+  reach: number | null,
+): Result<readonly Point[] | null> {
+  const asked = request.alsoAt;
+  if (asked === undefined || asked.length === 0) return ok(null);
+  const copies = definition.areaCopies;
+  if (copies === undefined) {
+    return err('no_copies', `${definition.name} lays one template; there is nowhere for a second to go`);
+  }
+  if (asked.length + 1 > copies.upTo) {
+    return err(
+      'too_many_copies',
+      `${definition.name} lays up to ${copies.upTo}, and this casting names ${asked.length + 1}`,
+    );
+  }
+  if (request.at === undefined) {
+    return err('point_required', `${definition.name}'s first template goes at \`at\`, and nobody said where`);
+  }
+  const points = asked.map(snapToSpace);
+  if (state.scene !== null && reach !== null) {
+    for (const point of points) {
+      const away = distanceToPoint(state.scene, casterId, point);
+      if (!away.ok) return away;
+      if (away.value > reach) {
+        return err(
+          'out_of_range',
+          `${definition.name} reaches ${reach} feet; (${point.x}, ${point.y}, ${point.z}) is ${away.value} away`,
+        );
+      }
+    }
+  }
+  if (!copiesTied([snapToSpace(request.at), ...points], copies.within)) {
+    return err(
+      'copies_apart',
+      `${definition.name} keeps each of its templates within ${copies.within} feet of another, and one of these is further than that from all the rest`,
+    );
+  }
+  return ok(points);
+}
+
+/**
+ * Whether a casting's own light, shed on a creature by its effects, lands in a
+ * light-dispelling spell's area that reaches its level — SRD Darkness's "an
+ * area of Bright Light or Dim Light created by a spell of level 2 or lower".
+ *
+ * Asked of the world the casting's whole batch leaves, so a Darkness the same
+ * casting put out by taking its caster's Concentration is not one that puts
+ * this out. Nothing to ask where the batch laid no light sourced to this
+ * casting, or already ends it. (E-L2)
+ */
+function dispelledOnLaying(
+  state: GameState,
+  castingId: string,
+  events: readonly GameEvent[],
+): boolean {
+  const laid = events.filter(
+    (event): event is Extract<GameEvent, { type: 'light-declared' }> =>
+      event.type === 'light-declared' &&
+      event.source === castingId &&
+      event.magical !== undefined &&
+      event.covered !== true,
+  );
+  if (laid.length === 0) return false;
+  if (events.some((event) => event.type === 'spell-ended' && event.castingId === castingId)) {
+    return false;
+  }
+  const after = events.reduce(applyEvent, state);
+  return laid.some(
+    (patch) =>
+      dispelOnPinning(after, patch.region, patch.level, patch.magical!, { source: castingId })
+        .itself,
+  );
 }
 
 /** What a run of an effect list is: the list, whose it is, and what it reads. */
@@ -5534,6 +5776,10 @@ interface OngoingRecordPlan {
   readonly types?: readonly string[];
   /** The spaces a wall runs through, for the one template that is drawn — see `OngoingSpell.path`. */
   readonly path?: readonly Point[];
+  /** The casting's other templates — see `OngoingSpell.copies`. (E-L2) */
+  readonly copies?: readonly Point[];
+  /** The Range they vanish beyond — see `OngoingSpell.keptWithin`. (E-L2) */
+  readonly keptWithin?: number;
   /** Whether the caster said they were outdoors in a storm — see `OngoingSpell.inAStorm`. */
   readonly inAStorm?: true;
   /** The one creature the cast singled out — see `OngoingSpell.singledOut`. */

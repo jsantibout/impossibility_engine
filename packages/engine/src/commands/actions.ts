@@ -39,6 +39,7 @@ import {
   disengage,
   permitsGrantedAction,
   refuseObjectHandling,
+  refuseShapeShifting,
   MULTIATTACK_LEDGER,
   spendAction,
   spendAttack,
@@ -2686,6 +2687,10 @@ export function takePrintedForm(
       if (state.combat === null) {
         return err('not_in_combat', 'there is no turn to spend a printed line from outside combat');
       }
+      // SRD Moonbeam's "can't shape-shift until it leaves the Cylinder", read
+      // by every door a shape comes through. (E-L2)
+      const barred = refuseShapeShifting(id, actionRulesOn(state, id));
+      if (!barred.ok) return barred;
 
       // Actions first, for `takePrintedTeleport`'s reason: the book writes
       // this sentence under both headings and what the heading changes is what

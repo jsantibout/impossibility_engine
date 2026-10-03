@@ -32,6 +32,7 @@ import {
   type Point,
   type PositionState,
   snapToSpace,
+  type TerrainRegion,
 } from '../positioning.js';
 import { canSeePoint } from '../standing.js';
 import {
@@ -41,7 +42,7 @@ import {
   type SpellDefinition,
   weaponRiderOf,
 } from '../spell-definitions.js';
-import { castingIdOf, castingNumber, type OngoingSpell } from '../spells.js';
+import { castingIdOf, castingNumber, type OngoingSpell, regionOfArea } from '../spells.js';
 import { type ActivateSpellCommand } from './activation.js';
 import { ROUTE_REQUIRED } from './command.js';
 
@@ -420,7 +421,16 @@ export function relocateOrigin(
   const asRider = definition.origin?.movableBy;
   const allowance = asAction ?? asRider;
 
+  // SRD Dancing Lights: "a light vanishes if it exceeds the spell's range", and
+  // a light that has gone is not there to be moved. (E-L2)
+  if (command.to !== undefined && (record.vanished ?? []).includes(1)) {
+    return err('copy_vanished', `${record.spell}'s light 1 has vanished, and there is nothing there to move`);
+  }
+
   if (command.to === undefined) {
+    // **Moving only the other lights is moving the lights** — SRD Dancing
+    // Lights' Bonus Action moves "the lights", any of them. (E-L2)
+    if (asAction !== undefined && (command.alsoTo?.length ?? 0) > 0) return ok([]);
     if (asAction !== undefined) {
       return err(
         'destination_required',
@@ -505,6 +515,12 @@ export function relocateOrigin(
     );
   }
 
+  // SRD Dancing Lights: "move the lights up to 60 feet **to a space within
+  // range**" — where the spell keeps its copies in range, the first light is
+  // held to it as the others are. (E-L2)
+  const keptOut = beyondRange(state, record, at);
+  if (keptOut !== null) return keptOut;
+
   // **What a leg cannot prove, and why that is a question rather than a
   // warning.** The engine knows the area was here and then there; it does not
   // know what it passed over. A leg longer than one space has spaces in
@@ -555,6 +571,121 @@ export function relocateOrigin(
   }
 
   return ok(legs);
+}
+
+/**
+ * A light sent somewhere its caster's Range does not reach, refused — or null
+ * where the record keeps nothing in range, or the space is within it. (E-L2)
+ *
+ * SRD Dancing Lights: "move the lights up to 60 feet to a space within range".
+ * Measured from where the caster stands now, which is what "within range"
+ * always means; a caster nobody has placed is not refused, because the
+ * vanishing the fold reads off the same distance cannot be measured either.
+ */
+function beyondRange(state: GameState, record: OngoingSpell, space: Point): Err | null {
+  const within = record.keptWithin;
+  if (within === undefined || state.scene === null) return null;
+  const away = distanceToPoint(state.scene, record.caster as CharacterId, space);
+  if (!away.ok || away.value <= within) return null;
+  return err(
+    'out_of_range',
+    `${record.spell} moves its lights to a space within range, and (${space.x}, ${space.y}, ${space.z}) is ${away.value} feet from ${record.caster}, beyond ${within}`,
+  );
+}
+
+/**
+ * Whether every template in a set has another within the distance that ties
+ * them — SRD Dancing Lights' "A light must be within 20 feet of another light
+ * created by this spell". A single template is tied to nothing and needs
+ * nothing. (E-L2)
+ */
+export function copiesTied(points: readonly Point[], within: number | undefined): boolean {
+  if (within === undefined || points.length < 2) return true;
+  return points.every((point, i) =>
+    points.some((other, j) => j !== i && distanceBetweenPoints(point, other) <= within),
+  );
+}
+
+/**
+ * Where each of a casting's other templates lies, numbered from 2 — the
+ * regions `lightPatchesOf` lays them over. Empty where there are none. (E-L2)
+ */
+export function copyRegions(
+  definition: SpellDefinition,
+  casterId: CharacterId,
+  copies: readonly Point[] | undefined,
+  vanished: readonly number[] = [],
+): readonly { readonly n: number; readonly region: TerrainRegion }[] {
+  if (copies === undefined || definition.area === undefined) return [];
+  return copies.flatMap((point, i) => {
+    const n = i + 2;
+    if (vanished.includes(n)) return [];
+    const region = regionOfArea(definition.area!, casterId, point, undefined, 'space');
+    return region === null ? [] : [{ n, region }];
+  });
+}
+
+/**
+ * Where a casting's other templates stand once this activation has moved
+ * them, or null where it moves none — SRD Dancing Lights' Bonus Action, light
+ * 2, 3 or 4 by number. (E-L2)
+ *
+ * Each named light must be one the casting made and has not lost, goes no
+ * further than the activation's allowance from where it is, and lands inside
+ * the scene and — where the spell keeps its copies there — within its
+ * caster's Range. Whether the lights as they then stand are still tied to one
+ * another is the caller's question, because light 1 may be moving in the same
+ * breath.
+ */
+export function movedCopies(
+  state: GameState,
+  record: OngoingSpell,
+  definition: SpellDefinition,
+  command: ActivateSpellCommand,
+): Result<readonly Point[] | null> {
+  const asked = command.alsoTo ?? [];
+  if (asked.length === 0) return ok(null);
+  const copies = record.copies ?? [];
+  if (definition.areaCopies === undefined || copies.length === 0) {
+    return err('no_copies', `${record.spell} made one template, and there are no others to move`);
+  }
+  const allowance = definition.activation?.movesArea;
+  if (allowance === undefined) {
+    return err('not_movable', `${record.spell} holds nothing its caster can move`);
+  }
+  if (state.scene === null) return err('no_scene', `${record.spell} needs a scene to be moved about in`);
+
+  const moved = [...copies];
+  const seen = new Set<number>();
+  for (const { light, to } of asked) {
+    const index = light - 2;
+    if (!Number.isInteger(light) || index < 0 || index >= copies.length) {
+      return err(
+        'no_such_copy',
+        `${record.spell} made lights 1 to ${copies.length + 1}; there is no light ${light} to move (light 1 is moved by \`to\`)`,
+      );
+    }
+    if (seen.has(light)) return err('no_such_copy', `light ${light} was named twice`);
+    seen.add(light);
+    if ((record.vanished ?? []).includes(light)) {
+      return err('copy_vanished', `${record.spell}'s light ${light} has vanished, and there is nothing there to move`);
+    }
+    const space = snapToSpace(to);
+    if (!isInsideScene(state.scene, space)) {
+      return err(
+        'outside_scene',
+        `${record.spell} cannot be moved to (${space.x}, ${space.y}, ${space.z}); that is outside this scene`,
+      );
+    }
+    const travelled = distanceBetweenPoints(copies[index]!, space);
+    if (travelled > allowance) {
+      return err('too_far', `${record.spell} moves a light up to ${allowance} feet; light ${light} would travel ${travelled}`);
+    }
+    const keptOut = beyondRange(state, record, space);
+    if (keptOut !== null) return keptOut;
+    moved[index] = space;
+  }
+  return ok(moved);
 }
 
 /**

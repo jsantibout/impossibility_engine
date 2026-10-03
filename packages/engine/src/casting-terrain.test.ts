@@ -114,6 +114,15 @@ const SETUP: readonly GameEvent[] = [
   spot('outside', OUTSIDE),
   { type: 'creature-placed', id: CASTER, placement: { from: { landmark: 'the hall' }, feet: 0 } },
   { type: 'creature-placed', id: WALKER, placement: { from: { landmark: 'beside' }, feet: 0 } },
+  // Normal plants grow all over the hall's floor, which is what SRD Plant
+  // Growth's Overgrowth needs the table to have said before it thickens any
+  // of it (E-L2, the owner's ruling of 2026-10-03). Nothing else reads it.
+  {
+    type: 'plants-declared',
+    name: 'the overgrown hall',
+    region: { origin: { space: AT }, shape: { kind: 'sphere', radius: 120 } },
+    growing: true,
+  },
 ];
 
 /** Initiative, pushed after the areas are conjured — see `area-triggers.test.ts`. */

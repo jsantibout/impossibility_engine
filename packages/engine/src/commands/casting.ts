@@ -16,8 +16,10 @@ import {
   type Ability,
   type CharacterId,
   type ConditionName,
+  type ContextRequest,
   err,
   type Err,
+  needsContext,
   ok,
   type Result,
   type RollMode,
@@ -47,7 +49,8 @@ import {
 } from '../events.js';
 import {
   apartFrom,
-  lightDispelledBy,
+  dispelOnPinning,
+  distanceBetween,
   type Placement,
   type Point,
   type PointAnchoring,
@@ -79,7 +82,14 @@ import {
   type SlotlessReason,
   validateSpellName,
 } from '../spells.js';
-import { actionRulesOn, armorClassOf, defensesOf, sheetAsItStands, silencedBy } from '../standing.js';
+import {
+  actionRulesOn,
+  armorClassOf,
+  canSee,
+  defensesOf,
+  sheetAsItStands,
+  silencedBy,
+} from '../standing.js';
 import { applyDamageToVitals, concentrationSaveDc, damagePastThreshold } from '../vitals.js';
 import { undeadFortitudeSave } from '../monster.js';
 // The Hide action's source string, read-only, so that `hidingEndedBy` below
@@ -209,10 +219,32 @@ export function triggerRefusal(
       // falls" — so the trigger is anybody's fall and not the caster's, which
       // is why this asks the whole roster rather than one creature the way
       // `damaged-by-creature` does. Who may then be *targeted* is the target
-      // rule's question and `mustBeFalling` answers it; the sixty feet and the
-      // sight are the range and sight checks every casting already makes.
+      // rule's question and `mustBeFalling` answers it.
+      //
+      // **But the trigger itself asks who is looking.** One fall the caster
+      // could be answering opens the window — their own, or one they see
+      // within the reach the casting time prints — and an unseen fall beside
+      // it may then be caught, because the targets' sentence ("Choose up to
+      // five falling creatures within range") says nothing of sight.
       const falling = fallingNow(state);
-      if (falling.length > 0) return null;
+      if (falling.length > 0) {
+        const answers = falling.map((faller) => fallAnswerable(state, casterId, faller, definition));
+        if (answers.some((answer) => answer.ok)) return null;
+        const asks = answers.flatMap((answer) =>
+          !answer.ok && answer.kind === 'needs-context' ? (answer.requests ?? []) : [],
+        );
+        if (asks.length > 0) {
+          return needsContext(
+            'falling_unseen',
+            `${definition.name} answers a fall ${casterId} can see, and nobody has said whether they can see ${falling.filter((who) => who !== casterId).join(', ')}`,
+            asks,
+          );
+        }
+        return err(
+          'no_trigger',
+          `${definition.name} is a Reaction taken when you or a creature you can see within ${triggerReach(definition) ?? 'range'} feet of you falls, and ${casterId} sees no such fall`,
+        );
+      }
 
       // **One code for both halves of "not now", and it is a verdict.** A
       // creature nobody declared falling is not falling — an event the log
@@ -236,6 +268,72 @@ export function triggerRefusal(
       throw new Error(`no trigger rule for ${String(unhandled)}`);
     }
   }
+}
+
+/**
+ * How far from its caster a Reaction spell's trigger reaches, or null where
+ * it prints no distance.
+ *
+ * SRD prints the trigger's reach and the spell's Range as one number every
+ * time it prints both — Feather Fall's "a creature you can see within 60
+ * feet of you" over a Range of 60 feet, Hellish Rebuke's and Counterspell's
+ * the same — so the Range the definition already carries is the number read,
+ * rather than a second field that could come to disagree with it.
+ */
+function triggerReach(definition: SpellDefinition): number | null {
+  return definition.range.kind === 'ranged' ? definition.range.feet : null;
+}
+
+/**
+ * Whether this caster could be answering this fall: SRD Feather Fall's "you or
+ * a creature you can see within 60 feet of you".
+ *
+ * `ok` where they could — their own fall, or one they see within the
+ * trigger's reach; a refusal where the table has said they cannot see it or
+ * it is out of reach; and a `needs-context` where nobody has said whether
+ * they see it, or where either of them stands. **One reader for the offer and
+ * the refusal**: `reactionOpportunities` lists a fall wherever this is not a
+ * refusal, and `triggerRefusal` opens the window wherever it is `ok`.
+ */
+export function fallAnswerable(
+  state: GameState,
+  casterId: CharacterId,
+  faller: CharacterId,
+  definition: SpellDefinition,
+): Result<true> {
+  if (faller === casterId) return ok(true);
+
+  const asks: ContextRequest[] = [];
+  const reach = triggerReach(definition);
+  if (reach !== null) {
+    const away = state.scene === null ? null : distanceBetween(state.scene, casterId, faller);
+    if (away === null || !away.ok) {
+      asks.push({
+        kind: 'position',
+        subject: faller,
+        need: `how far ${faller} is from ${casterId}`,
+        because: `${definition.name} answers a fall within ${reach} feet`,
+        satisfyWith: `a placeCreatureInScene command for ${faller}`,
+      });
+    } else if (away.value > reach) {
+      return err('no_trigger', `${faller} is ${away.value} feet from ${casterId}, beyond ${reach}`);
+    }
+  }
+
+  const seen = canSee(state, casterId, faller);
+  if (seen === false) return err('no_trigger', `${casterId} cannot see ${faller}`);
+  if (seen === null) {
+    asks.push({
+      kind: 'visibility',
+      subject: faller,
+      need: `whether ${casterId} can see ${faller}`,
+      because: `${definition.name} answers a fall its caster can see`,
+      satisfyWith: `a declareSightBetween command from ${casterId} to ${faller}`,
+    });
+  }
+  return asks.length === 0
+    ? ok(true)
+    : needsContext('falling_unseen', `whether ${casterId} sees ${faller} fall is not known`, asks);
 }
 
 /**
@@ -1625,11 +1723,12 @@ export function terrainPatchOf(
  *   at the casting, against the slot in hand.
  *
  * **And one thing a patch of ground never had to do: put another casting
- * out.** SRD Darkness and SRD Daylight each dispel the other where their
- * areas overlap, so laying a magical patch ends the opposite castings
- * `lightDispelledBy` finds under it. That is a consequence of the geometry
- * rather than anybody's decision, which is why it arrives in the same batch
- * as the cast and asks nobody's leave.
+ * out.** SRD Darkness and SRD Daylight each dispel the opposite light of a
+ * spell at or below their printed level where their areas overlap, so laying
+ * a patch ends what `dispelOnPinning` finds under it — and a light laid into a
+ * printing spell's area is itself put out. That is a consequence of the
+ * geometry rather than anybody's decision, which is why it arrives in the same
+ * batch as the cast and asks nobody's leave.
  */
 export function lightPatchesOf(
   state: GameState,
@@ -1638,56 +1737,119 @@ export function lightPatchesOf(
   region: TerrainRegion | null,
   lastsWithTheCasting: boolean,
   castLevel: number,
+  /**
+   * The casting's other templates, each laid as the first is under its own
+   * number — SRD Dancing Lights' lights 2 to 4. See `AreaCopies`. (E-L2)
+   */
+  copies: readonly { readonly n: number; readonly region: TerrainRegion }[] = [],
 ): readonly GameEvent[] {
   const light = definition.areaLight;
   const fog = definition.areaObscurement;
-  if ((light === undefined && fog === undefined) || region === null) return [];
+  if ((light === undefined && fog === undefined) || (region === null && copies.length === 0)) {
+    return [];
+  }
 
   const source = lastsWithTheCasting ? { source: castingId } : {};
-  const magical = { magical: { spellLevel: definition.level } };
+  // The level the book's dispel compares, and — on a spell that prints the
+  // sentence, SRD Darkness and SRD Daylight — the threshold it dispels up to,
+  // pinned so every later pinning reads it off the patch. (E-L2)
+  const magical = {
+    magical: {
+      spellLevel: definition.level,
+      ...(light?.dispels === undefined ? {} : { dispelsUpTo: light.dispels }),
+    },
+  };
   const named = (what: string): string => `${definition.name} ${what} (${castingId})`;
-  const widened = (by: number): TerrainRegion =>
-    region.shape.kind === 'sphere'
-      ? { ...region, shape: { ...region.shape, radius: region.shape.radius + by } }
-      : region;
+  const widenedFrom =
+    (from: TerrainRegion) =>
+    (by: number): TerrainRegion =>
+      from.shape.kind === 'sphere'
+        ? { ...from, shape: { ...from.shape, radius: from.shape.radius + by } }
+        : from;
+  // The first template — absent where only the others are being laid again,
+  // SRD Dancing Lights' Bonus Action moving lights 2 to 4 — and any others,
+  // each with the name its patches carry.
+  const templates = [
+    ...(region === null ? [] : [{ label: 'light', dimLabel: 'dim light', region }]),
+    ...copies.map((copy) => ({
+      label: `light ${copy.n}`,
+      dimLabel: `dim light ${copy.n}`,
+      region: copy.region,
+    })),
+  ];
 
   const events: GameEvent[] = [];
 
   if (light !== undefined) {
-    events.push({
-      type: 'light-declared',
-      patch: named('light'),
-      region,
-      level: light.level,
-      ...magical,
-      ...(light.sunlight === undefined ? {} : { sunlight: light.sunlight }),
-      ...source,
-    });
-    for (const dispelled of lightDispelledBy(state, region, light.level, definition.level)) {
-      events.push({ type: 'spell-ended', castingId: dispelled, on: null, reason: 'dispelled' });
-    }
-    if (light.dimBeyond !== undefined) {
+    for (const template of templates) {
       events.push({
         type: 'light-declared',
-        patch: named('dim light'),
-        region: widened(light.dimBeyond),
-        level: 'dim',
+        patch: named(template.label),
+        region: template.region,
+        level: light.level,
         ...magical,
+        ...(light.sunlight === undefined ? {} : { sunlight: light.sunlight }),
         ...source,
       });
+      if (light.dimBeyond !== undefined) {
+        events.push({
+          type: 'light-declared',
+          patch: named(template.dimLabel),
+          region: widenedFrom(template.region)(light.dimBeyond),
+          level: 'dim',
+          // Magical at the spell's level, and **no threshold**: SRD Daylight's
+          // dispel is "this spell's area", which is the Sphere, and the Dim
+          // Light shed past it is light rather than the area — so the ring
+          // can be put out and never puts anything out. (E-L2, on review)
+          magical: { spellLevel: definition.level },
+          ...source,
+        });
+      }
     }
   }
 
-  if (fog !== undefined) {
+  if (fog !== undefined && region !== null) {
     const grown = fog.radiusPerSlotLevelAbove;
     events.push({
       type: 'obscurement-declared',
       patch: named('fog'),
       region:
-        grown === undefined ? region : widened(grown * Math.max(0, castLevel - definition.level)),
+        grown === undefined
+          ? region
+          : widenedFrom(region)(grown * Math.max(0, castLevel - definition.level)),
       degree: fog.degree,
       ...source,
     });
+  }
+
+  // **The book's dispel, whichever came first.** What this spell puts out it
+  // names in its own sentence — the opposite light of a spell at or below
+  // `dispels`, measured over its area — and what puts *it* out is a printing
+  // spell already shining over any of the light it sheds. Last in the batch,
+  // after the patches it is about, and asked of every template it laid. See
+  // `dispelOnPinning`. (E-L2)
+  if (light !== undefined) {
+    const castings = new Set<string>();
+    const glows = new Set<string>();
+    let itself = false;
+    for (const template of templates) {
+      const verdict = dispelOnPinning(state, template.region, light.level, magical.magical, {
+        ...source,
+        ...(light.dimBeyond === undefined
+          ? {}
+          : { extent: widenedFrom(template.region)(light.dimBeyond) }),
+      });
+      for (const dispelled of verdict.castings) castings.add(dispelled);
+      for (const glow of verdict.glows) glows.add(glow);
+      itself ||= verdict.itself;
+    }
+    for (const dispelled of [...castings].sort()) {
+      events.push({ type: 'spell-ended', castingId: dispelled, on: null, reason: 'dispelled' });
+    }
+    for (const effectKey of [...glows].sort()) events.push({ type: 'effect-dispelled', effectKey });
+    if (itself && lastsWithTheCasting) {
+      events.push({ type: 'spell-ended', castingId, on: null, reason: 'dispelled' });
+    }
   }
 
   return events;

@@ -19,6 +19,7 @@ import {
   barriersAgainst,
   fliesWithoutFallingOn,
   hasSpeedInModeOn,
+  occupiesOthersOn,
   sheetAsItStands,
   speedForMoveIn,
   speedOf,
@@ -444,11 +445,18 @@ export function moveWithin(
     // `fold/scene.ts` applied the very same `creature-moved` with the flag on.
     // The command and the fold disagreeing about one event is worse than
     // either answer: the shove the log would have accepted never happened.
+    //
+    // **And for a creature whose movement may end in somebody's space** — SRD
+    // Gaseous Form's "The target can enter and occupy the space of another
+    // creature" — the same relaxation, for its own move, written onto the event
+    // as `intoOccupied` below so the fold applies it under the same rule.
+    // (E-L2)
+    const occupies = command.forced !== true && occupiesOthersOn(state, id);
     const moved = moveCreature(
       scene.value,
       id,
       command.placement,
-      command.forced === true ? { forced: true } : {},
+      command.forced === true || occupies ? { forced: true } : {},
     );
     // **With the request the anchor needs**, which is the half this carried
     // none of. `resolveMove` had answered a bare `needs-context` since
@@ -553,7 +561,11 @@ export function moveWithin(
     // that has to be asked twice should be asked once: a route stated for the
     // terrain is a route this reads, and a route neither needs is never
     // requested.
-    const passage = checkPassage(state, scene.value, id, from, to, command.route, charging);
+    // A creature that may enter anybody's space crosses anybody's space: SRD
+    // Gaseous Form's cloud has no one to walk round. (E-L2)
+    const passage = occupies
+      ? ok({ unverified: [] })
+      : checkPassage(state, scene.value, id, from, to, command.route, charging);
     if (!passage.ok) return passage;
 
     // **And the barriers a casting has put in the way**, which is the third
@@ -843,6 +855,7 @@ export function moveWithin(
         id,
         placement: command.placement,
         ...(command.forced === true ? { forced: true } : {}),
+        ...(occupies && moved.value.sharingWith.length > 0 ? { intoOccupied: true as const } : {}),
         ...(stamp === null ? {} : { command: stamp }),
       });
       // **What the ground cut for, after the arrival it cut during** — the
@@ -884,6 +897,9 @@ export function moveWithin(
         placement: command.placement,
         destination: to,
         provoked: opportunity.provoked,
+        // The cloud's licence, pinned so the completion lands it where it was
+        // going whoever stands there by then. (E-L2)
+        ...(occupies ? { occupiesOthers: true as const } : {}),
         // Settled now and performed when the move completes — W7-B10.
         ...(passengers.value.carrying.length === 0 ? {} : { carrying: passengers.value.carrying }),
       },

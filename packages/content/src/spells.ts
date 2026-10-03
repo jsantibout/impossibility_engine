@@ -1852,7 +1852,7 @@ export const INCENDIARY_CLOUD: SpellDefinition = {
  * Moonbeam prints three trigger clauses in one sentence and the first of them
  * is the beam's own motion — see {@link AreaTrigger.onAreaEntry}.
  *
- * Four sentences, four fields, and none of them invented:
+ * Five sentences, five fields, and none of them invented:
  *
  * | SRD | Where |
  * |---|---|
@@ -1860,6 +1860,7 @@ export const INCENDIARY_CLOUD: SpellDefinition = {
  * | "within range" — 120 feet, measured from the caster at the cast | `range` |
  * | "take a Magic action ... to move the Cylinder up to 60 feet" | `activation.movesArea` |
  * | "when the spell's area moves into its space" | `areaTrigger.onAreaEntry` |
+ * | "it reverts to its true form and can't shape-shift until it leaves the Cylinder" | `revertsShape` on both saves (E-L2) |
  *
  * **The 120 feet is not the allowance.** Range governs where the beam may
  * first be put down; the 60 feet governs how far it travels afterwards, from
@@ -1892,6 +1893,10 @@ export const MOONBEAM: SpellDefinition = {
       damage: { dice: '2d10', perSlotLevelAbove: '1d10' },
       damageType: 'radiant',
       onSuccess: 'half',
+      // "and if the creature is shape-shifted …, it reverts to its true form and
+      // can't shape-shift until it leaves the Cylinder" — on the same failed save.
+      // (E-L2)
+      revertsShape: true,
     },
   ],
   durationSeconds: 60,
@@ -1912,6 +1917,10 @@ export const MOONBEAM: SpellDefinition = {
         damage: { dice: '2d10', perSlotLevelAbove: '1d10' },
         damageType: 'radiant',
         onSuccess: 'half',
+        // "and if the creature is shape-shifted …, it reverts to its true form and
+        // can't shape-shift until it leaves the Cylinder" — on the same failed save.
+        // (E-L2)
+        revertsShape: true,
       },
     ],
   },
@@ -1924,9 +1933,6 @@ export const MOONBEAM: SpellDefinition = {
     label: 'Moonbeam (the beam moves)',
     effects: [],
   },
-  unmodelled: [
-    'a shape-shifted creature reverting to its true form on a failed save, and being unable to shape-shift until it leaves the Cylinder, are not applied: a creature holds a shape now, and no outcome ends one and no area forbids taking one',
-  ],
 };
 
 /**
@@ -2503,19 +2509,16 @@ export const FEAR: SpellDefinition = {
  * > creature lands before the spell ends, the creature takes no damage from
  * > the fall, and the spell ends for that creature."
  *
- * **The spell the whole `falling` shape was named for**, and it is here as a
- * *tracked* definition rather than an executed one, which is the honest split
- * of its three sentences. The first is the engine's: five targets, each of
- * whom must be falling, each within 60 feet, answered as a Reaction at the
- * moment the table declares the fall — a slot, an action-economy cost and a
- * minute on the clock, all of them the engine's to spend and to run out.
+ * **The spell the whole `falling` shape was named for**, and executed whole.
+ * The casting time is the engine's: a Reaction at the moment the table
+ * declares a fall the caster could be answering — their own, or one they see
+ * within the 60 feet — and five targets, each of whom must be falling and
+ * within range. The landing is the engine's too: `fall-ward` takes the damage
+ * away for a creature that lands inside the minute and ends the spell on it.
  *
- * The other two are a descent the engine does not measure and damage it does
- * not deal. The SRD gives the rate ("60 feet per round") and gives the height
- * to the DM, so a landing this engine recognised would be one it had invented
- * the distance for. `TRACKED_ADJUDICATED` records both against the shape,
- * which keeps `falling` on the map for the Monk's Slow Fall and for Reverse
- * Gravity rather than retiring it on the strength of the half that got built.
+ * The rate of descent is the table's, by the owner's ruling of 2026-09-27 that
+ * the spell reads only whether the landing falls inside its minute: the height
+ * is the DM's, and no rule reads how fast the creature came down.
  */
 export const FEATHER_FALL: SpellDefinition = {
   id: 'feather-fall',
@@ -2536,10 +2539,16 @@ export const FEATHER_FALL: SpellDefinition = {
   // the spell on that one and leaves the other four in the air.
   effects: [{ kind: 'fall-ward' }],
   durationSeconds: 60,
-  unmodelled: [
-    'the rate of descent is not slowed: nothing in the engine measures a descent, and the SRD gives the new rate as 60 feet per round against a height only the DM holds',
-    'the trigger’s "a creature you can see" goes unchecked, as Counterspell’s does: the 60 feet is the spell’s Range and is checked, and which falls a caster perceives the engine has never modelled',
-  ],
+  // "when you or a creature you can see within 60 feet of you falls" is read by
+  // the trigger itself now (E-L2): one fall the caster could be answering — their
+  // own, or one they see within the 60 feet — opens the window, and an
+  // undeclared sight line is asked rather than assumed.
+  //
+  // **The descent is the table's, by the owner's ruling of 2026-09-27**: the spell
+  // "reads only whether the landing falls inside the spell's minute", which the
+  // ward on each creature already reads. How fast the creature comes down is a
+  // fact about a height only the DM holds, and no rule reads it afterwards.
+  dmDecides: ["A falling creature's rate of descent slows to 60 feet per round until the spell ends."],
 };
 
 /**
@@ -4156,13 +4165,13 @@ export const WEB: SpellDefinition = {
       at: 'start-of-casters-next-turn',
     },
   ],
-  // **One debt left, and it is not a cause** (W8-S26, W9-S2). Whether a Cube
-  // of web meets fire is the table's to say, and what follows is a 5-foot Cube
-  // of the area burning away with 2d4 Fire the engine must throw at the start
-  // of a turn in it: ending **part** of a casting, which neither scope an
-  // ending has can say. The engine's fire is the Burning hazard, which it
-  // holds on a creature; a web is not one.
-  unmodelled: ['the webs being flammable, and the 2d4 Fire damage a burning cube deals'],
+  // "The webs are flammable. Any 5-foot Cube of webs exposed to fire burns
+  // away in 1 round, dealing 2d4 Fire damage to any creature that starts its
+  // turn in the fire." (E-L2) Whether a Cube meets fire is the table's to say
+  // (`expose_to_fire`); for the round it burns a creature that starts its turn
+  // in it takes the 2d4 the engine throws, and then the Cube is gone from the
+  // webs — their catch, their ground and their air — and the rest stand.
+  flammable: { dice: '2d4', damageType: 'fire', burnsSeconds: 6 },
 };
 
 /**
@@ -7484,15 +7493,18 @@ export const HASTE: SpellDefinition = {
  *
  * The rest of being a cloud was built after it — the Fly Speed and three of
  * the four things the cloud cannot do — and the fourth, talking, is handed
- * over whole with the sentence it is printed in (the owner, 2026-09-26). What
- * the notes still carry is the misty-cloud fiction and the occupancy the
- * engine owns outright; the numbers are the engine's, and writing none of them
- * because some sentence was missing would have been a Gaseous Form that a
- * Fireball hurt at full price.
+ * over whole with the sentence it is printed in (the owner, 2026-09-26). The
+ * occupancy the engine owns outright is the cloud's now too (E-L2): its Fly
+ * Speed carries `occupiesOthers`, so its own move passes through anybody's
+ * space and may end in one. What the notes still carry is the misty-cloud
+ * fiction, handed over below in the book's words.
  */
 export const GASEOUS_FORM: SpellDefinition = {
   id: 'gaseous-form',
   name: 'Gaseous Form',
+  // "A willing creature you touch shape-shifts … into a misty cloud": a
+  // creature in this form is shape-shifted, which SRD Moonbeam reads (E-L2).
+  shapeShifts: true,
   level: 3,
   school: 'transmutation',
   castingTime: 'action',
@@ -7522,7 +7534,11 @@ export const GASEOUS_FORM: SpellDefinition = {
     // mode, so a Longstrider standing on the same creature does not put ten
     // feet of walking back into a body that has no legs. The hovering is what
     // `flightLost` reads, so a cloud that stops does not fall.
-    { kind: 'speed', change: 'only', mode: 'fly', feet: 10, hover: true },
+    //
+    // "The target can enter and occupy the space of another creature" is the
+    // next sentence, and it is how that movement goes (E-L2): the cloud's own
+    // move passes through anybody's space and may end in one.
+    { kind: 'speed', change: 'only', mode: 'fly', feet: 10, hover: true, occupiesOthers: true },
     // "The target can't talk or **manipulate objects**, and any objects it was
     // carrying or holding can't be dropped, used, or otherwise interacted
     // with." / "Finally, the target can't attack or cast spells." Three of the
@@ -7566,9 +7582,6 @@ export const GASEOUS_FORM: SpellDefinition = {
     "A willing creature you touch shape-shifts, along with everything it's wearing and carrying, into a misty cloud for the duration.",
     "The target can't talk or manipulate objects, and any objects it was carrying or holding can't be dropped, used, or otherwise interacted with.",
     'The target can pass through narrow openings, but it treats liquids as though they were solid surfaces.',
-  ],
-  unmodelled: [
-    '"The target can enter and occupy the space of another creature" is not applied: occupancy is a rule the engine owns outright, and nothing lets an effect tell that rule to believe something different about one creature',
   ],
 };
 
@@ -8347,10 +8360,11 @@ export const RESURRECTION: SpellDefinition = {
  * > within range. A light must be within 20 feet of another light created by
  * > this spell, and a light vanishes if it exceeds the spell's range."
  *
- * The whole spell is light, and the engine has no lighting — so not one
- * sentence of it trips a mechanical marker and the definition owes the table
- * every word. What it does owe the *engine* is the minute of Concentration a
- * cantrip is charging for, which is the thing that was going unspent.
+ * The whole spell is light, and every word of the light is the engine's now
+ * (E-L2): up to four Spheres of Dim Light at the points the caster names
+ * (`areaCopies`, `alsoAt`), each within 20 feet of another, moved by the Bonus
+ * Action by number (`alsoTo`), and a light its caster walks more than 120 feet
+ * from gone for good. What the lights look like is the table's.
  */
 export const DANCING_LIGHTS: SpellDefinition = {
   id: 'dancing-lights',
@@ -8361,16 +8375,19 @@ export const DANCING_LIGHTS: SpellDefinition = {
   concentration: true,
   range: { kind: 'ranged', feet: 120 },
   targets: { count: 0 },
-  // One patch for the four motes: the SRD's "up to four torch-size lights"
-  // shed Dim Light in a 10-foot radius each, and the engine lays one dim
-  // sphere at the point the caster names, which the table puts where the
-  // nearest mote is. The 20-foot tether between two lights is the DM's.
+  // "each light sheds Dim Light in a 10-foot radius": a Sphere of Dim Light at
+  // each point the caster names.
   area: { kind: 'sphere', radius: 10, origin: 'point' },
   areaLight: { level: 'dim' },
+  // "You create **up to four** torch-size lights within range" — the first at
+  // `at`, the others at `alsoAt` — "A light must be within 20 feet of another
+  // light created by this spell, and a light vanishes if it exceeds the
+  // spell's range." (E-L2)
+  areaCopies: { upTo: 4, within: 20, keptInRange: true },
   effects: [],
   durationSeconds: 60,
-  // SRD: "As a Bonus Action, you can move the lights up to 60 feet to a new
-  // spot within range." The area moves, and the light it sheds is laid again
+  // SRD: "As a Bonus Action, you can move the lights up to 60 feet to a space
+  // within range." Light 1 by `to` and the others by `alsoTo`, each laid again
   // where it lands.
   activation: {
     action: 'bonus-action',
@@ -8378,8 +8395,11 @@ export const DANCING_LIGHTS: SpellDefinition = {
     label: 'Dancing Lights (the lights move)',
     effects: [],
   },
-  unmodelled: [
-    'You create up to four torch-size lights within range, or one glowing Medium form: the engine lays one dim patch for all four, placed where the table says the nearest mote is, and the 20-foot tether between two lights and a light vanishing outside the spell’s range are the DM’s',
+  // What the lights look like, in the book's words: torches, lanterns, orbs, or
+  // one vaguely humanlike form. One light is a casting of one (`at` alone), and
+  // how any of them looks is read by nothing.
+  dmDecides: [
+    'Alternatively, you combine the four lights into one glowing Medium form that is vaguely humanlike.',
   ],
 };
 
@@ -8414,10 +8434,12 @@ export const DANCING_LIGHTS: SpellDefinition = {
  * ranks the printed text above the memory of a different edition, so it is
  * executed as printed and written down here rather than decided quietly.
  *
- * And the dispel is performed: `lightDispelledBy` ends a magical Darkness
- * whose casting is of level 3 or lower where the two Spheres overlap, which
- * is this spell's printed threshold and the other half of the pair Darkness
- * prints.
+ * And the dispel is performed, at this spell's printed threshold
+ * (`areaLight.dispels: 3`) and whichever came first (`dispelOnPinning`, E-L2):
+ * a magical Darkness of level 3 or lower that this Sphere overlaps is put out,
+ * whether it was there before the sunlight or is cast into it afterwards. The
+ * Dim Light past the Sphere is light rather than "this spell's area", and
+ * dispels nothing. The other half of the pair is Darkness's own sentence.
  *
  * **The object is built** (W9-S1): `lightOnObject: 'or-a-point'` lets
  * `moveCastLight` lay a casting made at a declared object's space on that
@@ -8436,7 +8458,10 @@ export const DAYLIGHT: SpellDefinition = {
   range: { kind: 'ranged', feet: 60 },
   targets: { count: 0 },
   area: { kind: 'sphere', radius: 60, origin: 'point' },
-  areaLight: { level: 'bright', dimBeyond: 60, sunlight: true },
+  // "If any of this spell's area overlaps with an area of Darkness created by a
+  // spell of level 3 or lower, that other spell is dispelled." (E-L2: the 3 is
+  // the printed threshold, read whichever came first.)
+  areaLight: { level: 'bright', dimBeyond: 60, sunlight: true, dispels: 3 },
   lightOnObject: 'or-a-point',
   effects: [],
   durationSeconds: 3600,
@@ -8472,8 +8497,13 @@ export const DAYLIGHT: SpellDefinition = {
  * can't see through it, and nonmagical light can't illuminate it" is the
  * `magical` flag the patch carries and the rule `piercesObscurement` keeps;
  * and the dispel is performed, because two areas of light can now overlap —
- * `lightDispelledBy` ends a Bright or Dim patch whose casting is of level 2
- * or lower, which is this spell's printed threshold.
+ * at this spell's printed threshold, `areaLight.dispels`, and whichever came
+ * first (E-L2): a Darkness laid over a light of level 2 or lower puts it out,
+ * a light cast, moved or carried into the Sphere is put out, and a glow on a
+ * deadline of its own — SRD Starry Wisp's — is put out by the timer it lapses
+ * with, since its casting never runs. A light of a higher level is not put out
+ * and does not end the Darkness either, because only a spell that prints the
+ * sentence dispels anything.
  *
  * **And the object is built** (W9-S1). `lightOnObject: 'or-a-point'` lets
  * `moveCastLight` lay a casting made at a declared object's space on that
@@ -8498,13 +8528,15 @@ export const DARKNESS: SpellDefinition = {
   range: { kind: 'ranged', feet: 60 },
   targets: { count: 0 },
   area: { kind: 'sphere', radius: 15, origin: 'point' },
-  areaLight: { level: 'darkness' },
+  // "If any of this spell's area overlaps with an area of Bright Light or Dim
+  // Light created by a spell of level 2 or lower, that other spell is
+  // dispelled." Read whichever came first (E-L2): a light laid over, cast
+  // into or carried into the Sphere is put out, and so is a glow on a deadline
+  // of its own (SRD Starry Wisp's), by the timer it lapses with.
+  areaLight: { level: 'darkness', dispels: 2 },
   lightOnObject: 'or-a-point',
   effects: [],
   durationSeconds: 600,
-  unmodelled: [
-    'an overlapping glow on a deadline of its own — SRD Starry Wisp’s — is not dispelled: it names no running casting for the dispel to end, so for as long as it lasts it lifts the Darkness where the two overlap',
-  ],
 };
 
 /**
@@ -9236,7 +9268,18 @@ export const GUST_OF_WIND: SpellDefinition = {
   // "The gust disperses gas or vapor." A clause of the Line, so it blows where
   // the Line does — carried with the druid, turned with the Bonus Action — and
   // a running Fog Cloud or Stinking Cloud whose area it meets ends. (W9-S2)
-  areaStanding: [{ kind: 'disperses', what: 'gas' }],
+  //
+  // "It extinguishes candles and similar unprotected flames in the area. It
+  // causes protected flames, such as those of lanterns, to dance wildly and has
+  // a 50 percent chance to extinguish them." A flame is light the table
+  // declared with a kind (`declare_light.flame`); an unprotected one the Line
+  // reaches goes out, and a protected one is owed one throw when the Line
+  // first reaches it and another only if the Line is moved onto it later —
+  // the owner's ruling of 2026-10-03. (E-L2)
+  areaStanding: [
+    { kind: 'disperses', what: 'gas' },
+    { kind: 'extinguishes-flames', protectedChance: 50 },
+  ],
   effects: [
     {
       kind: 'save',
@@ -9282,14 +9325,6 @@ export const GUST_OF_WIND: SpellDefinition = {
     effects: [],
   },
   durationSeconds: 60,
-  // Two debts, and both are the flames (W8-S26, W9-S2). The gas the gust
-  // disperses is `areaStanding` above. The candles it snuffs and the 50
-  // percent a lantern gets are light the table declares on a thing the engine
-  // does not hold, which is the object the light shape has left.
-  unmodelled: [
-    'the candles and similar unprotected flames the gust extinguishes in the area are not put out: a candle’s light is a patch the table declares on a thing the engine does not hold, so the Line takes nothing off the lattice',
-    'the protected flames’ "50 percent chance to extinguish them" is not thrown: a lantern is light the table declares on a thing the engine does not hold, so the die has nothing to land on',
-  ],
 };
 
 /**
@@ -9317,6 +9352,9 @@ export const GUST_OF_WIND: SpellDefinition = {
 export const POLYMORPH: SpellDefinition = {
   id: 'polymorph',
   name: 'Polymorph',
+  // "shape-shift into a Beast form" — the spell SRD Moonbeam names as its
+  // example of a shape-shifted creature (E-L2).
+  shapeShifts: true,
   level: 4,
   school: 'transmutation',
   castingTime: 'action',
@@ -10883,14 +10921,15 @@ export const SLEET_STORM: SpellDefinition = {
     ],
   },
   durationSeconds: 60,
-  // **A debt, and not the table's** (W8-S26, on review). A torch in the open
-  // is light the table declares and takes away, but a creature on fire is not:
-  // the Burning hazard sits on the creature and deals 1d4 at the start of each
-  // of its turns, and a burning creature standing in the sleet goes on burning.
-  // So the sentence stays owed; its Heavily Obscured half is `areaObscurement`.
-  unmodelled: [
-    'the exposed flames the sleet douses are not doused: a creature with the Burning hazard in the Cylinder goes on taking its 1d4 at every turn start — the torches and campfires in the area are light the table declares and takes away',
-  ],
+  // "and exposed flames in the area are doused" (W8-S26 filed it a debt; E-L2
+  // built it). The flame the engine holds is the Burning hazard on a creature,
+  // and SRD Burning says "The fire also goes out if it is doused": a creature
+  // standing in the Cylinder does not burn, however it came to be there, and
+  // the fold derives it off this pinned clause after every event. The torches
+  // and candles in the area are light the table declared as a flame: an
+  // "exposed" one is an unprotected one (the owner's ruling of 2026-10-03), and
+  // the same clause puts it out; a lantern's protected flame burns on.
+  areaStanding: [{ kind: 'douses-flames' }],
 };
 
 /**
@@ -11157,6 +11196,8 @@ export const FORESIGHT: SpellDefinition = {
 export const SHAPECHANGE: SpellDefinition = {
   id: 'shapechange',
   name: 'Shapechange',
+  // "You shape-shift into another creature" (E-L2).
+  shapeShifts: true,
   level: 9,
   school: 'transmutation',
   castingTime: 'action',
@@ -12804,7 +12845,8 @@ export const PHANTOM_STEED: SpellDefinition = {
  * > _Overgrowth._ "Choose a point within range. All normal plants in a
  * > 100-foot-radius Sphere centered on that point become thick and overgrown. A
  * > creature moving through that area must spend 4 feet of movement for every 1
- * > foot it moves."
+ * > foot it moves. You can exclude one or more areas of any size within the
+ * > spell's area from being affected."
  * > _Enrichment._ "All plants in a half-mile radius centered on a point within
  * > range become enriched for 365 days."
  *
@@ -12836,7 +12878,12 @@ export const PLANT_GROWTH: SpellDefinition = {
       // book prints for itself, which is why the field is a number and not a
       // flag. **Instantaneous**, so the casting leaves no record and the patch
       // names none: the plants are thick now and SRD gives them no ending.
-      areaTerrain: { costPerFoot: 4 },
+      //
+      // "All normal plants" — only where the table said plants grow
+      // (`declare_plants`), asked when nobody has said; and "You can exclude
+      // one or more areas of any size", named on the request. Both are pinned
+      // onto the ground laid. The owner's ruling of 2026-10-03. (E-L2)
+      areaTerrain: { costPerFoot: 4, onlyWhere: 'plants-grow', casterMayExclude: true },
     },
     enrichment: {
       label: 'Enrichment',
@@ -12853,14 +12900,6 @@ export const PLANT_GROWTH: SpellDefinition = {
       ],
     },
   },
-  // Two debts where one line said the table's (W8-S26): the ground the caster
-  // excludes and the ground with no plants on it are both ground the terrain
-  // patch is laid over anyway, and the ruler charges four feet a foot for
-  // every space of it.
-  unmodelled: [
-    'the areas the caster excludes from the Sphere are not excluded: the patch covers the whole Sphere, and a creature crossing an excluded space still pays four feet a foot',
-    'the overgrowth covers the whole Sphere whether or not normal plants grow there: where the plants are is a fact about the room nobody states, and the terrain the ruler charges for is laid regardless',
-  ],
 };
 
 /**
@@ -12968,11 +13007,20 @@ export const WIND_WALL: SpellDefinition = {
     { kind: 'deflects-projectiles' },
     // "Creatures in gaseous form can't pass through it."
     { kind: 'bars-passage', to: 'gaseous', crossing: 'in' },
+    // "The strong wind keeps fog, smoke, and other gases at bay." The owner's
+    // ruling of 2026-10-03: the wall clears its own strip and gas cannot cross
+    // it; a Fog Cloud or Stinking Cloud it touches is not ended, and the rest
+    // of the cloud stands.
+    { kind: 'keeps-out', what: 'gas' },
   ],
   durationSeconds: 60,
+  // **Narrowed by E-L2**: a printed line named after a catalogue weapon — a
+  // Scout's Longbow, an Ogre's thrown Javelin — looses that weapon and is
+  // deflected as the weapon is; any other printed line is decided by the
+  // projectile table (`ranged-lines.ts`, the owner's ruling of 2026-10-03).
+  // What is left is objects, and the three lines that table leaves undecided.
   unmodelled: [
-    'objects are not in the scene: a Small flying object turned back, and a hurled boulder let through, are the DM’s — a stat block’s printed line does not say whether it looses an arrow or a boulder, so that shot is made and the wall reported beside it rather than deflecting it',
-    'fog, smoke and other gases are not kept at bay: a Fog Cloud or a Stinking Cloud laid across the wall goes on obscuring and poisoning in its spaces, because nothing lets one area suspend another',
+    'objects are not in the scene: a Small flying object turned back, and a hurled boulder let through, are the DM’s — and the three printed ranged lines the projectile table leaves undecided (a Frost Giant’s Great Bow, a Solar’s Flying Sword, a Treant’s Hail of Bark) are made and the wall reported beside them rather than deflecting them',
   ],
   // The loose material, in the book's words (W8-S26): what flies upward in
   // the wind is a thing the engine holds none of, and nothing reads it.
@@ -15850,6 +15898,8 @@ export const WIND_WALK: SpellDefinition = {
 export const ANIMAL_SHAPES: SpellDefinition = {
   id: 'animal-shapes',
   name: 'Animal Shapes',
+  // "Each target shape-shifts into a Large or smaller Beast" (E-L2).
+  shapeShifts: true,
   level: 8,
   school: 'transmutation',
   castingTime: 'action',
@@ -16396,6 +16446,8 @@ export const SYMBOL: SpellDefinition = {
 export const TRUE_POLYMORPH: SpellDefinition = {
   id: 'true-polymorph',
   name: 'True Polymorph',
+  // "The creature shape-shifts into a different creature" (E-L2).
+  shapeShifts: true,
   level: 9,
   school: 'transmutation',
   castingTime: 'action',

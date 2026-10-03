@@ -75,6 +75,7 @@ import {
   type Placement,
   type PositionState,
   type Point,
+  type TerrainRegion,
 } from './positioning.js';
 import {
   type GrantedHealingRule,
@@ -1882,6 +1883,13 @@ export interface PendingMove {
    * before the field, and on every move that carries nobody.
    */
   readonly carrying?: readonly { readonly who: CharacterId; readonly placement: Placement }[];
+  /**
+   * SRD Gaseous Form's "can enter and occupy the space of another creature",
+   * read when the move was declared — so a move held open for an Opportunity
+   * Attack completes into an occupied space as the cloud's own move would have,
+   * and says so on the event. Absent on every other move. (E-L2)
+   */
+  readonly occupiesOthers?: true;
   /** Who was offered an Opportunity Attack and has not yet answered. */
   readonly provoked: readonly { readonly reactor: CharacterId; readonly reach: number }[];
 }
@@ -1981,6 +1989,10 @@ export interface PendingCasting {
     readonly anchoring?: PointAnchoring;
     /** The spaces a wall runs through, for the one template the caster draws. */
     readonly path?: readonly Point[];
+    /** Where the ground the casting lays grows — see `TerrainRegion.within`. (E-L2) */
+    readonly within?: readonly TerrainRegion[];
+    /** What the ground the casting lays leaves out — see `TerrainRegion.excluding`. (E-L2) */
+    readonly excluding?: readonly TerrainRegion[];
   };
   /**
    * The damage type the caster stated, where the spell prints a choice.

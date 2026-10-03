@@ -25,7 +25,9 @@ import {
   declareDifficultPatch,
   declareLightPatch,
   declareObscuringPatch,
+  dispelOnPinning,
   lightDispelledBy,
+  type LightFlame,
   type LightLevel,
   type LightPatch,
   type ObscurementDegree,
@@ -323,6 +325,12 @@ export interface LightCommand extends CommandIdentity {
   readonly sunlight?: boolean;
   /** The casting that made this light, if one did. */
   readonly source?: string;
+  /**
+   * The flame it is, where it is one: a torch or a candle (`unprotected`), a
+   * lantern (`protected`) — what SRD Gust of Wind and Sleet Storm put out.
+   * See `LightPatch.flame`. (E-L2)
+   */
+  readonly flame?: LightFlame;
 }
 
 /**
@@ -355,7 +363,7 @@ export function declareLight(
   patch: string,
   command: LightCommand,
 ): Result<GameEvent[]> {
-  const { region, level, magical, sunlight, source } = command;
+  const { region, level, magical, sunlight, source, flame } = command;
 
   return once(state, `declare-light:${patch}`, { ...command }, () => [], (stamp) => {
     const scene = sceneFor(state, patch, `the light on ${patch} to be`);
@@ -374,6 +382,7 @@ export function declareLight(
       ...(source === undefined ? {} : { source }),
       ...(magical === undefined ? {} : { magical }),
       ...(sunlight === undefined ? {} : { sunlight }),
+      ...(flame === undefined ? {} : { flame }),
     });
     if (!declared.ok) return declared;
 
@@ -386,6 +395,7 @@ export function declareLight(
         ...(magical === undefined ? {} : { magical }),
         ...(sunlight === undefined ? {} : { sunlight }),
         ...(source === undefined ? {} : { source }),
+        ...(flame === undefined ? {} : { flame }),
         ...(stamp === null ? {} : { command: stamp }),
       },
       ...(magical === undefined
@@ -577,6 +587,8 @@ export function moveCastLight(
 
     const events: GameEvent[] = [];
     const dispelled = new Set<string>();
+    const glows = new Set<string>();
+    let itself = false;
     for (const [name, patch] of laid) {
       const region = regionFor(patch);
       const hidden = covered ?? patch.covered === true;
@@ -595,15 +607,20 @@ export function moveCastLight(
         ...(stamp === null || events.length > 0 ? {} : { command: stamp }),
       });
       // Pinned again, so the book's dispel runs as it runs on any pinning —
-      // and a covered patch fills no area, so it puts nothing out.
+      // both ways, by the threshold the patch carries where its spell prints
+      // one — and a covered patch fills no area, so it neither puts anything
+      // out nor is put out. (E-L2)
       if (hidden || patch.magical === undefined) continue;
-      for (const other of lightDispelledBy(state, region, patch.level, patch.magical.spellLevel)) {
-        if (other !== castingId) dispelled.add(other);
-      }
+      const verdict = dispelOnPinning(state, region, patch.level, patch.magical, { source: castingId });
+      for (const other of verdict.castings) dispelled.add(other);
+      for (const glow of verdict.glows) glows.add(glow);
+      itself ||= verdict.itself;
     }
     for (const other of [...dispelled].sort()) {
       events.push({ type: 'spell-ended', castingId: other, on: null, reason: 'dispelled' });
     }
+    for (const effectKey of [...glows].sort()) events.push({ type: 'effect-dispelled', effectKey });
+    if (itself) events.push({ type: 'spell-ended', castingId, on: null, reason: 'dispelled' });
     return ok(events);
   });
 }
