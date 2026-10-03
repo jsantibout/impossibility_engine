@@ -79,7 +79,7 @@ const CORPSE = id('corpse');
 const DYING = id('dying');
 
 /** The one thing this table puts in a hand — see the setup below. */
-const HEATED = 'quarterstaff';
+const HEATED = 'mace';
 
 const sheet = (over: Partial<CharacterSheet> = {}): CharacterSheet => ({
   level: 9,
@@ -224,7 +224,8 @@ const SETUP: readonly GameEvent[] = [
   // **And a thing in the ally's hand**, for the spell that heats one: SRD Heat
   // Metal refuses an object its target is neither wearing nor wielding, and
   // the fixture supplies the wielding rather than the spell being excused the
-  // rule. A Quarterstaff, because it is wielded and so can be let go of.
+  // rule. A Mace, because it is wielded and so can be let go of, and a smith's
+  // work and so metal (E-L1).
   { type: 'items-gained', id: ALLY, items: [{ id: HEATED, quantity: 1 }], source: 'the fixture' },
   { type: 'item-equipped', id: ALLY, item: HEATED, armor: null },
   // The ally is falling, which is the same discipline the types above follow:

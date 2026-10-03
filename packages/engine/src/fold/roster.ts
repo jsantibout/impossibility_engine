@@ -142,6 +142,12 @@ export function applyRoster({ state, next }: Applying, event: RosterEvent): Game
             // before this field existed says, so both frozen fixtures fold
             // unchanged.
             falling: null,
+            // Nobody has said who is touching it, and what it is made of is
+            // what its declaration pinned — absent on every creature and on
+            // every log written before either field, so both frozen fixtures
+            // fold unchanged. (E-L1)
+            contact: null,
+            material: event.material ?? null,
             // In the scene, which is what every log written before a creature
             // could be sent elsewhere says — so both frozen fixtures fold
             // unchanged.

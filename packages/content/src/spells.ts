@@ -11191,8 +11191,23 @@ export const SHAPECHANGE: SpellDefinition = {
  * **The object is an equipped item and the target is whoever has it.** That is
  * the holding fact the engine keeps — a weapon in a hand or armour on a body,
  * both `equipped` — so the caster names the creature and the thing, and the
- * damage lands on the creature in contact with it. An unattended metal gate is
- * still the table's: nothing in the engine is touching it.
+ * damage lands on the creature in contact with it.
+ *
+ * **Or the object is a declared one, and the target is the object** (E-L1,
+ * the owner's answers of 2026-10-03). An unattended iron gate is a declared
+ * object (`declareObject`), and who is touching it is the DM's to state
+ * (`declareContact`) — a momentary fact, so the cast and each later Bonus
+ * Action ask for it when nobody has said it this turn, rather than let the
+ * 2d8 fall on somebody unstated. `targets.inContact` turns the casting at the
+ * gate into the burn on each creature named, and the Constitution save stays
+ * with the holder: nobody holds a gate, so nobody is asked to drop it.
+ *
+ * **"Manufactured metal" is a mark in the data** (`targets.metal`): every SRD
+ * weapon and armour row says whether it is metal, read off the SRD's own
+ * crafting tools (`items.ts`), and every substance in the Object Armor Class
+ * table says so too, pinned on the object when it is declared. A club or a
+ * wooden door is refused before the slot; a Shield, whose material the book
+ * never states, is cast at with that said.
  *
  * **"Or drop the object if it can" is the verb that was missing.**
  * `what-a-creature-is-holding` was half built — hands are counted and a
@@ -11264,8 +11279,10 @@ export const HEAT_METAL: SpellDefinition = {
   range: { kind: 'ranged', feet: 60 },
   // The creature wearing or wielding the heated thing. Which thing is
   // `CastSpellRequest.object`, and the casting is refused before a slot is
-  // spent when the target has no such thing in hand or on their back.
-  targets: { count: 1, self: true },
+  // spent when the target has no such thing in hand or on their back. Or a
+  // declared object, burning whoever the DM says is touching it (`inContact`);
+  // either way the thing is metal (`metal`). (E-L1)
+  targets: { count: 1, self: true, metal: true, inContact: true },
   requiresSight: true,
   effects: [HEAT_METAL_BURN, HEAT_METAL_GRIP],
   activation: {
@@ -11278,8 +11295,7 @@ export const HEAT_METAL: SpellDefinition = {
   },
   durationSeconds: 60,
   unmodelled: [
-    'an object nobody is wearing or wielding is not heated: "any creature in physical contact with the object" is a touching the engine keeps no record of, and what it does keep is what a creature has equipped — the 2d8 Fire such a touch deals is not thrown',
-    'whether the thing chosen is manufactured, metal, and a weapon or a suit of Heavy or Medium armour is not asked: the catalogue records what an item is made of nowhere, so a casting at a creature’s wooden club is not refused',
+    'a second creature in physical contact with a thing somebody else is wearing or wielding — a hand on the heated breastplate — is not burned: the contact the DM states is with a declared object, and an equipped item’s contact is its holder alone',
   ],
 };
 

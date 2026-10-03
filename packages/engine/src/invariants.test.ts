@@ -27,6 +27,7 @@ import {
   addCreature,
   addSceneLandmark,
   declareBones,
+  declareContact,
   advanceTime,
   assumeShape,
   revertShape,
@@ -2972,6 +2973,23 @@ const GUARDED: readonly Guarded[] = [
     name: 'declareFalling',
     log: SETUP,
     run: (s, commandId) => declareFalling(s, B, { commandId }),
+  },
+  {
+    /** A momentary fact about a declared object, on `declareFalling`'s rule. (E-L1) */
+    name: 'declareContact',
+    log: [
+      ...SETUP,
+      ...unwrap(
+        declareObject(fold('s', SETUP), SRD_CONTENT, id('the-iron-gate'), {
+          name: 'the iron gate',
+          material: 'iron',
+          size: 'large',
+          build: 'resilient',
+        }),
+        'the gate',
+      ),
+    ],
+    run: (s, commandId) => declareContact(s, id('the-iron-gate'), [A, B], { commandId }),
   },
   {
     name: 'declareDifficultTerrain',

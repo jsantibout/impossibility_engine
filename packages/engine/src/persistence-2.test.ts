@@ -562,6 +562,13 @@ const UNCOVERED_EVENT_TYPES: readonly string[] = [
   'casting-save-recorded',
   'combatant-joined',
   'condition-immunity-granted',
+  // Who the DM says is touching a declared object (E-L1). Neither log could
+  // carry one: nothing could state a touch until SRD Heat Metal at an
+  // unattended gate needed one, and both fixtures fold to exactly the states
+  // they always folded to with the field null on every creature.
+  // `heat-metal-contact.test.ts` folds it and drives it: the casting asking,
+  // burning whoever was named, and asking again on a later turn.
+  'contact-declared',
   // A creature fixed to another and the ending that lets go — SRD Stirge, SRD
   // Darkmantle. Neither log was written when an attach existed at all: the
   // sentence was carried verbatim and handed to the DM, `CreatureState` had no

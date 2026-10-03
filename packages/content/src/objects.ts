@@ -27,13 +27,19 @@ import type { ObjectMaterial, ObjectSize } from '@ie/engine';
  * it and a table that rules otherwise says so in its own catalogue.
  */
 export const SRD_OBJECT_MATERIALS: readonly ObjectMaterial[] = [
-  { id: 'cloth', name: 'Cloth, paper, rope', armorClass: 11 },
-  { id: 'crystal', name: 'Crystal, glass, ice', armorClass: 13 },
-  { id: 'wood', name: 'Wood', armorClass: 15 },
-  { id: 'stone', name: 'Stone', armorClass: 17 },
-  { id: 'iron', name: 'Iron, steel', armorClass: 19 },
-  { id: 'mithral', name: 'Mithral', armorClass: 21 },
-  { id: 'adamantine', name: 'Adamantine', armorClass: 23 },
+  // **`metal` is SRD Heat Metal's question** (E-L1). Iron and steel are
+  // metals by name; mithral is "a light, flexible metal" (Mithral Armor).
+  // Adamantine the SRD never calls a metal in so many words, but it is what
+  // a suit of armour is "reinforced with" and it heads the table's metals, so
+  // it is read as one — a reading, and reviewed as such. The four rows above
+  // them are not metals by any reading.
+  { id: 'cloth', name: 'Cloth, paper, rope', armorClass: 11, metal: false },
+  { id: 'crystal', name: 'Crystal, glass, ice', armorClass: 13, metal: false },
+  { id: 'wood', name: 'Wood', armorClass: 15, metal: false },
+  { id: 'stone', name: 'Stone', armorClass: 17, metal: false },
+  { id: 'iron', name: 'Iron, steel', armorClass: 19, metal: true },
+  { id: 'mithral', name: 'Mithral', armorClass: 21, metal: true },
+  { id: 'adamantine', name: 'Adamantine', armorClass: 23, metal: true },
 ];
 
 /**

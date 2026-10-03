@@ -19,6 +19,7 @@ import type { CharacterSheet, GrantedArmorClass, GrantedLineImmunity } from './c
 import { type ActiveRollModifier } from './roll-modifiers.js';
 import { type ActivePassiveDefense } from './passive-defenses.js';
 import type { RngState } from './dice.js';
+import type { MaterialPin } from './objects.js';
 import {
   type ConditionState,
   type DeniedBenefit,
@@ -931,6 +932,24 @@ export interface CreatureState {
    */
   readonly falling: FallMoment | null;
   /**
+   * Who the table last said is touching this declared object, and when — SRD
+   * Heat Metal's "any creature in physical contact with the object". (E-L1)
+   *
+   * Beside `falling` for `falling`'s reason: a touch is **momentary**, worth
+   * the turn and the clock it was said at and closed by them with no event
+   * (`contactNow`). Null on everything nobody has said it of, which is every
+   * creature and every log written before this field — so both frozen
+   * fixtures fold unchanged.
+   */
+  readonly contact: ContactMoment | null;
+  /**
+   * What this declared object is made of, as content said when it was
+   * declared — pinned by `creature-added`. Null on every creature, and on an
+   * object declared before the pin existed, which a rule reading it takes as
+   * "nobody said". (E-L1)
+   */
+  readonly material: MaterialPin | null;
+  /**
    * Where this creature is instead of in the scene, or null while it stands
    * in it.
    *
@@ -1553,6 +1572,17 @@ export interface LastDamage {
  * SRD makes the table's, and a fall that the engine claimed to measure would
  * be the engine inventing it.
  */
+/**
+ * Who is touching a declared object, and the moment it was said. See
+ * {@link CreatureState.contact}; read back by `contactNow`, on
+ * {@link FallMoment}'s rule. (E-L1)
+ */
+export interface ContactMoment {
+  readonly creatures: readonly CharacterId[];
+  readonly turn: number | null;
+  readonly elapsed: number;
+}
+
 export interface FallMoment {
   readonly turn: number | null;
   readonly elapsed: number;

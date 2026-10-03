@@ -511,6 +511,101 @@ const magicalArmorOf = (id: string, name: string): Armor => {
   return { ...found, name };
 };
 
+/**
+ * Whether each row of the Weapons and Armor tables is metal — the mark SRD
+ * Heat Metal's "Choose a manufactured metal object, such as a metal weapon or
+ * a suit of Heavy or Medium metal armor" reads. (E-L1, the owner's answer of
+ * 2026-10-03: "mark it in the data".)
+ *
+ * **The SRD prints no material column, but it does print who makes each
+ * thing**, and that is the reading: the Tools table's **Craft** lines, which
+ * hand every weapon and every suit of armour to one craft. A row a smith or a
+ * tinker makes is metal; a row a carpenter, woodcarver, leatherworker or
+ * weaver makes is not. Each class below quotes its line. Checked against every
+ * row by `items-metal.test.ts`, so a re-vendored table with a new row fails
+ * until somebody reads it.
+ *
+ * **The Shield is the one row no craft names**, and nothing else in the book
+ * says what it is made of, so it carries no mark: a Heat Metal at a Shield is
+ * cast with "nobody has recorded whether Shield is metal" said beside it, the
+ * table's to rule on. A magic **staff** carries none either, whatever row it
+ * is built on: the SRD's Staff category says "some are made of wood, and
+ * others are composed of polished metal or crystal".
+ */
+const METAL: Readonly<Record<string, boolean>> = {
+  // Smith's Tools: "Craft: Any Melee weapon (except Club, Greatclub,
+  // Quarterstaff, and Whip), Medium armor (except Hide), Heavy armor". A
+  // hafted weapon counts by its head, which is the smith's work and what
+  // takes the heat.
+  dagger: true,
+  handaxe: true,
+  javelin: true,
+  'light-hammer': true,
+  mace: true,
+  sickle: true,
+  spear: true,
+  battleaxe: true,
+  flail: true,
+  glaive: true,
+  greataxe: true,
+  greatsword: true,
+  halberd: true,
+  lance: true,
+  longsword: true,
+  maul: true,
+  morningstar: true,
+  pike: true,
+  rapier: true,
+  scimitar: true,
+  shortsword: true,
+  trident: true,
+  warhammer: true,
+  'war-pick': true,
+  'chain-shirt': true,
+  'scale-mail': true,
+  breastplate: true,
+  'half-plate-armor': true,
+  'ring-mail': true,
+  'chain-mail': true,
+  'splint-armor': true,
+  'plate-armor': true,
+  // Tinker's Tools: "Craft: Musket, Pistol, …".
+  musket: true,
+  pistol: true,
+  // Carpenter's Tools: "Craft: Club, Greatclub, Quarterstaff, …".
+  club: false,
+  greatclub: false,
+  quarterstaff: false,
+  // Woodcarver's Tools: "Craft: … Ranged weapons (except Pistol, Musket, and
+  // Sling)". The Dart is a Simple Ranged weapon and is in this line.
+  dart: false,
+  'light-crossbow': false,
+  shortbow: false,
+  blowgun: false,
+  'hand-crossbow': false,
+  'heavy-crossbow': false,
+  longbow: false,
+  // Leatherworker's Tools: "Craft: Sling, Whip, Hide Armor, Leather Armor,
+  // Studded Leather Armor, …". Studded leather's rivets do not make it the
+  // "suit of … metal armor" the spell names; the book files it with leather.
+  sling: false,
+  whip: false,
+  'hide-armor': false,
+  'leather-armor': false,
+  'studded-leather-armor': false,
+  // Weaver's Tools: "Craft: Padded Armor, …".
+  'padded-armor': false,
+};
+
+/**
+ * The mark for one row, as a spread: `{ metal }` where the reading above
+ * says, and nothing where it does not — the Shield.
+ */
+const metalOf = (row: string): { readonly metal?: boolean } => {
+  const metal = METAL[row];
+  return metal === undefined ? {} : { metal };
+};
+
 /** A magic weapon built on one row of the Weapons table. */
 const magicWeapon = (
   item: {
@@ -531,6 +626,10 @@ const magicWeapon = (
     armor: null,
     weapon,
     contents: [],
+    // The row's material, except a staff's, which the Staff category says
+    // varies — see `METAL`. Before `rest`, so an entry that says otherwise
+    // wins. (E-L1)
+    ...(item.kind === 'staff' ? {} : metalOf(item.row)),
     ...rest,
   };
 };
@@ -550,6 +649,8 @@ const magicArmor = (
     armor,
     weapon: null,
     contents: [],
+    // The row's material — see `METAL`. (E-L1)
+    ...metalOf(item.row),
     ...rest,
   };
 };
@@ -657,6 +758,8 @@ const MITHRAL_ARMOR: readonly CatalogueItem[] = ARMOR.filter(
   },
   weapon: null,
   contents: [],
+  // "Mithral is a light, flexible metal." (E-L1)
+  metal: true,
 }));
 
 /**
@@ -685,6 +788,9 @@ const ADAMANTINE_ARMOR: readonly CatalogueItem[] = ARMOR.filter(
   armor: { ...row, name: `Adamantine ${row.name}` },
   weapon: null,
   contents: [],
+  // Every row this family is built on is a smith's — see `METAL` — and
+  // adamantine is a metal besides. (E-L1)
+  metal: true,
   grants: [
     {
       kind: 'standing' as const,
@@ -4415,6 +4521,7 @@ function build(): readonly CatalogueItem[] {
       armor: null,
       weapon,
       contents: [],
+      ...metalOf(weapon.id),
     });
   }
 
@@ -4428,6 +4535,7 @@ function build(): readonly CatalogueItem[] {
       armor: piece,
       weapon: null,
       contents: [],
+      ...metalOf(piece.id),
     });
   }
 

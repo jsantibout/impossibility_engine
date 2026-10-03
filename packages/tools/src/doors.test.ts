@@ -597,6 +597,13 @@ const DECLARATIONS: Readonly<
    */
   declareBones: { tool: 'declare_bones', dmOnly: true },
   /**
+   * **Who is touching a declared object, and the DM's alone** by the owner's
+   * answer of 2026-10-03: a model that could say whose hand is on the gate
+   * would be choosing who SRD Heat Metal's 2d8 lands on. It carries no number,
+   * and holds for the turn it is said on. (E-L1)
+   */
+  declareContact: { tool: 'declare_contact', dmOnly: true },
+  /**
    * **Withheld until this batch, and the reason it gave has stopped being
    * true.** The line here read "the clock and what a morning refills, which is
    * the rest slice `definitions.ts` says is left for a later batch. It also
@@ -1220,6 +1227,9 @@ const KIND_SETTLED_BY: Readonly<Record<string, ContextRequestKind | null>> = {
   // A Skeleton raised where nobody said bones lie stops on it, and asks as a
   // fact about the room: `scene`, as the climb above does.
   declareBones: 'scene',
+  // A Heat Metal at a declared object nobody has said is touched stops on it,
+  // and asks as a fact about the room: `scene`, as the bones do. (E-L1)
+  declareContact: 'scene',
 };
 
 /**

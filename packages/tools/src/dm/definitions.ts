@@ -96,6 +96,7 @@ import {
   declareCreatureHeads,
   declareDamageType,
   declareBones,
+  declareContact,
   declareObject,
   declareWayInHeight,
   forcePrintedSave,
@@ -1791,6 +1792,43 @@ const DECLARE_BONES = tool({
 });
 
 /**
+ * Who is touching a declared object, right now — SRD Heat Metal's "any
+ * creature in physical contact with the object". (E-L1)
+ *
+ * On this surface alone, by the owner's answer of 2026-10-03: whose hand is on
+ * an unattended iron gate is a fact about the room, and a model that could say
+ * who was touching the thing its druid was about to heat would be choosing who
+ * the 2d8 lands on. It carries no number. The statement holds for the turn it
+ * is made on, so a later Bonus Action that heats the gate again asks again;
+ * keyed by the object rather than by a casting, because the first question
+ * comes before any casting exists.
+ */
+const DECLARE_CONTACT = tool({
+  name: 'declare_contact',
+  description:
+    'Say which creatures are touching a declared object right now — a hand on the iron gate, a body pressed against the portcullis. Heat Metal cast at a declared object burns every creature you name here and nobody else, and asks you when nobody has said it this turn; name nobody to say nobody is. It holds for this turn only: say it again when a later turn heats the thing again. The object must be one declared with `declare_object`; a creature’s own weapon or armour is touched by whoever wears or wields it, which the engine already knows.',
+  mutates: true,
+  establishes: ['scene'],
+  input: z.strictObject({
+    object: creatureId.describe('The declared object, by its id from `declare_object`.'),
+    creatures: z
+      .array(creatureId)
+      .describe('Every creature touching it now. An empty list says nobody is.'),
+  }),
+  run: (context, args) =>
+    settleEvents(
+      context,
+      declareContact(
+        context.campaign.state(),
+        who(args.object),
+        args.creatures.map((one) => who(one)),
+        identity(context),
+      ),
+      { declared: args.object, creatures: [...new Set(args.creatures)].sort() },
+    ),
+});
+
+/**
  * How high a casting's way in hangs — SRD Rope Trick's rope, W9-S3.
  *
  * "One end of it hovers upward until the rope hangs perpendicular to the
@@ -2757,6 +2795,7 @@ export const DM_ONLY_TOOLS: readonly ToolDefinition[] = [
   AWARD_COIN,
   AWARD_ITEMS,
   DECLARE_BONES,
+  DECLARE_CONTACT,
   DECLARE_DAMAGE_TYPE,
   DECLARE_HEADS,
   DECLARE_OBJECT,

@@ -133,6 +133,7 @@ import {
 } from '../spell-definitions.js';
 import { castsAtWill, type CastingRoute, componentsWaivedBy } from '../spellcasting.js';
 import { hearsAndUnderstands } from '../languages.js';
+import { contactNow, OBJECT_CREATURE_TYPE } from '../objects.js';
 import {
   castingNumber,
   castingSource,
@@ -206,6 +207,8 @@ import {
 import {
   attunementProblem,
   maskProblem,
+  contactProblem,
+  metalProblem,
   objectHeldProblem,
   resolveCreatureTypeOverrideEffect,
   resolveReviveEffect,
@@ -2023,6 +2026,21 @@ function castingBody(
         );
         if (!touching.ok) return touching;
       }
+    }
+
+    // SRD Heat Metal's other two facts, asked at the same moment (E-L1). The
+    // object is metal — off the mark content gave the item, or the substance
+    // a declared object pinned — and, where the casting is aimed at a
+    // declared object, somebody has said who is touching it now: the 2d8
+    // lands on them, and on nobody the DM did not name.
+    if (definition.targets.metal === true) {
+      const metal = metalProblem(state, supply.content, definition.name, targets, request.object);
+      if (!metal.ok) return metal;
+      unverified.push(...metal.value);
+    }
+    if (definition.targets.inContact === true) {
+      const touching = contactProblem(state, definition.name, targets);
+      if (!touching.ok) return touching;
     }
 
     // And whether the teleport this casting performs can happen at all, asked
@@ -4525,6 +4543,15 @@ export function resolveEffects(
     }
   }
 
+  // **And whoever is touching a declared object has to have been named, now**
+  // — the same seam, for the same reason (E-L1). A touch the DM stated on the
+  // round of the cast is not a touch on a later turn, so the Bonus Action asks
+  // again before its dice; `runEffects` then reads the answer.
+  if (definition.targets.inContact === true) {
+    const touching = contactProblem(state, definition.name, targets);
+    if (!touching.ok) return touching;
+  }
+
   const resolved = runEffects(state, casterId, caster, {
     origin: { kind: 'casting', castingId, definition },
     effects: context.effects ?? definition.effects,
@@ -5251,7 +5278,40 @@ export function runEffects(
       mine === undefined || origin.kind !== 'casting'
         ? effects
         : statedChoice(effects, origin.definition.choiceStated?.of, mine);
-    for (const effect of own === null ? theirs : [...theirs, ...own]) {
+    const list = own === null ? theirs : [...theirs, ...own];
+
+    // **A casting at a declared object lands on whoever touches it** — SRD
+    // Heat Metal's "any creature in physical contact with the object"
+    // (`TargetRule.inContact`, E-L1). The object takes nothing; each creature
+    // the DM named takes the list, one at a time and with its own dice, as a
+    // target of its own. A clause about **holding** the thing (`drops`)
+    // reaches nobody, because nobody holds what lies in the room. The
+    // statement was asked for before this ran (`contactProblem`), so an
+    // absent one here is a caller that skipped the question.
+    const touched =
+      origin.kind === 'casting' &&
+      origin.definition.targets.inContact === true &&
+      current.creatures[target]?.creatureType === OBJECT_CREATURE_TYPE;
+    if (touched) {
+      const touchers = contactNow(current, target);
+      if (touchers === null) {
+        throw new Error(`${name} reached ${target} with nobody's contact stated; contactProblem was not asked`);
+      }
+      const reaching = list.filter((effect) => outcomeRidersOf(effect).drops === undefined);
+      for (const toucher of touchers) {
+        const by: EffectContext = { ...ctx, targets: [toucher] };
+        for (const effect of reaching) {
+          const victim = current.creatures[toucher];
+          if (victim === undefined) continue;
+          const done = resolveOneEffect(by, effect, toucher, victim, current);
+          if (!done.ok) return done;
+          current = done.value;
+        }
+      }
+      continue;
+    }
+
+    for (const effect of list) {
       const victim = current.creatures[target];
       if (victim === undefined) continue;
 

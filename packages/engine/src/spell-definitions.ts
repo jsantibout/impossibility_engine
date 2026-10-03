@@ -5669,6 +5669,34 @@ export interface TargetRule {
    */
   readonly objectOrSelf?: true;
   /**
+   * SRD *Heat Metal*: "Choose a **manufactured metal object**".
+   *
+   * A rule about the object the casting is aimed at, read off the mark content
+   * gives it: a named item's `CatalogueItem.metal`, or the substance a declared
+   * object pinned when it was declared (`CreatureState.material`). A thing
+   * marked not metal is refused `not_metal` before the slot; a thing nobody
+   * marked either way is cast at with that said, because the book never says
+   * what a Shield is made of. Needs an object to read — a definition that
+   * names one (`namesAnObject`) or is aimed at one (`inContact`) — which the
+   * validator holds it to. (E-L1, the owner's answer of 2026-10-03)
+   */
+  readonly metal?: true;
+  /**
+   * SRD *Heat Metal*: "**Any creature in physical contact with the object**
+   * takes 2d8 Fire damage".
+   *
+   * The spell may be aimed at a **declared object** — an iron gate nobody is
+   * wearing or wielding — and then what it does lands on every creature in
+   * contact with that object rather than on the object. Who that is, is the
+   * DM's to state (`declareContact`), a momentary fact closed by the turn and
+   * the clock as a fall is; a casting or a later use with no such statement
+   * current asks for it, before a die and before a slot. A clause about
+   * holding the object — a `drops` rider — reaches nobody this way, because
+   * nobody holds what is lying in the room. Aimed at a creature the spell runs
+   * as it always did. (E-L1, the owner's answer of 2026-10-03)
+   */
+  readonly inContact?: true;
+  /**
    * SRD *Suggestion*: "one creature you can see within range **that can hear
    * and understand you**."
    *

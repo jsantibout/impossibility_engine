@@ -179,6 +179,55 @@ export function declareFalling(
   });
 }
 
+/**
+ * Say who is touching a declared object, now. (E-L1)
+ *
+ * SRD Heat Metal: "Any creature in physical contact with the object takes 2d8
+ * Fire damage when you cast the spell." Whose hand is on an unattended iron
+ * gate is a fact about the room, and the owner's answer of 2026-10-03 makes it
+ * the DM's to state — so this is a DM's door, and a casting whose dice would
+ * land on somebody nobody named asks for it rather than choosing.
+ *
+ * {@link declareFalling}'s shape and for its reasons: a touch is **momentary**,
+ * so the statement is worth the turn and the clock it was made at
+ * (`contactNow`), and saying it again is a new moment rather than a
+ * contradiction. An empty list is an answer — nobody is touching it — and a
+ * casting at the object then burns nobody.
+ *
+ * Refused: a thing that is not a declared object (a creature's own armour is
+ * touched by its wearer, which the engine already reads off what is
+ * equipped), and an object named as one of the creatures touching it, because
+ * the sentence is about creatures. The list is written sorted and once each.
+ */
+export function declareContact(
+  state: GameState,
+  object: CharacterId,
+  creatures: readonly CharacterId[],
+  command: CommandIdentity = {},
+): Result<GameEvent[]> {
+  const named = [...new Set(creatures)].sort();
+  return once(state, `declare-contact:${object}`, { ...command, creatures: named }, () => [], (stamp) => {
+    const thing = creatureOf(state, object);
+    if (thing === null) return unknownCreature(object);
+    if (thing.creatureType !== OBJECT_CREATURE_TYPE) {
+      return err(
+        'not_an_object',
+        `${object} is not a declared object; what touches a creature's own gear is what it is wearing or wielding`,
+      );
+    }
+    for (const who of named) {
+      const toucher = creatureOf(state, who);
+      if (toucher === null) return unknownCreature(who);
+      if (toucher.creatureType === OBJECT_CREATURE_TYPE) {
+        return err('not_a_creature', `${who} is an object, and the sentence is about creatures in contact`);
+      }
+    }
+    return ok([
+      { type: 'contact-declared', object, creatures: named, ...(stamp === null ? {} : { command: stamp }) },
+    ]);
+  });
+}
+
 export interface DifficultTerrainCommand extends CommandIdentity {
   /** Where the expensive ground is, in the vocabulary an area of effect uses. */
   readonly region: TerrainRegion;

@@ -166,10 +166,11 @@ const setupWith = (
 const ATTUNED = 'cloak-of-elvenkind';
 
 /**
- * The one thing this file puts in a hand — the Quarterstaff every creature
- * here is already carrying, which is wielded and so can be let go of.
+ * The one thing this file puts in a hand — a Mace, which is wielded and so can
+ * be let go of, and a smith's work and so metal, which SRD Heat Metal asks of
+ * it (E-L1). Gained and equipped only where a spell names an object.
  */
-const HEATED = 'quarterstaff';
+const HEATED = 'mace';
 
 const SETUP: readonly GameEvent[] = setupWith('Humanoid');
 
@@ -272,6 +273,7 @@ const logFor = (spellId: string): readonly GameEvent[] => {
   const withTheObject: readonly GameEvent[] = heats
     ? [
         ...withTheAttunement,
+        { type: 'items-gained', id: TARGET, items: [{ id: HEATED, quantity: 1 }], source: 'the fixture' } as GameEvent,
         { type: 'item-equipped', id: TARGET, item: HEATED, armor: null } as GameEvent,
       ]
     : withTheAttunement;

@@ -4808,6 +4808,16 @@ export function checkContent(input: ContentInput): readonly ContentProblem[] {
   // hit points row keyed by something that is not a size is a row nobody could
   // ever look up: `declareObject` asks for `medium` and gets nothing back.
   for (const material of objectMaterials) {
+    // Whether the substance is a metal, which SRD Heat Metal reads off a
+    // declared object. (E-L1)
+    const metal = (material as { readonly metal?: unknown }).metal;
+    if (metal !== undefined && typeof metal !== 'boolean') {
+      problems.push({
+        field: `objectMaterials[${material.id}].metal`,
+        code: 'malformed_field',
+        reason: 'a substance is a metal or it is not; write true or false, or leave it out',
+      });
+    }
     if (!Number.isInteger(material.armorClass) || material.armorClass < 1) {
       problems.push({
         field: `objectMaterials[${material.id}].armorClass`,
@@ -6113,6 +6123,16 @@ export function checkContent(input: ContentInput): readonly ContentProblem[] {
         reason: 'an item carries a curse or it does not; the only value is true',
       });
     }
+    // What it is made of, which SRD Heat Metal reads: a yes, a no, or nothing
+    // said. (E-L1)
+    const metal = (item as { readonly metal?: unknown }).metal;
+    if (metal !== undefined && typeof metal !== 'boolean') {
+      problems.push({
+        field: `items[${item.id}].metal`,
+        code: 'malformed_field',
+        reason: 'an item is metal or it is not; write true or false, or leave it out where the book does not say',
+      });
+    }
     // A catalogue with no spells at all judges nothing about which spells an
     // item casts, on the same rule `byClass` already follows above: a fixture
     // that holds only items is not a catalogue whose wands cast nothing.
@@ -6759,6 +6779,8 @@ function parseItem(value: unknown): Result<CatalogueItem> {
     // Carried as given and judged by `checkContent`, for `grants`' reason
     // below. (E-L1)
     ...(value['cursed'] === undefined ? {} : { cursed: value['cursed'] as true }),
+    // And the material mark beside it, on the same rule. (E-L1)
+    ...(value['metal'] === undefined ? {} : { metal: value['metal'] as boolean }),
     // Carried as given and judged by `checkContent`, which is the one gate
     // both the typed and the untyped path pass through — so a homebrew magic
     // item gets exactly the answers a transcribed one would.
@@ -6826,6 +6848,8 @@ function parseObjectMaterial(value: unknown): Result<ObjectMaterial> {
     id: s.string(value, 'id'),
     name: s.string(value, 'name'),
     armorClass: s.int(value, 'armorClass'),
+    // Carried as given and judged by `checkContent`. (E-L1)
+    ...(value['metal'] === undefined ? {} : { metal: value['metal'] as boolean }),
   };
   const problems = [...s.problems()];
 

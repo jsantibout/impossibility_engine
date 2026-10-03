@@ -19,6 +19,7 @@
     "CommandStamp",
     "LastDamage",
     "DeferredRiders",
+    "ContactMoment",
     "FallMoment",
     "GrantedFallWard",
     "GrantedLift",

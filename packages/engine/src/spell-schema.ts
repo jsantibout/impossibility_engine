@@ -23,7 +23,9 @@ import {
   DEFERRABLE_RIDERS,
   DIRECTIONAL_AREAS,
   DM_DECIDES,
+  dropsAnObject,
   modifierRidersOf,
+  repairsAnObject,
   persists as castingPersists,
   optionEffectLists,
   readsAStatedStorm,
@@ -6253,6 +6255,35 @@ function checkWhatACastingMayBeAimedAt(
           reason: `the clause is about one object; \`objectOrSelf\` with a count of ${definition.targets.count} names more than the sentence does`,
         });
       }
+    }
+  }
+
+  // SRD Heat Metal's two clauses about its object, each a flag. A material
+  // rule needs an object to read: an item the casting names, or a declared
+  // object it is aimed at. (E-L1)
+  const metal = (definition.targets as { readonly metal?: unknown }).metal;
+  const inContact = (definition.targets as { readonly inContact?: unknown }).inContact;
+  if (inContact !== undefined && inContact !== true) {
+    found.push({
+      field: 'targets.inContact',
+      code: 'malformed_field',
+      reason: 'a spell reaches whoever touches the object it is aimed at or it does not; the only value is true',
+    });
+  }
+  if (metal !== undefined) {
+    if (metal !== true) {
+      found.push({
+        field: 'targets.metal',
+        code: 'malformed_field',
+        reason: 'a spell is aimed at a metal object or it is not; the only value is true',
+      });
+    } else if (inContact !== true && !dropsAnObject(definition) && !repairsAnObject(definition)) {
+      found.push({
+        field: 'targets.metal',
+        code: 'metal_without_an_object',
+        reason:
+          'the spell names no object and is aimed at none, so there is nothing for "metal" to be true of: give it a clause that names one, or `inContact`',
+      });
     }
   }
 

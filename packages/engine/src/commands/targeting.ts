@@ -1675,7 +1675,23 @@ export function declaredFacts(
   // holds — attuned to it, wearing it — both need the catalogue, which this
   // function has none of, and both are asked in `resolveSpell`'s pre-flight
   // before anything is spent.
-  if (namesAnObject(definition)) {
+  //
+  // **Unless the casting is aimed at the object itself** — SRD Heat Metal at
+  // an iron gate nobody holds (`TargetRule.inContact`). The declared object is
+  // the thing, so there is no item to name beside it, and naming one is two
+  // answers to one question. (E-L1)
+  const atTheObject =
+    definition.targets.inContact === true &&
+    request.targets.length > 0 &&
+    request.targets.every((target) => isDeclaredObject(state, target));
+  if (atTheObject) {
+    if (request.object !== undefined) {
+      return err(
+        'object_is_the_target',
+        `${definition.name} is aimed at a declared object, which is the thing it acts on; name no item beside it`,
+      );
+    }
+  } else if (namesAnObject(definition)) {
     if (request.object === undefined) {
       return err(
         'object_required',

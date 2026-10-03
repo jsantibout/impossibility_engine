@@ -186,9 +186,10 @@ describe('toolSchemas', () => {
     // `declare_wind` and `declare_ending`, the room's weather and the table's
     // word that a printed cause happened. And one on each for W9-S3,
     // `draw_rope`, and one more on the DM's alone, `declare_portal_height`.
-    // And one on the DM's alone for E-L3, `declare_bones`.
+    // And one on the DM's alone for E-L3, `declare_bones`, and one for E-L1,
+    // `declare_contact`.
     expect(toolSchemas(player())).toHaveLength(100);
-    expect(toolSchemas(dm())).toHaveLength(134);
+    expect(toolSchemas(dm())).toHaveLength(135);
     // Re-pinned 2026-09-24 for the printed-lines track, which opened one door
     // on the DM's surface alone: `teleport_printed_line` takes the teleport a
     // stat block prints, at the distance the block prints, to a space the DM
@@ -440,11 +441,16 @@ describe('toolSchemas', () => {
     // Both together: +4,947 on the player's door and +6,565 on the DM's.
     // And for E-L1's second part: `attack.ifWarded` and `cast_spell.ifWarded`
     // (SRD Sanctuary's fallback, owner's ruling of 2026-10-03), +1,358 on each
-    // door.
+    // door. And for SRD Heat Metal (owner's answers of 2026-10-03):
+    // `cast_spell.object` says a thing that is not metal is refused and that
+    // a declared object may be the target, +185 on each door; and on the DM's
+    // alone `declare_contact` (who is touching a declared object, a new
+    // door), +979 with its separator. 134 → 135 tools on the DM's door;
+    // +185 bytes on the player's and +1,164 on the DM's.
     expect(toolSchemas(player())).toHaveLength(100);
-    expect(toolSchemas(dm())).toHaveLength(134);
-    expect(JSON.stringify(toolSchemas(player())).length).toBe(173858);
-    expect(JSON.stringify(toolSchemas(dm())).length).toBe(235181);
+    expect(toolSchemas(dm())).toHaveLength(135);
+    expect(JSON.stringify(toolSchemas(player())).length).toBe(174043);
+    expect(JSON.stringify(toolSchemas(dm())).length).toBe(236345);
   });
 });
 

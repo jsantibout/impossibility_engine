@@ -29,6 +29,7 @@ import type { CharacterSheet, GrantedArmorClass, GrantedLineImmunity } from './c
 import { type ActiveRollModifier } from './roll-modifiers.js';
 import { type ActivePassiveDefense } from './passive-defenses.js';
 import type { DieRoll, RngState } from './dice.js';
+import type { MaterialPin } from './objects.js';
 import { type PoolDeclaration, type Recovery } from './resources.js';
 import type { CharacterRecord } from './creation.js';
 import type {
@@ -361,6 +362,18 @@ export type GameEvent =
       readonly cr?: number;
       /** Which side of the fight this creature is on. See {@link CreatureState.side}. */
       readonly side?: string;
+      /**
+       * What a declared object is made of, as content said when it was
+       * declared. See {@link CreatureState.material}.
+       *
+       * Pinned for rule 5: `declareObject` reads the substance's row, and SRD
+       * Heat Metal reads whether it is metal at a casting that may come a year
+       * of logs later. **Optional, and absent on everything that is not a
+       * declared object** — and on every object declared before this field
+       * existed, which a casting reads as "nobody said" — so both frozen
+       * fixtures fold unchanged. (E-L1)
+       */
+      readonly material?: MaterialPin;
       readonly command?: CommandStamp;
     }
   /**
@@ -1522,6 +1535,25 @@ export type GameEvent =
   | {
       readonly type: 'fall-declared';
       readonly id: CharacterId;
+      readonly command?: CommandStamp;
+    }
+  /**
+   * The table says who is touching a declared object, now. (E-L1)
+   *
+   * SRD Heat Metal: "Any creature in physical contact with the object takes
+   * 2d8 Fire damage". Whose hand is on an unattended iron gate is a fact about
+   * the room the engine holds no record of — the owner's answer of 2026-10-03
+   * makes it the DM's to state — so it arrives the way a fall does: a
+   * **momentary** fact, worth the turn and the clock it was said at
+   * (`contactNow`), and re-declared rather than contradicted. An empty list
+   * is an answer: nobody is touching it.
+   *
+   * Sorted and without repeats, so one statement serialises one way.
+   */
+  | {
+      readonly type: 'contact-declared';
+      readonly object: CharacterId;
+      readonly creatures: readonly CharacterId[];
       readonly command?: CommandStamp;
     }
   /**

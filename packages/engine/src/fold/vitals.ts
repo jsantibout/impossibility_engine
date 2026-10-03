@@ -71,6 +71,7 @@ export const VITALS_EVENTS = [
   'creature-revived',
   'hit-point-maximum-raised',
   'fall-declared',
+  'contact-declared',
 ] as const;
 
 /** The narrowed union this seam reduces, `Extract`ed from the list above. */
@@ -416,6 +417,27 @@ function reduceVitals({ state, next }: Applying, event: VitalsEvent): GameState 
         event.id,
         { falling: { turn: state.combat?.turnsTaken ?? null, elapsed: state.elapsed } },
         creature,
+      );
+    }
+
+    case 'contact-declared': {
+      const object = creatureOf(state, event, event.object);
+      // Everybody named has to be in the game; `declareContact` refuses the
+      // rest, so one that is not is a log nobody's command wrote.
+      for (const who of event.creatures) creatureOf(state, event, who);
+      // `fall-declared`'s two facts about "now", and the list the table gave.
+      // (E-L1)
+      return withCreature(
+        next,
+        event.object,
+        {
+          contact: {
+            creatures: event.creatures,
+            turn: state.combat?.turnsTaken ?? null,
+            elapsed: state.elapsed,
+          },
+        },
+        object,
       );
     }
 
