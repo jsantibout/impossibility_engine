@@ -21,8 +21,10 @@ import {
   modifierFor,
   saveModifier,
   skillModifier,
+  toolCheckModifier,
   untrainedArmorPenalty,
   type CharacterSheet,
+  type ProficiencyLevel,
 } from './character.js';
 import {
   createRollIssuer,
@@ -451,6 +453,13 @@ export interface D20TestOptions {
    * here has already been paid for if it fires.
    */
   readonly election?: RollElection;
+  /**
+   * How the roller is proficient with the tool this check uses, where it uses
+   * one — read off the sheet by the command, which knows which tool was named
+   * (E-AIM). Absent is a check that uses no tool, which every roll before this
+   * field was. An ability check only: no rule lets a tool reach a save.
+   */
+  readonly toolProficiency?: ProficiencyLevel;
 }
 
 export interface D20TestResult {
@@ -647,10 +656,28 @@ export function rollAbilityCheck(
   ability: Ability,
   options: D20TestOptions,
 ): Result<D20TestResult> {
-  const modifier =
-    options.skill === undefined ? modifierFor(sheet, ability) : skillModifier(sheet, options.skill);
+  const tool = options.toolProficiency;
+  if (tool === undefined) {
+    const modifier =
+      options.skill === undefined ? modifierFor(sheet, ability) : skillModifier(sheet, options.skill);
+    return resolve(issuer, rng, 'ability-check', sheet, ability, modifier, options);
+  }
 
-  return resolve(issuer, rng, 'ability-check', sheet, ability, modifier, options);
+  // SRD "Tool Proficiency", both sentences: the bonus for the tool — one claim
+  // on it beside the skill's, never a second bonus — and "If you have
+  // proficiency in a skill that's used with that check, you have Advantage on
+  // the check too", which wants both proficiencies at once.
+  const modifier = toolCheckModifier(sheet, ability, options.skill, tool);
+  const skilled =
+    options.skill !== undefined &&
+    ((sheet.skills[options.skill] ?? 'none') !== 'none' ||
+      sheet.stated?.skills?.[options.skill] !== undefined);
+  const advantage: readonly ModeSource[] =
+    tool !== 'none' && skilled ? [{ source: 'Tool Proficiency', mode: 'advantage' }] : [];
+  return resolve(issuer, rng, 'ability-check', sheet, ability, modifier, {
+    ...options,
+    modes: [...(options.modes ?? []), ...advantage],
+  });
 }
 
 export function rollSavingThrow(

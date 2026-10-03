@@ -307,6 +307,13 @@ const ABILITY_CHECK = tool({
       .describe(
         'A reroll the **roller** elected before the die — SRD Heroic Inspiration. It is here rather than on a model’s surface because this is the door the check comes through at all; what it carries is the player’s own condition, relayed. Send `{"pool": "human:heroic-inspiration", "when": "fails"}`, or a face to rethrow at. The use is spent only if the condition was met, and the `test-rolled` window still opens afterwards for whoever else can push the number.',
       ),
+    tool: z
+      .string()
+      .min(1)
+      .optional()
+      .describe(
+        'The tool the check is made with, by item id — `thieves-tools` for a lock or a trap, `herbalism-kit`, `disguise-kit`. The engine adds the Proficiency Bonus if the creature is proficient with it (doubled where its sheet records Expertise, and never added twice beside a skill), and gives Advantage when the skill named is one it is proficient in too. A creature not carrying the tool is refused `no_tool`; leave the field out for a check made without one.',
+      ),
     findingCreature: creatureId
       .optional()
       .describe(
@@ -328,6 +335,9 @@ const ABILITY_CHECK = tool({
           dc: args.dc,
           ...(args.skill === undefined ? {} : { skill: args.skill }),
           ...(args.because === undefined ? {} : { label: args.because }),
+          // The tool it is made with: an item id, and the sheet decides what
+          // it is worth. (E-AIM)
+          ...(args.tool === undefined ? {} : { tool: args.tool }),
           // What the attempt is *for*, where the table said. One member today,
           // so the tool spells the creature rather than the wrapper: a field
           // named for the fact reads better on a surface than an object with

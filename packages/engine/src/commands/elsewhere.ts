@@ -275,7 +275,7 @@ export function settleReturn(
   }
 
   const placed = placeCreature(probe, who, { ...to, size });
-  if (!placed.ok) return anchorNeeded(placed, to.from, `${who} is returning to a space measured from it`);
+  if (!placed.ok) return anchorNeeded(state, placed, to.from, `${who} is returning to a space measured from it`);
   const at = placed.value.positions[who]!;
 
   if (anchor !== null && !allowed.some((space) => space.x === at.x && space.y === at.y && space.z === at.z)) {

@@ -6683,7 +6683,9 @@ describe('one channel for a missing fact', () => {
     // attunement, and SRD Dimension Door teleports "to a location within
     // range" — so a destination measured from a creature nobody has placed is
     // a thin record rather than an illegal casting, and the engine asks.
-    const wearing = held(SETUP, 'cape-of-the-mountebank');
+    // `c` is given a record and no place: a name with no record at all is a
+    // wrong fact, refused `unknown_creature` since E-AIM, and not this case.
+    const wearing = held([...SETUP, added(C, 'foes')], 'cape-of-the-mountebank');
 
     const dice = supply();
     const before = {

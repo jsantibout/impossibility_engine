@@ -861,6 +861,12 @@ export function checkBonuses(
   who: CharacterId,
   supplied: readonly Bonus[] | undefined,
   skill?: Skill,
+  /**
+   * Whether this check already adds the Proficiency Bonus some other way than
+   * through its skill — a tool the roller is proficient with (E-AIM). Read by
+   * SRD Jack of All Trades alone, whose sentence excludes such a check.
+   */
+  usesProficiency = false,
 ): readonly Bonus[] {
   // **And the bonuses a running spell hung on the creature**, which reached no
   // ability check at all until a spell was narrow enough to want one: nothing
@@ -883,7 +889,7 @@ export function checkBonuses(
   const standing = [
     ...bonusesFor(held, 'ability-check', skill === undefined ? undefined : { skill }),
     ...standingBonuses(state, who, 'ability-check', skill === undefined ? {} : { skill }),
-    ...(skill === undefined ? [] : standingCheckBonuses(state, who, skill)),
+    ...(skill === undefined ? [] : standingCheckBonuses(state, who, skill, usesProficiency)),
     ...areaBonuses(state, who, 'ability-check', skill === undefined ? undefined : { skill }),
   ];
   if (standing.length === 0) return supplied ?? [];

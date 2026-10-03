@@ -458,7 +458,7 @@ export function moveWithin(
     // both halves, so a mover measured from a creature nobody has placed and
     // one measured from a door nobody has described are told the same way.
     if (!moved.ok) {
-      return anchorNeeded(moved, command.placement.from, `${id} is moving relative to it`);
+      return anchorNeeded(state, moved, command.placement.from, `${id} is moving relative to it`);
     }
     const to = positionOf(moved.value.state, id);
     if (to === null) return needsContext('unplaced', `${id} did not land anywhere`);
@@ -1138,7 +1138,7 @@ function holdsCarried(
     let placement: Placement;
     if (entry.to !== undefined) {
       const placed = moveCreature(scene, who, entry.to);
-      if (!placed.ok) return anchorNeeded(placed, entry.to.from, `${who} is being carried relative to it`);
+      if (!placed.ok) return anchorNeeded(state, placed, entry.to.from, `${who} is being carried relative to it`);
       const apart = distanceBetween(placed.value.state, who, id);
       if (!apart.ok || apart.value > UNARMED_REACH) {
         return err(

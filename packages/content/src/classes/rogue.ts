@@ -83,6 +83,8 @@ export const ROGUE: ClassDefinition = {
   // not evaluate — it cannot check a weapon's properties against a class's
   // proficiency, and pretending otherwise would let a Rogue wield a greataxe.
   weaponProficiencies: ['simple', 'martial-finesse-or-light'],
+  // SRD Core Rogue Traits: "Tool Proficiencies: Thieves' Tools".
+  toolProficiencies: ["Thieves' Tools"],
   armorTraining: { light: true, medium: false, heavy: false, shields: false },
   subclassLevel: 3,
   table: rows,

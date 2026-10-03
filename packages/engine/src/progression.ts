@@ -4056,6 +4056,18 @@ export interface ClassDefinition extends FeatureSource {
   readonly saveProficiencies: readonly Ability[];
   readonly skillChoices: SkillChoices;
   readonly weaponProficiencies: readonly string[];
+  /**
+   * Tools the class grants outright when it is the first, by name as the SRD
+   * prints them — the Rogue's "Tool Proficiencies: Thieves' Tools", the
+   * Druid's Herbalism Kit. {@link MulticlassGrant.tools} is the same for a
+   * class taken later.
+   *
+   * Absent is none, which is most classes. A class that prints a **choice**
+   * of tools (the Bard's three Musical Instruments, the Monk's Artisan's Tools
+   * or instrument) states nothing here: the choice has no vocabulary yet, and
+   * a proficiency nobody picked is not one the engine may award.
+   */
+  readonly toolProficiencies?: readonly string[];
   readonly armorTraining: ArmorTraining;
   /** The level at which a subclass is chosen. */
   readonly subclassLevel: number;

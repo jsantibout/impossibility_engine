@@ -163,7 +163,7 @@ export function leapLanding(
   // shove relaxes is relaxed here — and the fold relaxes the same one off
   // `intoOccupied`, so the command and the fold agree.
   const landed = moveCreature(scene.value, id, to, { forced: true });
-  if (!landed.ok) return anchorNeeded(landed, to.from, `${id} is leaping relative to it`);
+  if (!landed.ok) return anchorNeeded(state, landed, to.from, `${id} is leaping relative to it`);
   const feet = landed.value.distance;
   if (feet > move.within) {
     return err('leap_too_far', `${lineName} reaches a space within ${move.within} feet, and that one is ${feet} away`);

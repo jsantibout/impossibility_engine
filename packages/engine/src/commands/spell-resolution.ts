@@ -282,6 +282,7 @@ import {
   type HeldCasting,
   namedTargets,
   placeOrigin,
+  pointAimedAt,
   rollsAimedAt,
   raiseAllowanceFor,
   type SpellResolution,
@@ -308,7 +309,102 @@ export function resolveSpell(
   request: CastSpellRequest,
   supply: Supply,
 ): Result<SpellResolution> {
-  return castOrRelease(state, casterId, request, supply, null);
+  return aimAsked(castOrRelease(state, casterId, request, supply, null), casterId);
+}
+
+/**
+ * A casting sent without the aim its template needs is **asked** for it, not
+ * refused (E-AIM).
+ *
+ * `placeArea` and `placeOrigin` answer `no_origin` and `no_direction` bare,
+ * because a pure placement knows nothing of which door it was reached
+ * through: the shortlist, an activation, a pool option and a stat block's line
+ * each say what would answer it in their own words, and `eligibleTargets`
+ * already turns both into a `route` request of its own. This is the casting's.
+ * Rule 6 says which kind it is — the point is missing, not wrong, and the
+ * same casting sent again with it is the casting the caller meant — and the
+ * request names the field, so a caller learns what to send rather than being
+ * told the rules said no. Nothing was spent and no die was thrown: both
+ * refusals come before the slot.
+ *
+ * Here and not inside `castOrRelease`, because `resolveSpell` is the one
+ * entry point whose fields the request can name; a readied spell's release, a
+ * glyph's stored spell and a printed line's casting are reached through other
+ * doors that say what answers them, and keep the refusal they had.
+ */
+function aimAsked(result: Result<SpellResolution>, casterId: CharacterId): Result<SpellResolution> {
+  if (result.ok || result.kind !== 'refusal') return result;
+  if (result.code === 'no_origin') {
+    return needsContext(result.code, result.reason, [
+      {
+        kind: 'route',
+        subject: casterId,
+        need: 'the point the spell is centred on or appears at',
+        because: result.reason,
+        satisfyWith: 'a resolveSpell command again with `at` — a point, or `atPlacement` measured from a creature or a landmark',
+      },
+    ]);
+  }
+  if (result.code === 'no_direction') {
+    return needsContext(result.code, result.reason, [
+      {
+        kind: 'route',
+        subject: casterId,
+        need: 'which way the Cone, Cube or Line points',
+        because: result.reason,
+        satisfyWith: 'a resolveSpell command again with `towards`, the point it is aimed at',
+      },
+    ]);
+  }
+  return result;
+}
+
+/**
+ * {@link CastSpellRequest.atPlacement} turned into the point it names, or the
+ * request untouched where nothing was stated that way.
+ *
+ * The arithmetic is `pointAimedAt`'s, which is a move's destination's less the
+ * question whether somebody is standing there — and every refusal is the one
+ * a placement already gives: no scene is asked for, a landmark nobody has
+ * declared is asked for, a creature with no position is asked for, a name
+ * that is no creature at all is refused (`anchorNeeded`), and a point off the
+ * edge of the room is `outside_scene`. The one this adds is the bearing,
+ * **asked** past zero feet: sixty feet from the hero is a ring, and choosing a
+ * point on it is choosing where the Fireball goes.
+ */
+function aimedRequest(
+  state: GameState,
+  casterId: CharacterId,
+  definition: SpellDefinition,
+  stated: CastSpellRequest,
+): Result<CastSpellRequest> {
+  const placement = stated.atPlacement;
+  if (placement === undefined) return ok(stated);
+  if (stated.at !== undefined) {
+    return err(
+      'at_twice',
+      `${definition.name} was given a point and a placement for that point; give one`,
+    );
+  }
+  const point = pointAimedAt(state, casterId, definition.name, placement);
+  if (!point.ok) {
+    if (point.code === 'no_bearing' && point.requests === undefined) {
+      return needsContext(point.code, point.reason, [
+        {
+          kind: 'route',
+          subject: casterId,
+          need: `the bearing the point lies on, ${placement.feet} feet out`,
+          because: `${definition.name} goes where its caster points it, and a distance alone is a ring around the anchor`,
+          satisfyWith: 'a resolveSpell command again with a `bearing` on `atPlacement`',
+        },
+      ]);
+    }
+    return point;
+  }
+
+  const { atPlacement: _resolved, ...rest } = stated;
+  void _resolved;
+  return ok({ ...rest, at: point.value });
 }
 
 /**
@@ -659,7 +755,7 @@ export interface StoredRelease {
 export function castOrRelease(
   state: GameState,
   casterId: CharacterId,
-  request: CastSpellRequest,
+  given: CastSpellRequest,
   supply: Supply,
   held: HeldCasting | null,
   /**
@@ -697,7 +793,7 @@ export function castOrRelease(
   // this request, and the `CastCommand` derived from it — and refuse every
   // honest retry. So the stamp is made here and carried down to the event that
   // records the casting.
-  return once(state, `resolve-spell:${casterId}`, castingIdentity(request), () => {
+  return once(state, `resolve-spell:${casterId}`, castingIdentity(given), () => {
     // The casting it already made is the one to report; `nextCastingId` would
     // name the casting that *would* come next, which is a different spell.
     //
@@ -708,7 +804,7 @@ export function castOrRelease(
     // the next id would hand a caller the id of a casting that has not
     // happened, for a command that already landed and never will.
     const already =
-      request.commandId === undefined ? null : commandOutcome(state, request.commandId);
+      given.commandId === undefined ? null : commandOutcome(state, given.commandId);
     return {
       events: [],
       castingId: already === null ? nextCastingId(state) : already.castingId,
@@ -726,13 +822,23 @@ export function castOrRelease(
     const caster = creatureOf(state, casterId);
     if (caster === null) return unknownCreature(casterId);
 
-    const definition = supply.content.spell(request.spellId);
+    const definition = supply.content.spell(given.spellId);
     if (definition === null) {
       return err(
         'no_definition',
-        `${request.spellId} has no executable definition; the engine can look a spell up but only executes the ones it has been taught`,
+        `${given.spellId} has no executable definition; the engine can look a spell up but only executes the ones it has been taught`,
       );
     }
+
+    // **A point stated as a placement becomes the point, once, here** (E-AIM)
+    // — inside the identity, so a retry is fingerprinted by what its caller
+    // said and not by where the anchor happened to be standing when it came
+    // back. Everything below reads `request.at` and nothing below knows a
+    // placement was ever involved; the record the casting writes holds the
+    // point.
+    const aimedAt = aimedRequest(state, casterId, definition, given);
+    if (!aimedAt.ok) return aimedAt;
+    const request = aimedAt.value;
 
     // Before anything is spent, and before a die is thrown. A Reaction is a
     // whole action-economy slot and usually a spell slot too, and handing both

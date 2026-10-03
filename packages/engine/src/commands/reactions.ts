@@ -29,7 +29,7 @@ import {
 } from '@ie/shared';
 import { applyDamage, type AttackDamage, type DamageReduction, reduceDamage } from '../attack.js';
 import { type Bonus, type ModeSource } from '../bonuses.js';
-import { modifierFor } from '../character.js';
+import { modifierFor, toolProficiencyOn } from '../character.js';
 import {
   type D20TestKind,
   type D20TestResult,
@@ -93,6 +93,7 @@ import {
 import { creatureOf, damageTakenIn, unknownCreature } from './command.js';
 import { removeCreatureEverywhere, summonCreature } from './creatures.js';
 import { placeCreatureInScene } from './scene.js';
+import { quantityOf } from './inventory.js';
 import { wearTheWeapon } from './passive-defenses.js';
 import {
   adjustmentsFor,
@@ -858,6 +859,25 @@ export interface TestCommand extends CommandIdentity {
    * first simply elects nothing.
    */
   readonly election?: RollElection;
+  /**
+   * The tool this check is made with, by catalogue id — Thieves' Tools for a
+   * lock (E-AIM).
+   *
+   * > SRD 5.2.1, "Tool Proficiency": "If you have proficiency with a tool, add
+   * > your Proficiency Bonus to any ability check you make that uses the
+   * > tool. If you have proficiency in a skill that's used with that check,
+   * > you have Advantage on the check too."
+   *
+   * A fact about the attempt, like {@link senses}: which ability the check
+   * uses stays the caller's (the tool's printed Ability is the usual answer
+   * and the DM's to depart from), and whether the creature is proficient is
+   * the sheet's. **A check that uses a tool is made with it**, so a creature
+   * not carrying one is refused `no_tool` — the book offers no proficiency
+   * for a tool left at home, and a table that rules the lock can be tried
+   * with a hairpin asks for the check with no tool at all. Refused on a
+   * saving throw (`tool_on_save`), which no rule lets a tool reach.
+   */
+  readonly tool?: string;
 }
 
 export interface TestResolution {
@@ -932,9 +952,31 @@ export function resolveTest(
       if (!allowed.ok) return allowed;
     }
 
+    // The tool, before the die: what it is, that it is in hand, and how the
+    // sheet says the roller is trained with it. Nothing is rolled for a check
+    // that cannot be made.
+    let toolName: string | null = null;
+    if (command.tool !== undefined) {
+      if (command.kind === 'saving-throw') {
+        return err('tool_on_save', `a saving throw is made with no tool; ${command.tool} reaches ability checks`);
+      }
+      const item = supply.content.item(command.tool);
+      if (item === null) return err('unknown_item', `${command.tool} is not in the catalogue`);
+      if (item.kind !== 'tool') return err('not_a_tool', `${item.name} is not a tool`);
+      if (quantityOf(state, who, item.id) === 0) {
+        return err(
+          'no_tool',
+          `${who} is not carrying ${item.name}, and a check made with it cannot be made without it`,
+        );
+      }
+      toolName = item.name;
+    }
+
     const label =
       command.label ??
-      `${ABILITY_NAMES[command.ability]} ${command.kind === 'saving-throw' ? 'save' : 'check'}`;
+      `${ABILITY_NAMES[command.ability]} ${command.kind === 'saving-throw' ? 'save' : 'check'}${
+        toolName === null ? '' : ` with ${toolName}`
+      }`;
 
     const issuedBefore = supply.issuer.count;
 
@@ -982,6 +1024,7 @@ export function resolveTest(
     // on the creature too, and `checks.ts` takes a sheet, so the substitution
     // is made here rather than by teaching the roller about items.
     const sheet = sheetAsItStands(state, who) ?? creature.sheet;
+    const toolProficiency = toolName === null ? null : toolProficiencyOn(sheet, toolName);
     const rolled =
       command.kind === 'saving-throw'
         ? (() => {
@@ -1013,8 +1056,18 @@ export function resolveTest(
             // of them share; what the two branches must not disagree about is
             // the *identity rule*, and they do not — both merge by source and
             // let the caller's copy win.
-            bonuses: checkBonuses(state, who, saidBonuses, command.skill),
+            // SRD Jack of All Trades reaches a check "that doesn't otherwise
+            // use your Proficiency Bonus", and one made with a tool the roller
+            // is proficient with does.
+            bonuses: checkBonuses(
+              state,
+              who,
+              saidBonuses,
+              command.skill,
+              toolProficiency !== null && toolProficiency !== 'none',
+            ),
             ...(command.election === undefined ? {} : { election: command.election }),
+            ...(toolProficiency === null ? {} : { toolProficiency }),
           });
     if (!rolled.ok) return rolled;
 

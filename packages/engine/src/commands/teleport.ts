@@ -263,7 +263,7 @@ export function teleportTo(
     // the only one it could be; an undeclared landmark joined it when that
     // stopped being a verdict, and `anchorNeeded` is the one place both are
     // answered.
-    return anchorNeeded(moved, anchor, `${who} is being teleported to a space measured from it`);
+    return anchorNeeded(state, moved, anchor, `${who} is being teleported to a space measured from it`);
   }
 
   // Measured from where they were, on the lattice, between volumes — the one

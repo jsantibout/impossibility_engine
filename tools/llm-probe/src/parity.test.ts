@@ -118,6 +118,9 @@ const AUDIT: readonly {
         'how a casting that makes several attack rolls divides them — SRD Scorching Ray\'s "at one target within range or at several", Eldritch Blast\'s beams. A real caster decision and not a number that decides an outcome: it says where the engine\'s rolls go and the engine still throws every one of them. Withheld because there is nothing to divide here — the Mage has Scorching Ray prepared and the benchmark fight has exactly one hostile creature in it, so every ray goes at the ogre whether or not a split is stated, and a published field could only ever be sent the value the default already produces. Publish it the day a benchmark has two enemies standing',
       ),
       at: expose('at'),
+      atPlacement: because(
+        '`at` stated the way a destination is — feet and a bearing from a creature or a landmark — and resolved by the engine to the point it names (E-AIM). `packages/tools` publishes it inside `cast_spell.at`, which takes either shape. Not on **this** surface because this one is a benchmark held fixed, and it already publishes `at` as a point and has published nothing in the `Placement` vocabulary — the reason `teleportTo` below gives',
+      ),
       // The Tier 2 fix. Published as a point to aim at — a creature, a
       // landmark or a spot — because that is what the engine takes and because
       // an angle would be the model typing raw geometry.
@@ -332,6 +335,9 @@ const AUDIT: readonly {
       purpose: because(
         'what the check is *for* — SRD Hunter’s Mark grants Advantage on "any Wisdom (Perception or Survival) check you make **to find it**", and tracking the quarry and listening at a door are the same Perception check. `packages/tools` publishes it on the DM’s door as `findingCreature`, because that is the door a check comes through at all. It is not on **this** surface for the reason the reroll below is not: a benchmark is held fixed, the party is a Fighter, a Cleric and a Wizard, and nothing any of them can cast marks a creature — so the field could be sent and could never change an outcome, which is noise on a surface that measures whether a model can drive the engine',
       ),
+      tool: because(
+        'the tool a check is made with, by item id — SRD "Tool Proficiency" adds the Proficiency Bonus for one the creature is proficient with (E-AIM). `packages/tools` publishes it on the DM’s `ability_check` as `tool`. Not on **this** surface because the benchmark party is a Fighter, a Cleric and a Wizard and nothing in either benchmark is a lock, a trap or anything else a tool is used on, so the field could be sent and could never change an outcome',
+      ),
       modes: because('same as the attack roll: a DM granting Advantage by fiat wants its own decision'),
       bonuses: because('a number that would decide an outcome'),
       election: because(
@@ -516,7 +522,9 @@ describe('the parameters this audit published actually work', () => {
     expect(Object.values(session.state().ongoing).map((o) => o.spellId)).toContain('grease');
   });
 
-  it('still refuses a Cube with nowhere to point, and says so', () => {
+  // Asked rather than refused since E-AIM: a direction nobody stated is a
+  // missing fact, and the same casting with `towards` is the answer.
+  it('still stops a Cube with nowhere to point, and says so', () => {
     const session = mill();
     until(session, MAGE);
     const result = call(session, 'cast_spell', {
@@ -527,7 +535,7 @@ describe('the parameters this audit published actually work', () => {
       at: { x: 30, y: 20, z: 0 },
       command_id: 'no-direction',
     });
-    expect(result.outcome).toBe('refusal');
+    expect(result.outcome).toBe('needs-context');
     expect(result.code).toBe('no_direction');
   });
 

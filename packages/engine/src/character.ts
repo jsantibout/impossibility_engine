@@ -915,6 +915,23 @@ export interface CharacterSheet {
   readonly level: number;
   readonly abilities: AbilityScores;
   readonly skills: Readonly<Partial<Record<Skill, ProficiencyLevel>>>;
+  /**
+   * The tools this creature is proficient with, by name as the SRD prints
+   * them — "Thieves' Tools" — and how: {@link skills}' vocabulary, so a tool
+   * a feature gave Expertise in doubles the bonus exactly as a skill does.
+   *
+   * > SRD 5.2.1, "Tool Proficiency": "If you have proficiency with a tool,
+   * > add your Proficiency Bonus to any ability check you make that uses the
+   * > tool."
+   *
+   * Written by creation out of the background, the classes and the feats, and
+   * **pinned into `creature-added` with the rest of the sheet**, so a check
+   * reads the proficiency off the record and only the item's printed name off
+   * the catalogue. Absent is none, which is every sheet written before this
+   * field and every stat block: SRD's "a monster has proficiency with any tool
+   * in its stat block" has nothing in the bestiary to read yet. (E-AIM)
+   */
+  readonly tools?: Readonly<Record<string, ProficiencyLevel>>;
   readonly saveProficiencies: readonly Ability[];
   /** Body armour worn, if any. Must not be a Shield. */
   readonly armor: Armor | null;
@@ -1340,6 +1357,63 @@ export function skillModifier(sheet: CharacterSheet, skill: Skill): number {
 
   const multiplier = level === 'expertise' ? 2 : level === 'proficient' ? 1 : 0;
   return modifierFor(sheet, ability) + multiplier * proficiencyBonus(sheet);
+}
+
+const MULTIPLIER: Readonly<Record<ProficiencyLevel, number>> = {
+  none: 0,
+  proficient: 1,
+  expertise: 2,
+};
+
+/** A printed tool name, read past the two apostrophes a transcription may use. */
+const toolKey = (name: string): string => name.replace(/[‘’]/g, "'").toLowerCase();
+
+/**
+ * How this creature is proficient with a tool, by the name the item prints.
+ *
+ * `none` where the sheet records nothing — a creature carrying Thieves' Tools
+ * it was never trained with picks a lock on its Dexterity alone.
+ */
+export function toolProficiencyOn(sheet: CharacterSheet, toolName: string): ProficiencyLevel {
+  const wanted = toolKey(toolName);
+  for (const [name, level] of Object.entries(sheet.tools ?? {})) {
+    if (toolKey(name) === wanted) return level;
+  }
+  return 'none';
+}
+
+/**
+ * An ability check's modifier when the check uses a tool (E-AIM).
+ *
+ * > SRD 5.2.1, "Tool Proficiency": "If you have proficiency with a tool, add
+ * > your Proficiency Bonus to any ability check you make that uses the tool."
+ * >
+ * > "The Bonus Doesn't Stack": "Your Proficiency Bonus can't be added to a
+ * > die roll or another number more than once." And: "Whenever the bonus is
+ * > used, it can be multiplied only once."
+ *
+ * So the skill and the tool are two claims on **one** bonus, and the larger
+ * multiplier wins: a Rogue with Expertise in Sleight of Hand picking a pocket
+ * with Thieves' Tools doubles it once and adds nothing more for the tools. A
+ * stat block's printed skill total already carries its bonus, and is kept
+ * unless the tool's claim is the bigger one.
+ *
+ * The skill path reads the skill's own ability, as {@link skillModifier}
+ * always has; a check with no skill reads the ability named.
+ */
+export function toolCheckModifier(
+  sheet: CharacterSheet,
+  ability: Ability,
+  skill: Skill | undefined,
+  tool: ProficiencyLevel,
+): number {
+  const fromTool = MULTIPLIER[tool] * proficiencyBonus(sheet);
+  if (skill === undefined) return modifierFor(sheet, ability) + fromTool;
+  const base = modifierFor(sheet, SKILL_ABILITY[skill]);
+  const stated = sheet.stated?.skills?.[skill];
+  if (stated !== undefined) return Math.max(stated, base + fromTool);
+  const fromSkill = MULTIPLIER[sheet.skills[skill] ?? 'none'] * proficiencyBonus(sheet);
+  return base + Math.max(fromSkill, fromTool);
 }
 
 /**
