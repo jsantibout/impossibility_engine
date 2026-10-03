@@ -1364,11 +1364,13 @@ export const ADJUDICATED: Readonly<Record<string, readonly Adjudication[]>> = {
       why: 'a-barrier-that-blocks-passage',
       note: 'W8-S26 read this line for the first time. The barring and the deflection are built as `areaStanding`; what it cannot tell is an arrow from a boulder, because a stat block’s printed line does not say what it looses, so a monster’s ranged shot is made and the wall reported beside it. A creature whose ranged attack should miss automatically is owed that miss. The closest id: what a wall stops crossing it.',
     },
-    {
-      clause: 'fog, smoke and other gases are not kept at bay',
-      why: 'an-effect-that-suppresses-other-magic',
-      note: 'W8-S26 split this from the loose material, which is handed over. A Fog Cloud or a Stinking Cloud laid across the wall is a casting whose obscurement and Poisoned are read, and nothing lets one area suspend another in the spaces they share. An area that stops magic working inside it is this id.',
-    },
+    // **The gases left with E-L2.** "fog, smoke and other gases are not kept at
+    // bay" was filed against suppression; the gases the engine holds are SRD Fog
+    // Cloud and SRD Stinking Cloud, each of which prints its own ending under a
+    // strong wind, and the wall is "a wall of strong wind" — so it carries the
+    // `disperses` clause Gust of Wind's Line carries and the fold ends a cloud
+    // whose area it meets. Smoke off a fire is no casting and nothing the engine
+    // holds.
   ],
 };
 
