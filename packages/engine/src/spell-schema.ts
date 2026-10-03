@@ -7775,6 +7775,48 @@ export function checkSpellDefinition(
         reason: `this spell pins the ${choice.of === 'ability' ? 'skill' : 'ability'} beside the ${choice.of} the casting chooses, and the two would have to agree; drop the pinned one`,
       });
     }
+
+    // **And a choice answered per creature needs creatures to answer for.**
+    // SRD Enhance Ability's upcast: "You can choose a different ability for
+    // each target." A spell that only ever names one has no second creature
+    // for a second answer to belong to; a spell with an area, an activation
+    // or a trigger reads the record's one answer again on a later turn, and a
+    // map is a choice none of those readers is told about.
+    const perTarget = (choice as { readonly perTarget?: unknown }).perTarget;
+    if (perTarget !== undefined) {
+      const targets = definition.targets as {
+        readonly count?: unknown;
+        readonly extraPerSlotLevelAbove?: unknown;
+        readonly unlimited?: unknown;
+      };
+      const several =
+        (typeof targets.count === 'number' && targets.count > 1) ||
+        targets.extraPerSlotLevelAbove !== undefined ||
+        targets.unlimited === true;
+      if (perTarget !== true) {
+        found.push({
+          field: 'choiceStated.perTarget',
+          code: 'malformed_field',
+          reason: 'a spell either lets its caster choose again for each creature or it does not; the only value is true',
+        });
+      } else if (!several) {
+        found.push({
+          field: 'choiceStated.perTarget',
+          code: 'per_target_choice_on_one_target',
+          reason: 'this spell names one creature at any slot, so there is no second creature for a different answer to belong to',
+        });
+      } else if (
+        definition.area !== undefined ||
+        definition.activation !== undefined ||
+        definition.areaTrigger !== undefined
+      ) {
+        found.push({
+          field: 'choiceStated.perTarget',
+          code: 'per_target_choice_read_again',
+          reason: 'an area, an activation or a trigger reads the casting’s one answer again on a later turn, and an answer per creature is a choice none of them is told about',
+        });
+      }
+    }
   }
 
   // — the branches the spell prints, of which a casting runs one ——————————

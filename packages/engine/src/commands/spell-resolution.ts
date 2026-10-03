@@ -634,6 +634,11 @@ export function resolveDeclaredCast(
       ...(pending.rollsPerTarget === undefined
         ? {}
         : { rollsPerTarget: pending.rollsPerTarget }),
+      // And the value chosen for each of them, read back the same way: an
+      // Enhance Ability declared Dexterity for the Rogue settles Dexterity.
+      ...(pending.choiceByTarget === undefined
+        ? {}
+        : { choiceByTarget: pending.choiceByTarget }),
       unverified: [...pending.unverified],
       supply,
       castingId: pending.castingId,
@@ -3375,6 +3380,11 @@ function resolveOnTargets(
               // definition anyway, so the half it cannot work out again is the
               // caster's answer and nothing else.
               ...(answeredChoice === undefined ? {} : { choice: answeredChoice }),
+              // And the answer per creature, where the caster gave one — SRD Enhance
+              // Ability's upcast. Aligned to the targets pinned above.
+              ...(request.choiceByTarget === undefined
+                ? {}
+                : { choiceByTarget: request.choiceByTarget }),
               // And the word spoken, for the same reason: a Command declared
               // as Halt settles as Halt and as no other word.
               ...(request.option === undefined ? {} : { option: request.option }),
@@ -3515,6 +3525,8 @@ function resolveOnTargets(
       ...(request.optionByTarget === undefined ? {} : { optionByTarget: request.optionByTarget }),
       ...(request.damageType === undefined ? {} : { damageType: request.damageType }),
       ...(answeredChoice === undefined ? {} : { choice: answeredChoice }),
+      // And the answer per creature — see `StatedChoice.perTarget`.
+      ...(request.choiceByTarget === undefined ? {} : { choiceByTarget: request.choiceByTarget }),
       ...(origin === null ? {} : { from: origin }),
       ...(fought === undefined ? {} : { fought }),
       ...(stated.inAStorm === undefined ? {} : { inAStorm: stated.inAStorm }),
@@ -3915,6 +3927,11 @@ export function resolveEffects(
      */
     readonly optionByTarget?: Readonly<Record<string, string>>;
     /**
+     * The value chosen for each creature, where the casting answered per
+     * creature — see `StatedChoice.perTarget`.
+     */
+    readonly choiceByTarget?: Readonly<Record<string, string>>;
+    /**
      * The one branch this casting ran, where it ran one.
      *
      * **A record's `option` is not this, and Plant Growth is why.** A branch
@@ -4110,6 +4127,7 @@ export function resolveEffects(
     targets,
     ...(context.rollsPerTarget === undefined ? {} : { rollsPerTarget: context.rollsPerTarget }),
     ...(context.optionByTarget === undefined ? {} : { optionByTarget: context.optionByTarget }),
+    ...(context.choiceByTarget === undefined ? {} : { choiceByTarget: context.choiceByTarget }),
     ...(context.damageType === undefined ? {} : { damageType: context.damageType }),
     ...(context.choice === undefined ? {} : { choice: context.choice }),
     unverified,
@@ -4342,6 +4360,12 @@ export interface EffectRun {
    * one list.
    */
   readonly optionByTarget?: Readonly<Record<string, string>>;
+  /**
+   * The value chosen for each creature, substituted over {@link effects} for
+   * that creature alone — SRD Enhance Ability's "a different ability for each
+   * target". See `StatedChoice.perTarget`. Only a casting can carry one.
+   */
+  readonly choiceByTarget?: Readonly<Record<string, string>>;
   /** The damage type the casting stated, for the branch lists above. */
   readonly damageType?: string;
   /** The value the casting chose, for the branch lists above. */
@@ -4731,7 +4755,16 @@ export function runEffects(
     // with the same substitutions the common list had.
     const own =
       origin.kind === 'casting' ? perTargetEffects(origin.definition, run, target) : null;
-    for (const effect of own === null ? effects : [...effects, ...own]) {
+    // **And the value chosen for this creature**, where the casting answered
+    // per creature — SRD Enhance Ability's upcast. The same substitution the
+    // single answer went through, made again over the list this creature
+    // runs, so the Rogue's Dexterity is not the Bard's Charisma.
+    const mine = run.choiceByTarget?.[target];
+    const theirs =
+      mine === undefined || origin.kind !== 'casting'
+        ? effects
+        : statedChoice(effects, origin.definition.choiceStated?.of, mine);
+    for (const effect of own === null ? theirs : [...theirs, ...own]) {
       const victim = current.creatures[target];
       if (victim === undefined) continue;
 

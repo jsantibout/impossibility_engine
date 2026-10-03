@@ -419,10 +419,13 @@ describe('toolSchemas', () => {
     // the catch can be read before the cast with the arguments the cast will
     // carry, +1,253 each; and `ability_check.tool` on the DM's alone, +509. No
     // tool added: +2,182 on the player's door and +2,691 on the DM's.
+    // And for E-L1: `cast_spell.choiceByTarget` (SRD Enhance Ability's "a
+    // different ability for each target") and a sentence on `cast_spell.choice`
+    // pointing at it, on both doors, +988 each.
     expect(toolSchemas(player())).toHaveLength(100);
     expect(toolSchemas(dm())).toHaveLength(133);
-    expect(JSON.stringify(toolSchemas(player())).length).toBe(167553);
-    expect(JSON.stringify(toolSchemas(dm())).length).toBe(227258);
+    expect(JSON.stringify(toolSchemas(player())).length).toBe(168541);
+    expect(JSON.stringify(toolSchemas(dm())).length).toBe(228246);
   });
 });
 

@@ -528,6 +528,17 @@ export interface CastSpellRequest extends CommandIdentity {
    */
   readonly optionByTarget?: Readonly<Record<string, string>>;
   /**
+   * The chosen value for each creature, where the spell lets the casting
+   * answer again per creature.
+   *
+   * SRD Enhance Ability's upcast: "You can choose a different ability for each
+   * target" — see `StatedChoice.perTarget`. Keyed by creature id, one printed
+   * value each, over exactly the creatures the casting names. Refused beside
+   * {@link choice}, which answers once for all of them, and on a spell that
+   * prints no such permission.
+   */
+  readonly choiceByTarget?: Readonly<Record<string, string>>;
+  /**
    * Which creatures the caster or their allies are fighting.
    *
    * SRD Charm Person: "One Humanoid you can see within range makes a Wisdom
@@ -1732,6 +1743,46 @@ export function declaredFacts(
       `${definition.name} is cast through a feature that fixes ${fixedChoice}, not ${request.choice}`,
     );
   }
+  // SRD Enhance Ability's upcast: "You can choose a different ability for each
+  // target." The map is the answer given per creature instead of once, held to
+  // the same printed list and to exactly the creatures this casting names —
+  // a spell with the permission has no area, so the named creatures are the
+  // targets. See `StatedChoice.perTarget`.
+  const byTarget = request.choiceByTarget;
+  if (byTarget !== undefined) {
+    if (!asked || choice!.perTarget !== true) {
+      return err(
+        'no_per_target_choice_clause',
+        `${definition.name} answers its choice once for the whole casting, if it asks one at all; a value per creature is not a fact it asks for`,
+      );
+    }
+    if (request.choice !== undefined || fixedChoice !== undefined) {
+      return err(
+        'choice_once_and_per_target',
+        `${definition.name} is answered either once for every creature or once for each, not both`,
+      );
+    }
+    const named = new Set(request.targets);
+    const keys = Object.keys(byTarget);
+    const uncovered = [
+      ...request.targets.filter((who) => byTarget[who] === undefined),
+      ...keys.filter((who) => !named.has(who as CharacterId)),
+    ];
+    if (uncovered.length > 0) {
+      return err(
+        'choice_by_target_uncovered',
+        `${definition.name} takes one value for each creature it names and none for anybody else; ${[...new Set(uncovered)].sort().join(', ')} ${uncovered.length === 1 ? 'is' : 'are'} not answered for or not named`,
+      );
+    }
+    for (const who of keys.sort()) {
+      if (!choice!.options.includes(byTarget[who]!)) {
+        return err(
+          'unknown_choice',
+          `${definition.name} prints ${choice!.options.join(', ')}, not ${byTarget[who]!} (named for ${who})`,
+        );
+      }
+    }
+  }
   const answered = request.choice ?? fixedChoice;
   if (!asked) {
     if (answered !== undefined) {
@@ -1741,10 +1792,13 @@ export function declaredFacts(
       );
     }
   } else if (answered === undefined) {
-    return err(
-      'choice_required',
-      `${definition.name} prints ${choice!.options.join(', ')} and the engine will not choose between them; name which`,
-    );
+    // Answered per creature above, which is an answer; silence is not.
+    if (byTarget === undefined) {
+      return err(
+        'choice_required',
+        `${definition.name} prints ${choice!.options.join(', ')} and the engine will not choose between them; name which`,
+      );
+    }
   } else if (!choice!.options.includes(answered)) {
     return err(
       'unknown_choice',

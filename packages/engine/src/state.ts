@@ -1937,6 +1937,14 @@ export interface PendingCasting {
    */
   readonly choice?: string;
   /**
+   * The value the caster chose for each creature, where the spell lets the
+   * casting answer per creature — SRD Enhance Ability's "You can choose a
+   * different ability for each target". Beside {@link choice} and for its
+   * reason: the targets were settled at the declaration, so the answers that
+   * belong to them were too, and a settlement takes no fresh request.
+   */
+  readonly choiceByTarget?: Readonly<Record<string, string>>;
+  /**
    * The creature types the caster chose, where the spell prints a choice of
    * one or more — SRD Magic Circle's "Choose one or more of the following
    * types". Beside {@link choice} and for its reason: a circle declared against

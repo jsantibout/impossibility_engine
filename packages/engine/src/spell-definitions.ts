@@ -5577,6 +5577,25 @@ export interface StatedChoice {
   readonly of: StatedChoiceOf;
   /** The values the SRD prints, in the order it prints them. */
   readonly options: readonly string[];
+  /**
+   * The casting may answer the question **again for each creature** it names.
+   *
+   * SRD Enhance Ability, _Using a Higher-Level Spell Slot_: "You can target one
+   * additional creature for each spell slot level above 2. **You can choose a
+   * different ability for each target.**" The base casting chooses once and
+   * `CastSpellRequest.choice` is that answer; this is the permission to answer
+   * per creature instead, which the request carries as `choiceByTarget` — one
+   * value off the same printed list for every creature the casting names, and
+   * none for a creature it does not. Each creature's effects take its own
+   * value, substituted by the same `statedChoice` the single answer goes
+   * through.
+   *
+   * Refused on a spell that can only ever name one creature, where a second
+   * answer has nobody to belong to, and on one with an area, an activation or
+   * a trigger: those read the record's single answer again later, and a map
+   * would be a choice no later reader is told about.
+   */
+  readonly perTarget?: true;
 }
 
 /**

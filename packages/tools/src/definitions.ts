@@ -2942,7 +2942,7 @@ const CAST_SPELL = tool({
       .min(1)
       .optional()
       .describe(
-        'Which of the values a spell prints this casting chose, for the spells that print a list and leave the pick to the caster — Blindness/Deafness’ "the Blinded or Deafened condition (your choice)", Lesser Restoration’s one condition of four, Enhance Ability’s five abilities, Guidance’s "choose a skill". Leaving it out for one of those is refused, and so is naming one for a spell that prints no choice.',
+        'Which of the values a spell prints this casting chose, for the spells that print a list and leave the pick to the caster — Blindness/Deafness’ "the Blinded or Deafened condition (your choice)", Lesser Restoration’s one condition of four, Enhance Ability’s five abilities, Guidance’s "choose a skill". Leaving it out for one of those is refused, and so is naming one for a spell that prints no choice. One value for every target; where the spell lets each target have its own, `choiceByTarget` says so instead.',
       ),
     option: z
       .string()
@@ -2968,6 +2968,17 @@ const CAST_SPELL = tool({
       .optional()
       .describe(
         'Which branch each creature runs, for the one spell that prints "(choose for each creature)" — Calm Emotions’ Immunity or indifference, chosen goblin by goblin. One entry per creature the casting catches: a caught creature left out is refused, and so is a creature the area did not reach. Refused on any spell that chooses once, where `option` is the word. Cannot be held: a declaration cannot record a choice for creatures it has not caught yet.',
+      ),
+    choiceByTarget: z
+      .array(
+        z.strictObject({
+          target: creatureId,
+          choice: z.string().min(1).describe('The value this creature gets, off the list the spell prints.'),
+        }),
+      )
+      .optional()
+      .describe(
+        'The value chosen for each creature, for a spell that lets one casting answer its choice again per creature — Enhance Ability’s "You can choose a different ability for each target", so an upcast gives the Rogue Dexterity and the Bard Charisma. One entry per creature in `targets`, each a value the spell prints; a target left out, a creature not in `targets`, and a value off the list are each refused. Send `choice` instead to give every target the same one; sending both is refused, and so is sending this for a spell that chooses once.',
       ),
     fought: z
       .array(creatureId)
@@ -3178,6 +3189,14 @@ const CAST_SPELL = tool({
         : {
             optionByTarget: Object.fromEntries(
               args.optionByTarget.map((one) => [who(one.target), one.option]),
+            ),
+          }),
+      // The same pairs-to-map for the value chosen per creature.
+      ...(args.choiceByTarget === undefined
+        ? {}
+        : {
+            choiceByTarget: Object.fromEntries(
+              args.choiceByTarget.map((one) => [who(one.target), one.choice]),
             ),
           }),
       // **An empty `fought` is an answer and is never elided.** "We are

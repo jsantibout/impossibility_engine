@@ -651,6 +651,11 @@ export interface CastingPlan {
    */
   readonly choice?: string;
   /**
+   * The value chosen for each creature, where the casting answered per
+   * creature — SRD Enhance Ability's upcast. See `PendingCasting.choiceByTarget`.
+   */
+  readonly choiceByTarget?: Readonly<Record<string, string>>;
+  /**
    * The creature types the caster chose, where the spell prints a choice of
    * one or more — SRD Magic Circle's. Beside {@link choice} and carried the
    * same way, so a circle declared against Fiends settles against Fiends.
@@ -1204,6 +1209,9 @@ function castSpellWith(
         // disagrees with the first.
         ...(command.hold.damageType === undefined ? {} : { damageType: command.hold.damageType }),
         ...(command.hold.choice === undefined ? {} : { choice: command.hold.choice }),
+        ...(command.hold.choiceByTarget === undefined
+          ? {}
+          : { choiceByTarget: command.hold.choiceByTarget }),
         ...(command.hold.types === undefined ? {} : { types: command.hold.types }),
         ...(command.hold.option === undefined ? {} : { option: command.hold.option }),
         // And the ending its caster chose at the casting, carried the same

@@ -10302,10 +10302,13 @@ export const BARKSKIN: SpellDefinition = {
  * Strength so the definition is a whole spell read alone, and the casting
  * replaces it with the ability the caster named.
  *
- * **The upcast is still not executed, and it is a different sentence.** "You
- * can choose a different ability for each target" is one casting whose effects
- * differ from target to target, which is a shape of its own and not a second
- * choice: this spell states one value, and every creature it caught gets it.
+ * **And the upcast is the same question asked again per creature.** "You can
+ * choose a different ability for each target" is one casting whose effects
+ * differ from target to target — but differ only in the value already being
+ * substituted, so it is `StatedChoice.perTarget` rather than a second shape:
+ * the request answers once (`choice`) or once per creature it touches
+ * (`choiceByTarget`), and each creature's mode takes its own answer through
+ * the same `statedChoice`. (E-L1)
  */
 export const ENHANCE_ABILITY: SpellDefinition = {
   id: 'enhance-ability',
@@ -10330,11 +10333,11 @@ export const ENHANCE_ABILITY: SpellDefinition = {
   ],
   // "choose Strength, Dexterity, Intelligence, Wisdom, or Charisma" — five,
   // in the order the SRD prints them, and Constitution is not among them.
-  choiceStated: { of: 'ability', options: ['str', 'dex', 'int', 'wis', 'cha'] },
+  // "You can choose a different ability for each target" is `perTarget`: the
+  // casting answers once with `choice`, or once for each creature it touches
+  // with `choiceByTarget`, off the same five.
+  choiceStated: { of: 'ability', options: ['str', 'dex', 'int', 'wis', 'cha'], perTarget: true },
   durationSeconds: 3600,
-  unmodelled: [
-    '"You can choose a different ability for each target" is a second choice per creature rather than one per casting: a casting states one value and applies its effects to every target alike',
-  ],
 };
 
 /**

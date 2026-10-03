@@ -2341,6 +2341,10 @@ describe('every spell this batch added is cast for real', () => {
     // `moveCastLight`'s. (Darkness's twin of it still owes a line about a glow
     // on its own deadline, which the ordinary sweep below reads.)
     'daylight',
+    // And the upcast's own sentence, "You can choose a different ability for
+    // each target", is `StatedChoice.perTarget` — the one question answered
+    // again per creature. Nothing is left over. (E-L1)
+    'enhance-ability',
     'enthrall',
     'expeditious-retreat',
     // The fifth, and it prints nothing the engine leaves alone: the die that

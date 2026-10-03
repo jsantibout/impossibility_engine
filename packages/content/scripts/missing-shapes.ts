@@ -210,7 +210,7 @@ export const MISSING_SHAPES = {
   'a-success-branch-that-does-something':
     '**Built.** spell-definitions.ts says it now: "A success has its own slot and not a member here". `save.onSuccessRiders` is a second `OutcomeRiders` written under a name that says which branch it rides, so the invariant the rider design rests on stands — a settled outcome’s riders are handed over and never asked which one. The validator narrows the slot to the four a printed success writes, a mode, a condition, a movement and a spend, and refuses damage on the book’s authority: no saving throw in it rewards a success with a hit. SRD Ray of Enfeeblement is executed off it. **Two claimants are left** and neither is blocked on this: Flesh to Stone waits on an automatic success, a repeat counted to three and a Petrified that outlives the count; Irresistible Dance waits on a creature somebody else is playing.',
   'a-spells-effects-applied-to-different-targets':
-    '`docs/design/spell-definitions.md`: "**A spell has one effect list applied to every target**, so nothing yet expresses “each creature takes damage *and* is knocked Prone” with different outcomes per target beyond the save each one rolls." A casting that chooses per creature, or divides a pool among them, is the same gap.',
+    '`docs/design/spell-definitions.md`: "**A spell has one effect list applied to every target**, so nothing yet expresses “each creature takes damage *and* is knocked Prone” with different outcomes per target beyond the save each one rolls." A casting that divides a pool among its creatures, or sends them to different places, is the same gap. **A casting that chooses per creature is not, any more**: a branch per creature is `optionPerTarget` (SRD Calm Emotions) and a value per creature is `StatedChoice.perTarget` (SRD Enhance Ability, E-L1), each creature running the one list with its own answer substituted in.',
   'a-rider-on-a-later-weapon-attack':
     '`PROGRESS.md`, on what the drained shapes left: "a rider on every weapon attack (Divine Favor, Hex, Hunter’s Mark)"; PROGRESS.md ranks it as "Extra damage on the target’s later attacks | 3 / 10 | `damageBonuses` / `extraDamage`, Rage Damage, Radiant Strikes". **IE-035 built the extra-damage half** — the `attack-rider` grant hangs a notation and a damage type on the caster, optionally narrowed to weapon attacks or to a marked target, and Divine Favor, Hunter’s Mark and Hex’s first sentence are all expressible by it. **And the weapon half is built too**: a casting now names the particular weapon it was aimed at (`CastSpellRequest.weapon`), the `weapon-rider` grant hangs on whoever holds it keyed by that weapon’s id, and what it may change is the **substituted ability**, the **replaced damage die** and a **flat** plus of the weapon’s own type reaching the attack roll and the damage roll alike — with a band table apiece, off the slot and off the caster’s level. Shillelagh and Magic Weapon are what that finished. **And the type a swing chooses is built too**: `weapon-rider.damageTypes` is the offer Shillelagh’s second sentence makes, answered on the attack command under the spell’s own name rather than pinned at the casting, and it replaces the weapon’s own type where it is taken. What is left is every rider that is neither of those builds: a damage type chosen at the moment of the attack on a rider that is **not** keyed to one weapon (Conjure Minor Elementals), extra damage with **no type** and so the weapon’s own (Enlarge/Reduce), a rider that fires on damage from **a spell** rather than an attack roll (Bestow Curse), and a substitution on an **Unarmed Strike**, which is not a weapon and so is not a thing a casting can name (Alter Self). **And the casting that *makes* the attack it rides is built**: `weapon-attack` is the door no effect kind opened — the attack command takes the cantrip beside the weapon, spends the Action as the casting’s, substitutes the spellcasting ability into the attack and damage rolls, adds the Cantrip Upgrade’s dice off a band table keyed by character level and offers the type the sentence prints, with nothing granted and nothing left standing. True Strike is what that finished.',
   'a-cap-on-how-many-castings-run-at-once':
@@ -930,13 +930,11 @@ export const ADJUDICATED: Readonly<Record<string, readonly Adjudication[]>> = {
       note: 'The commands the link carries are the target’s actions — not the slots they come out of, which a spell may now spend, but which action is taken and at what. That is a decision, and it is made by somebody who is not playing the creature.',
     },
   ],
-  'enhance-ability': [
-    {
-      clause: 'You can choose a different ability for each target',
-      why: 'a-spells-effects-applied-to-different-targets',
-      note: 'W8-S26 read this line for the first time, and it is this id word for word: "A casting that chooses per creature … is the same gap." The casting states one ability and every target gets Advantage on that one, so an upcast that gives the Rogue Dexterity and the Fighter Strength is refused its second choice.',
-    },
-  ],
+  // **Enhance Ability has left the map** (E-L1). "You can choose a different
+  // ability for each target" is the casting's one question asked again per
+  // creature, and `StatedChoice.perTarget` lets the request answer it that way
+  // (`choiceByTarget`): each creature's mode takes its own value through the
+  // same `statedChoice` the single answer goes through.
   'feather-fall': [
     {
       clause: 'the rate of descent is not slowed',
