@@ -88,6 +88,7 @@ import { type CharacterId, type ConditionName, ok, type Result } from '@ie/share
 import type { D20TestResult, Duration, ModeSource, PrintedAim, TestResolution } from '@ie/engine';
 import {
   applyConditionTo,
+  areaPointAt,
   awardItems,
   castPrintedLine,
   changeCoins,
@@ -96,6 +97,7 @@ import {
   declareCreatureHeads,
   declareDamageType,
   declareBones,
+  declarePlants,
   declareObject,
   declareWayInHeight,
   forcePrintedSave,
@@ -1791,6 +1793,53 @@ const DECLARE_BONES = tool({
 });
 
 /**
+ * Where normal plants grow in the room, or that a stretch grows nothing — SRD
+ * Plant Growth's "All normal plants in a 100-foot-radius Sphere". (E-L2, the
+ * owner's ruling of 2026-10-03)
+ *
+ * On this surface alone for `declare_bones`'s reason: what grows on the floor
+ * of the room is the DM's to say, and a model that could plant a meadow
+ * wherever its druid pointed would be writing the ground it then thickens. It
+ * carries no number that decides an outcome — a name, a stretch and whether
+ * anything grows there — and the engine reads it: the Overgrowth thickens only
+ * where plants grow, and asks when nobody has described the ground.
+ */
+const DECLARE_PLANTS = tool({
+  name: 'declare_plants',
+  description:
+    'Say where normal plants grow in the room — a meadow, a hedge, a stand of reeds — or that a stretch of it grows nothing, or take a stretch back. Plant Growth’s Overgrowth thickens only the ground you have said plants grow on, and a casting over ground you have described none of comes back asking. Name the stretch and give it a middle and a radius; set `growing` to false for bare ground — flagstones, rock, sand; leave `at` out to take the stretch away. Naming one that already exists replaces it.',
+  mutates: true,
+  establishes: ['scene'],
+  input: z.strictObject({
+    name: z.string().min(1).describe('What to call the stretch: "the meadow", "the flagstone court".'),
+    at: pointSchema.optional().describe('The middle of the stretch. Leave it out to say the stretch is gone.'),
+    radius: z
+      .number()
+      .finite()
+      .nonnegative()
+      .optional()
+      .describe('How far it reaches from there, in feet. 0 is the one space; left out, it is the one space.'),
+    growing: z
+      .boolean()
+      .optional()
+      .describe('False where nothing grows there. Left out, normal plants grow there.'),
+  }),
+  run: (context, args) =>
+    settleEvents(
+      context,
+      declarePlants(
+        context.campaign.state(),
+        args.name,
+        args.at === undefined
+          ? null
+          : { origin: areaPointAt(aPoint(args.at)), shape: { kind: 'sphere', radius: args.radius ?? 0 } },
+        { ...identity(context), ...(args.growing === undefined ? {} : { growing: args.growing }) },
+      ),
+      { declared: args.name, ...(args.at === undefined ? { cleared: true } : {}) },
+    ),
+});
+
+/**
  * How high a casting's way in hangs — SRD Rope Trick's rope, W9-S3.
  *
  * "One end of it hovers upward until the rope hangs perpendicular to the
@@ -2757,6 +2806,7 @@ export const DM_ONLY_TOOLS: readonly ToolDefinition[] = [
   AWARD_COIN,
   AWARD_ITEMS,
   DECLARE_BONES,
+  DECLARE_PLANTS,
   DECLARE_DAMAGE_TYPE,
   DECLARE_HEADS,
   DECLARE_OBJECT,

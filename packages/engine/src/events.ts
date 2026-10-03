@@ -82,6 +82,7 @@ import {
 } from './standing.js';
 import {
   type CoverDegree,
+  type LightFlame,
   type LightLevel,
   type MagicalLight,
   type ObscurementDegree,
@@ -2482,6 +2483,22 @@ export type GameEvent =
       readonly command?: CommandStamp;
     }
   /**
+   * A protected flame an area reached, tested — SRD Gust of Wind: "has a 50
+   * percent chance to extinguish them". (E-L2)
+   *
+   * The die is the `roll-recorded` beside it; this says which debt the throw
+   * discharges (the casting, and the patch of light at `flame-reached`) and
+   * whether the flame went out, which takes the patch off the lattice.
+   */
+  | {
+      readonly type: 'flame-tested';
+      readonly castingId: string;
+      /** The patch of light whose flame it was. */
+      readonly patch: string;
+      readonly out: boolean;
+      readonly command?: CommandStamp;
+    }
+  /**
    * A casting begun and held open, so that a Reaction can answer it.
    *
    * SRD Counterspell interrupts "a creature in the process of casting a
@@ -3152,6 +3169,18 @@ export type GameEvent =
       readonly at: { x: number; y: number; z: number } | null;
       readonly command?: CommandStamp;
     }
+  /**
+   * Where the table says normal plants grow, or that nothing does — or, with
+   * no region, that it takes the stretch back. SRD Plant Growth reads it. See
+   * `PositionState.plants`. (E-L2)
+   */
+  | {
+      readonly type: 'plants-declared';
+      readonly name: string;
+      readonly region: TerrainRegion | null;
+      readonly growing: boolean;
+      readonly command?: CommandStamp;
+    }
   | {
       readonly type: 'creature-placed';
       readonly id: CharacterId;
@@ -3794,6 +3823,8 @@ export type GameEvent =
       readonly whileHolding?: string;
       /** The timer it lapses with — see `LatticePatch.lapsesWith`. Additive; absent everywhere before it. */
       readonly lapsesWith?: string;
+      /** The flame it is, where the table said — see `LightPatch.flame`. Additive; absent everywhere before it. (E-L2) */
+      readonly flame?: LightFlame;
       readonly command?: CommandStamp;
     }
   /**

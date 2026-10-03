@@ -9,7 +9,7 @@ import { createRollIssuer } from './rolls.js';
 import { fold, type GameEvent, type GameState } from './events.js';
 import { declaredCasting } from './spellcasting.js';
 import { moveCreature, type Point, type PositionState } from './positioning.js';
-import type { AreaMoment } from './spells.js';
+import type { AreaMoment, OwedMoment } from './spells.js';
 import {
   activateFeature,
   activateSpell,
@@ -411,7 +411,7 @@ class Game {
     return out.events;
   }
 
-  owed(): readonly { readonly castingId: string; readonly target: string; readonly moment: AreaMoment }[] {
+  owed(): readonly { readonly castingId: string; readonly target: string; readonly moment: OwedMoment }[] {
     return owedAreaEffectsOf(this.state);
   }
 

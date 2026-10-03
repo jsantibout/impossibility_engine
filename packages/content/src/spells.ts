@@ -9252,7 +9252,18 @@ export const GUST_OF_WIND: SpellDefinition = {
   // "The gust disperses gas or vapor." A clause of the Line, so it blows where
   // the Line does — carried with the druid, turned with the Bonus Action — and
   // a running Fog Cloud or Stinking Cloud whose area it meets ends. (W9-S2)
-  areaStanding: [{ kind: 'disperses', what: 'gas' }],
+  //
+  // "It extinguishes candles and similar unprotected flames in the area. It
+  // causes protected flames, such as those of lanterns, to dance wildly and has
+  // a 50 percent chance to extinguish them." A flame is light the table
+  // declared with a kind (`declare_light.flame`); an unprotected one the Line
+  // reaches goes out, and a protected one is owed one throw when the Line
+  // first reaches it and another only if the Line is moved onto it later —
+  // the owner's ruling of 2026-10-03. (E-L2)
+  areaStanding: [
+    { kind: 'disperses', what: 'gas' },
+    { kind: 'extinguishes-flames', protectedChance: 50 },
+  ],
   effects: [
     {
       kind: 'save',
@@ -9298,14 +9309,6 @@ export const GUST_OF_WIND: SpellDefinition = {
     effects: [],
   },
   durationSeconds: 60,
-  // Two debts, and both are the flames (W8-S26, W9-S2). The gas the gust
-  // disperses is `areaStanding` above. The candles it snuffs and the 50
-  // percent a lantern gets are light the table declares on a thing the engine
-  // does not hold, which is the object the light shape has left.
-  unmodelled: [
-    'the candles and similar unprotected flames the gust extinguishes in the area are not put out: a candle’s light is a patch the table declares on a thing the engine does not hold, so the Line takes nothing off the lattice',
-    'the protected flames’ "50 percent chance to extinguish them" is not thrown: a lantern is light the table declares on a thing the engine does not hold, so the die has nothing to land on',
-  ],
 };
 
 /**
@@ -10900,9 +10903,9 @@ export const SLEET_STORM: SpellDefinition = {
   // and SRD Burning says "The fire also goes out if it is doused": a creature
   // standing in the Cylinder does not burn, however it came to be there, and
   // the fold derives it off this pinned clause after every event. The torches
-  // and campfires in the area are light the table declares and takes away,
-  // the W8-S26 reading this keeps: a declared patch of light holds no kind
-  // that says it is a flame — see Gust of Wind's flames, which wait on one.
+  // and candles in the area are light the table declared as a flame: an
+  // "exposed" one is an unprotected one (the owner's ruling of 2026-10-03), and
+  // the same clause puts it out; a lantern's protected flame burns on.
   areaStanding: [{ kind: 'douses-flames' }],
 };
 
@@ -12791,7 +12794,8 @@ export const PHANTOM_STEED: SpellDefinition = {
  * > _Overgrowth._ "Choose a point within range. All normal plants in a
  * > 100-foot-radius Sphere centered on that point become thick and overgrown. A
  * > creature moving through that area must spend 4 feet of movement for every 1
- * > foot it moves."
+ * > foot it moves. You can exclude one or more areas of any size within the
+ * > spell's area from being affected."
  * > _Enrichment._ "All plants in a half-mile radius centered on a point within
  * > range become enriched for 365 days."
  *
@@ -12823,7 +12827,12 @@ export const PLANT_GROWTH: SpellDefinition = {
       // book prints for itself, which is why the field is a number and not a
       // flag. **Instantaneous**, so the casting leaves no record and the patch
       // names none: the plants are thick now and SRD gives them no ending.
-      areaTerrain: { costPerFoot: 4 },
+      //
+      // "All normal plants" — only where the table said plants grow
+      // (`declare_plants`), asked when nobody has said; and "You can exclude
+      // one or more areas of any size", named on the request. Both are pinned
+      // onto the ground laid. The owner's ruling of 2026-10-03. (E-L2)
+      areaTerrain: { costPerFoot: 4, onlyWhere: 'plants-grow', casterMayExclude: true },
     },
     enrichment: {
       label: 'Enrichment',
@@ -12840,14 +12849,6 @@ export const PLANT_GROWTH: SpellDefinition = {
       ],
     },
   },
-  // Two debts where one line said the table's (W8-S26): the ground the caster
-  // excludes and the ground with no plants on it are both ground the terrain
-  // patch is laid over anyway, and the ruler charges four feet a foot for
-  // every space of it.
-  unmodelled: [
-    'the areas the caster excludes from the Sphere are not excluded: the patch covers the whole Sphere, and a creature crossing an excluded space still pays four feet a foot',
-    'the overgrowth covers the whole Sphere whether or not normal plants grow there: where the plants are is a fact about the room nobody states, and the terrain the ruler charges for is laid regardless',
-  ],
 };
 
 /**

@@ -29,6 +29,7 @@ export const ONGOING_EVENTS = [
   'spell-activated',
   'spell-option-changed',
   'area-effect-settled',
+  'flame-tested',
   'casting-save-recorded',
   'spell-origin-moved',
   'spell-copies-moved',
@@ -161,6 +162,28 @@ export function applyOngoing({ state, next, legacy }: Applying, event: OngoingEv
             }),
         ongoing: { ...next.ongoing, [event.castingId]: { ...record, option: event.option } },
       };
+    }
+
+    // **A protected flame tested** — SRD Gust of Wind. The debt goes, and a
+    // flame that went out takes its light with it; a lantern that held burns
+    // on, and the area owes it nothing more until it is moved onto it again.
+    // (E-L2)
+    case 'flame-tested': {
+      const at = state.owedAreaEffects.findIndex(
+        (owed) =>
+          owed.castingId === event.castingId && owed.target === event.patch && owed.moment === 'flame-reached',
+      );
+      if (at < 0) {
+        throw new CorruptLogError(event, `${event.castingId} owes the flame ${event.patch} no throw`);
+      }
+      const owedAreaEffects = [...state.owedAreaEffects.slice(0, at), ...state.owedAreaEffects.slice(at + 1)];
+      const scene = next.scene;
+      if (!event.out || scene === null || scene.light[event.patch] === undefined) {
+        return { ...next, owedAreaEffects };
+      }
+      const { [event.patch]: _gone, ...light } = scene.light;
+      void _gone;
+      return { ...next, owedAreaEffects, scene: { ...scene, light } };
     }
 
     case 'area-effect-settled': {

@@ -83,6 +83,7 @@ import {
   dispelOnPinning,
   distanceBetween,
   distanceToPoint,
+  plantsUnder,
   pointFromPlacement,
   positionOf,
   snapToSpace,
@@ -116,6 +117,7 @@ import {
   teleportOf,
   weaponRiderOf,
   optionEffects,
+  areaTerrainOf,
   laysTerrain,
   type SpellOption,
   areaStandsApart,
@@ -611,7 +613,7 @@ export function resolveDeclaredCast(
     );
 
     /** Where the patches this settlement lays lie — see `terrainPatchOf`. */
-    const settledTerrain =
+    const settledTerrain = groundNarrowed(
       (!laysTerrain(definition) &&
         definition.areaLight === undefined &&
         definition.areaObscurement === undefined) ||
@@ -623,7 +625,9 @@ export function resolveDeclaredCast(
             pending.area?.at,
             pending.area?.towards,
             pending.area?.anchoring ?? 'space',
-          );
+          ),
+      pending.area,
+    );
 
     return charged(resolveEffects(state, pending.caster, caster, definition, {
       castLevel: pending.level,
@@ -1365,6 +1369,8 @@ export function castOrRelease(
       readonly anchoring?: PointAnchoring;
       readonly path?: readonly Point[];
       readonly copies?: readonly Point[];
+      readonly within?: readonly TerrainRegion[];
+      readonly excluding?: readonly TerrainRegion[];
     } | null = null;
 
     // — the other templates, where the spell lays several (E-L2) ————————————
@@ -1525,6 +1531,16 @@ export function castOrRelease(
       if (!named.ok) return named;
       targets = named.value;
     }
+
+    // — where the ground grows, and what its caster leaves out (E-L2) ————————
+    //
+    // SRD Plant Growth: "All normal plants in a 100-foot-radius Sphere" and
+    // "You can exclude one or more areas of any size within the spell's area".
+    // Asked of the area just placed, before anything is spent, and pinned with
+    // it, so the patch it lays and a settlement held open both read it.
+    const ground = narrowedGround(state, casterId, definition, request, area);
+    if (!ground.ok) return ground;
+    if (ground.value !== null && area !== null) area = { ...area, ...ground.value };
 
     // — the ward a casting would cross ——————————————————————————————————————
     //
@@ -2679,6 +2695,10 @@ function resolveOnTargets(
       readonly path?: readonly Point[];
       /** The casting's other templates — see `OngoingSpell.copies`. (E-L2) */
       readonly copies?: readonly Point[];
+      /** Where the ground it lays grows — see `TerrainRegion.within`. (E-L2) */
+      readonly within?: readonly TerrainRegion[];
+      /** What the ground it lays leaves out — see `TerrainRegion.excluding`. (E-L2) */
+      readonly excluding?: readonly TerrainRegion[];
     } | null;
     /** The identity the wrapper established, stamped on the casting's event. */
     readonly stamp: CommandStamp | null;
@@ -2779,7 +2799,7 @@ function resolveOnTargets(
    * from the wrong plane. The name is the ground's because the ground was
    * first; the fact is the area's.
    */
-  const terrainRegion =
+  const laidRegion =
     (!laysTerrain(definition) &&
       definition.areaLight === undefined &&
       definition.areaObscurement === undefined) ||
@@ -2796,6 +2816,9 @@ function resolveOnTargets(
           area?.towards ?? carriedAim,
           area?.anchoring ?? 'space',
         );
+  // Narrowed to where the ground grows and less what its caster left out —
+  // SRD Plant Growth — as the casting pinned them. (E-L2)
+  const terrainRegion = groundNarrowed(laidRegion, area);
 
   /**
    * The spell this casting stored, once the casting has actually been made —
@@ -4492,6 +4515,93 @@ export function resolveEffects(
   return ok({ events, castingId, outcomes, unverified });
 }
 
+
+/**
+ * Where the ground a casting lays grows, and what its caster leaves out of it
+ * — or null for a casting whose ground is the whole of its area. (E-L2, the
+ * owner's ruling of 2026-10-03)
+ *
+ * SRD Plant Growth: "All **normal plants** in a 100-foot-radius Sphere
+ * centered on that point become thick and overgrown", and "You can exclude one
+ * or more areas of any size within the spell's area from being affected."
+ * Where plants grow is the table's (`declarePlants`), read off the scene now
+ * and pinned: the stretches it said grow become `within`, the ones it said
+ * are bare join the caster's exclusions in `excluding`. A Sphere over ground
+ * nobody has described is asked about rather than thickened or left alone,
+ * and an exclusion on a spell that prints none is refused.
+ */
+function narrowedGround(
+  state: GameState,
+  casterId: CharacterId,
+  definition: SpellDefinition,
+  request: CastSpellRequest,
+  placed: { readonly at: Point; readonly towards?: Point; readonly anchoring?: PointAnchoring } | null,
+): Result<{ readonly within?: readonly TerrainRegion[]; readonly excluding?: readonly TerrainRegion[] } | null> {
+  const terrain = areaTerrainOf(definition, request.option);
+  const exclude = request.exclude ?? [];
+  if (exclude.length > 0 && terrain?.casterMayExclude !== true) {
+    return err(
+      'nothing_to_exclude',
+      `${definition.name} prints no area its caster may leave out of it, so there is nothing to exclude`,
+    );
+  }
+  let within: readonly TerrainRegion[] | undefined;
+  let bare: readonly TerrainRegion[] = [];
+  if (
+    terrain?.onlyWhere === 'plants-grow' &&
+    state.scene !== null &&
+    definition.area !== undefined &&
+    placed !== null
+  ) {
+    const covered = regionOfArea(
+      definition.area,
+      casterId,
+      placed.at,
+      placed.towards,
+      placed.anchoring ?? 'space',
+    );
+    if (covered !== null) {
+      const under = plantsUnder(state.scene, covered);
+      if (under === null) {
+        return needsContext(
+          'plants_unstated',
+          `${definition.name} thickens only normal plants, and nobody has said whether any grow under it`,
+          [
+            {
+              kind: 'scene',
+              subject: `the ground under ${definition.name}`,
+              need: 'where normal plants grow in the area, or that none do',
+              because: `${definition.name} thickens "all normal plants" in its area and no other ground, and where plants grow is a fact about the room the engine does not hold`,
+              satisfyWith: 'a declarePlants command over the area',
+            },
+          ],
+        );
+      }
+      within = under.growing;
+      bare = under.bare;
+    }
+  }
+  const excluding = [...bare, ...exclude];
+  if (within === undefined && excluding.length === 0) return ok(null);
+  return ok({
+    ...(within === undefined ? {} : { within }),
+    ...(excluding.length === 0 ? {} : { excluding }),
+  });
+}
+
+/** A laid region narrowed by what its casting pinned — see {@link narrowedGround}. (E-L2) */
+function groundNarrowed(
+  region: TerrainRegion | null,
+  area: { readonly within?: readonly TerrainRegion[]; readonly excluding?: readonly TerrainRegion[] } | null | undefined,
+): TerrainRegion | null {
+  if (region === null || area === null || area === undefined) return region;
+  if (area.within === undefined && area.excluding === undefined) return region;
+  return {
+    ...region,
+    ...(area.within === undefined ? {} : { within: area.within }),
+    ...(area.excluding === undefined ? {} : { excluding: area.excluding }),
+  };
+}
 
 /**
  * The casting's other templates, held to what the spell prints of them — or

@@ -94,6 +94,7 @@ import { type CommandIdentity, once } from '../idempotency.js';
 import {
   addLandmark,
   declareBonesAt,
+  declarePlantsAt,
   type CoverDegree,
   declareCover,
   declareSight,
@@ -102,6 +103,7 @@ import {
   pointFromPlacement,
   type Placement,
   type Point,
+  type TerrainRegion,
   type SceneExtent,
 } from '../positioning.js';
 import { type Rng } from '../dice.js';
@@ -204,6 +206,36 @@ export function declareBones(
 
     return ok([
       { type: 'bones-declared', name, at, ...(stamp === null ? {} : { command: stamp }) },
+    ]);
+  });
+}
+
+/**
+ * Say where normal plants grow in the room, or that nothing grows there, or
+ * take a stretch back. (E-L2, the owner's ruling of 2026-10-03)
+ *
+ * SRD Plant Growth: "All **normal plants** in a 100-foot-radius Sphere centered
+ * on that point become thick and overgrown." Whether plants grow under the
+ * Sphere is a fact about the room only the table can state, so it is stated
+ * here, on the DM's door — a caster is not the one to say a flagstone court is
+ * a meadow — and the Overgrowth reads it: it thickens only where plants grow,
+ * and asks when nobody has said anything about the ground it covers. `null`
+ * takes the stretch away; `growing: false` says nothing grows there.
+ */
+export function declarePlants(
+  state: GameState,
+  name: string,
+  region: TerrainRegion | null,
+  command: CommandIdentity & { readonly growing?: boolean } = {},
+): Result<GameEvent[]> {
+  const growing = command.growing ?? true;
+  return once(state, `declare-plants:${name}`, { ...command, region }, () => [], (stamp) => {
+    const scene = sceneFor(state, name, `${name} to grow in`);
+    if (!scene.ok) return scene;
+    const laid = declarePlantsAt(scene.value, name, region === null ? null : { region, growing });
+    if (!laid.ok) return laid;
+    return ok([
+      { type: 'plants-declared', name, region, growing, ...(stamp === null ? {} : { command: stamp }) },
     ]);
   });
 }

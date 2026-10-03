@@ -222,6 +222,7 @@ export type AreaStanding =
   | AreaConditionImmunityStanding
   | AreaDispersalStanding
   | AreaDousingStanding
+  | AreaFlameStanding
   | AreaGasBarrierStanding;
 
 /**
@@ -644,6 +645,25 @@ export interface AreaDispersalStanding {
  */
 export interface AreaDousingStanding {
   readonly kind: 'douses-flames';
+}
+
+/**
+ * SRD Gust of Wind: "it **extinguishes candles and similar unprotected
+ * flames** in the area. It causes **protected flames**, such as those of
+ * lanterns, to dance wildly and has a **50 percent chance to extinguish
+ * them**." (E-L2, the owner's ruling of 2026-10-03)
+ *
+ * A flame is light the table declared with a kind (`LightPatch.flame`). An
+ * unprotected one this area reaches goes out — derived, as Sleet Storm's
+ * dousing is. A protected one is owed **one** throw against
+ * `protectedChance` when the area first reaches it, and another only if the
+ * area is later moved onto it again: the fold raises the debt
+ * (`windOnFlames`) and `settleAreaEffects` throws the die. Not every round.
+ */
+export interface AreaFlameStanding {
+  readonly kind: 'extinguishes-flames';
+  /** The percentage a protected flame goes out on: SRD Gust of Wind's 50. */
+  readonly protectedChance: number;
 }
 
 /**

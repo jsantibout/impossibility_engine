@@ -188,8 +188,9 @@ describe('toolSchemas', () => {
     // `draw_rope`, and one more on the DM's alone, `declare_portal_height`.
     // And one on the DM's alone for E-L3, `declare_bones`.
     // And one on each for E-L2, `expose_to_fire`.
+    // And one on the DM's alone for E-L2's owner rulings, `declare_plants`.
     expect(toolSchemas(player())).toHaveLength(101);
-    expect(toolSchemas(dm())).toHaveLength(135);
+    expect(toolSchemas(dm())).toHaveLength(136);
     // Re-pinned 2026-09-24 for the printed-lines track, which opened one door
     // on the DM's surface alone: `teleport_printed_line` takes the teleport a
     // stat block prints, at the distance the block prints, to a space the DM
@@ -439,10 +440,16 @@ describe('toolSchemas', () => {
     // Cube of SRD Web met fire, which the engine then burns for the round the
     // spell prints. One more tool on each door (100 → 101 on the player's, and
     // 134 → 135 on the DM's after E-L3); +1,187 bytes on each.
+    // And E-L2's owner rulings (2026-10-03), on both doors: `declare_light.flame`
+    // (a torch or a lantern, which SRD Gust of Wind and Sleet Storm put out),
+    // `cast_spell.exclude` (SRD Plant Growth's areas the caster leaves out) and
+    // `settle_area_effects` naming the lantern's throw it settles, +1,346 bytes
+    // on each. On the DM's alone: `declare_plants` (where normal plants grow,
+    // a new door), 135 → 136 tools and +1,363 more bytes.
     expect(toolSchemas(player())).toHaveLength(101);
-    expect(toolSchemas(dm())).toHaveLength(135);
-    expect(JSON.stringify(toolSchemas(player())).length).toBe(173557);
-    expect(JSON.stringify(toolSchemas(dm())).length).toBe(234880);
+    expect(toolSchemas(dm())).toHaveLength(136);
+    expect(JSON.stringify(toolSchemas(player())).length).toBe(174903);
+    expect(JSON.stringify(toolSchemas(dm())).length).toBe(237589);
   });
 });
 

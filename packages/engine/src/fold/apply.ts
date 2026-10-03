@@ -37,6 +37,7 @@ import { releaseCasting, releaseGrants } from './release.js';
 import {
   burnAwayCubes,
   holdGasOffWalls,
+  windOnFlames,
   dropOrphanedAreaEffects,
   douseStandingFlames,
   vanishLightsBeyondRange,
@@ -313,6 +314,10 @@ function applyEventUnder(state: GameState, event: GameEvent, legacy: Content | n
     // the turn's start is reached, so a creature standing in the sleet is not
     // owed a burn it is no longer suffering. See `douseStandingFlames`. (E-L2)
     douseStandingFlames(
+    // **A torch the wind or the sleet puts out**, and the throw a lantern the
+    // Line has just reached is owed — SRD Gust of Wind, Sleet Storm. After
+    // every pass that moves a light or an area. See windOnFlames. (E-L2)
+    windOnFlames(
     // **A light its caster walked too far from**, gone for good — SRD Dancing
     // Lights. See vanishLightsBeyondRange. (E-L2)
     vanishLightsBeyondRange(
@@ -445,6 +450,7 @@ function applyEventUnder(state: GameState, event: GameEvent, legacy: Content | n
     ),
     // The world before this event, so the pass sees an override leave.
     state,
+    ),
     ),
     ),
     ),

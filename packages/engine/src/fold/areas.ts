@@ -735,6 +735,100 @@ export function douseStandingFlames(state: GameState): GameState {
 }
 
 /**
+ * The flames a running area puts out, and the throws it owes the ones it may.
+ * (E-L2, the owner's ruling of 2026-10-03)
+ *
+ * SRD Gust of Wind "extinguishes candles and similar **unprotected** flames in
+ * the area" and gives "**protected** flames, such as those of lanterns ... a 50
+ * percent chance"; SRD Sleet Storm douses "**exposed** flames", which reads as
+ * unprotected. A flame is a patch of light the table declared with a kind
+ * (`LightPatch.flame`), and it is where the patch's origin is: the space it
+ * was lit at, or the creature carrying it.
+ *
+ * - An **unprotected** flame either clause reaches goes out: the patch is taken
+ *   off the lattice, derived and eventless as Sleet Storm's dousing of a
+ *   burning creature is. Relit there, it goes out again.
+ * - A **protected** flame Gust's clause (`extinguishes-flames`) reaches is
+ *   owed one throw (`flame-reached`), which `settleAreaEffects` makes. The
+ *   flames the area is on are written onto the record (`flamesReached`), so a
+ *   flame that stays in the Line is owed nothing more and one the Line leaves
+ *   and comes back to — the caster moving, the Line turned, the lantern
+ *   carried — is owed another. Not every round.
+ *
+ * Returns at once where no running casting prints either clause, which is
+ * nearly always.
+ */
+export function windOnFlames(state: GameState): GameState {
+  const scene = state.scene;
+  if (scene === null) return state;
+  const blowing = Object.keys(state.ongoing)
+    .sort()
+    .filter((castingId) =>
+      (state.ongoing[castingId]!.areaStanding ?? []).some(
+        (standing) => standing.kind === 'douses-flames' || standing.kind === 'extinguishes-flames',
+      ),
+    );
+  if (blowing.length === 0) return state;
+
+  let current = state;
+  for (const castingId of blowing) {
+    const record = current.ongoing[castingId]!;
+    const sceneNow = current.scene!;
+    const region = regionOfCastingArea(record);
+    if (region === null) continue;
+    const caught = creaturesStandingInCastingArea(sceneNow, record) ?? new Set<CharacterId>();
+    const reaches = (patch: { readonly region: TerrainRegion }): boolean => {
+      const origin = patch.region.origin;
+      if ('creature' in origin) return caught.has(origin.creature);
+      const anchor = regionAnchor(sceneNow, patch.region);
+      if (anchor === null) return false;
+      const snap = (value: number) => Math.floor(value / 5) * 5;
+      return spaceInRegion(sceneNow, region, { x: snap(anchor.x), y: snap(anchor.y), z: snap(anchor.z) });
+    };
+    const flames = Object.keys(sceneNow.light)
+      .sort()
+      .filter((name) => sceneNow.light[name]!.flame !== undefined && reaches(sceneNow.light[name]!));
+
+    const out = flames.filter((name) => sceneNow.light[name]!.flame === 'unprotected');
+    if (out.length > 0) {
+      current = {
+        ...current,
+        scene: {
+          ...sceneNow,
+          light: Object.fromEntries(Object.entries(sceneNow.light).filter(([name]) => !out.includes(name))),
+        },
+      };
+    }
+
+    if (!(record.areaStanding ?? []).some((standing) => standing.kind === 'extinguishes-flames')) continue;
+    const reached = flames.filter((name) => sceneNow.light[name]!.flame === 'protected');
+    const before = record.flamesReached ?? [];
+    const owed = reached
+      .filter((name) => !before.includes(name))
+      .filter(
+        (name) =>
+          !current.owedAreaEffects.some(
+            (debt) => debt.castingId === castingId && debt.target === name && debt.moment === 'flame-reached',
+          ),
+      )
+      .map((name) => ({ castingId, target: name, moment: 'flame-reached' as const }));
+    if (owed.length > 0) current = { ...current, owedAreaEffects: [...current.owedAreaEffects, ...owed] };
+    if (reached.join('|') !== before.join('|')) {
+      const { flamesReached: _was, ...rest } = record;
+      void _was;
+      current = {
+        ...current,
+        ongoing: sortedRecord({
+          ...current.ongoing,
+          [castingId]: reached.length === 0 ? rest : { ...rest, flamesReached: reached },
+        }),
+      };
+    }
+  }
+  return current;
+}
+
+/**
  * The conditions a trigger's clauses said last only while their holder is in
  * the area.
  *
@@ -949,9 +1043,16 @@ function raiseArrivalDebts(
  * turn would refuse to advance past for ever. A dead creature takes no turns
  * and enters nothing, so every moment this debt could record is one that can
  * no longer happen to them.
+ *
+ * A flame's throw (`flame-reached`) is addressed to a patch of light rather
+ * than a creature, and is forgiven when the light is gone — put out, or taken
+ * away with whatever cast it — or the wind that owed it has stopped. (E-L2)
  */
 export function dropOrphanedAreaEffects(state: GameState): GameState {
   const live = state.owedAreaEffects.filter((owed) => {
+    if (owed.moment === 'flame-reached') {
+      return state.ongoing[owed.castingId] !== undefined && state.scene?.light[owed.target] !== undefined;
+    }
     const creature = state.creatures[owed.target];
     return creature !== undefined && !creature.vitals.dead;
   });

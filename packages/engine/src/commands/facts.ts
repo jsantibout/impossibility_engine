@@ -27,6 +27,7 @@ import {
   declareObscuringPatch,
   dispelOnPinning,
   lightDispelledBy,
+  type LightFlame,
   type LightLevel,
   type LightPatch,
   type ObscurementDegree,
@@ -275,6 +276,12 @@ export interface LightCommand extends CommandIdentity {
   readonly sunlight?: boolean;
   /** The casting that made this light, if one did. */
   readonly source?: string;
+  /**
+   * The flame it is, where it is one: a torch or a candle (`unprotected`), a
+   * lantern (`protected`) — what SRD Gust of Wind and Sleet Storm put out.
+   * See `LightPatch.flame`. (E-L2)
+   */
+  readonly flame?: LightFlame;
 }
 
 /**
@@ -307,7 +314,7 @@ export function declareLight(
   patch: string,
   command: LightCommand,
 ): Result<GameEvent[]> {
-  const { region, level, magical, sunlight, source } = command;
+  const { region, level, magical, sunlight, source, flame } = command;
 
   return once(state, `declare-light:${patch}`, { ...command }, () => [], (stamp) => {
     const scene = sceneFor(state, patch, `the light on ${patch} to be`);
@@ -326,6 +333,7 @@ export function declareLight(
       ...(source === undefined ? {} : { source }),
       ...(magical === undefined ? {} : { magical }),
       ...(sunlight === undefined ? {} : { sunlight }),
+      ...(flame === undefined ? {} : { flame }),
     });
     if (!declared.ok) return declared;
 
@@ -338,6 +346,7 @@ export function declareLight(
         ...(magical === undefined ? {} : { magical }),
         ...(sunlight === undefined ? {} : { sunlight }),
         ...(source === undefined ? {} : { source }),
+        ...(flame === undefined ? {} : { flame }),
         ...(stamp === null ? {} : { command: stamp }),
       },
       ...(magical === undefined

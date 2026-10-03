@@ -103,6 +103,7 @@
     "raiseAfterMovement",
     "endConditionsLeftBehind",
     "douseStandingFlames",
+    "windOnFlames",
     "vanishLightsBeyondRange",
     "burnAwayCubes",
     "holdGasOffWalls",

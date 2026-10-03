@@ -5033,6 +5033,23 @@ export interface AreaTerrain {
    * beside `costPerFoot`, and never beside {@link clears}.
    */
   readonly onlyTowards?: 'caster';
+  /**
+   * SRD Plant Growth: "All **normal plants** in a 100-foot-radius Sphere ...
+   * become thick and overgrown." The ground thickens only where the table said
+   * plants grow (`PositionState.plants`), and a casting over ground nobody has
+   * described asks. The plants found are pinned onto the patch's region
+   * (`TerrainRegion.within`), so a later word about the plants changes
+   * nothing laid. (E-L2)
+   */
+  readonly onlyWhere?: 'plants-grow';
+  /**
+   * SRD Plant Growth: "You can exclude one or more areas of any size within
+   * the spell's area from being affected." The caster names them on the
+   * request (`CastSpellRequest.exclude`), and they are pinned onto the patch's
+   * region (`TerrainRegion.excluding`). A spell that prints no such sentence
+   * refuses the field. (E-L2)
+   */
+  readonly casterMayExclude?: true;
 }
 
 /**

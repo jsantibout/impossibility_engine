@@ -143,6 +143,17 @@ export interface PositionState {
    */
   readonly bones?: Readonly<Record<string, Point>>;
   /**
+   * Where the table has said normal plants grow, or that nothing does, by
+   * name — SRD Plant Growth: "All **normal plants** in a 100-foot-radius
+   * Sphere ... become thick and overgrown." Whether a meadow or a flagstone
+   * court lies under the Sphere is a fact about the room only the table can
+   * state (`declarePlants`); the Overgrowth reads it, asks when nobody has
+   * said anything about the Sphere, and pins what it found onto the ground it
+   * lays. Absent is a room nobody has described, which is every scene written
+   * before the field existed. (E-L2, the owner's ruling of 2026-10-03)
+   */
+  readonly plants?: Readonly<Record<string, PlantPatch>>;
+  /**
    * What is lying on the floor, keyed by the copy's own record.
    *
    * The third population in the room, beside the creatures and the landmarks,
@@ -363,6 +374,56 @@ const within = (extent: SceneExtent, p: Point): boolean =>
  * Landmarks are placed by coordinate because laying out a room is map-making,
  * not creature placement. Creatures then anchor to them.
  */
+/** A stretch of the room the table has described for its plants — see {@link PositionState.plants}. (E-L2) */
+export interface PlantPatch {
+  readonly region: TerrainRegion;
+  /** True where normal plants grow there; false where the table said nothing does. */
+  readonly growing: boolean;
+}
+
+/**
+ * Plants laid in the room, or taken out of it — see
+ * {@link PositionState.plants}. A region whose origin cannot be placed in the
+ * scene is refused, as a landmark outside it is; `null` takes the stretch
+ * away, and taking away one nobody described changes nothing. (E-L2)
+ */
+export function declarePlantsAt(
+  state: PositionState,
+  name: string,
+  patch: PlantPatch | null,
+): Result<PositionState> {
+  if (patch === null) {
+    if (state.plants?.[name] === undefined) return ok(state);
+    const { [name]: _gone, ...rest } = state.plants;
+    void _gone;
+    return ok({ ...state, plants: rest });
+  }
+  if (!areaFrame(state, patch.region.origin).ok) {
+    return err('outside_scene', `${name} is measured from somewhere this scene does not hold`);
+  }
+  return ok({ ...state, plants: { ...(state.plants ?? {}), [name]: patch } });
+}
+
+/**
+ * What the table has said grows under a region: the stretches where plants
+ * grow and the stretches it called bare, each that covers any space of the
+ * region — or null where it has said nothing about any of it. (E-L2)
+ */
+export function plantsUnder(
+  state: PositionState,
+  region: TerrainRegion,
+): { readonly growing: readonly TerrainRegion[]; readonly bare: readonly TerrainRegion[] } | null {
+  const growing: TerrainRegion[] = [];
+  const bare: TerrainRegion[] = [];
+  for (const name of Object.keys(state.plants ?? {}).sort()) {
+    const patch = state.plants![name]!;
+    const overlaps = spacesInRegion(state, patch.region).some((space) => spaceInRegion(state, region, space));
+    if (!overlaps) continue;
+    (patch.growing ? growing : bare).push(patch.region);
+  }
+  return growing.length === 0 && bare.length === 0 ? null : { growing, bare };
+}
+
 /**
  * A pile of bones laid in the room, or taken out of it — see
  * {@link PositionState.bones}. The point is snapped to its space, as a
@@ -2303,6 +2364,20 @@ export interface TerrainRegion {
    * every region written before the field existed. (E-L2)
    */
   readonly except?: readonly Point[];
+  /**
+   * Where the shape covers a space only if one of these regions covers it too
+   * — SRD Plant Growth's "All normal plants in a 100-foot-radius Sphere", the
+   * Sphere narrowed to where the table said plants grow. Absent is the whole
+   * shape. (E-L2)
+   */
+  readonly within?: readonly TerrainRegion[];
+  /**
+   * Regions the shape no longer covers — SRD Plant Growth's "You can exclude
+   * one or more areas of any size within the spell's area", and the ground the
+   * table said grows nothing. Read as {@link except} is, by
+   * {@link spaceInRegion} and {@link moverInRegionAt}. (E-L2)
+   */
+  readonly excluding?: readonly TerrainRegion[];
 }
 
 /**
@@ -2549,6 +2624,16 @@ export const LIGHT_LEVELS = ['bright', 'dim', 'darkness'] as const;
 
 export type LightLevel = (typeof LIGHT_LEVELS)[number];
 
+/**
+ * The two kinds of flame a declared light can be, in SRD Gust of Wind's words:
+ * "candles and similar **unprotected** flames" and "**protected** flames, such
+ * as those of lanterns". SRD Sleet Storm's "exposed flames" are the first.
+ * (E-L2, the owner's ruling of 2026-10-03)
+ */
+export const LIGHT_FLAMES = ['unprotected', 'protected'] as const;
+
+export type LightFlame = (typeof LIGHT_FLAMES)[number];
+
 /** The two degrees of obscurement the glossary names, and no third. */
 export const OBSCUREMENT_DEGREES = ['lightly', 'heavily'] as const;
 
@@ -2610,6 +2695,18 @@ export interface LightPatch extends LatticePatch {
    * of them is held in a hand.
    */
   readonly whileHolding?: string;
+  /**
+   * The flame this light is, where the table says it is one — a torch or a
+   * candle (`unprotected`), a lantern (`protected`). Absent is light that is
+   * no flame a wind can find: a sconce nobody described, the sun, a spell.
+   *
+   * Read by the one pass that puts flames out (`windOnFlames`): SRD Gust of
+   * Wind "extinguishes candles and similar unprotected flames" and gives a
+   * protected one "a 50 percent chance"; SRD Sleet Storm douses "exposed
+   * flames". The flame is where the patch's origin is — the point it was lit
+   * at, or the creature carrying it. (E-L2)
+   */
+  readonly flame?: LightFlame;
 }
 
 /**
@@ -2654,6 +2751,7 @@ export function declareLightPatch(
     readonly covered?: true;
     readonly whileHolding?: string;
     readonly lapsesWith?: string;
+    readonly flame?: LightFlame;
   } = {},
 ): Result<PositionState> {
   if (patch.trim().length === 0) {
@@ -2665,7 +2763,13 @@ export function declareLightPatch(
       `${String(level)} is not a level of light; the glossary prints ${LIGHT_LEVELS.join(', ')}`,
     );
   }
-  const { source, magical, sunlight, covered, whileHolding, lapsesWith } = options;
+  const { source, magical, sunlight, covered, whileHolding, lapsesWith, flame } = options;
+  if (flame !== undefined && !LIGHT_FLAMES.includes(flame)) {
+    return err(
+      'bad_flame',
+      `${String(flame)} is not a kind of flame; SRD Gust of Wind names ${LIGHT_FLAMES.join(' and ')} flames`,
+    );
+  }
   if (magical !== undefined && !Number.isInteger(magical.spellLevel)) {
     return err(
       'bad_spell_level',
@@ -2702,6 +2806,7 @@ export function declareLightPatch(
         ...(covered === undefined ? {} : { covered }),
         ...(whileHolding === undefined ? {} : { whileHolding }),
         ...(lapsesWith === undefined ? {} : { lapsesWith }),
+        ...(flame === undefined ? {} : { flame }),
       },
     },
   });
@@ -2756,6 +2861,10 @@ export function spaceInRegion(
 
   const at = snapPoint(space);
   if (exceptedFrom(region, at)) return false;
+  if (region.within !== undefined && !region.within.some((inner) => spaceInRegion(state, inner, at))) {
+    return false;
+  }
+  if (region.excluding?.some((out) => spaceInRegion(state, out, at)) === true) return false;
   const box: Box = { min: at, max: { x: at.x + CUBE, y: at.y + CUBE, z: at.z + CUBE } };
   const towards = 'towards' in region.shape ? worldPointOf(region.shape.towards) : null;
 
@@ -2794,7 +2903,7 @@ export function moverInRegionAt(
   // **A region with spaces taken out of it is asked space by space**, which is
   // the reading the whole-box test makes of a region that has none: the mover
   // is in it where any space it fills is. (E-L2)
-  if ((region.except?.length ?? 0) > 0) {
+  if ((region.except?.length ?? 0) > 0 || region.within !== undefined || (region.excluding?.length ?? 0) > 0) {
     for (let x = space.x; x < space.x + width; x += CUBE) {
       for (let y = space.y; y < space.y + width; y += CUBE) {
         for (let z = space.z; z < space.z + tall; z += CUBE) {

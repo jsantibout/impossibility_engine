@@ -745,6 +745,14 @@ const UNCOVERED_EVENT_TYPES: readonly string[] = [
   // nothing, the lander left standing, the casting ending on that one creature
   // and running on for the other, and an unwarded faller taking the dice.
   'fall-ward-granted',
+  // A protected flame a Gust of Wind's Line reached, tested, and put out or
+  // left burning — E-L2, the owner's ruling of 2026-10-03. Neither log was
+  // written when a declared light could be a flame, so neither owes a throw
+  // and both fold with no `flamesReached` on any casting.
+  // `gust-flames.test.ts` folds it and drives it: the throw owed when the
+  // Line first reaches a lantern, settled once, and owed again only when the
+  // Line comes back onto it.
+  'flame-tested',
   // A creature taking one of the forms its **own** stat block prints — SRD
   // Shape-Shift, on thirteen blocks. Neither log was written when a form could
   // be worn: `CreatureState` had no `form`, the parser read the sentence as
@@ -880,6 +888,13 @@ const UNCOVERED_EVENT_TYPES: readonly string[] = [
   'movement-granted',
   'obscurement-declared',
   'passive-defense-granted',
+  // Where the table says normal plants grow, or that nothing does — SRD Plant
+  // Growth, E-L2, the owner's ruling of 2026-10-03. Neither log describes the
+  // ground, so both scenes fold with no `plants` at all.
+  // `plant-growth.test.ts` folds it and drives it: the casting asked over
+  // undescribed ground, the meadow thickened and the bare court left open,
+  // and the caster's exclusions left out.
+  'plants-declared',
   // A printed line's curse on a creature — W7-B13, SRD Werewolf's Bite.
   // Neither log was written when a creature could carry one, and both fixtures
   // fold to exactly the states they always folded to with `curses` empty on

@@ -2329,9 +2329,12 @@ describe('the fought fact is a second build that corrected the query', () => {
     // a patch of terrain, a revival refused. **E-L3 gave two of them a field**:
     // the bones are a pile the DM lays (`declareBones`) and the old age is the
     // DM's ruling on the death (`creature-died.oldAge`), so Animate Dead and
-    // Revivify left the way Call Lightning did.
+    // Revivify left the way Call Lightning did. **And E-L2 gave the third
+    // one**, on the owner's ruling of 2026-10-03: where plants grow is a
+    // stretch the DM describes (`declarePlants`), so Plant Growth left the
+    // same way and the executed population is empty again.
     expect(fact.undefined).toEqual([]);
-    expect(fact.executed).toEqual(['plant-growth']);
+    expect(fact.executed).toEqual([]);
     expect(fact.tracked).toEqual(['scrying']);
   });
 });
@@ -2808,10 +2811,14 @@ describe('a consumer count is a query', () => {
       // took one off the trigger shape and SRD Dancing Lights' several lights
       // one off the wall-and-templates shape, so both fell level with the
       // second place and the stat block.
+      //
+      // **And E-L2's owner rulings narrowed it to three** (2026-10-03): SRD
+      // Plant Growth's caster exclusions are a request field pinned onto the
+      // ground (`TerrainRegion.excluding`), so the wall-and-templates shape
+      // lost another consumer and fell below the band.
       'a-casting-ended-by-a-trigger',
       'a-second-place-to-put-a-creature',
       'a-stat-block-created-mid-fight',
-      'a-wall-or-several-templates-in-one-area',
     ]);
     // **Moved from 20 to 15 by the third catalogue pass, and the total fell
     // further than the tracked column rose.** Twelve undefined spells named

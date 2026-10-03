@@ -51,7 +51,7 @@ function table(seed = 'a-torch-in-the-dark') {
     calls += 1;
     return surface.call({ tool, input, commandId: `toolu_${calls}` });
   };
-  return { call, look: () => surface.observe() };
+  return { call, look: () => surface.observe(), campaign };
 }
 
 const expectOk = (outcome: ToolOutcome): Record<string, unknown> => {
@@ -144,5 +144,25 @@ describe('a lit torch, moved and covered through the door', () => {
 
     const refused = t.call('move_cast_light', { castingId: 'cast:99', covered: true });
     expect(refused.status === 'refused' && refused.code).toBe('not_ongoing');
+  });
+});
+
+/**
+ * SRD Gust of Wind and Sleet Storm put out flames, and a flame is light the
+ * table says is one (E-L2, the owner's ruling of 2026-10-03): `flame` on
+ * `declare_light`, unprotected (a torch, a candle) or protected (a lantern).
+ */
+describe('a flame, declared', () => {
+  it('pins the kind the table names, and refuses one it does not', () => {
+    const t = table();
+    expectOk(t.call('set_scene', { width: 60, depth: 40, height: 20 }));
+    expectOk(t.call('declare_light', { patch: 'the candle', at: { x: 10, y: 10 }, radius: 5, level: 'dim', flame: 'unprotected' }));
+    expectOk(t.call('declare_light', { patch: 'the lantern', at: { x: 30, y: 10 }, radius: 30, level: 'bright', flame: 'protected' }));
+    const light = t.campaign.state().scene!.light;
+    expect(light['the candle']!.flame).toBe('unprotected');
+    expect(light['the lantern']!.flame).toBe('protected');
+
+    const odd = t.call('declare_light', { patch: 'the ember', at: { x: 50, y: 10 }, radius: 5, level: 'dim', flame: 'smouldering' });
+    expect(odd.status).toBe('invalid');
   });
 });

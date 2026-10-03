@@ -727,6 +727,7 @@ function checkChoiceOption(
  * | `disperses` | Gust of Wind | what it disperses, which is gas |
  * | `douses-flames` | Sleet Storm | nothing: it is a fact with no fields |
  * | `keeps-out` | Wind Wall | what it keeps at bay, which is gas |
+ * | `extinguishes-flames` | Gust of Wind | the percentage a protected flame goes out on |
  *
  * `statesTypes` is whether the definition prints a choice of types for the
  * casting to fill in: a clause saying `'stated'` on a spell that prints none
@@ -862,6 +863,21 @@ function checkAreaStanding(
     // fields, read by the fold against whoever is burning there. (E-L2)
     case 'douses-flames':
       return;
+
+    // SRD Gust of Wind: "has a 50 percent chance to extinguish them". A
+    // percentage the die is thrown against, so a whole number from 1 to 100.
+    // (E-L2)
+    case 'extinguishes-flames': {
+      const chance = standing['protectedChance'];
+      if (typeof chance !== 'number' || !Number.isInteger(chance) || chance < 1 || chance > 100) {
+        found.push({
+          field: `${path}.protectedChance`,
+          code: 'bad_flame_chance',
+          reason: `the chance a protected flame goes out is a whole percentage from 1 to 100, not ${nameOf(chance)}`,
+        });
+      }
+      return;
+    }
 
     // SRD Wind Wall: "keeps fog, smoke, and other gases at bay". One thing a
     // wall of wind holds off that the engine holds, and so one value. (E-L2)
@@ -1880,12 +1896,32 @@ function checkAreaTerrain(
     clears,
     damagePerFeet,
     onlyTowards,
+    onlyWhere,
+    casterMayExclude,
   } = terrain as {
     costPerFoot?: unknown;
     clears?: unknown;
     damagePerFeet?: unknown;
     onlyTowards?: unknown;
+    onlyWhere?: unknown;
+    casterMayExclude?: unknown;
   };
+  // SRD Plant Growth's "All normal plants": the one stretch of ground a rate
+  // is narrowed to, and the caster's exclusions beside it. (E-L2)
+  if (onlyWhere !== undefined && onlyWhere !== 'plants-grow') {
+    found.push({
+      field: `${path}.onlyWhere`,
+      code: 'unknown_ground',
+      reason: `ground is narrowed to where plants grow or not at all; the only value is 'plants-grow', not ${String(onlyWhere)}`,
+    });
+  }
+  if (casterMayExclude !== undefined && casterMayExclude !== true) {
+    found.push({
+      field: `${path}.casterMayExclude`,
+      code: 'bad_exclusion',
+      reason: 'a caster may exclude areas or the spell prints nothing of it; the only value is true',
+    });
+  }
   // SRD Gust of Wind's "when moving closer to you" is the one narrowing a rate
   // takes, and the caster is the only creature the sentence can name.
   if (onlyTowards !== undefined && onlyTowards !== 'caster') {

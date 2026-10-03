@@ -74,6 +74,7 @@ import {
   type Placement,
   type PositionState,
   type Point,
+  type TerrainRegion,
 } from './positioning.js';
 import {
   type GrantedHealingRule,
@@ -1958,6 +1959,10 @@ export interface PendingCasting {
     readonly anchoring?: PointAnchoring;
     /** The spaces a wall runs through, for the one template the caster draws. */
     readonly path?: readonly Point[];
+    /** Where the ground the casting lays grows — see `TerrainRegion.within`. (E-L2) */
+    readonly within?: readonly TerrainRegion[];
+    /** What the ground the casting lays leaves out — see `TerrainRegion.excluding`. (E-L2) */
+    readonly excluding?: readonly TerrainRegion[];
   };
   /**
    * The damage type the caster stated, where the spell prints a choice.

@@ -211,6 +211,7 @@ describe('SRD Wind Wall: the definition and the record', () => {
       'bars-passage',
       'bars-passage',
       'deflects-projectiles',
+      'keeps-out',
     ]);
     const game = new Game().raiseTheWall();
     expect(game.state.ongoing[game.castingId]?.path).toEqual(WALL_PATH);

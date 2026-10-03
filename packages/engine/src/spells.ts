@@ -722,6 +722,15 @@ export interface OngoingSpell {
    */
   readonly heldOffAgainst?: string;
   /**
+   * The protected flames this casting's area is on, by the name of their patch
+   * of light, sorted — SRD Gust of Wind's lanterns. Derived by the fold
+   * (`windOnFlames`): a flame that joins it is owed one throw, and one that
+   * leaves it and comes back is owed another — the owner's "roll once when the
+   * Line first reaches the flame, and again if the Line is moved onto it
+   * later". (E-L2)
+   */
+  readonly flamesReached?: readonly string[];
+  /**
    * The creature types the caster stated, where the spell prints a choice of
    * several — SRD Magic Circle's "Choose one or more of the following types".
    *
@@ -1336,9 +1345,19 @@ export type AreaMoment = TurnMoment | 'entry' | 'area-moved';
 export interface OwedAreaEffect {
   /** The casting whose area caught them. Never the spell's name. */
   readonly castingId: string;
+  /** The creature caught — or, at `flame-reached`, the name of the patch of light whose flame the area reached. */
   readonly target: string;
-  readonly moment: AreaMoment;
+  readonly moment: OwedMoment;
 }
+
+/**
+ * When a debt was raised: one of the moments an area catches a creature at,
+ * or `flame-reached` — SRD Gust of Wind's Line arriving at a protected flame,
+ * whose one throw is owed exactly as a creature's save is and settled by the
+ * same command. Kept off {@link AreaMoment}, which is the moments a creature
+ * is caught at and is what a trigger is written against. (E-L2)
+ */
+export type OwedMoment = AreaMoment | 'flame-reached';
 
 /**
  * When a casting's area last caught a creature, and how.

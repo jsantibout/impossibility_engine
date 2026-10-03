@@ -2179,11 +2179,18 @@ const DECLARE_LIGHT = tool({
       .describe(
         'The castingId of a running spell that made this light, if one did. The patch stops lighting anything the moment that casting stops running.',
       ),
+    flame: z
+      .enum(['unprotected', 'protected'])
+      .optional()
+      .describe(
+        'Where this light is a flame, which kind: unprotected for a torch, a candle or a campfire, protected for a lantern. A Gust of Wind or a Sleet Storm puts an unprotected flame out, and a Gust gives a protected one a chance to go out that the engine rolls. Leave it out for light that is no flame.',
+      ),
   }),
   run: (context, args) =>
     settleEvents(
       context,
       declareLight(context.campaign.state(), args.patch, {
+        ...(args.flame === undefined ? {} : { flame: args.flame }),
         region: {
           origin: areaPointAt(point(args.at)),
           shape: { kind: 'sphere', radius: args.radius },
@@ -2949,6 +2956,22 @@ const CAST_SPELL = tool({
       .describe(
         'Where the casting’s **other** templates go, for a spell that lays several — SRD Dancing Lights’ "up to four torch-size lights within range": the first light at `at` and lights 2, 3 and 4 here, in that order. Each must be in range, and each within the distance the spell ties them by (20 feet for Dancing Lights) of another. Refused on a spell that lays one.',
       ),
+    exclude: z
+      .array(
+        z.strictObject({
+          at: pointSchema.describe('The middle of the area left out.'),
+          radius: z
+            .number()
+            .finite()
+            .nonnegative()
+            .describe('How far it reaches from there, in feet. 0 is the one space.'),
+        }),
+      )
+      .min(1)
+      .optional()
+      .describe(
+        'The areas the caster leaves out of the spell’s area, for a spell that lets them — SRD Plant Growth’s "You can exclude one or more areas of any size within the spell’s area from being affected". Each is a radius from a point, as `declare_difficult_terrain` takes. Refused on a spell that prints no such sentence.',
+      ),
     towardsCreature: creatureId.optional().describe('Point a Cone, Cube or Line at this creature.'),
     towardsLandmark: z.string().min(1).optional().describe('Point it at this landmark instead.'),
     anchoring: z
@@ -3207,6 +3230,15 @@ const CAST_SPELL = tool({
       ...(args.path === undefined ? {} : { path: args.path.map(point) }),
       // The other templates, where the spell lays several. (E-L2)
       ...(args.alsoAt === undefined ? {} : { alsoAt: args.alsoAt.map(point) }),
+      // The areas the caster leaves out — SRD Plant Growth. (E-L2)
+      ...(args.exclude === undefined
+        ? {}
+        : {
+            exclude: args.exclude.map((one) => ({
+              origin: areaPointAt(point(one.at)),
+              shape: { kind: 'sphere' as const, radius: one.radius },
+            })),
+          }),
       ...(towards.value === undefined ? {} : { towards: towards.value }),
       ...(args.anchoring === undefined ? {} : { anchoring: args.anchoring }),
       ...(args.slotLevel === undefined ? {} : { slotLevel: args.slotLevel }),
@@ -5668,7 +5700,7 @@ const SETTLE_SAVES = tool({
 const SETTLE_AREA_EFFECTS = tool({
   name: 'settle_area_effects',
   description:
-    'Settle what a persistent area — a Grease, a Web — has caught somebody doing. The engine rolls the save, reads the DC off the casting and applies whatever the spell says; you supply nothing but the instruction to do it now. Where the spell lets its caster hold back — Conjure Animals’ "you can force that creature" — name the creatures spared in `spare` and they are let alone, nothing rolled; a spell that says "must" refuses it. A creature its caster cannot see is let alone by a spell that reaches only one its caster can see. Until this is called every other action refuses, including ending the turn, so call it as soon as the state shows any owed.',
+    'Settle what a persistent area — a Grease, a Web — has caught somebody doing, and the chance a Gust of Wind gives a protected flame its Line reaches. The engine rolls the save or the die, reads the DC off the casting and applies whatever the spell says; you supply nothing but the instruction to do it now. Where the spell lets its caster hold back — Conjure Animals’ "you can force that creature" — name the creatures spared in `spare` and they are let alone, nothing rolled; a spell that says "must" refuses it. A creature its caster cannot see is let alone by a spell that reaches only one its caster can see. Until this is called every other action refuses, including ending the turn, so call it as soon as the state shows any owed.',
   mutates: true,
   input: z.object({
     spare: z

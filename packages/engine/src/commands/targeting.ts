@@ -41,6 +41,7 @@ import {
   type Placement,
   type Point,
   type PointAnchoring,
+  type TerrainRegion,
   positionOf,
   snapToSpace,
 } from '../positioning.js';
@@ -355,6 +356,14 @@ export interface CastSpellRequest extends CommandIdentity {
    * See `AreaCopies`. (E-L2)
    */
   readonly alsoAt?: readonly Point[];
+  /**
+   * The areas the caster leaves out of the spell's area — SRD Plant Growth:
+   * "You can exclude one or more areas of any size within the spell's area
+   * from being affected." Pinned onto the ground the casting lays. Refused on
+   * a spell that prints no such sentence. See `AreaTerrain.casterMayExclude`.
+   * (E-L2)
+   */
+  readonly exclude?: readonly TerrainRegion[];
   /**
    * Whether `at` and `towards` name a space or a grid intersection —
    * the vertical edge four spaces share. Defaults to `space`.
