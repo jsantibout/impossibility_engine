@@ -16,8 +16,10 @@ import {
   type Ability,
   type CharacterId,
   type ConditionName,
+  type ContextRequest,
   err,
   type Err,
+  needsContext,
   ok,
   type Result,
   type RollMode,
@@ -47,6 +49,7 @@ import {
 } from '../events.js';
 import {
   apartFrom,
+  distanceBetween,
   lightDispelledBy,
   type Placement,
   type Point,
@@ -79,7 +82,14 @@ import {
   type SlotlessReason,
   validateSpellName,
 } from '../spells.js';
-import { actionRulesOn, armorClassOf, defensesOf, sheetAsItStands, silencedBy } from '../standing.js';
+import {
+  actionRulesOn,
+  armorClassOf,
+  canSee,
+  defensesOf,
+  sheetAsItStands,
+  silencedBy,
+} from '../standing.js';
 import { applyDamageToVitals, concentrationSaveDc, damagePastThreshold } from '../vitals.js';
 import { undeadFortitudeSave } from '../monster.js';
 // The Hide action's source string, read-only, so that `hidingEndedBy` below
@@ -209,10 +219,32 @@ export function triggerRefusal(
       // falls" — so the trigger is anybody's fall and not the caster's, which
       // is why this asks the whole roster rather than one creature the way
       // `damaged-by-creature` does. Who may then be *targeted* is the target
-      // rule's question and `mustBeFalling` answers it; the sixty feet and the
-      // sight are the range and sight checks every casting already makes.
+      // rule's question and `mustBeFalling` answers it.
+      //
+      // **But the trigger itself asks who is looking.** One fall the caster
+      // could be answering opens the window — their own, or one they see
+      // within the reach the casting time prints — and an unseen fall beside
+      // it may then be caught, because the targets' sentence ("Choose up to
+      // five falling creatures within range") says nothing of sight.
       const falling = fallingNow(state);
-      if (falling.length > 0) return null;
+      if (falling.length > 0) {
+        const answers = falling.map((faller) => fallAnswerable(state, casterId, faller, definition));
+        if (answers.some((answer) => answer.ok)) return null;
+        const asks = answers.flatMap((answer) =>
+          !answer.ok && answer.kind === 'needs-context' ? (answer.requests ?? []) : [],
+        );
+        if (asks.length > 0) {
+          return needsContext(
+            'falling_unseen',
+            `${definition.name} answers a fall ${casterId} can see, and nobody has said whether they can see ${falling.filter((who) => who !== casterId).join(', ')}`,
+            asks,
+          );
+        }
+        return err(
+          'no_trigger',
+          `${definition.name} is a Reaction taken when you or a creature you can see within ${triggerReach(definition) ?? 'range'} feet of you falls, and ${casterId} sees no such fall`,
+        );
+      }
 
       // **One code for both halves of "not now", and it is a verdict.** A
       // creature nobody declared falling is not falling — an event the log
@@ -236,6 +268,72 @@ export function triggerRefusal(
       throw new Error(`no trigger rule for ${String(unhandled)}`);
     }
   }
+}
+
+/**
+ * How far from its caster a Reaction spell's trigger reaches, or null where
+ * it prints no distance.
+ *
+ * SRD prints the trigger's reach and the spell's Range as one number every
+ * time it prints both — Feather Fall's "a creature you can see within 60
+ * feet of you" over a Range of 60 feet, Hellish Rebuke's and Counterspell's
+ * the same — so the Range the definition already carries is the number read,
+ * rather than a second field that could come to disagree with it.
+ */
+function triggerReach(definition: SpellDefinition): number | null {
+  return definition.range.kind === 'ranged' ? definition.range.feet : null;
+}
+
+/**
+ * Whether this caster could be answering this fall: SRD Feather Fall's "you or
+ * a creature you can see within 60 feet of you".
+ *
+ * `ok` where they could — their own fall, or one they see within the
+ * trigger's reach; a refusal where the table has said they cannot see it or
+ * it is out of reach; and a `needs-context` where nobody has said whether
+ * they see it, or where either of them stands. **One reader for the offer and
+ * the refusal**: `reactionOpportunities` lists a fall wherever this is not a
+ * refusal, and `triggerRefusal` opens the window wherever it is `ok`.
+ */
+export function fallAnswerable(
+  state: GameState,
+  casterId: CharacterId,
+  faller: CharacterId,
+  definition: SpellDefinition,
+): Result<true> {
+  if (faller === casterId) return ok(true);
+
+  const asks: ContextRequest[] = [];
+  const reach = triggerReach(definition);
+  if (reach !== null) {
+    const away = state.scene === null ? null : distanceBetween(state.scene, casterId, faller);
+    if (away === null || !away.ok) {
+      asks.push({
+        kind: 'position',
+        subject: faller,
+        need: `how far ${faller} is from ${casterId}`,
+        because: `${definition.name} answers a fall within ${reach} feet`,
+        satisfyWith: `a placeCreatureInScene command for ${faller}`,
+      });
+    } else if (away.value > reach) {
+      return err('no_trigger', `${faller} is ${away.value} feet from ${casterId}, beyond ${reach}`);
+    }
+  }
+
+  const seen = canSee(state, casterId, faller);
+  if (seen === false) return err('no_trigger', `${casterId} cannot see ${faller}`);
+  if (seen === null) {
+    asks.push({
+      kind: 'visibility',
+      subject: faller,
+      need: `whether ${casterId} can see ${faller}`,
+      because: `${definition.name} answers a fall its caster can see`,
+      satisfyWith: `a declareSightBetween command from ${casterId} to ${faller}`,
+    });
+  }
+  return asks.length === 0
+    ? ok(true)
+    : needsContext('falling_unseen', `whether ${casterId} sees ${faller} fall is not known`, asks);
 }
 
 /**

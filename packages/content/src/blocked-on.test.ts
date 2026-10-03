@@ -2982,14 +2982,19 @@ describe('a spell with one blocker is the leverage the map is for', () => {
     // `fall-declared` does not ask. Both were read for the first time and
     // both are filed here, so Feather Fall claims the shape again from the
     // executed column.
+    //
+    // **And it leaves for good, in a third step** (E-L2). The sight gate is
+    // built — `fallAnswerable` reads "you or a creature you can see within 60
+    // feet of you" for the casting and the offer alike — and the sixty feet a
+    // round went to the table under the owner's ruling of 2026-09-27, that the
+    // spell reads only whether the landing falls inside its minute. The shape
+    // keeps the claimants that were never this spell's.
     expect(BLOCKED_ON['feather-fall']).toBeUndefined();
     expect(claimedShapes().has('falling')).toBe(true);
     expect(SRD_CONTENT.spell('feather-fall')?.effects).not.toEqual([]);
     expect(TRACKED_ADJUDICATED['feather-fall']).toBeUndefined();
-    expect((ADJUDICATED['feather-fall'] ?? []).map((entry) => entry.why)).toEqual([
-      'falling',
-      'falling',
-    ]);
+    expect(ADJUDICATED['feather-fall']).toBeUndefined();
+    expect(SRD_CONTENT.spell('feather-fall')?.unmodelled ?? []).toEqual([]);
   });
 });
 

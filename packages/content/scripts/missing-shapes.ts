@@ -932,18 +932,11 @@ export const ADJUDICATED: Readonly<Record<string, readonly Adjudication[]>> = {
       note: 'W8-S26 read this line for the first time, and it is this id word for word: "A casting that chooses per creature … is the same gap." The casting states one ability and every target gets Advantage on that one, so an upcast that gives the Rogue Dexterity and the Fighter Strength is refused its second choice.',
     },
   ],
-  'feather-fall': [
-    {
-      clause: 'the rate of descent is not slowed',
-      why: 'falling',
-      note: 'W8-S26 read this line for the first time, and this id’s description says it: "the descent rate is a separate absence — nothing measures a descent, so the sixty feet a round has nothing to be measured against". How long a fall takes decides who can act before it lands.',
-    },
-    {
-      clause: 'goes unchecked, as Counterspell',
-      why: 'falling',
-      note: 'W8-S26 re-read this as a debt. The printed casting time is a Reaction taken when the caster or a creature the caster can see falls, and sight is a declared fact `canSee` reads for every other trigger; the window derived from `fall-declared` does not ask it. The closest id — the trigger half of falling is the one this description says is built, and the sight gate on it is not.',
-    },
-  ],
+  // **Feather Fall files nothing now** (E-L2). The sight gate on its trigger is
+  // built — `fallAnswerable` reads "you or a creature you can see within 60 feet
+  // of you" for the casting and for the offer alike — and the rate of descent is
+  // in its `dmDecides` under the owner's ruling of 2026-09-27, that the spell
+  // reads only whether the landing falls inside its minute.
   'find-steed': [
     {
       clause: 'the controlled-mount rules the steed is ridden under are not applied',

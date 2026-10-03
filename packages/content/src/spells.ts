@@ -2504,19 +2504,16 @@ export const FEAR: SpellDefinition = {
  * > creature lands before the spell ends, the creature takes no damage from
  * > the fall, and the spell ends for that creature."
  *
- * **The spell the whole `falling` shape was named for**, and it is here as a
- * *tracked* definition rather than an executed one, which is the honest split
- * of its three sentences. The first is the engine's: five targets, each of
- * whom must be falling, each within 60 feet, answered as a Reaction at the
- * moment the table declares the fall — a slot, an action-economy cost and a
- * minute on the clock, all of them the engine's to spend and to run out.
+ * **The spell the whole `falling` shape was named for**, and executed whole.
+ * The casting time is the engine's: a Reaction at the moment the table
+ * declares a fall the caster could be answering — their own, or one they see
+ * within the 60 feet — and five targets, each of whom must be falling and
+ * within range. The landing is the engine's too: `fall-ward` takes the damage
+ * away for a creature that lands inside the minute and ends the spell on it.
  *
- * The other two are a descent the engine does not measure and damage it does
- * not deal. The SRD gives the rate ("60 feet per round") and gives the height
- * to the DM, so a landing this engine recognised would be one it had invented
- * the distance for. `TRACKED_ADJUDICATED` records both against the shape,
- * which keeps `falling` on the map for the Monk's Slow Fall and for Reverse
- * Gravity rather than retiring it on the strength of the half that got built.
+ * The rate of descent is the table's, by the owner's ruling of 2026-09-27 that
+ * the spell reads only whether the landing falls inside its minute: the height
+ * is the DM's, and no rule reads how fast the creature came down.
  */
 export const FEATHER_FALL: SpellDefinition = {
   id: 'feather-fall',
@@ -2537,10 +2534,16 @@ export const FEATHER_FALL: SpellDefinition = {
   // the spell on that one and leaves the other four in the air.
   effects: [{ kind: 'fall-ward' }],
   durationSeconds: 60,
-  unmodelled: [
-    'the rate of descent is not slowed: nothing in the engine measures a descent, and the SRD gives the new rate as 60 feet per round against a height only the DM holds',
-    'the trigger’s "a creature you can see" goes unchecked, as Counterspell’s does: the 60 feet is the spell’s Range and is checked, and which falls a caster perceives the engine has never modelled',
-  ],
+  // "when you or a creature you can see within 60 feet of you falls" is read by
+  // the trigger itself now (E-L2): one fall the caster could be answering — their
+  // own, or one they see within the 60 feet — opens the window, and an
+  // undeclared sight line is asked rather than assumed.
+  //
+  // **The descent is the table's, by the owner's ruling of 2026-09-27**: the spell
+  // "reads only whether the landing falls inside the spell's minute", which the
+  // ward on each creature already reads. How fast the creature comes down is a
+  // fact about a height only the DM holds, and no rule reads it afterwards.
+  dmDecides: ["A falling creature's rate of descent slows to 60 feet per round until the spell ends."],
 };
 
 /**

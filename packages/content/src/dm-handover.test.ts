@@ -421,8 +421,13 @@ const supply = () => ({
 });
 
 /** An Action casting, which lands in one breath and writes no pending record. */
-const atomic = (spellId: string, log: readonly GameEvent[] = SETUP) => {
+const atomic = (spellId: string, given: readonly GameEvent[] = SETUP) => {
   const definition = SRD_CONTENT.spell(spellId)!;
+  // **A Reaction is cast at its moment**, and SRD Feather Fall's is a fall: the
+  // cleric is declared falling, which is the one trigger in this population,
+  // and the caster's own fall is one nobody has to see.
+  const log: readonly GameEvent[] =
+    definition.trigger === 'creature-falling' ? [...given, { type: 'fall-declared', id: CLERIC }] : given;
   const cast = unwrap(
     resolveSpell(fold('seed', log), CLERIC, { spellId, ...aimedAt(definition) }, supply()),
     `cast ${spellId}`,
@@ -556,6 +561,12 @@ describe('the catalogue hands over exactly the text it means to', () => {
       // compulsion is adjudicated and never performed: the Action is narrowed
       // to the Dash by the engine and the route is the table's.
       'fear',
+      // **SRD Feather Fall's descent** (E-L2), under the owner's ruling of
+      // 2026-09-27 that the spell reads only whether the landing falls inside
+      // its minute: the sight gate on its trigger is executed, the ward takes the
+      // landing's damage away, and how fast the creature comes down is the
+      // table's.
+      'feather-fall',
       'find-familiar',
       'find-steed',
       'find-traps',
