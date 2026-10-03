@@ -2733,8 +2733,23 @@ const MOVE = tool({
  * one: a swing whose numbers come from two places is a question with two
  * answers.
  */
+/**
+ * SRD Sanctuary's choice, stated up front: a new target, or lose the attack or
+ * spell. A wire shape of its own because both doors that target take it.
+ */
+const ifWardedOf = (
+  given: 'lose' | { readonly target: string } | undefined,
+): { readonly ifWarded: 'lose' | { readonly target: CharacterId } } | Record<string, never> =>
+  given === undefined
+    ? {}
+    : { ifWarded: given === 'lose' ? 'lose' : { target: who(given.target) } };
+
 const ATTACK = tool({
   name: 'attack',
+  // **What the swing does if a ward turns it away is answered by sending this
+  // same call again with `ifWarded` on it**, the way `cast_spell` answers its
+  // own route questions. (E-L1)
+  selfAnswers: ['route'],
   description:
     'Attack with a weapon, or with an attack the creature’s own stat block prints. The engine derives everything: the target’s Armour Class, reach and range, advantage and disadvantage, proficiency, the damage dice, and the target’s defences. You name who swings at whom and with what — a catalogue `weapon`, or an `action` by its printed name, never both.',
   mutates: true,
@@ -2752,6 +2767,12 @@ const ATTACK = tool({
       .optional()
       .describe(
         'An attack this creature’s own stat block prints, by its printed name — a Wolf’s "Bite". Use it instead of `weapon`, never beside it: a Bite is not an item, so no catalogue id names one and an Unarmed Strike is not what the book printed. `look` reports what a creature is; the attack bonus, the reach and the damage dice are read off the line the engine pinned when the creature entered the game, and a name the block does not print is refused.',
+      ),
+    ifWarded: z
+      .union([z.literal('lose'), z.strictObject({ target: creatureId })])
+      .optional()
+      .describe(
+        'What this swing does if the target is warded and the Wisdom save fails — SRD Sanctuary: "either choose a new target or lose the attack". `{ "target": … }` swings at that creature instead, in this call; `"lose"` spends the attack and makes no roll. Asked for only where the target stands behind a ward you have not settled this turn: leave it out and the engine says so before any die is thrown. Never chosen for you.',
       ),
     thrown: z
       .boolean()
@@ -2821,6 +2842,7 @@ const ATTACK = tool({
         {
           target: who(args.target),
           weapon: args.weapon ?? null,
+          ...ifWardedOf(args.ifWarded),
           ...(args.action === undefined ? {} : { action: args.action }),
           ...(args.thrown === true ? { thrown: true } : {}),
           ...(args.twoHanded === true ? { twoHanded: true } : {}),
@@ -2858,6 +2880,11 @@ const ATTACK = tool({
         // Whether the damage is still to come, so a caller knows a debt is
         // open without having to infer it from an absent field.
         held: args.hold === true && value.attack?.hit === true,
+        // A ward turned the swing (SRD Sanctuary), and the spell a cantrip
+        // swing was cast with failed (SRD Slow) — the two ways a call comes
+        // back with no roll that is neither a miss nor a retry. (E-L1)
+        ...(value.warded === true ? { warded: true } : {}),
+        ...(value.fizzled === true ? { fizzled: true } : {}),
         ...(value.damage === undefined ? {} : { damageDealt: value.damage }),
         ...(value.reactions === undefined
           ? {}
@@ -2983,6 +3010,12 @@ const CAST_SPELL = tool({
       .optional()
       .describe(
         'Which branch each creature runs, for the one spell that prints "(choose for each creature)" — Calm Emotions’ Immunity or indifference, chosen goblin by goblin. One entry per creature the casting catches: a caught creature left out is refused, and so is a creature the area did not reach. Refused on any spell that chooses once, where `option` is the word. Cannot be held: a declaration cannot record a choice for creatures it has not caught yet.',
+      ),
+    ifWarded: z
+      .union([z.literal('lose'), z.strictObject({ target: creatureId })])
+      .optional()
+      .describe(
+        'What this casting does if a creature it harms is warded and the Wisdom save fails — SRD Sanctuary: "either choose a new target or lose the attack or spell". `{ "target": … }` casts it at that creature instead, in this call; `"lose"` spends the action and the slot and the spell does nothing. Asked for only where a damaging spell names a creature behind a ward you have not settled this turn; leave it out and the engine says so before any die is thrown. Never chosen for you.',
       ),
     magicalEffect: z
       .string()
@@ -3232,6 +3265,8 @@ const CAST_SPELL = tool({
               args.optionByTarget.map((one) => [who(one.target), one.option]),
             ),
           }),
+      // What the casting does if a ward turns it away. (E-L1)
+      ...ifWardedOf(args.ifWarded),
       // The running casting a dispel is aimed at, by its id. (E-L1)
       ...(args.magicalEffect === undefined ? {} : { magicalEffect: args.magicalEffect }),
       // The same pairs-to-map for the value chosen per creature.

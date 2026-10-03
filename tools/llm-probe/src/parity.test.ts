@@ -151,6 +151,9 @@ const AUDIT: readonly {
       choice: because(
         'the one value a spell asks its caster to pick — Blindness/Deafness’ Blinded or Deafened, Lesser Restoration’s one condition of four, Enhance Ability’s five abilities, Guidance’s eighteen skills. The engine refuses a casting of one of those that names none, so this is required rather than optional the day any of them is castable here; no benchmark character has one prepared',
       ),
+      ifWarded: because(
+        'what the caster or attacker does if a ward turns it away — SRD Sanctuary’s "either choose a new target or lose the attack or spell". A decision the engine asks for (warded_fallback_required) only where the target stands behind a ward, and never a number. No creature in either benchmark casts Sanctuary, so nothing here is ever warded and a published field would never be asked for. packages/tools publishes it on attack and cast_spell',
+      ),
       magicalEffect: because(
         'a running casting a dispel is aimed at instead of a creature — SRD Dispel Magic’s "or magical effect", a Fog Cloud or a Web that runs on nobody. A casting id the engine issued and the caller reads back, never a number the caller produced, and refused unless the casting is running, on no creature and in range. No benchmark caster prepares Dispel Magic, so a published field could only be refused today. `packages/tools` publishes it as `cast_spell.magicalEffect`',
       ),
@@ -246,6 +249,9 @@ const AUDIT: readonly {
     fates: {
       target: expose('target'),
       weapon: expose('weapon'),
+      ifWarded: because(
+        'what the caster or attacker does if a ward turns it away — SRD Sanctuary’s "either choose a new target or lose the attack or spell". A decision the engine asks for (warded_fallback_required) only where the target stands behind a ward, and never a number. No creature in either benchmark casts Sanctuary, so nothing here is ever warded and a published field would never be asked for. packages/tools publishes it on attack and cast_spell',
+      ),
       // The other Tier 2 fix. A Javelin is "Melee or Ranged" and which one it
       // is this time is the attacker's choice; without this the engine
       // measured melee reach and the DM closed to melee instead.

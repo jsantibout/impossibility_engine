@@ -55,6 +55,7 @@ import {
   type GameState,
   type PendingAttack,
 } from '../events.js';
+import type { CommandStamp } from '../state.js';
 import { modifierFor, type CharacterSheet, type StatedAttack } from '../character.js';
 import {
   attacksInAction,
@@ -184,7 +185,7 @@ import {
   enemyWithinFiveFeet,
 } from './rolls.js';
 import { consumedRollModifiers } from '../roll-modifiers.js';
-import { answerTheBlow, wardAgainst, wearTheWeapon } from './passive-defenses.js';
+import { answerTheBlow, wardAgainst, type WardFallback, wardOwed, wearTheWeapon } from './passive-defenses.js';
 
 /**
  * The weapons this creature currently has in hand, as records.
@@ -1373,6 +1374,14 @@ export interface CantripSwingRequest {
 
 export interface AttackCommand extends CommandIdentity {
   readonly target: CharacterId;
+  /**
+   * What this swing does if a ward turns it away — SRD Sanctuary: "either
+   * choose a new target or lose the attack". A new creature to swing at, or
+   * `'lose'`, which spends the swing. Asked (`warded_fallback_required`) only
+   * where the target stands behind a ward this attacker has not settled this
+   * turn; never chosen by the engine. See `WardFallback`. (E-L1)
+   */
+  readonly ifWarded?: WardFallback;
   /** The weapon, by catalogue id, or null for an Unarmed Strike. */
   readonly weapon: string | null;
   /**
@@ -1926,7 +1935,22 @@ export function resolveAttack(
   // like a miss: the same contract `resolveDamage` keeps, for the same reason.
   return once(state, `attack:${id}`, command, () => {
     return { events: [], attack: null, unverified: [], duplicate: true };
-  }, (stamp) => {
+  }, (stamp) => swingAt(state, id, command, supply, stamp));
+}
+
+/**
+ * The body of {@link resolveAttack}, under the identity the wrapper made — and
+ * entered a second time, under the same identity, where SRD Sanctuary turned
+ * the swing away and the attacker had named a new target to turn it on.
+ */
+function swingAt(
+  state: GameState,
+  id: CharacterId,
+  command: AttackCommand,
+  supply: Supply,
+  stamp: CommandStamp | null,
+): Result<AttackResolution> {
+  {
     if (state.pendingAttack !== null) {
       return err(
         'attack_pending',
@@ -2296,27 +2320,65 @@ export function resolveAttack(
     // reason, and both branches below subtract it.
     const issuedBefore = supply.issuer.count;
 
-    const ward = wardAgainst(state, id, command.target, supply);
-    if (!ward.ok) return ward;
-    if (ward.value.barred) {
-      return ok({
-        events: [
-          ...ward.value.events,
+    // **What the attacker does if the ward turns it away**, asked before the
+    // die and never chosen for it — SRD Sanctuary's "either choose a new
+    // target or lose the attack". See `WardFallback`. (E-L1)
+    const fallback = command.ifWarded;
+    if (typeof fallback === 'object') {
+      if (fallback.target === command.target) {
+        return err(
+          'bad_fallback',
+          `${command.target} is the creature the ward stands on; a new target is somebody else`,
+        );
+      }
+      if (creatureOf(state, fallback.target) === null) {
+        return unknownCreature(fallback.target, 'has no record here yet; add it first');
+      }
+    }
+    if (fallback === undefined && wardOwed(state, id, command.target)) {
+      return needsContext(
+        'warded_fallback_required',
+        `${command.target} is warded: if ${id} fails the Wisdom save, the book makes it choose a new target or lose the attack, and the engine will not choose`,
+        [
           {
-            type: 'rolls-issued',
-            count: supply.issuer.count - issuedBefore,
-            rng: supply.rng.snapshot(),
+            kind: 'route',
+            subject: id,
+            need: `what ${id} does if the ward turns the swing away`,
+            because: 'SRD Sanctuary: "either choose a new target or lose the attack or spell"',
+            satisfyWith: 'resolveAttack again with ifWarded: a new target, or "lose"',
           },
         ],
-        // No roll was made, which is what losing the attack means. Not a miss
-        // — `attack` being null with `duplicate` false is the one other way
-        // this command comes back without one, and `warded` says which.
-        attack: null,
+      );
+    }
+
+    const ward = wardAgainst(state, id, command.target, supply);
+    if (!ward.ok) return ward;
+    // "Choose a new target": the same swing, at the creature named, in this
+    // command and under its identity. The new target's own ward, if it has
+    // one, is asked in turn, and a second failure loses the swing.
+    if (ward.value.barred && typeof fallback === 'object') {
+      const turned: GameEvent[] = [
+        ...ward.value.events,
+        { type: 'rolls-issued', count: supply.issuer.count - issuedBefore, rng: supply.rng.snapshot() },
+      ];
+      const next = swingAt(
+        turned.reduce(applyEvent, state),
+        id,
+        { ...command, target: fallback.target, ifWarded: 'lose' },
+        supply,
+        stamp,
+      );
+      if (!next.ok) return next;
+      return ok({
+        ...next.value,
+        events: [...turned, ...next.value.events],
         warded: true,
-        unverified: [...ward.value.unverified],
-        duplicate: false,
+        unverified: [...ward.value.unverified, ...next.value.unverified],
       });
     }
+    // "Lose the attack": the swing is spent below, as any swing is, and no
+    // roll is made. (Owner's ruling of 2026-10-03.)
+    const lostToWard = ward.value.barred;
 
     // — the action it costs —————————————————————————————————————————————————
     //
@@ -2615,6 +2677,24 @@ export function resolveAttack(
     // whether or not there is a fight running.
     if (printed?.recharge !== undefined) {
       events.push({ type: 'printed-line-expended', id, line: printed.name });
+    }
+
+    // **A swing the ward turned away is spent and ends here** — SRD
+    // Sanctuary's "lose the attack". The Action, the swing within it, a
+    // Cleave's or a Light weapon's allowance and a printed line's recharge
+    // have all gone above, exactly as for a swing that missed; no attack roll
+    // is made. (E-L1)
+    if (lostToWard) {
+      return ok({
+        events: [
+          ...events,
+          { type: 'rolls-issued', count: supply.issuer.count - issuedBefore, rng: supply.rng.snapshot() },
+        ],
+        attack: null,
+        warded: true,
+        unverified,
+        duplicate: false,
+      });
     }
 
     // — the roll ———————————————————————————————————————————————————————————
@@ -3444,7 +3524,7 @@ export function resolveAttack(
       unverified: [...unverified, ...hurt.value.unverified, ...mastered.value.unverified],
       duplicate: false,
     });
-  });
+  }
 }
 
 /**

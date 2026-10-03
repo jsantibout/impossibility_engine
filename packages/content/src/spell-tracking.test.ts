@@ -2366,6 +2366,9 @@ describe('every spell this batch added is cast for real', () => {
     // And the fourth, finished by the consent track: a `willing` list to
     // declare into.
     'resistance',
+    // And the price of a ward's failure is the book's since the owner's ruling
+    // of 2026-10-03, stated up front as `ifWarded`. Nothing is left over. (E-L1)
+    'sanctuary',
     // And the last clause of this one was half a sentence: "Creatures that
     // don't sleep, such as elves, **or** that have Immunity to the Exhaustion
     // condition automatically succeed." The Immunity was read off the creature

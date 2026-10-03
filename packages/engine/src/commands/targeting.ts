@@ -78,6 +78,7 @@ import { type ConcentrationConsequence } from './casting.js';
 import { type CastingResolution } from './casting-options.js';
 import { anchorNeeded, creatureOf, sceneFor, unknownCreature } from './command.js';
 import { dyingProblem, walkingBodyProblem } from './spell-effect-creatures.js';
+import type { WardFallback } from './passive-defenses.js';
 
 /** What happened to one target of one casting. */
 export interface SpellTargetOutcome {
@@ -551,6 +552,15 @@ export interface CastSpellRequest extends CommandIdentity {
    * anything is spent. (E-L1)
    */
   readonly magicalEffect?: string;
+  /**
+   * What this casting does if a ward turns it away — SRD Sanctuary: "either
+   * choose a new target or lose the attack or spell". A new creature to cast
+   * it at, or `'lose'`, which spends the action and the slot for nothing.
+   * Asked (`warded_fallback_required`) only where a damaging casting names a
+   * creature behind a ward this caster has not settled this turn; never chosen
+   * by the engine. See `WardFallback`. (E-L1)
+   */
+  readonly ifWarded?: WardFallback;
   /**
    * Which creatures the caster or their allies are fighting.
    *

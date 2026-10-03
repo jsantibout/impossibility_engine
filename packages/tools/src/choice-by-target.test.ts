@@ -98,3 +98,43 @@ describe('cast_spell.choiceByTarget', () => {
     expect((aimed as { readonly code: string }).code).toBe('no_effect_clause');
   });
 });
+
+/**
+ * SRD Sanctuary's choice through the door (E-L1, owner's ruling of 2026-10-03):
+ * `attack.ifWarded` is asked for before any die, answered by the same call,
+ * and a lost swing is reported `warded` with no roll.
+ */
+describe('attack.ifWarded', () => {
+  it('asks for the fallback at a warded creature, and loses the swing on "lose"', () => {
+    const campaign = createCampaign({ content: SRD_CONTENT, seed: 'warded' });
+    const surface = createSurface(campaign);
+    let calls = 0;
+    const call = (tool: string, input: unknown = {}): ToolOutcome =>
+      surface.call({ tool, input, commandId: `toolu_${(calls += 1)}` });
+
+    outcomeOf(call('create_character', { id: 'ada', choices: cleric('Ada') }), 'ok');
+    outcomeOf(call('add_creature', { id: 'grish', monsterId: 'goblin-warrior' }), 'ok');
+    outcomeOf(call('set_scene', { width: 60, depth: 40, height: 20 }), 'ok');
+    outcomeOf(call('add_landmark', { name: 'the door', at: { x: 10, y: 10 } }), 'ok');
+    outcomeOf(call('place_creature', { who: 'ada', fromLandmark: 'the door', feet: 0 }), 'ok');
+    outcomeOf(call('place_creature', { who: 'grish', fromCreature: 'ada', feet: 5, bearing: 90 }), 'ok');
+    outcomeOf(
+      call('cast_spell', { caster: 'ada', spellId: 'sanctuary', targets: ['ada'], slotLevel: 1, payment: 'slot' }),
+      'ok',
+    );
+
+    const asked = outcomeOf(
+      call('attack', { attacker: 'grish', target: 'ada', action: 'Scimitar' }),
+      'needs-context',
+    );
+    expect((asked as { readonly code: string }).code).toBe('warded_fallback_required');
+
+    // Whichever way the goblin's save falls, the call is answered: a swing let
+    // through or a swing lost, never another question.
+    const answered = outcomeOf(
+      call('attack', { attacker: 'grish', target: 'ada', action: 'Scimitar', ifWarded: 'lose' }),
+      'ok',
+    ) as { readonly resolution: Record<string, unknown> };
+    if (answered.resolution['warded'] === true) expect(answered.resolution['hit']).toBeNull();
+  });
+});

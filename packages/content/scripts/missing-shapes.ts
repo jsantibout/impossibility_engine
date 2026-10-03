@@ -1170,22 +1170,14 @@ export const ADJUDICATED: Readonly<Record<string, readonly Adjudication[]>> = {
   // W8-S26. Rope Trick's hanging rope and its portal went the same way, and
   // since W9-S3 it carries none either: the rope pulled up is `drawWayIn`, and
   // the climb is a move to a portal whose height the DM states.
-  sanctuary: [
-    {
-      clause: 'the branch the save buys spends nothing',
-      why: 'a-spell-that-answers-a-later-attack',
-      note: 'W8-S26 re-read this as a debt. SRD: "any creature who targets the warded creature with an attack roll or a damaging spell must succeed on a Wisdom saving throw or either choose a new target or lose the attack or spell." The engine aims nothing on a caller’s behalf, so choosing a new target is a second command — and losing the attack or the spell is a price, which an attacker who takes neither branch never pays: the ward refuses before the action, the slot or the die. The closest id: an ongoing spell that answers somebody else’s attack with nobody taking a Reaction, which is how the ward was built.',
-    },
-    // "if the warded creature makes an attack roll" was filed here as a gap —
-    // `roll-recorded` was an audit line and the ending hung on the swing that
-    // spent something — and is one no longer: the roll's own record says it
-    // was an attack roll (`roll-recorded.attackRoll`) and the ending seam reads
-    // it, so an Opportunity Attack that misses ends the ward where the book
-    // ends it. Removed rather than reworded, because the map holds gaps.
-    // "One save per ward per turn" left the map with W8-S26: it is the
-    // owner's ruling of 2026-09-22 and the engine's rule, not a gap and not
-    // the table's, and the definition's docstring carries it.
-  ],
+  // **Sanctuary has left the map** (E-L1). The owner's ruling of 2026-10-03
+  // reverses that of 2026-09-22: "lose the attack or spell" costs what it says.
+  // The attacker states its fallback before the die (`ifWarded`: a new target,
+  // or lose), a lost attack spends that attack, a lost spell spends the action
+  // and the slot, and a new target is swung at or cast at in the same command.
+  // "One save per ward per turn" stands, and is the engine's rule. The attack
+  // roll the ending reads was taken off this map earlier, by
+  // `roll-recorded.attackRoll`.
   'sleet-storm': [
     {
       clause: 'the exposed flames the sleet douses are not doused',

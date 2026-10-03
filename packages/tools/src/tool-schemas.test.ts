@@ -438,10 +438,13 @@ describe('toolSchemas', () => {
     // object form), +173 each. And `cast_spell.magicalEffect` (SRD Dispel
     // Magic's "or magical effect", a running casting by its id), +501 each.
     // Both together: +4,947 on the player's door and +6,565 on the DM's.
+    // And for E-L1's second part: `attack.ifWarded` and `cast_spell.ifWarded`
+    // (SRD Sanctuary's fallback, owner's ruling of 2026-10-03), +1,358 on each
+    // door.
     expect(toolSchemas(player())).toHaveLength(100);
     expect(toolSchemas(dm())).toHaveLength(134);
-    expect(JSON.stringify(toolSchemas(player())).length).toBe(172500);
-    expect(JSON.stringify(toolSchemas(dm())).length).toBe(233823);
+    expect(JSON.stringify(toolSchemas(player())).length).toBe(173858);
+    expect(JSON.stringify(toolSchemas(dm())).length).toBe(235181);
   });
 });
 

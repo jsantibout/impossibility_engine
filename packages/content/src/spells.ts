@@ -9943,17 +9943,25 @@ export const ICE_KNIFE: SpellDefinition = {
  * The ward is the other half, and the owner's ruling of 2026-09-22 is what
  * made it writable. Two things about it are unlike anything else in the
  * catalogue: the creature who rolls is the one **attacking**, and what a
- * failure costs is the attack itself. The engine aims nothing on a caller's
- * behalf, so it takes neither of the book's two branches for the attacker —
- * the swing is lost, **nothing is spent**, and redirecting is a second
- * command against a creature nobody warded.
+ * failure costs is the attack itself.
+ *
+ * **What a failure costs is the book's** — the owner's ruling of 2026-10-03,
+ * **reversing that of 2026-09-22**, which had the swing lost and nothing
+ * spent. The engine still aims nothing on a caller's behalf, so the attacker
+ * states the branch before the die: `ifWarded` names a new target, or
+ * `'lose'`, and a casting or a swing at a warded creature with neither is
+ * asked (`warded_fallback_required`) before anything is thrown. "Lose the
+ * attack" spends that swing out of the Attack action and makes no roll; "lose
+ * the … spell" spends the action and the slot and the spell ends at once under
+ * the ward (`spell-fizzled`); "choose a new target" swings or casts at the
+ * creature named, in the same command — and a second ward there, failed, loses
+ * it. (E-L1)
  *
  * **Both halves of "an attack roll or a damaging spell" are answered, and at
  * the moment each of them targets.** A weapon swing meets the ward inside
  * `resolveAttack`, before the Attack action; a casting meets it inside
  * `resolveSpell`, with the targets settled and before the slot, the action
- * and the first die. So the price is the same on both paths — nothing —
- * and what the caster does next is theirs.
+ * and the first die.
  *
  * **"This spell doesn't protect the warded creature from areas of effect" is
  * executed, and it costs a guard rather than being free.** Both branches of
@@ -9965,8 +9973,7 @@ export const ICE_KNIFE: SpellDefinition = {
  *
  * The one place this is narrower than the book is deliberate and the owner
  * accepted it: an attacker gets **one save per ward per turn** rather than one
- * per targeting. Without that a failure costs nothing and can be re-declared
- * until it passes, which is the spell undone.
+ * per targeting, which stands beside the 2026-10-03 ruling.
  */
 export const SANCTUARY: SpellDefinition = {
   id: 'sanctuary',
@@ -9997,12 +10004,9 @@ export const SANCTUARY: SpellDefinition = {
     { on: 'target-deals-damage', ends: 'casting' },
   ],
   // One save per ward per turn is the owner's ruling of 2026-09-22 and the
-  // engine's rule, stated in the docstring above; it is not a debt and it is
-  // not the table's, so it left `unmodelled` (W8-S26). What is still owed is
-  // the price of the failure.
-  unmodelled: [
-    'the branch the save buys spends nothing: "choose a new target" is a second swing at a creature nobody warded, because the engine aims nothing on a caller’s behalf — but "lose the attack or spell" is a cost, and an attacker who takes neither branch keeps the attack, the action and the slot the book says are lost',
-  ],
+  // engine's rule, stated in the docstring above. The price of a failure is
+  // the book's since the ruling of 2026-10-03, and the attacker's fallback is
+  // `ifWarded` on the swing or the casting. (E-L1)
 };
 
 /**

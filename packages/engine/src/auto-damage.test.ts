@@ -334,13 +334,15 @@ describe('a dart is harm aimed at a creature the casting named', () => {
       resolveSpell(
         state,
         WIZARD,
-        { spellId: 'magic-missile', targets: [GOBLIN], slotLevel: 1 },
+        { spellId: 'magic-missile', targets: [GOBLIN], slotLevel: 1, ifWarded: 'lose' } as never,
         supply(state, always(1)),
       ),
       'magic missile at a warded creature',
     );
     expect(out.warded).toBe(true);
-    expect(out.castingId).toBeNull();
+    // Lost by the caster's own word (SRD Sanctuary, owner's ruling of
+    // 2026-10-03): cast and gone, and not a dart lands.
+    expect(out.events.some((event) => event.type === 'spell-fizzled')).toBe(true);
     expect(darts(out.events)).toHaveLength(0);
   });
 });

@@ -431,7 +431,10 @@ const SELF_ANSWERED_FIELDS: Readonly<Record<string, readonly string[]>> = {
   // a list rather than a boolean: the engine asks rather than refusing when
   // nobody has said, and the answer is this call again with the creature
   // named.
-  'cast_spell:route': ['willing'],
+  // And SRD Sanctuary's choice on a failed save, asked of both doors that
+  // target: a new target, or lose it (E-L1).
+  'cast_spell:route': ['willing', 'ifWarded'],
+  'attack:route': ['ifWarded'],
   // The second place's way back. SRD Blink's "an unoccupied space of your
   // choice … within 10 feet of the space you vanished from" is a `position`
   // the engine asks for and will not pick, and the three calls that bring a
@@ -1058,6 +1061,9 @@ const ANSWERS: Readonly<Record<string, Answer>> = {
   // SRD Calm Emotions' "(choose for each creature)": one branch per caught
   // creature, answered as a list of pairs on the one door that casts.
   option_by_target_required: { fields: ['cast_spell.optionByTarget'] },
+  // SRD Sanctuary's choice, made by the attacker before the die (E-L1, owner's
+  // ruling of 2026-10-03): a new target, or lose the attack or spell.
+  warded_fallback_required: { fields: ['attack.ifWarded', 'cast_spell.ifWarded'] },
 
   // — and two that are not a caller's to answer at all —————————————————————
   missing_field: {

@@ -272,7 +272,7 @@ import {
 } from './spell-effect-rolls.js';
 import { resolveChanceEffect, thrownAgainst } from './spell-effect-chance.js';
 import { aimsHarmAtATarget } from '../spell-definitions.js';
-import { wardAgainst } from './passive-defenses.js';
+import { wardAgainst, wardOwed } from './passive-defenses.js';
 import { resolveTeleportEffect } from './spell-effect-teleport.js';
 import { bonesUnstated, resolveRaiseEffect, resolveSummonEffect } from './spell-effect-summon.js';
 import { resolveElsewhereEffect } from './elsewhere.js';
@@ -869,7 +869,25 @@ export function castOrRelease(
       outcomes: [],
       unverified: [],
     };
-  }, (stamp) => {
+  }, (stamp) => castingBody(state, casterId, given, supply, held, taking, stored, stamp));
+}
+
+/**
+ * The body of {@link castOrRelease}, under the identity the wrapper made — and
+ * entered a second time, under the same identity, where SRD Sanctuary turned
+ * the casting away and the caster had named a new target to cast it at.
+ */
+function castingBody(
+  state: GameState,
+  casterId: CharacterId,
+  given: CastSpellRequest,
+  supply: Supply,
+  held: HeldCasting | null,
+  taking: { readonly throughLine: string } | undefined,
+  stored: StoredRelease | undefined,
+  stamp: CommandStamp | null,
+): Result<SpellResolution> {
+  {
     // A turn-boundary save outstanding means somebody may or may not still be
     // Paralyzed, and a damage roll or a D20 Test held open is an outcome nobody
     // has settled; casting into either would change the world underneath it.
@@ -2209,7 +2227,39 @@ export function castOrRelease(
     // ward read off the list alone turns a Fireball away from everybody
     // standing in it — which is the sentence the SRD wrote to forbid.
     const wardEvents: GameEvent[] = [];
+    // The ward that turned the casting away where the caster chose to lose it
+    // — SRD Sanctuary's "lose the … spell". See `WardFallback`. (E-L1)
+    let lostToWard: { readonly source: string; readonly label: string } | undefined;
     if (definition.area === undefined && aimsHarmAtATarget(definition.effects)) {
+      // **What the caster does if a ward turns it away**, asked before the die
+      // and never chosen for it: a new target, or "lose". (E-L1, owner's
+      // ruling of 2026-10-03.)
+      const fallback = request.ifWarded;
+      if (typeof fallback === 'object') {
+        if (targets.includes(fallback.target)) {
+          return err(
+            'bad_fallback',
+            `${fallback.target} is already a target of ${definition.name}; a new target is somebody it is not aimed at`,
+          );
+        }
+        if (creatureOf(state, fallback.target) === null) return unknownCreature(fallback.target);
+      }
+      const owed = targets.filter((target) => wardOwed(state, casterId, target));
+      if (fallback === undefined && owed.length > 0) {
+        return needsContext(
+          'warded_fallback_required',
+          `${owed.join(', ')} ${owed.length === 1 ? 'is' : 'are'} warded: if ${casterId} fails the Wisdom save, the book makes it choose a new target or lose the spell, and the engine will not choose`,
+          [
+            {
+              kind: 'route',
+              subject: casterId,
+              need: `what ${casterId} does if the ward turns ${definition.name} away`,
+              because: 'SRD Sanctuary: "either choose a new target or lose the attack or spell"',
+              satisfyWith: 'resolveSpell again with ifWarded: a new target, or "lose"',
+            },
+          ],
+        );
+      }
       const issuedBeforeWards = supply.issuer.count;
       let warded = state;
       for (const target of targets) {
@@ -2228,31 +2278,60 @@ export function castOrRelease(
           count: supply.issuer.count - issuedBeforeWards,
           rng: supply.rng.snapshot(),
         });
-        return ok({
-          events: wardEvents,
-          // Nothing was cast, which is the shape SRD Wind Fan's failed use
-          // already has: the engine could do what it was asked, and what it
-          // was asked came to nothing. See {@link SpellResolution.castingId}.
-          castingId: null,
-          outcomes: [],
-          warded: true,
-          unverified,
-        });
+
+        // "Choose a new target": the same casting at the creature named, in
+        // this command and under its identity. The new target's own ward, if
+        // it has one, is asked in turn, and a second failure loses the spell.
+        if (typeof fallback === 'object') {
+          const next = castingBody(
+            wardEvents.reduce(applyEvent, state),
+            casterId,
+            {
+              ...given,
+              targets: given.targets.map((who) => (who === target ? fallback.target : who)),
+              ifWarded: 'lose',
+            },
+            supply,
+            held,
+            taking,
+            stored,
+            stamp,
+          );
+          if (!next.ok) return next;
+          return ok({
+            ...next.value,
+            events: [...wardEvents, ...next.value.events],
+            warded: true,
+            unverified: [...ward.value.unverified, ...next.value.unverified],
+          });
+        }
+        // "Lose the spell": cast below, the action and the slot spent, and
+        // nothing of it lands. (Owner's ruling of 2026-10-03.)
+        lostToWard = ward.value.by;
+        break;
       }
-      if (supply.issuer.count > issuedBeforeWards) {
-        wardEvents.push({
-          type: 'rolls-issued',
-          count: supply.issuer.count - issuedBeforeWards,
-          rng: supply.rng.snapshot(),
-        });
+      if (lostToWard === undefined) {
+        if (supply.issuer.count > issuedBeforeWards) {
+          wardEvents.push({
+            type: 'rolls-issued',
+            count: supply.issuer.count - issuedBeforeWards,
+            rng: supply.rng.snapshot(),
+          });
+        }
       }
     }
+    // A casting the ward has lost is cast now and not held: there is nothing
+    // to hold open for an answer when the spell has already gone.
+    const { hold: _held, ...unheld } = request;
+    void _held;
+    const proceeding: CastSpellRequest = lostToWard === undefined ? request : unheld;
 
     // The saves the wards took are in front of the casting's own batch. The
     // state handed on is the one before them on purpose: a `roll-recorded`
     // writes nothing, and the ledger slot beside it is read by no rule the
     // resolution below asks.
-    const resolved = resolveOnTargets(state, casterId, caster, definition, request, {
+    const resolved = resolveOnTargets(state, casterId, caster, definition, proceeding, {
+      ...(lostToWard === undefined ? {} : { lostToWard }),
       castLevel,
       route,
       targets,
@@ -2276,8 +2355,12 @@ export function castOrRelease(
       ...(stored === undefined ? {} : { pinnedNumbers: stored.numbers }),
     });
     if (!resolved.ok || wardEvents.length === 0) return resolved;
-    return ok({ ...resolved.value, events: [...wardEvents, ...resolved.value.events] });
-  });
+    return ok({
+      ...resolved.value,
+      events: [...wardEvents, ...resolved.value.events],
+      ...(lostToWard === undefined ? {} : { warded: true as const }),
+    });
+  }
 }
 
 /** SRD: "The Ritual version of a spell takes 10 minutes longer to cast." */
@@ -2848,6 +2931,12 @@ function resolveOnTargets(
     } | null;
     /** The identity the wrapper established, stamped on the casting's event. */
     readonly stamp: CommandStamp | null;
+    /**
+     * The ward that turned this casting away, where the caster chose to lose
+     * the spell — SRD Sanctuary. The casting is made and paid for, and ends at
+     * once under the ward's source. (E-L1)
+     */
+    readonly lostToWard?: { readonly source: string; readonly label: string };
     /** How long it takes and whether it is a Ritual — see `castingOf`. */
     readonly casting: CastingTiming;
     /**
@@ -3718,6 +3807,21 @@ function resolveOnTargets(
   // of the rule that a retry must never look at the world it made.
   events.push(...replacedCastings(state, casterId, definition, targets, request.option));
   events.push(...cast.value);
+
+  // **A casting the ward turned away is lost here** — SRD Sanctuary's "lose
+  // the … spell": the action and the slot are spent above, and the spell ends
+  // at once under the ward, through the door SRD Slow's failure uses, before
+  // a die of its own. (E-L1, owner's ruling of 2026-10-03.)
+  if (context.lostToWard !== undefined) {
+    events.push({
+      type: 'spell-fizzled',
+      castingId,
+      id: casterId,
+      source: context.lostToWard.source,
+      label: context.lostToWard.label,
+    });
+    return ok({ events, castingId, outcomes: [], unverified: [], warded: true });
+  }
 
   // **Whether the casting fails for want of its gestures** — SRD Slow's 25
   // percent — asked here, where the slot and the action are both spent and
