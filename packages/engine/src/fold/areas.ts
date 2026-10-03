@@ -531,6 +531,16 @@ export function holdGasOffWalls(state: GameState): GameState {
     const centre = whole === null ? null : regionAnchor(scene, whole);
     const heldOff: Point[] = [];
     if (centre !== null && walls.length > 0) {
+      // **A cloud centred in a wall's own strip has no far side** of that
+      // wall: every line out of the strip would cross it, and the cloud would
+      // lose a whole half. That wall clears its strip and nothing more, so the
+      // rest of the cloud stands, as the ruling says.
+      const snap = (value: number) => Math.floor(value / 5) * 5;
+      const centreSpace = { x: snap(centre.x), y: snap(centre.y), z: snap(centre.z) };
+      const across = walls.map((one) => ({
+        ...one,
+        crossable: !spaceInRegion(scene, one.region, centreSpace),
+      }));
       const seen = new Set<string>();
       const regions = [whole!, ...laid];
       for (const space of regions.flatMap((region) => spacesInRegion(scene, region))) {
@@ -539,8 +549,10 @@ export function holdGasOffWalls(state: GameState): GameState {
         seen.add(key);
         const middle = { x: space.x + 2.5, y: space.y + 2.5, z: space.z + 2.5 };
         if (
-          walls.some(
-            ({ region }) => spaceInRegion(scene, region, space) || segmentCrossesRegion(scene, region, centre, middle),
+          across.some(
+            ({ region, crossable }) =>
+              spaceInRegion(scene, region, space) ||
+              (crossable && segmentCrossesRegion(scene, region, centre, middle)),
           )
         ) {
           heldOff.push(space);

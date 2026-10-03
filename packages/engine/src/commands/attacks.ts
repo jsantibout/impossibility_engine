@@ -2785,10 +2785,12 @@ export function resolveAttack(
     // target's crosses such an area misses whatever the die shows — the die is
     // thrown and recorded all the same, as it is for an automatic success on a
     // save. A catalogue weapon's ranged attack is an arrow, a bolt or a thrown
-    // dagger, all of them ordinary; a stat block's printed ranged line may be a
-    // Giant's rock, and the line does not say which, so it is reported rather
-    // than ruled on. A spell attack is not a projectile and never reaches
-    // this. The line is read between the centres of the two anchor cubes,
+    // dagger, all of them ordinary; a stat block's printed ranged line is read
+    // as the catalogue weapon it is named after, or else off the projectile
+    // table content holds (`Content.rangedLines`) — a Tail Spike deflected, a
+    // Giant's Boulder or a Hurl Flame let through untouched — and only a line
+    // the table leaves undecided is reported rather than ruled on. A spell
+    // attack is not a projectile and never reaches this. The line is read between the centres of the two anchor cubes,
     // through the one segment test the lattice offers.
     let autoMiss: string | undefined;
     if (state.scene !== null && carry.range !== null) {

@@ -133,6 +133,21 @@ describe('SRD Wind Wall keeps fog and other gases at bay', () => {
     expect(fogAt(log, NEAR_SIDE)).toBe('heavily');
   });
 
+  /**
+   * A cloud centred in the wall's own strip has no far side: the wall clears
+   * its strip and both halves of the cloud stand.
+   */
+  it('clears only the strip of a cloud centred on the wall, and leaves both halves standing', () => {
+    const log = [...SETUP];
+    wall(log);
+    cast(log, MAGE, { spellId: 'fog-cloud', targets: [], at: IN_THE_WALL, slotLevel: 1 });
+
+    expect(fogAt(log, IN_THE_WALL)).toBeNull();
+    expect(fogAt(log, NEAR_SIDE)).toBe('heavily');
+    expect(fogAt(log, at(200, 225))).toBe('heavily');
+    expect(fogAt(log, BEHIND)).toBe('heavily');
+  });
+
   it('gives the cloud its strip back when the wall goes', () => {
     const log = [...SETUP];
     const windWall = wall(log);
