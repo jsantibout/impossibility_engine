@@ -141,14 +141,14 @@ describe('an area picks its own targets', () => {
   });
 
   /** SRD Fireball: "a point you choose within range". Nothing defaults it. */
-  it('refuses to centre a Sphere nowhere', () => {
+  it('will not centre a Sphere nowhere, and asks for the point', () => {
     const result = resolveSpell(
       base(),
       WIZARD,
       { spellId: 'fireball', targets: [], slotLevel: 3 },
       supply('a', -40),
     );
-    expect(isErr(result)).toBe(true);
+    expect(isNeedsContext(result)).toBe(true);
     if (isErr(result)) expect(result.code).toBe('no_origin');
   });
 
@@ -164,14 +164,14 @@ describe('an area picks its own targets', () => {
     if (isErr(result)) expect(result.code).toBe('area_starts_at_caster');
   });
 
-  it('refuses a Cone with no direction to point in', () => {
+  it('asks for the direction of a Cone with none to point in', () => {
     const result = resolveSpell(
       base(),
       WIZARD,
       { spellId: 'burning-hands', targets: [], slotLevel: 1 },
       supply('a', -40),
     );
-    expect(isErr(result)).toBe(true);
+    expect(isNeedsContext(result)).toBe(true);
     if (isErr(result)) expect(result.code).toBe('no_direction');
   });
 
@@ -623,14 +623,14 @@ describe('targets chosen from inside an area', () => {
   });
 
   /** Nothing defaults the point, exactly as for a Fireball. */
-  it('refuses to centre the Sphere nowhere', () => {
+  it('will not centre the Sphere nowhere, and asks for the point', () => {
     const result = resolveSpell(
       ready(),
       WIZARD,
       { spellId: 'mass-cure-wounds', targets: [NEAR], slotLevel: 5 },
       supply('none', 0),
     );
-    expect(isErr(result)).toBe(true);
+    expect(isNeedsContext(result)).toBe(true);
     if (isErr(result)) expect(result.code).toBe('no_origin');
   });
 });
