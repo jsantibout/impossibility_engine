@@ -11248,6 +11248,14 @@ export const SHAPECHANGE: SpellDefinition = {
  * applying the owner's ruling, 2026-10-03. Those named take the burn beside
  * the wearer and no save; unstated, the wearer alone touches it.
  *
+ * **A thing its holder dropped is touching nothing.** It lies in the room as
+ * an item on the floor, not a declared object, so a later Bonus Action aimed
+ * at the creature that let it go is refused (`not_equipped`) and no contact
+ * can be stated on it. That is the reading this spell has had since `drops`
+ * was built (`heat-metal.test.ts`), and it is a reading: the book's "deal
+ * this damage again" would reach a creature that picked the hot mace up off
+ * the floor without wielding it.
+ *
  * **"Manufactured metal" is a mark in the data** (`targets.metal`): every SRD
  * weapon and armour row says whether it is metal, read off the SRD's own
  * crafting tools (`items.ts`), and every substance in the Object Armor Class

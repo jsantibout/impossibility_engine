@@ -933,14 +933,15 @@ export interface CreatureState {
    */
   readonly falling: FallMoment | null;
   /**
-   * Who the table last said is touching this declared object, and when — SRD
-   * Heat Metal's "any creature in physical contact with the object". (E-L1)
+   * Who the table last said is touching this declared object — or, on a
+   * creature, who else is touching a thing it wears or wields (`item`) — and
+   * when: SRD Heat Metal's "any creature in physical contact with the object".
+   * (E-L1)
    *
    * Beside `falling` for `falling`'s reason: a touch is **momentary**, worth
    * the turn and the clock it was said at and closed by them with no event
    * (`contactNow`). Null on everything nobody has said it of, which is every
-   * creature and every log written before this field — so both frozen
-   * fixtures fold unchanged.
+   * log written before this field — so both frozen fixtures fold unchanged.
    */
   readonly contact: ContactMoment | null;
   /**
@@ -1559,7 +1560,8 @@ export interface LastDamage {
 }
 
 /**
- * Who is touching a declared object, and the moment it was said. See
+ * Who is touching a declared object, or the other hands on a thing a creature
+ * wears or wields (`item`), and the moment it was said. See
  * {@link CreatureState.contact}; read back by `contactNow`, on
  * {@link FallMoment}'s rule. (E-L1)
  */

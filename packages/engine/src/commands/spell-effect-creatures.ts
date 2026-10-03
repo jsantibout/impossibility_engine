@@ -532,8 +532,9 @@ export function metalProblem(
  * asked about, with the room's kind of question, because the 2d8 would
  * otherwise fall on somebody nobody named. Asked on both paths, the cast's
  * pre-flight and a later use, for {@link objectHeldProblem}'s reason. The
- * answer is each declared object's touchers; a target that is a creature is
- * not in it, and runs as it always did.
+ * answer is each declared object's touchers. A target that is a creature is
+ * not asked about: the holder touches what it wears or wields by the rule,
+ * and other hands on it are burned only where the DM has named them.
  */
 export function contactProblem(
   state: GameState,

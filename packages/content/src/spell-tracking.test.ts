@@ -1973,8 +1973,9 @@ describe('every spell this batch added is cast for real', () => {
     // half: the failed Constitution save lets go of the object, "if it can" is
     // `handsFor`, and the Disadvantage is the `orElse` that runs only where it
     // could not be. The object is an equipped item, the Bonus Action deals the
-    // same damage again through the record, and what is left is an object
-    // nobody is wearing or wielding.
+    // same damage again through the record, and the object nobody is wearing or
+    // wielding left too (E-L1): a declared object, and every hand on it the
+    // DM's to state.
     'heat-metal',
     // **Hex leaves by the rider on later blows and a mark that moves.** Its
     // four sentences were four different absences and none of them is one

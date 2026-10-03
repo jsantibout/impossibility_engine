@@ -5783,8 +5783,11 @@ export interface TargetRule {
    * the clock as a fall is; a casting or a later use with no such statement
    * current asks for it, before a die and before a slot. A clause about
    * holding the object — a `drops` rider — reaches nobody this way, because
-   * nobody holds what is lying in the room. Aimed at a creature the spell runs
-   * as it always did. (E-L1, the owner's answer of 2026-10-03)
+   * nobody holds what is lying in the room. Aimed at a creature, the spell
+   * runs on it as it always did, and the other hands the DM has named on the
+   * thing `CastSpellRequest.object` names (`declareContact` with an item) take
+   * the same list, less its `drops`, beside it; unstated, the holder alone
+   * touches it. (E-L1, the owner's answer of 2026-10-03)
    */
   readonly inContact?: true;
   /**
