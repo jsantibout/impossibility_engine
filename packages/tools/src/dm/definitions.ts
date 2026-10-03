@@ -95,6 +95,7 @@ import {
   damageTakenIn,
   declareCreatureHeads,
   declareDamageType,
+  declareBones,
   declareObject,
   declareWayInHeight,
   forcePrintedSave,
@@ -1755,6 +1756,41 @@ const DECLARE_OBJECT = tool({
 });
 
 /**
+ * A pile of bones lying in the room, or gone from it — SRD Animate Dead's "a
+ * pile of bones".
+ *
+ * On this surface alone for `declare_object`'s reason: what is lying on the
+ * floor is the DM's to say, and a model that could lay bones wherever its
+ * necromancer pointed would be writing the world it then raises Skeletons out
+ * of. It carries no number — a name and a placement — and the engine reads it:
+ * a Skeleton rises only where a pile lies, and takes the pile with it.
+ */
+const DECLARE_BONES = tool({
+  name: 'declare_bones',
+  description:
+    'Say that a pile of bones lies in the room, or that it no longer does. Animate Dead raises a Skeleton only out of a pile you have laid here, and the pile goes with the Skeleton; a casting pointed at a space where you have laid none comes back asking. Name the pile and say where it lies, measured from a landmark or a creature like every other space; leave `where` out to take the pile away.',
+  mutates: true,
+  establishes: ['scene'],
+  input: z.strictObject({
+    name: z.string().min(1).describe('What to call the pile: "the ossuary heap", "bones by the altar".'),
+    where: placementSchema
+      .optional()
+      .describe('Where it lies. Leave it out to say the pile is gone.'),
+  }),
+  run: (context, args) =>
+    settleEvents(
+      context,
+      declareBones(
+        context.campaign.state(),
+        args.name,
+        args.where === undefined ? null : placementOf(args.where),
+        identity(context),
+      ),
+      { declared: args.name, ...(args.where === undefined ? { cleared: true } : {}) },
+    ),
+});
+
+/**
  * How high a casting's way in hangs — SRD Rope Trick's rope, W9-S3.
  *
  * "One end of it hovers upward until the rope hangs perpendicular to the
@@ -2471,14 +2507,14 @@ const MOVE_PRINTED_LINE = tool({
 const TRIGGER_GLYPH = tool({
   name: 'trigger_glyph',
   description:
-    'Say that a glyph’s trigger has occurred — the footfall, the opened book, the spoken word its caster set when inscribing it. Name the casting; for an explosive rune the engine measures the 20-foot Sphere from where the glyph was drawn, rolls one Dexterity save per creature standing in it, deals the rune’s dice at the slot it was inscribed with and of the type its caster chose, and ends the spell, because a triggered glyph is spent. You state no number, and for a rune no creature: who is in the Sphere is the scene’s to say. A glyph that stores a spell is the one case you name a creature — `by`, whoever set it off — and the stored spell takes effect on them (or centred on them, for an area) with nothing more spent. A casting that is not a glyph, or one that has already fired, is refused; so is `by` on a rune, and a spell glyph without it.',
+    'Say that a glyph’s trigger has occurred — the footfall, the opened book, the spoken word its caster set when inscribing it. Name the casting; for an explosive rune the engine measures the 20-foot Sphere from where the glyph was drawn, rolls one Dexterity save per creature standing in it, deals the rune’s dice at the slot it was inscribed with and of the type its caster chose, and ends the spell, because a triggered glyph is spent. You state no number, and for a rune no creature: who is in the Sphere is the scene’s to say. A glyph that stores a spell is one case you name a creature — `by`, whoever set it off — and the stored spell takes effect on them (or centred on them, for an area) with nothing more spent. A glyph its caster refined to creatures of certain types is the other: name who set it off in `by`, and the engine refuses one whose type, as spells see it, is not among them; a refined rune still catches whoever stands in the Sphere. A casting that is not a glyph, or one that has already fired, is refused; so is `by` on an unrefined rune, and a spell glyph or a refined glyph without it.',
   mutates: true,
   input: z.strictObject({
     castingId: z.string().min(1).describe('The inscribed casting, as `look` lists it under the ongoing spells.'),
     by: creatureId
       .optional()
       .describe(
-        'The creature that set off a glyph storing a spell — SRD: "If the spell has a target, it targets the creature that triggered the glyph. If the spell affects an area, the area is centered on that creature." Required for a spell glyph and refused for an explosive rune.',
+        'The creature that set off a glyph storing a spell — SRD: "If the spell has a target, it targets the creature that triggered the glyph. If the spell affects an area, the area is centered on that creature." — or a glyph refined to "only creatures of certain types". Required for either, and refused for an unrefined explosive rune.',
       ),
   }),
   run: (context, args) =>
@@ -2720,6 +2756,7 @@ export const DM_ONLY_TOOLS: readonly ToolDefinition[] = [
   TAKE_LEGENDARY_ACTION,
   AWARD_COIN,
   AWARD_ITEMS,
+  DECLARE_BONES,
   DECLARE_DAMAGE_TYPE,
   DECLARE_HEADS,
   DECLARE_OBJECT,

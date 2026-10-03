@@ -186,9 +186,10 @@ describe('toolSchemas', () => {
     // `declare_wind` and `declare_ending`, the room's weather and the table's
     // word that a printed cause happened. And one on each for W9-S3,
     // `draw_rope`, and one more on the DM's alone, `declare_portal_height`.
+    // And one on the DM's alone for E-L3, `declare_bones`.
     // And one on each for E-L2, `expose_to_fire`.
     expect(toolSchemas(player())).toHaveLength(101);
-    expect(toolSchemas(dm())).toHaveLength(134);
+    expect(toolSchemas(dm())).toHaveLength(135);
     // Re-pinned 2026-09-24 for the printed-lines track, which opened one door
     // on the DM's surface alone: `teleport_printed_line` takes the teleport a
     // stat block prints, at the distance the block prints, to a space the DM
@@ -420,17 +421,28 @@ describe('toolSchemas', () => {
     // the catch can be read before the cast with the arguments the cast will
     // carry, +1,253 each; and `ability_check.tool` on the DM's alone, +509. No
     // tool added: +2,182 on the player's door and +2,691 on the DM's.
+    // And for E-L3, the last level-5 spells' creatures and lasting magic. On
+    // both doors: `cast_spell.rider` (SRD Phantom Steed's chosen rider) and
+    // `cast_spell.hitDice` (SRD Prayer of Healing's Short Rest), with
+    // `bonesAt` and `types` saying what now reads them, +1,590;
+    // `command_summons.also` and `.order` (SRD Animate Dead's order, one
+    // Bonus Action for every creature given it), +871; and
+    // `settle_area_effects.spare` (SRD Conjure Animals' "you can force"), +824.
+    // On the DM's alone: `declare_bones` (a pile of bones in the room, a new
+    // door), +1,291 and its separator, and `trigger_glyph` saying who sets off
+    // a refined glyph, +326. 133 → 134 tools on the DM's door; +3,285 bytes on
+    // the player's and +4,903 on the DM's.
     // And for E-L2: `cast_spell.alsoAt` (SRD Dancing Lights' lights 2 to 4,
     // placed where the caster names) and `activate_spell.alsoTo` (the Bonus
     // Action moving them by number) on both doors. No tool added: +1,532 bytes
     // on each. And `expose_to_fire` on both doors — the table's word that a
     // Cube of SRD Web met fire, which the engine then burns for the round the
-    // spell prints. 100 → 101 tools on the player's door and 133 → 134 on the
-    // DM's; +1,187 bytes on each.
+    // spell prints. One more tool on each door (100 → 101 on the player's, and
+    // 134 → 135 on the DM's after E-L3); +1,187 bytes on each.
     expect(toolSchemas(player())).toHaveLength(101);
-    expect(toolSchemas(dm())).toHaveLength(134);
-    expect(JSON.stringify(toolSchemas(player())).length).toBe(170272);
-    expect(JSON.stringify(toolSchemas(dm())).length).toBe(229977);
+    expect(toolSchemas(dm())).toHaveLength(135);
+    expect(JSON.stringify(toolSchemas(player())).length).toBe(173557);
+    expect(JSON.stringify(toolSchemas(dm())).length).toBe(234880);
   });
 });
 

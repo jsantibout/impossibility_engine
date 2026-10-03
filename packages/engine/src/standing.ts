@@ -59,6 +59,7 @@ import {
   distanceBetween,
   distanceToPoint,
   lightAt,
+  mountOf,
   obscurementAt,
   piercesObscurement,
   positionOf,
@@ -5024,12 +5025,49 @@ export function actionRulesOn(
           }),
     });
   }
+  const controlled = controlledMountRule(state, creature);
+  if (controlled !== null) derived.push(controlled);
   if (derived.length === 0) return creature.actionRules;
 
   derived.sort((a, b) =>
     actionRuleKey(a.source, a.rule).localeCompare(actionRuleKey(b.source, b.rule)),
   );
   return [...creature.actionRules, ...derived];
+}
+
+/**
+ * The three actions a controlled mount is left, while it is one.
+ *
+ * > SRD Find Steed: "it functions as a controlled mount while you ride it (as
+ * > defined in the rules on mounted combat). If you have the Incapacitated
+ * > condition, the steed takes its turn immediately after yours and acts
+ * > independently".
+ * > SRD Mounted Combat: "It moves as you direct it, and it has only three
+ * > action options: Dash, Disengage, and Dodge."
+ *
+ * **Derived, never hung.** Whether the steed is a controlled mount is a
+ * reading of three facts the state already holds — the bond's pinned sentence
+ * (`KeptBond.controlledMount`), who sits on the steed, and whether that rider
+ * is Incapacitated — so it is answered at every read, as an aura is, and ends
+ * the moment any of the three stops holding with nothing to lift. Only the
+ * summoner's riding makes it one: the book says "while **you** ride it", and a
+ * squire on the paladin's horse is riding a creature that acts on its own.
+ * Where it moves is the rider's to direct and the table's to say; this is the
+ * half that is arithmetic.
+ */
+function controlledMountRule(state: GameState, steed: CreatureState): GrantedActionRule | null {
+  const bond = steed.summonedBy;
+  if (bond == null || bond.kept?.controlledMount !== true) return null;
+  const scene = state.scene;
+  if (scene === null || mountOf(scene, bond.by) !== steed.id) return null;
+  const rider = state.creatures[bond.by];
+  if (rider === undefined || isIncapacitated(rider.conditions)) return null;
+  return {
+    source: `${bond.kept.spell}#controlled-mount`,
+    rule: { kind: 'permits-only', slot: 'action', actions: ['dash', 'disengage', 'dodge'] },
+    label: 'a controlled mount',
+    until: `${bond.by} dismounts`,
+  };
 }
 
 /**

@@ -120,15 +120,23 @@ export function undeadForbiddenProblem(state: GameState, target: CharacterId, na
 export function reviveProblem(
   state: GameState,
   target: CharacterId,
-  within: number,
+  effect: EffectOfKind<'revive'>,
   name: string,
 ): Result<true> {
+  const { within } = effect;
   const victim = state.creatures[target];
   // A creature the casting cannot find is targeting's refusal, not this one.
   if (victim === undefined) return ok(true);
 
   if (!victim.vitals.dead) {
     return err('not_dead', `${name} raises the dead, and ${target} is alive`);
+  }
+
+  // SRD Revivify: "This spell can't revive a creature that has died of old
+  // age". The DM's ruling on how the creature died, pinned on the death; a
+  // revival that prints no such refusal reads nothing about it.
+  if (effect.notOfOldAge === true && victim.vitals.diedOfOldAge === true) {
+    return err('died_of_old_age', `${name} can't revive a creature that has died of old age, and ${target} did`);
   }
 
   // **A body something walks about in is not a corpse to touch** — see
@@ -189,7 +197,7 @@ export function resolveReviveEffect(
 ): Result<GameState> {
   const { name, events, outcomes } = ctx;
 
-  const allowed = reviveProblem(world, target, effect.within, name);
+  const allowed = reviveProblem(world, target, effect, name);
   if (!allowed.ok) return allowed;
 
   const before = world.creatures[target]?.vitals.hp ?? 0;

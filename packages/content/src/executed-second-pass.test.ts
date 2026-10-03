@@ -372,13 +372,16 @@ describe('Prayer of Healing is the first executed rite of ten minutes', () => {
     expect(state.creatures.ally!.vitals.hp).toBeGreaterThan(20);
   });
 
-  /** And the Short Rest it also confers is the table's, said out loud. */
-  it('tells the table about the Short Rest it does not confer', () => {
+  /**
+   * And the Short Rest it also confers is conferred (E-L3): the
+   * `rest-benefits` effect, before the healing, and nothing about the rite is
+   * left owing — `prayer-of-healing.test.ts` drives the pools, the Hit Point
+   * Dice, the range for the whole rite and the Long Rest's mark.
+   */
+  it('confers the Short Rest it prints, and owes nothing', () => {
     const definition = SRD_CONTENT.spell('prayer-of-healing')!;
-    const rest = (definition.unmodelled ?? []).filter((note) =>
-      note.includes('the benefits of a Short Rest are not conferred'),
-    );
-    expect(rest).toHaveLength(1);
+    expect(definition.effects.map((effect) => effect.kind)).toEqual(['rest-benefits', 'heal']);
+    expect(definition.unmodelled ?? []).toEqual([]);
   });
 });
 

@@ -52,6 +52,7 @@ import {
   closeHealedWounds,
   endEarlyEndedConditions,
   endTriggeredCastings,
+  markStrayedTargets,
   endTriggeredEffects,
   dispelMovedLight,
   isEndingsEvent,
@@ -406,8 +407,14 @@ function applyEventUnder(state: GameState, event: GameEvent, legacy: Content | n
                   endEarlyEndedConditions(
                     endTriggeredEffects(
                       endTriggeredCastings(
+                        // A rite's targets drifting out of its range, marked
+                        // before anything below can end the rite and take its
+                        // declaration with it — SRD Prayer of Healing. See
+                        // `markStrayedTargets`.
+                        markStrayedTargets(
                         breakLostConcentration(
                           recordCommand(interruptedRests(applied, event), event),
+                        ),
                         ),
                         event,
                       ),

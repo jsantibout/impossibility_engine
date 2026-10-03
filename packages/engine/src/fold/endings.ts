@@ -711,6 +711,48 @@ export function applyEndings({ next }: Applying, event: EndingsEvent): GameState
   return next;
 }
 
+/**
+ * A rite's targets that have strayed out of its range, marked as it happens.
+ *
+ * > SRD Prayer of Healing: "Up to five creatures of your choice who **remain
+ * > within range for the spell's entire casting**".
+ *
+ * **A drift measured during the rite rather than at its end**, so it is read
+ * after every event rather than off a settlement that could only see where
+ * everybody finished: a creature that walked off and came back did not remain.
+ * Every declaration that pinned a range (`PendingCasting.stayWithin`) has each
+ * of its targets measured from its caster through the one ruler every distance
+ * uses; one farther than the range is added to `strayed` and stays there.
+ * Whoever moved — the target walking off and the caster walking away are one
+ * fact, two creatures drifting apart. A pair nobody can measure, because one
+ * of them is unplaced, has not strayed: the withholding direction
+ * `separatedBeyond` takes for the same question about a running casting.
+ *
+ * **Derived and writing nothing**, for the reason every pass in this chain is:
+ * nobody decides that the ally walked out of the prayer. Cheap first: a log
+ * holding no such declaration returns before anything is measured.
+ */
+export function markStrayedTargets(state: GameState): GameState {
+  const watching = Object.values(state.pendingCastings).filter((pending) => pending.stayWithin !== undefined);
+  if (watching.length === 0 || state.scene === null) return state;
+
+  let pendingCastings = state.pendingCastings;
+  for (const pending of watching) {
+    const already = new Set<string>(pending.strayed ?? []);
+    const strayed = pending.targets.filter((target) => {
+      if (already.has(target) || target === pending.caster) return false;
+      const apart = apartFrom(state, pending.caster, target);
+      return apart !== null && apart > pending.stayWithin!;
+    });
+    if (strayed.length === 0) continue;
+    pendingCastings = {
+      ...pendingCastings,
+      [pending.castingId]: { ...pending, strayed: [...already, ...strayed].sort() as CharacterId[] },
+    };
+  }
+  return pendingCastings === state.pendingCastings ? state : { ...state, pendingCastings };
+}
+
 export function endTriggeredCastings(state: GameState, event: GameEvent): GameState {
   const facts = endingFactsOf(state, event);
   if (facts.length === 0) return state;

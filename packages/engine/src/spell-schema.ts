@@ -4305,6 +4305,19 @@ function checkEffect(
      * before anybody looks at it, which is the `ends_nothing` defect one kind
      * along.
      */
+    // SRD Prayer of Healing's "the benefits of a Short Rest": the one rest an
+    // effect prints, and the word is the whole of it.
+    case 'rest-benefits': {
+      if ((effect.rest as unknown) !== 'short') {
+        found.push({
+          field: `${path}.rest`,
+          code: 'unknown_rest',
+          reason: `an effect gives the benefits of a Short Rest, and "${String(effect.rest)}" is not one`,
+        });
+      }
+      return;
+    }
+
     case 'revive': {
       if (!Number.isInteger(effect.within) || effect.within < 1) {
         found.push({
@@ -4318,6 +4331,14 @@ function checkEffect(
           field: `${path}.hitPoints`,
           code: 'bad_revival',
           reason: `a creature comes back at a whole number of hit points, at least one; got ${String(effect.hitPoints)}`,
+        });
+      }
+      // A refusal the book prints or does not: written as `true`, or absent.
+      if (effect.notOfOldAge !== undefined && (effect.notOfOldAge as unknown) !== true) {
+        found.push({
+          field: `${path}.notOfOldAge`,
+          code: 'bad_old_age_clause',
+          reason: `a revival that refuses a death of old age says so with true; got ${String(effect.notOfOldAge)}`,
         });
       }
       return;
@@ -4860,6 +4881,27 @@ function checkEffect(
           reason: 'a casting that only reasserts control reaches a whole number of creatures, at least one; SRD Animate Dead prints "up to four"',
         });
       }
+      // SRD Animate Dead's order: "a Bonus Action … if the creature is within
+      // 60 feet of you" — the one price the book prints, and feet on the lattice.
+      const commandedWith = (effect as { readonly commandedWith?: unknown }).commandedWith;
+      if (commandedWith !== undefined) {
+        const { costs, within } = (commandedWith ?? {}) as { costs?: unknown; within?: unknown };
+        if (
+          typeof commandedWith !== 'object' ||
+          commandedWith === null ||
+          costs !== 'bonus-action' ||
+          !Number.isInteger(within) ||
+          (within as number) <= 0 ||
+          (within as number) % 5 !== 0
+        ) {
+          found.push({
+            field: `${path}.commandedWith`,
+            code: 'bad_summon_command',
+            reason:
+              'an order a caster gives a creature it controls costs a Bonus Action — the one price the book prints — and reaches a positive whole number of feet on the 5-foot lattice',
+          });
+        }
+      }
       return;
     }
 
@@ -4902,6 +4944,35 @@ function checkEffect(
       }
       checkKeptSummons(effect.kept, `${path}.kept`, found);
       checkPrintedSummonSpeeds(effect.speeds, `${path}.speeds`, found);
+      // SRD Phantom Steed's "you or a creature you choose can ride the steed":
+      // one reading, written once.
+      const riddenBy = (effect as { riddenBy?: unknown }).riddenBy;
+      if (riddenBy !== undefined && riddenBy !== 'caster-or-chosen') {
+        found.push({
+          field: `${path}.riddenBy`,
+          code: 'malformed_field',
+          reason: 'who may ride a summons is written as "caster-or-chosen" — the caster and the creature they choose — or not at all',
+        });
+      }
+      // And its minute to dismount: a whole number of seconds a creature
+      // outlasts the casting holding it, so only on a summons a casting holds.
+      const fadesOver = (effect as { fadesOver?: unknown }).fadesOver;
+      if (fadesOver !== undefined) {
+        if (!Number.isInteger(fadesOver) || (fadesOver as number) <= 0) {
+          found.push({
+            field: `${path}.fadesOver`,
+            code: 'bad_fade',
+            reason: 'a summons fades over a positive whole number of seconds after its casting ends',
+          });
+        }
+        if (effect.kept !== undefined) {
+          found.push({
+            field: `${path}.fadesOver`,
+            code: 'bad_fade',
+            reason: 'a kept summons is held by no casting, so there is no ending for it to fade after',
+          });
+        }
+      }
       const cannotAttack = (effect as { cannotAttack?: unknown }).cannotAttack;
       if (cannotAttack !== undefined && cannotAttack !== true) {
         found.push({
@@ -7333,13 +7404,25 @@ export function checkSpellDefinition(
         });
       }
     }
+    // "You can refine the trigger": the one word that lets a casting name none.
+    const orNone = (definition.typesStated as { readonly orNone?: unknown } | null)?.orNone;
+    if (orNone !== undefined && orNone !== true) {
+      found.push({
+        field: 'typesStated.orNone',
+        code: 'malformed_field',
+        reason: 'a choice of types the caster may leave unmade says so with true, or says nothing',
+      });
+    }
     const clauses = [
       ...(Array.isArray(definition.areaStanding) ? definition.areaStanding : []),
       ...Object.values(definition.options ?? {}).flatMap((branch) =>
         Array.isArray(branch?.areaStanding) ? branch.areaStanding : [],
       ),
     ];
-    if (!clauses.some((clause) => JSON.stringify(clause).includes('"stated"'))) {
+    // SRD Glyph of Warding: the list reaches the trigger rather than an area
+    // clause — "only creatures of certain types activate it".
+    const refinesTrigger = definition.triggered?.onlyStatedTypes === true;
+    if (!refinesTrigger && !clauses.some((clause) => JSON.stringify(clause).includes('"stated"'))) {
       found.push({
         field: 'typesStated',
         code: 'stated_types_reach_nothing',
@@ -7424,6 +7507,22 @@ export function checkSpellDefinition(
           field: 'triggered.storesSpell',
           code: 'malformed_field',
           reason: 'a rune either offers to store a spell in its place or says nothing; the only value is true',
+        });
+      }
+      // SRD Glyph of Warding's refinement reads the types the caster states,
+      // so a spell printing it must offer the statement.
+      const only = (definition.triggered as { readonly onlyStatedTypes?: unknown }).onlyStatedTypes;
+      if (only !== undefined && only !== true) {
+        found.push({
+          field: 'triggered.onlyStatedTypes',
+          code: 'malformed_field',
+          reason: 'a trigger refined to stated types says so with true, or says nothing',
+        });
+      } else if (only === true && definition.typesStated === undefined) {
+        found.push({
+          field: 'triggered.onlyStatedTypes',
+          code: 'refines_to_nothing',
+          reason: 'a trigger refined to the types the caster states needs `typesStated` for the caster to state them',
         });
       }
     }
@@ -8200,6 +8299,25 @@ export function checkSpellDefinition(
   // that already runs until dispelled has no deadline for a higher slot to
   // take, and an Instantaneous one leaves no casting for a higher slot to
   // leave running.
+  // SRD Arcanist's Magic Aura's thirty days: a run of whole days long enough
+  // for a casting to carry on, over a span of seconds the run lengthens.
+  if (definition.untilDispelledAfterDays !== undefined) {
+    const days = definition.untilDispelledAfterDays;
+    if (!Number.isInteger(days) || days < 2) {
+      found.push({
+        field: 'untilDispelledAfterDays',
+        code: 'bad_daily_run',
+        reason: `a run of daily castings is a whole number of days, at least two; got ${String(days)}`,
+      });
+    }
+    if (definition.durationSeconds === undefined || definition.untilDispelled === true) {
+      found.push({
+        field: 'untilDispelledAfterDays',
+        code: 'bad_daily_run',
+        reason: 'a run of daily castings lengthens a span of seconds; this spell prints none for it to lengthen',
+      });
+    }
+  }
   if (definition.untilDispelledAtSlot !== undefined) {
     const from = definition.untilDispelledAtSlot;
     if (!Number.isInteger(from) || from < 1 || from > 9) {
@@ -8326,9 +8444,12 @@ export function checkSpellDefinition(
   }
 
   // SRD hangs the check on the casting's own timer, so a spell with no
-  // duration leaves nothing standing there to be examined.
+  // duration leaves nothing standing there to be examined. A casting that lasts
+  // until dispelled is standing there for good — SRD Glyph of Warding's "nearly
+  // imperceptible" glyph — and its check rides on the deadline that never
+  // arrives.
   if (definition.check !== undefined) {
-    if (!lasts) {
+    if (!lasts && definition.untilDispelled !== true) {
       found.push({
         field: 'check',
         code: 'check_without_duration',
@@ -8405,6 +8526,7 @@ export function checkSpellDefinition(
 
   checkSummonTargets(definition, found);
   checkControlledAdmission(definition, found);
+  checkRiteTargetRules(definition, found);
   checkKeptBesideADuration(definition, found);
   checkChanceTargets(definition, found);
   checkWeaponAttack(definition, found);
@@ -9870,6 +9992,19 @@ function checkPointMeasuredTrigger(
   area: SpellArea | undefined,
   found: SpellDefinitionProblem[],
 ): void {
+  // SRD Conjure Animals' "a creature you can see" and "you can force": two
+  // words the book prints or does not.
+  for (const field of ['onlyWhomCasterSees', 'casterMayDecline'] as const) {
+    const said = (trigger as unknown as Readonly<Record<string, unknown>>)[field];
+    if (said !== undefined && said !== true) {
+      found.push({
+        field: `areaTrigger.${field}`,
+        code: 'malformed_field',
+        reason: 'a trigger either prints this word or does not; the only value is true',
+      });
+    }
+  }
+
   const onPoint = (trigger as { readonly onPointEntry?: unknown }).onPointEntry;
   if (onPoint !== undefined) {
     if (onPoint !== true) {
@@ -10268,6 +10403,16 @@ function checkKeptSummons(kept: unknown, path: string, found: SpellDefinitionPro
       field: `${path}.leavesBehind`,
       code: 'malformed_field',
       reason: 'a spell either prints that its creature leaves behind what it was wearing or carrying, or does not; the only value is true',
+    });
+  }
+  // SRD Find Steed's "it functions as a controlled mount while you ride it":
+  // printed or not.
+  const controlled = (kept as { readonly controlledMount?: unknown }).controlledMount;
+  if (controlled !== undefined && controlled !== true) {
+    found.push({
+      field: `${path}.controlledMount`,
+      code: 'malformed_field',
+      reason: 'a spell either prints that its creature is a controlled mount while its summoner rides it, or does not; the only value is true',
     });
   }
   // SRD Find Familiar's pocket dimension: one number, how far from the
@@ -10789,6 +10934,37 @@ function checkRaisePlacement(
 }
 
 /**
+ * SRD Prayer of Healing's two target sentences: "who remain within range for
+ * the spell's entire casting" and "can't be affected by this spell again until
+ * that creature finishes a Long Rest". Each is printed or not; the first needs
+ * a rite to remain through and a range to remain within, because an Action has
+ * no "entire casting" and a Touch no feet the fold could measure.
+ */
+function checkRiteTargetRules(definition: SpellDefinition, found: SpellDefinitionProblem[]): void {
+  for (const field of ['remainInRange', 'onceUntilLongRest'] as const) {
+    const said = (definition.targets as unknown as Readonly<Record<string, unknown>>)[field];
+    if (said !== undefined && said !== true) {
+      found.push({
+        field: `targets.${field}`,
+        code: 'malformed_field',
+        reason: 'a target rule either prints this sentence or does not; the only value is true',
+      });
+    }
+  }
+  if (
+    definition.targets.remainInRange === true &&
+    (definition.castingTime !== 'long' || definition.range.kind !== 'ranged')
+  ) {
+    found.push({
+      field: 'targets.remainInRange',
+      code: 'nothing_to_remain_through',
+      reason:
+        'remaining within range for the whole casting needs a casting of a minute or more and a range in feet; this spell has no rite to remain through or no feet to remain within',
+    });
+  }
+}
+
+/**
  * `TargetRule.orControlled` admits a creature the caster controls **through
  * this spell**, and only a `raise` writes such a bond — so a definition that
  * prints the admission and raises nothing has written an admission nobody can
@@ -11067,6 +11243,7 @@ export const EFFECT_KINDS: ReadonlySet<string> = new Set([
   'buff',
   'heal',
   'revive',
+  'rest-benefits',
   'stabilise',
   'preserves',
   'attack-damage',

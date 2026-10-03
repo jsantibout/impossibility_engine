@@ -1257,11 +1257,11 @@ describe('reading four families found blockers the bare lists had missed', () =>
     // the definition's own notes. **Animate Dead's row was spent a second
     // time by being built**: the corpse is a named target (`mustBeDead`, a
     // type, and the one two-size rule in the book), the bones are stated
-    // points, and what survives in its notes is the half no reading could
-    // build — that a pile of bones lies where the caster points. W8-S26 filed
-    // that half as the debt it is: a fact only the table holds, which the
-    // raising reads.
-    ['animate-dead', 'unmodelled', 'whether any bones lie there'],
+    // points, and W8-S26 filed the half no reading could build — that a pile
+    // of bones lies where the caster points — as the debt it is. **E-L3 spent
+    // it a third time, and its row is gone**: the pile is a fact the DM lays
+    // in the room (`declareBones`), the raising reads it and asks where none
+    // was said, so nothing of the reading is left but the vocabulary.
     ['create-undead', 'unmodelled', 'selects corpses rather than creatures'],
     ['secret-chest', 'unmodelled', 'the Ethereal Plane they go to is a second place'],
     ['secret-chest', 'unmodelled', 'nor does it end on a recasting'],
@@ -2326,9 +2326,12 @@ describe('the fought fact is a second build that corrected the query', () => {
     // read** (W8-S26): that bones lie where Animate Dead is pointed, that
     // plants grow where Plant Growth's overgrowth is laid, and that a corpse
     // died of old age. Each is the table's fact and each is read — a raising,
-    // a patch of terrain, a revival refused — and none has a field yet.
+    // a patch of terrain, a revival refused. **E-L3 gave two of them a field**:
+    // the bones are a pile the DM lays (`declareBones`) and the old age is the
+    // DM's ruling on the death (`creature-died.oldAge`), so Animate Dead and
+    // Revivify left the way Call Lightning did.
     expect(fact.undefined).toEqual([]);
-    expect(fact.executed).toEqual(['animate-dead', 'plant-growth', 'revivify']);
+    expect(fact.executed).toEqual(['plant-growth']);
     expect(fact.tracked).toEqual(['scrying']);
   });
 });
@@ -2439,12 +2442,11 @@ describe('a consumer count is a query', () => {
     for (const id of ['glyph-of-warding']) {
       expect(BLOCKED_ON[id]).toBeUndefined();
       expect(TRACKED_ADJUDICATED[id]).toBeUndefined();
-      // W9-S2: the breaking is the table's word now, and the notice check
-      // is filed to the id W8-S26's note said it wanted.
-      expect(ADJUDICATED[id]?.map((e) => e.why)).toEqual([
-        'a-creature-type-predicate-an-area-reads',
-        'a-check-a-casting-with-no-deadline-offers',
-      ]);
+      // W9-S2: the breaking is the table's word now. E-L3 built the other
+      // two: the refinement is the caster's optional `types`, read by the
+      // trigger, and the notice check rides on the deadline that never
+      // arrives — so the executed map holds nothing for it at all.
+      expect(ADJUDICATED[id]).toBeUndefined();
       expect(SRD_CONTENT.spell(id)?.triggered?.storesSpell).toBe(true);
       expect(
         (SRD_CONTENT.spell(id)?.unmodelled ?? []).some((line) => line.includes('casts another spell')),
@@ -2797,7 +2799,12 @@ describe('a consumer count is a query', () => {
       // **And W9-S3 retired the second place** — Magic Circle's crossing and
       // Rope Trick's rope were its last claimants — so the trigger shape
       // stands in this band alone.
+      //
+      // **And E-L3 widened it to two by a build**: SRD Prayer of Healing's
+      // range for the whole rite is a fold pass now, so the trigger shape lost
+      // a consumer and fell level with the wall-and-templates shape.
       'a-casting-ended-by-a-trigger',
+      'a-wall-or-several-templates-in-one-area',
     ]);
     // **Moved from 20 to 15 by the third catalogue pass, and the total fell
     // further than the tracked column rose.** Twelve undefined spells named
@@ -2911,12 +2918,12 @@ describe('a spell with one blocker is the leverage the map is for', () => {
     // why it is still claimed: what changed is which population owes it and
     // by how much, rather than whether it is owed. W8-S26 read the old age
     // as the debt it is — a table fact the revival reads — rather than the
-    // table's.
+    // table's, and E-L3 built it: the DM's ruling on the death carries it
+    // (`creature-died.oldAge`) and `revive.notOfOldAge` refuses on it. The
+    // body parts are the one sentence's fiction, handed over whole.
     expect(BLOCKED_ON['revivify']).toBeUndefined();
     expect(TRACKED_ADJUDICATED['revivify']).toBeUndefined();
-    expect(ADJUDICATED['revivify']?.map((entry) => entry.why)).toEqual([
-      'a-fact-only-the-table-can-declare',
-    ]);
+    expect((ADJUDICATED['revivify'] ?? []).filter((entry) => entry.why !== 'table')).toEqual([]);
     expect(claimedShapes().has('healing-that-raises-the-dead')).toBe(true);
 
     // Built: the printed half of the amount shape exists, so Heal executes and

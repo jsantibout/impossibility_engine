@@ -1182,6 +1182,16 @@ export type GameEvent =
        */
       readonly controlled?: ControlledBond;
       /**
+       * Who alone may ride it — see `SummonBond.riders`. SRD Phantom Steed's
+       * "you or a creature you choose". Absent is anybody willing.
+       */
+      readonly riders?: readonly CharacterId[];
+      /**
+       * Seconds it outlasts the casting holding it — see `SummonBond.fades`.
+       * SRD Phantom Steed's minute to dismount. Only beside `castingId`.
+       */
+      readonly fades?: number;
+      /**
        * The body the creature was raised out of, where that body keeps its
        * record — see `CreatureState.raisedFrom`. SRD Animate Dead's Zombie
        * from a player character's corpse. Absent for every other summons,
@@ -1994,10 +2004,30 @@ export type GameEvent =
    * these: a healthy creature taking exactly its maximum in damage drops to 0,
    * it does not die.
    */
+  /**
+   * A spell has affected a creature it may not affect again until the
+   * creature finishes a Long Rest — SRD Prayer of Healing. The spell's id,
+   * pinned so the target rule reads the creature and no book; see
+   * `CreatureState.untilLongRest`. Written by the casting that affected it.
+   */
+  | {
+      readonly type: 'marked-until-long-rest';
+      readonly id: CharacterId;
+      readonly spell: string;
+      readonly command?: CommandStamp;
+    }
   | {
       readonly type: 'creature-died';
       readonly id: CharacterId;
       readonly cause: string;
+      /**
+       * That the death was of old age — the one cause a rule reads, so it is
+       * a field rather than words in {@link cause}. SRD Revivify: "This spell
+       * can't revive a creature that has died of old age." See
+       * `Vitals.diedOfOldAge`. Absent is any other death, which is what every
+       * log written before it says.
+       */
+      readonly oldAge?: true;
       readonly command?: CommandStamp;
     }
   /**
@@ -3108,6 +3138,18 @@ export type GameEvent =
       readonly type: 'landmark-added';
       readonly name: string;
       readonly at: { x: number; y: number; z: number };
+      readonly command?: CommandStamp;
+    }
+  /**
+   * A pile of bones laid in the room by the table's word, or taken out of it —
+   * SRD Animate Dead's "a pile of bones". `at` is the space it lies in, or null
+   * where it is gone: the table clearing it, or a Skeleton raised out of it.
+   * See `PositionState.bones`.
+   */
+  | {
+      readonly type: 'bones-declared';
+      readonly name: string;
+      readonly at: { x: number; y: number; z: number } | null;
       readonly command?: CommandStamp;
     }
   | {

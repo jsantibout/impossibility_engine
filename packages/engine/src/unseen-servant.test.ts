@@ -275,6 +275,21 @@ describe('commanding the servant', () => {
   });
 
   /**
+   * E-L3: the two words SRD Animate Dead's order brought are a controlled
+   * creature's and not a servant's. A servant a casting holds is commanded to
+   * move and to handle an object, one at a time — so an order for its own
+   * turn, and others given it together, are refused rather than dropped.
+   */
+  it('refuses a servant an order for its own turn, and others commanded with it', () => {
+    const { log, servant } = inTheFight();
+    const before = state(log);
+    const ordered = commandSummons(before, WIZ, { who: servant, order: 'guard the door' }, supply('order'));
+    expect(isErr(ordered) && ordered.code).toBe('not_an_order');
+    const together = commandSummons(before, WIZ, { who: servant, also: [WIZ] }, supply('order'));
+    expect(isErr(together) && together.code).toBe('one_at_a_time');
+  });
+
+  /**
    * E-DOWN: the fifteen feet are the spell's rather than a Speed of the
    * servant's, but the move is still the servant's own — so a net that holds
    * it at a Speed of 0 holds it, and nothing moves.

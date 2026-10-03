@@ -158,6 +158,7 @@
     "EndingsEvent",
     "isEndingsEvent",
     "applyEndings",
+    "markStrayedTargets",
     "endTriggeredCastings",
     "endEarlyEndedConditions",
     "closeHealedWounds",

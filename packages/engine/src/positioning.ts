@@ -133,6 +133,16 @@ export interface PositionState {
    */
   readonly away: Readonly<Record<string, AwayMark>>;
   /**
+   * The piles of bones the table has said lie in the room, by name — SRD
+   * Animate Dead: "Choose a pile of bones or a corpse". A corpse is a creature
+   * the engine holds; a pile of bones is not, and whether one lies somewhere is
+   * a fact about the room only the table can state (`declareBones`). The
+   * raising reads it — a Skeleton rises only where a pile lies — and takes the
+   * pile away when it does. Absent is a room nobody has said holds any, which
+   * is every scene written before the field existed.
+   */
+  readonly bones?: Readonly<Record<string, Point>>;
+  /**
    * What is lying on the floor, keyed by the copy's own record.
    *
    * The third population in the room, beside the creatures and the landmarks,
@@ -353,6 +363,44 @@ const within = (extent: SceneExtent, p: Point): boolean =>
  * Landmarks are placed by coordinate because laying out a room is map-making,
  * not creature placement. Creatures then anchor to them.
  */
+/**
+ * A pile of bones laid in the room, or taken out of it — see
+ * {@link PositionState.bones}. The point is snapped to its space, as a
+ * landmark's is, and must fit inside the scene; `null` takes the pile away,
+ * and taking away a pile nobody laid changes nothing.
+ */
+export function declareBonesAt(
+  state: PositionState,
+  name: string,
+  at: Point | null,
+): Result<PositionState> {
+  if (at === null) {
+    if (state.bones?.[name] === undefined) return ok(state);
+    const { [name]: _gone, ...rest } = state.bones;
+    void _gone;
+    return ok({ ...state, bones: rest });
+  }
+  const on = snapPoint(at);
+  if (!within(state.extent, on)) {
+    return err('outside_scene', `${name} does not fit inside this scene`);
+  }
+  return ok({ ...state, bones: { ...(state.bones ?? {}), [name]: on } });
+}
+
+/**
+ * The pile of bones lying in the space this point is in, by name, or null.
+ * Sorted by name, so two piles laid in one space answer the same one every
+ * time.
+ */
+export function bonesInSpace(state: PositionState, point: Point): string | null {
+  const space = snapPoint(point);
+  for (const name of Object.keys(state.bones ?? {}).sort()) {
+    const pile = state.bones![name]!;
+    if (pile.x === space.x && pile.y === space.y && pile.z === space.z) return name;
+  }
+  return null;
+}
+
 export function addLandmark(
   state: PositionState,
   name: string,

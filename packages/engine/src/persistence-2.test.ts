@@ -529,6 +529,12 @@ const UNCOVERED_EVENT_TYPES: readonly string[] = [
   // withering it brings, the turn refused while it is owed; the incubus
   // becoming a succubus at a Long Rest's end with its gear kept, and back.
   'block-deadline-set',
+  // A pile of bones laid in the room by the table's word, or gone from it —
+  // SRD Animate Dead, E-L3. Neither log lays a pile, so both scenes fold with
+  // no `bones` at all. `animate-dead-bones-and-orders.test.ts` folds it and
+  // drives it: the Skeleton raised out of a pile and the pile taken with it,
+  // the space nobody said holds bones asked about, a pile cleared mid-rite.
+  'bones-declared',
   // A slot of somebody's turn a spell used up. Neither log was written when a
   // spell could reach the action economy at all — `ActionRule` did not exist,
   // and the sentences that spend another creature's budget were refused by
@@ -853,6 +859,13 @@ const UNCOVERED_EVENT_TYPES: readonly string[] = [
   // Darkness, the Devil's Sight that pierces it, the patch gone the read
   // after its casting ends, and the Fog Cloud a Rogue Hides in.
   'light-declared',
+  // A spell's mark that it may not affect a creature again until the creature
+  // finishes a Long Rest — SRD Prayer of Healing, E-L3. Neither log casts
+  // Prayer of Healing, so both fold to the states they always did with the
+  // field absent on every creature. `prayer-of-healing.test.ts` folds it and
+  // drives it: the mark on whoever was affected, the second prayer refused,
+  // a Long Rest taking it away and a Short Rest not.
+  'marked-until-long-rest',
   // Feet a feature handed a turn, spent out of no Speed at all. Neither log
   // was written when a feature could hand one over: `FeatureGrant` had no
   // movement member at all, and `combat.ts` said in as many words why movement
