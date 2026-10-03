@@ -421,11 +421,13 @@ describe('toolSchemas', () => {
     // tool added: +2,182 on the player's door and +2,691 on the DM's.
     // And for E-L1: `cast_spell.choiceByTarget` (SRD Enhance Ability's "a
     // different ability for each target") and a sentence on `cast_spell.choice`
-    // pointing at it, on both doors, +988 each.
+    // pointing at it, on both doors, +988 each. And `cast_spell.object` says
+    // Remove Curse takes it or not, and only a cursed item (SRD Remove Curse's
+    // object form), +173 each.
     expect(toolSchemas(player())).toHaveLength(100);
     expect(toolSchemas(dm())).toHaveLength(133);
-    expect(JSON.stringify(toolSchemas(player())).length).toBe(168541);
-    expect(JSON.stringify(toolSchemas(dm())).length).toBe(228246);
+    expect(JSON.stringify(toolSchemas(player())).length).toBe(168714);
+    expect(JSON.stringify(toolSchemas(dm())).length).toBe(228419);
   });
 });
 

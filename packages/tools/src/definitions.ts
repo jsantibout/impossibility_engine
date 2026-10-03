@@ -3026,7 +3026,7 @@ const CAST_SPELL = tool({
       .min(1)
       .optional()
       .describe(
-        'Which object a spell aimed at a thing rather than at its holder was pointed at, by the item id `sheet` lists — Remove Curse’s "the spell breaks its owner’s Attunement to the object", Heat Metal’s "Choose a manufactured metal object". One thing out of whatever the target is wearing or wielding, and the engine will not pick it: a creature carrying three things has three answers. Leaving it out for such a spell is refused, and so is naming one for a spell that does nothing to an object, or one the target does not have. Not the wand doing the casting, which is `item`, and not a weapon a spell imbues, which is `weapon`.',
+        'Which object a spell aimed at a thing rather than at its holder was pointed at, by the item id `sheet` lists — Heat Metal’s "Choose a manufactured metal object", Mending’s break. One thing out of whatever the target is wearing or wielding, and the engine will not pick it: a creature carrying three things has three answers. Leaving it out for such a spell is refused, and so is naming one for a spell that does nothing to an object, or one the target does not have. Remove Curse takes it or not: name a cursed magic item the target is attuned to and only that Attunement breaks ("its curse remains"); leave it out and every curse on the creature ends; an item that carries no curse is refused. Not the wand doing the casting, which is `item`, and not a weapon a spell imbues, which is `weapon`.',
       ),
     form: z
       .string()
