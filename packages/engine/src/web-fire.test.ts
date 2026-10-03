@@ -163,6 +163,37 @@ describe('SRD Web: "Any 5-foot Cube of webs exposed to fire burns away in 1 roun
     expect(obscurementAt(burnt, UNTOUCHED).degree).toBe('lightly');
   });
 
+  /**
+   * "in 1 round" is a whole one, wherever in the round the fire starts: set
+   * alight on the last turn of a round, the Cube still burns when the goblin's
+   * next turn begins, and is gone when the order comes back to the turn it
+   * was lit on.
+   */
+  it('burns for a whole round when it is lit on the last turn of one', () => {
+    const log: GameEvent[] = [...ROOM];
+    const spun = unwrap(
+      resolveSpell(
+        fold('tinder', log),
+        WEAVER,
+        { spellId: 'web', targets: [], at: WEB_AT, towards: WEB_TOWARDS, slotLevel: 2 },
+        supply(fold('tinder', log)),
+      ),
+      'the web',
+    );
+    log.push(...spun.events);
+    turn(log, -40); // the goblin's turn
+    turn(log); // the ogre's turn, the last of the round
+    log.push(...unwrap(exposeToFire(fold('tinder', log), SRD_CONTENT, spun.castingId!, BURNING), 'the torch'));
+
+    turn(log); // the round wraps: the weaver's turn
+    const goblins = turn(log); // the goblin's next turn begins in the fire
+    expect(fireDamageTo(goblins, GOBLIN)).toBeGreaterThan(0);
+    expect(terrainAt(fold('tinder', log), BURNING).costPerFoot).toBe(2);
+
+    turn(log); // the ogre's next turn: the round is out
+    expect(terrainAt(fold('tinder', log), BURNING).costPerFoot).toBe(1);
+  });
+
   it('burns nobody once the Cube has burned away', () => {
     const { log } = alight();
     turn(log, -40);

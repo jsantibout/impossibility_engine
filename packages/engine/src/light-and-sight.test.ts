@@ -668,6 +668,24 @@ describe('a casting lays what its spell prints', () => {
      * case where the scan actually runs and finds nothing, rather than being
      * skipped because there was no candidate to look for.
      */
+    /**
+     * "If any of **this spell's area** overlaps": Daylight's area is its
+     * Sphere, and the Dim Light it sheds sixty feet past it is light, not the
+     * area — so a Darkness standing in the ring alone is not dispelled, and the
+     * answer is the same whichever of the two came first. (E-L2, on review)
+     */
+    it('leaves a darkness in the dim ring alone, whichever came first', () => {
+      const RING = { x: 300, y: 240, z: 0 };
+      const CORE = { x: 300, y: 360, z: 0 };
+      const castingsOf = (log: readonly GameEvent[]) => Object.keys(fold('light', log, SRD_CONTENT).ongoing);
+
+      const lightFirst = cast(cast(room(['daylight', 'darkness'], [2, 3]), 'daylight', CORE, 3), 'darkness', RING, 2);
+      expect(castingsOf(lightFirst)).toHaveLength(2);
+
+      const darkFirst = cast(cast(room(['daylight', 'darkness'], [2, 3]), 'darkness', RING, 2), 'daylight', CORE, 3);
+      expect(castingsOf(darkFirst)).toHaveLength(2);
+    });
+
     it('leaves a darkness the light does not reach', () => {
       const dark = cast(
         room(['daylight', 'darkness'], [2, 3]),

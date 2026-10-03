@@ -213,10 +213,6 @@ export function applyOngoing({ state, next, legacy }: Applying, event: OngoingEv
       };
     }
 
-    // SRD Dancing Lights' other lights, moved by the Bonus Action: the list as
-    // it now stands. A casting that never laid copies cannot have moved any,
-    // and a list of another length is a log and a set of rules that disagree.
-    // (E-L2)
     // SRD Web's Cube set alight: added to the record's burning Cubes, which
     // the turn boundary reads for the fire and the fold's own pass burns away
     // when the deadline arrives. (E-L2)
@@ -245,6 +241,10 @@ export function applyOngoing({ state, next, legacy }: Applying, event: OngoingEv
       };
     }
 
+    // SRD Dancing Lights' other lights, moved by the Bonus Action: the list as
+    // it now stands. A casting that never laid copies cannot have moved any,
+    // and a list of another length is a log and a set of rules that disagree.
+    // (E-L2)
     case 'spell-copies-moved': {
       const record = state.ongoing[event.castingId];
       if (record === undefined) {

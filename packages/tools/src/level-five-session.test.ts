@@ -1705,6 +1705,18 @@ describe('a level 5 party plays a session', () => {
     // session casts owe nothing — rather than because nothing was counted.
     const castings = t.sent.filter((one) => one.tool === 'cast_spell' && one.outcome.status === 'ok');
     expect(castings.length).toBeGreaterThan(0);
+    // **And the two readers still see a debt when there is one**, so the
+    // empty agreement above is not a blind census agreeing with a blind count.
+    // A spell in reach that still owes — SRD Gust of Wind's flames — reported
+    // the way a casting reports it, read by the census as a debt and counted
+    // by the ledger as the same clause.
+    const gust = SRD_CONTENT.spell('gust-of-wind')!;
+    const owed = clausesCounted('gust-of-wind').map((clause) => `${gust.name}: ${clause}`);
+    expect(owed.length).toBeGreaterThan(0);
+    const seen = clausesIn([
+      { tool: 'cast_spell', input: { spellId: 'gust-of-wind' }, outcome: { status: 'ok', unverified: owed } },
+    ] as never);
+    expect(seen.filter((one) => one.kind === 'debt').map((one) => one.line)).toEqual(owed);
   });
 
   it('replays byte-identically from the same seed', () => {

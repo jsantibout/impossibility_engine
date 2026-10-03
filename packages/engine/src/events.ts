@@ -2337,31 +2337,6 @@ export type GameEvent =
       readonly command?: CommandStamp;
     }
   /**
-   * The point an ongoing spell holds is now somewhere else.
-   *
-   * SRD Spiritual Weapon: "you can move the force up to 20 feet". Resolved
-   * history, not intent — by the time this is written the caster has spent the
-   * Bonus Action that moved it and the engine has checked the twenty feet.
-   *
-   * It carries the destination rather than an offset so that folding the log
-   * reconstructs the point without doing arithmetic, and no `by`: only the
-   * caster may move it and the ongoing record already names them.
-   *
-   * Its own event rather than a field on `spell-activated`, because the move
-   * is optional and the activation is not — one event, one thing. The command
-   * stamp therefore rides on `spell-activated`, which always happens.
-   */
-  /**
-   * A casting's other templates moved — SRD Dancing Lights' "As a Bonus
-   * Action, you can move the lights up to 60 feet to a space within range",
-   * lights 2 to 4. (E-L2)
-   *
-   * The whole list as it now stands, in the order the caster numbered them, so
-   * folding the log reconstructs every light without arithmetic: the command
-   * has already checked the sixty feet, the Range and the twenty feet that tie
-   * them. Light 1 is the casting's own point and moves by `spell-origin-moved`.
-   */
-  /**
    * A Cube of a casting's area set alight — SRD Web: "Any 5-foot Cube of webs
    * exposed to fire burns away in 1 round, dealing 2d4 Fire damage to any
    * creature that starts its turn in the fire." (E-L2)
@@ -2380,11 +2355,36 @@ export type GameEvent =
       readonly damageType: string;
       readonly command?: CommandStamp;
     }
+  /**
+   * A casting's other templates moved — SRD Dancing Lights' "As a Bonus
+   * Action, you can move the lights up to 60 feet to a space within range",
+   * lights 2 to 4. (E-L2)
+   *
+   * The whole list as it now stands, in the order the caster numbered them, so
+   * folding the log reconstructs every light without arithmetic: the command
+   * has already checked the sixty feet, the Range and the twenty feet that tie
+   * them. Light 1 is the casting's own point and moves by `spell-origin-moved`.
+   */
   | {
       readonly type: 'spell-copies-moved';
       readonly castingId: string;
       readonly copies: readonly Point[];
     }
+  /**
+   * The point an ongoing spell holds is now somewhere else.
+   *
+   * SRD Spiritual Weapon: "you can move the force up to 20 feet". Resolved
+   * history, not intent — by the time this is written the caster has spent the
+   * Bonus Action that moved it and the engine has checked the twenty feet.
+   *
+   * It carries the destination rather than an offset so that folding the log
+   * reconstructs the point without doing arithmetic, and no `by`: only the
+   * caster may move it and the ongoing record already names them.
+   *
+   * Its own event rather than a field on `spell-activated`, because the move
+   * is optional and the activation is not — one event, one thing. The command
+   * stamp therefore rides on `spell-activated`, which always happens.
+   */
   | {
       readonly type: 'spell-origin-moved';
       readonly castingId: string;

@@ -24,9 +24,9 @@ import { type Content } from '../content.js';
 import { type GameEvent, type GameState, isOn } from '../events.js';
 import { type Point, snapToSpace, spaceInRegion, type TerrainRegion } from '../positioning.js';
 import { regionOfCastingArea } from '../spells.js';
-import { forSeconds, resolveDuration, timeView } from '../time.js';
+import { forSeconds, resolveDuration, startOfNextTurn, timeView } from '../time.js';
 import { timerKey } from '../timers.js';
-import { creatureOf, unknownCreature } from './command.js';
+import { creatureOf, turnContextFor, unknownCreature } from './command.js';
 import { schedule } from './conditions.js';
 
 export interface WindCommand extends CommandIdentity {
@@ -115,7 +115,16 @@ export function exposeToFire(
       if ((record.burning ?? []).some((cube) => same(cube.space))) {
         return err('already_burning', `${record.spell} is already burning at (${space.x}, ${space.y}, ${space.z})`);
       }
-      const until = resolveDuration(timeView(state), forSeconds(flammable.burnsSeconds));
+      // **A round, and in a fight a whole one.** The clock steps only at the
+      // round's wrap, so six seconds set alight on the last turn of a round
+      // would be out before anybody else's turn began; "burns away in 1
+      // round" is read as the order coming back round to whoever's turn it is
+      // now — every other creature starts one turn while it burns. Out of a
+      // fight, the span the definition prints. (E-L2, on review)
+      const holder = state.combat?.order[state.combat.turnIndex]?.id;
+      const lasts = holder === undefined ? forSeconds(flammable.burnsSeconds) : startOfNextTurn(holder);
+      const resolved = resolveDuration(timeView(state), lasts);
+      const until = resolved.ok || holder === undefined ? resolved : turnContextFor(resolved, lasts, holder);
       if (!until.ok) return until;
       return ok([
         {

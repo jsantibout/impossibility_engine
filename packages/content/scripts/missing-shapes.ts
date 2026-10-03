@@ -1358,13 +1358,11 @@ export const ADJUDICATED: Readonly<Record<string, readonly Adjudication[]>> = {
       why: 'a-barrier-that-blocks-passage',
       note: 'W8-S26 read this line for the first time. The barring and the deflection are built as `areaStanding`; what it cannot tell is an arrow from a boulder, because a stat block’s printed line does not say what it looses, so a monster’s ranged shot is made and the wall reported beside it. A creature whose ranged attack should miss automatically is owed that miss. The closest id: what a wall stops crossing it. **E-L2 narrowed it**: a line named after a catalogue weapon that is fired or thrown looses that weapon and is deflected as the weapon is (`projectileOfLine`). What is left is the lines named after no weapon — a Tail Spike, a Rock, a Hurl Flame, a Bone Bow — which need the table to say what each looses (an owner question: a content table per line, or a fact stated on the attack).',
     },
-    // **The gases left with E-L2.** "fog, smoke and other gases are not kept at
-    // bay" was filed against suppression; the gases the engine holds are SRD Fog
-    // Cloud and SRD Stinking Cloud, each of which prints its own ending under a
-    // strong wind, and the wall is "a wall of strong wind" — so it carries the
-    // `disperses` clause Gust of Wind's Line carries and the fold ends a cloud
-    // whose area it meets. Smoke off a fire is no casting and nothing the engine
-    // holds.
+    {
+      clause: 'fog, smoke and other gases are not kept at bay',
+      why: 'an-effect-that-suppresses-other-magic',
+      note: 'W8-S26 split this from the loose material, which is handed over. A Fog Cloud or a Stinking Cloud laid across the wall is a casting whose obscurement and Poisoned are read, and nothing lets one area suspend another in the spaces they share. An area that stops magic working inside it is this id. **E-L2 left it open on review**: Fog Cloud and Stinking Cloud end under "a strong wind" and the wall is "a wall of strong wind", so dispersal on contact is one reading; "at bay" — held out of the wall and kept from crossing it, the cloud standing — is the other. Both work, so it waits on the owner.',
+    },
   ],
 };
 

@@ -8418,10 +8418,12 @@ export const DANCING_LIGHTS: SpellDefinition = {
  * ranks the printed text above the memory of a different edition, so it is
  * executed as printed and written down here rather than decided quietly.
  *
- * And the dispel is performed: `lightDispelledBy` ends a magical Darkness
- * whose casting is of level 3 or lower where the two Spheres overlap, which
- * is this spell's printed threshold and the other half of the pair Darkness
- * prints.
+ * And the dispel is performed, at this spell's printed threshold
+ * (`areaLight.dispels: 3`) and whichever came first (`dispelOnPinning`, E-L2):
+ * a magical Darkness of level 3 or lower that this Sphere overlaps is put out,
+ * whether it was there before the sunlight or is cast into it afterwards. The
+ * Dim Light past the Sphere is light rather than "this spell's area", and
+ * dispels nothing. The other half of the pair is Darkness's own sentence.
  *
  * **The object is built** (W9-S1): `lightOnObject: 'or-a-point'` lets
  * `moveCastLight` lay a casting made at a declared object's space on that
@@ -12918,13 +12920,6 @@ export const WIND_WALL: SpellDefinition = {
     { kind: 'deflects-projectiles' },
     // "Creatures in gaseous form can't pass through it."
     { kind: 'bars-passage', to: 'gaseous', crossing: 'in' },
-    // "The strong wind keeps fog, smoke, and other gases at bay." (E-L2) The
-    // gases the engine holds are SRD Fog Cloud and SRD Stinking Cloud, and each
-    // prints its own answer to a strong wind — "until a strong wind (such as one
-    // created by _Gust of Wind_) disperses it" — so the wall of strong wind
-    // carries the clause Gust of Wind's Line carries, and the fold ends a cloud
-    // whose area it meets, whichever came first.
-    { kind: 'disperses', what: 'gas' },
   ],
   durationSeconds: 60,
   // **Narrowed by E-L2**: a printed line named after a catalogue weapon — a
@@ -12933,6 +12928,7 @@ export const WIND_WALL: SpellDefinition = {
   // catalogue holds.
   unmodelled: [
     'objects are not in the scene: a Small flying object turned back, and a hurled boulder let through, are the DM’s — and a stat block’s printed ranged line named after no catalogue weapon (a Manticore’s Tail Spike, a Rock) does not say whether it looses an arrow or a boulder, so that shot is made and the wall reported beside it rather than deflecting it',
+    'fog, smoke and other gases are not kept at bay: a Fog Cloud or a Stinking Cloud laid across the wall goes on obscuring and poisoning in its spaces, because nothing lets one area suspend another',
   ],
   // The loose material, in the book's words (W8-S26): what flies upward in
   // the wind is a thing the engine holds none of, and nothing reads it.

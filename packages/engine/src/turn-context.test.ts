@@ -544,8 +544,6 @@ describe('no command-layer duration site is left refusing', () => {
    * block's line, and the fixture that has one is that file's.
    */
   const EXEMPT: Readonly<Record<string, string>> = {
-    'commands/declared-endings.ts: const until = resolveDuration(timeView(state), forSeconds(flammable.burnsSeconds));':
-      'SRD Web’s burning Cube burns for a span of seconds the definition prints and never to a moment in the turn order, so no turn-anchored refusal can arrive; the argument itself says so (E-L2)',
     'commands/attacks.ts: const pinned = resolveDuration(timeView(state), turnAnchored(lasts, anchor));':
       'a stat block printed this clause and nobody asked for it, so a swing must not be refused for a sentence its own line carries: the question is asked before the attack rather than after the blow, and a moment that cannot be pinned — no fight, or a creature nobody has rolled Initiative for — sends the clause back to the DM verbatim beside the reason, which is the whole of what the honest half of a printed rider is for',
     'commands/casting.ts: const done = resolveDuration(timeView(state), forSeconds(command.castingSeconds!));':

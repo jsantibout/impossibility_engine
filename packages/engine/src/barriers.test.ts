@@ -211,9 +211,6 @@ describe('SRD Wind Wall: the definition and the record', () => {
       'bars-passage',
       'bars-passage',
       'deflects-projectiles',
-      // "The strong wind keeps fog, smoke, and other gases at bay" (E-L2) —
-      // driven in `wind-wall-gas.test.ts`.
-      'disperses',
     ]);
     const game = new Game().raiseTheWall();
     expect(game.state.ongoing[game.castingId]?.path).toEqual(WALL_PATH);

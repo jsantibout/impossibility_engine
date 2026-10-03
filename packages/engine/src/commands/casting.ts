@@ -1748,7 +1748,11 @@ export function lightPatchesOf(
           patch: named(template.dimLabel),
           region: widenedFrom(template.region)(light.dimBeyond),
           level: 'dim',
-          ...magical,
+          // Magical at the spell's level, and **no threshold**: SRD Daylight's
+          // dispel is "this spell's area", which is the Sphere, and the Dim
+          // Light shed past it is light rather than the area — so the ring
+          // can be put out and never puts anything out. (E-L2, on review)
+          magical: { spellLevel: definition.level },
           ...source,
         });
       }
