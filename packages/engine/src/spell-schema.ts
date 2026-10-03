@@ -4840,6 +4840,27 @@ function checkEffect(
           reason: 'a casting that only reasserts control reaches a whole number of creatures, at least one; SRD Animate Dead prints "up to four"',
         });
       }
+      // SRD Animate Dead's order: "a Bonus Action … if the creature is within
+      // 60 feet of you" — the one price the book prints, and feet on the lattice.
+      const commandedWith = (effect as { readonly commandedWith?: unknown }).commandedWith;
+      if (commandedWith !== undefined) {
+        const { costs, within } = (commandedWith ?? {}) as { costs?: unknown; within?: unknown };
+        if (
+          typeof commandedWith !== 'object' ||
+          commandedWith === null ||
+          costs !== 'bonus-action' ||
+          !Number.isInteger(within) ||
+          (within as number) <= 0 ||
+          (within as number) % 5 !== 0
+        ) {
+          found.push({
+            field: `${path}.commandedWith`,
+            code: 'bad_summon_command',
+            reason:
+              'an order a caster gives a creature it controls costs a Bonus Action — the one price the book prints — and reaches a positive whole number of feet on the 5-foot lattice',
+          });
+        }
+      }
       return;
     }
 

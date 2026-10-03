@@ -6,13 +6,14 @@ import { createRng, type Rng } from './dice.js';
 import { createRollIssuer } from './rolls.js';
 import { fold, type GameEvent, type GameState } from './events.js';
 import { CorruptLogError } from './fold/common.js';
-import type { Placement } from './positioning.js';
+import { pointFromPlacement, type Placement } from './positioning.js';
 import type { SpellDefinition } from './spell-definitions.js';
 import { checkSpellDefinitionValue } from './spell-schema.js';
 import { declaredCasting } from './spellcasting.js';
 import {
   addCreature,
   advanceTime,
+  declareBones,
   pendingCastingsOf,
   resolveAttack,
   resolveDeclaredCast,
@@ -167,6 +168,15 @@ class Game {
 
   /** Declare the minute-long rite, let the minute pass, and settle it. */
   animate(rite: Rite = {}, by: CharacterId = WIZ): Result<readonly GameEvent[]> {
+    // The piles the rite is pointed at, laid by the table's word first: a pile
+    // of bones is a fact about the room only the DM states (`declareBones`),
+    // and these tests are about the count rather than the floor. One that
+    // falls outside the scene is left unlaid, for the raising to refuse.
+    for (const [i, pile] of (rite.bonesAt ?? []).entries()) {
+      const point = pointFromPlacement(this.state.scene!, pile);
+      if (!point.ok) continue;
+      this.push(unwrap(declareBones(this.state, `pile-${this.events.length}-${i}`, point.value), 'the bones'));
+    }
     const declared = resolveSpell(
       this.state,
       by,
@@ -232,7 +242,7 @@ describe('a corpse becomes a Zombie under the caster’s control', () => {
     expect(creature.summonedBy).toEqual({
       by: WIZ,
       castingId: null,
-      controlled: { spell: 'animate-dead', until: g.state.elapsed + DAY },
+      controlled: { spell: 'animate-dead', until: g.state.elapsed + DAY, commanded: { costs: 'bonus-action', within: 60 } },
     });
     expect(strandedSummons(g.state)).toEqual([]);
     expect(replayed(g.events)).toEqual(g.state);
@@ -310,7 +320,7 @@ describe('the count is the slot’s', () => {
       expect(creature.summonedBy).toEqual({
         by: WIZ,
         castingId: null,
-        controlled: { spell: 'animate-dead', until: g.state.elapsed + DAY },
+        controlled: { spell: 'animate-dead', until: g.state.elapsed + DAY, commanded: { costs: 'bonus-action', within: 60 } },
       });
       expect(g.state.scene!.positions[creature.id]).toBeDefined();
     }

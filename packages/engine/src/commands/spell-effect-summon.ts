@@ -22,7 +22,7 @@
  * `summonCreature` enforces for a DM doing it by hand.
  */
 
-import { asCharacterId, err, ok, type Ability, type CharacterId, type Result } from '@ie/shared';
+import { asCharacterId, err, needsContext, ok, type Ability, type CharacterId, type Result } from '@ie/shared';
 import type { Monster } from '@ie/srd';
 import { applyEvent, type GameEvent, type GameState } from '../events.js';
 import { type CommandIdentity, once } from '../idempotency.js';
@@ -39,9 +39,9 @@ import {
   type SummonedNumber,
 } from '../spell-definitions.js';
 import type { PrintedSpeedMode } from '../monster.js';
-import { distanceBetween } from '../positioning.js';
+import { apartFrom, bonesInSpace, distanceBetween, positionOf } from '../positioning.js';
 import { castingSource } from '../spells.js';
-import type { ControlledBond, CreatureState } from '../state.js';
+import type { CommandStamp, ControlledBond, CreatureState } from '../state.js';
 import { sceneFor, unknownCreature } from './command.js';
 import { applyConditionTo } from './conditions.js';
 import { leavingBehind, removeCreatureEverywhere, settleDeparture, summonCreature } from './creatures.js';
@@ -329,7 +329,13 @@ export function resolveRaiseEffect(
   const { name, events, outcomes, unverified, casterId } = ctx;
   const { definition, castingId } = ctx.casting();
   let current = world;
-  const controlled: ControlledBond = { spell: definition.id, until: current.elapsed + effect.controlSeconds };
+  const controlled: ControlledBond = {
+    spell: definition.id,
+    until: current.elapsed + effect.controlSeconds,
+    // And what an order costs and how far it reaches, pinned on the bond —
+    // see `commandSummons`.
+    ...(effect.commandedWith === undefined ? {} : { commanded: effect.commandedWith }),
+  };
   let ordinal = 0;
 
   for (const target of ctx.targets) {
@@ -420,12 +426,43 @@ export function resolveRaiseEffect(
         );
       }
     }
-    events.push(...arrived.value.events);
+    // **And bones lie there**, which is the table's to have said: "Choose a
+    // pile of bones". The Skeleton rises out of the pile in the space it
+    // stands in and takes the pile with it; a space nobody has said holds any
+    // is asked about rather than raised from. See `PositionState.bones`.
+    const stands = after.scene === null ? null : positionOf(after.scene, id);
+    const lying = stands === null || after.scene === null ? null : bonesInSpace(after.scene, stands);
+    if (lying === null) return bonesUnstated(name, placement);
+    const taken: GameEvent = { type: 'bones-declared', name: lying, at: null };
+    events.push(...arrived.value.events, taken);
     unverified.push(...arrived.value.unverified.map((gap) => `${name}: ${gap}`));
-    current = after;
+    current = applyEvent(after, taken);
     outcomes.push({ target: casterId, affected: true });
   }
   return ok(current);
+}
+
+/**
+ * The question a casting asks where it was told to raise bones nobody has said
+ * lie there — SRD Animate Dead's "a pile of bones". A fact about the room, so
+ * it is asked of the table rather than refused or assumed: `declareBones`
+ * answers it. Written once for the pre-flight and the raising, which ask it of
+ * the same placement.
+ */
+export function bonesUnstated(name: string, placement: Omit<Placement, 'size'>): Result<never> {
+  return needsContext(
+    'bones_unstated',
+    `${name} raises a Skeleton from a pile of bones, and nobody has said a pile lies where it was pointed`,
+    [
+      {
+        kind: 'scene',
+        subject: `bones ${placement.feet} feet from ${'creature' in placement.from ? placement.from.creature : 'landmark' in placement.from ? placement.from.landmark : 'the point named'}`,
+        need: 'whether a pile of bones lies in that space',
+        because: 'a Skeleton rises only out of a pile of bones, and a pile is a fact about the room the engine does not hold',
+        satisfyWith: 'a declareBones command for that space',
+      },
+    ],
+  );
 }
 
 /**
@@ -533,6 +570,23 @@ export interface CommandSummonsCommand extends CommandIdentity {
    * than performed; it is on the command so the log says what was ordered.
    */
   readonly interact?: string;
+  /**
+   * The other creatures given the same order with the same Bonus Action — SRD
+   * Animate Dead: "if you control multiple creatures, you can command any of
+   * them at the same time, issuing the same command to each one". Only for a
+   * creature its caster **controls** (`SummonBond.controlled`); a servant a
+   * casting holds is commanded one at a time (`one_at_a_time`).
+   */
+  readonly also?: readonly CharacterId[];
+  /**
+   * The order, in the caller's words — SRD Animate Dead: "You decide what
+   * action the creature will take and where it will move on its next turn, or
+   * you can issue a general command, such as to guard a chamber or corridor."
+   * The creature acts on its own turn; the engine performs none of it, and
+   * reports the words so the log says what was ordered. Only for a controlled
+   * creature, whose order moves nothing now.
+   */
+  readonly order?: string;
 }
 
 export interface CommandSummonsOutcome {
@@ -586,6 +640,23 @@ export function commandSummons(
       const creature = creatureOf(state, command.who);
       if (creature === null) return unknownCreature(command.who);
       const bond = creature.summonedBy;
+      // **A creature its caster controls is ordered, not moved** — SRD Animate
+      // Dead. See `commandControlled`.
+      if (bond != null && bond.by === casterId && bond.controlled !== undefined) {
+        return commandControlled(state, casterId, command, bond.controlled, stamp);
+      }
+      if ((command.also ?? []).length > 0) {
+        return err(
+          'one_at_a_time',
+          `${command.who} is a creature ${casterId} commands alone; only creatures a caster controls are given one order together`,
+        );
+      }
+      if (command.order !== undefined) {
+        return err(
+          'not_an_order',
+          `${command.who} is commanded to move and to interact with an object, not given an order for its own turn`,
+        );
+      }
       const record = bond?.castingId == null ? undefined : state.ongoing[bond.castingId];
       if (bond === null || bond.by !== casterId || record === undefined) {
         return err(
@@ -648,4 +719,83 @@ export function commandSummons(
       return ok({ events, moved, unverified, duplicate: false });
     },
   );
+}
+
+/**
+ * An order given to the creatures a caster controls — SRD Animate Dead: "On
+ * each of your turns, you can take a Bonus Action to mentally command any
+ * creature you made with this spell if the creature is within 60 feet of you
+ * (if you control multiple creatures, you can command any of them at the same
+ * time, issuing the same command to each one)."
+ *
+ * **The price and the reach, and nothing the order says.** The Bonus Action is
+ * the caster's and is spent once for every creature named together, where
+ * there is an economy to spend it from; each creature must be one the caster
+ * controls through the same spell, on a bond that pins the terms
+ * (`ControlledBond.commanded`), and within its feet of the caster by the one
+ * ruler. What the creature then does on its turn is the caster's to drive and
+ * the table's to judge — the order's words are reported, never performed — and
+ * so is what a creature nobody ordered does.
+ *
+ * A distance nobody can measure is asked for rather than assumed; a creature
+ * past the feet is refused (`out_of_command_range`), and so is a move or an
+ * object, which an order for the creature's own turn does not make now
+ * (`order_moves_nothing`).
+ */
+function commandControlled(
+  state: GameState,
+  casterId: CharacterId,
+  command: CommandSummonsCommand,
+  bond: ControlledBond,
+  stamp: CommandStamp | null,
+): Result<CommandSummonsOutcome> {
+  const terms = bond.commanded;
+  if (terms === undefined) {
+    return err('not_commanded', `${bond.spell} prints no command for ${casterId} to give ${command.who}`);
+  }
+  if (command.to !== undefined || command.route !== undefined || command.interact !== undefined) {
+    return err(
+      'order_moves_nothing',
+      `${command.who} takes its order on its own turn; an order moves nothing now and handles no object — say it in \`order\``,
+    );
+  }
+  const named = [...new Set([command.who, ...(command.also ?? [])])].sort();
+  for (const who of named) {
+    const held = creatureOf(state, who);
+    if (held === null) return unknownCreature(who);
+    const theirs = held.summonedBy;
+    if (theirs == null || theirs.by !== casterId || theirs.controlled?.spell !== bond.spell) {
+      return err('not_your_summons', `${who} is not a creature ${casterId} controls through ${bond.spell}`);
+    }
+    const apart = apartFrom(state, casterId, who);
+    if (apart === null) {
+      return needsContext('unplaced', `${bond.spell}'s order reaches ${terms.within} feet, and nobody can say how far ${who} is`, [
+        {
+          kind: 'position',
+          subject: who,
+          need: `where ${who} is standing`,
+          because: `an order reaches only a creature within ${terms.within} feet`,
+          satisfyWith: `a placeCreatureInScene command for ${who}`,
+        },
+      ]);
+    }
+    if (apart > terms.within) {
+      return err(
+        'out_of_command_range',
+        `${bond.spell}'s order reaches a creature within ${terms.within} feet, and ${who} is ${apart} feet from ${casterId}`,
+      );
+    }
+  }
+
+  const events: GameEvent[] = [];
+  if (state.combat !== null) {
+    const spent = spendFor(state, casterId, terms.costs);
+    if (!spent.ok) return spent;
+    events.push(stamp === null ? spent.value : ({ ...spent.value, command: stamp } as GameEvent));
+  }
+  const unverified =
+    command.order === undefined
+      ? []
+      : [`${bond.spell}: ${named.join(', ')} ordered to ${command.order}; what that comes to on its turn is the table's`];
+  return ok({ events, moved: null, unverified, duplicate: false });
 }

@@ -78,8 +78,10 @@ import {
 } from '../events.js';
 import { ONGOING_RECORD_VERSION } from '../ongoing-compatibility.js';
 import {
+  bonesInSpace,
   creaturesInArea,
   distanceBetween,
+  pointFromPlacement,
   positionOf,
   snapToSpace,
   type Placement,
@@ -267,7 +269,7 @@ import { resolveChanceEffect, thrownAgainst } from './spell-effect-chance.js';
 import { aimsHarmAtATarget } from '../spell-definitions.js';
 import { wardAgainst } from './passive-defenses.js';
 import { resolveTeleportEffect } from './spell-effect-teleport.js';
-import { resolveRaiseEffect, resolveSummonEffect } from './spell-effect-summon.js';
+import { bonesUnstated, resolveRaiseEffect, resolveSummonEffect } from './spell-effect-summon.js';
 import { resolveElsewhereEffect } from './elsewhere.js';
 import { bindSummonsToCasting } from './creatures.js';
 import {
@@ -2010,6 +2012,19 @@ export function castOrRelease(
           'too_many_raised',
           `${definition.name} at level ${castLevel} animates or reasserts control over ${allowed} creature(s); ${targets.length} corpse(s) and ${piles} pile(s) of bones were named`,
         );
+      }
+      // "Choose a pile of bones": that one lies where the caster pointed is
+      // the table's to have said, asked here before the slot or the rite and
+      // asked again at the raising, where the rule lives. A placement the
+      // ruler cannot resolve is the raising's own refusal, not this question.
+      for (const pile of request.bonesAt ?? []) {
+        if (state.scene === null) break;
+        const { size: _stated, ...placement } = pile;
+        void _stated;
+        const point = pointFromPlacement(state.scene, placement);
+        if (point.ok && bonesInSpace(state.scene, point.value) === null) {
+          return bonesUnstated(definition.name, placement);
+        }
       }
       // SRD Gentle Repose: "can't become Undead". A corpse a running repose
       // keeps is refused here, before the slot or the rite; the resolver asks

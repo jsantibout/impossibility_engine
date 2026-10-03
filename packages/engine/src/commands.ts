@@ -425,6 +425,7 @@ export {
 export type { InitiativeEntrant } from './commands/initiative.js';
 export {
   addSceneLandmark,
+  declareBones,
   advanceTime,
   beginCombat,
   declareCoverBetween,

@@ -3088,6 +3088,18 @@ export type GameEvent =
       readonly at: { x: number; y: number; z: number };
       readonly command?: CommandStamp;
     }
+  /**
+   * A pile of bones laid in the room by the table's word, or taken out of it —
+   * SRD Animate Dead's "a pile of bones". `at` is the space it lies in, or null
+   * where it is gone: the table clearing it, or a Skeleton raised out of it.
+   * See `PositionState.bones`.
+   */
+  | {
+      readonly type: 'bones-declared';
+      readonly name: string;
+      readonly at: { x: number; y: number; z: number } | null;
+      readonly command?: CommandStamp;
+    }
   | {
       readonly type: 'creature-placed';
       readonly id: CharacterId;

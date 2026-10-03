@@ -4389,6 +4389,21 @@ export type SpellEffect =
        * Absent, a reassertion is counted like an animation.
        */
       readonly reassertsUpTo?: number;
+      /**
+       * SRD Animate Dead: "On each of your turns, you can take a Bonus Action
+       * to mentally command any creature you made with this spell if the
+       * creature is within 60 feet of you (if you control multiple creatures,
+       * you can command any of them at the same time, issuing the same command
+       * to each one)."
+       *
+       * **The price and the reach of giving the order**, pinned onto each
+       * controlled bond (`ControlledBond.commanded`) and charged by
+       * `commandSummons`: the caster's Bonus Action, once for every creature
+       * commanded together, each of them within the feet. What the order *is*
+       * — the action, the move, a general command to guard a corridor — and
+       * what an uncommanded creature does are the table's, in the book's words.
+       */
+      readonly commandedWith?: { readonly costs: 'bonus-action'; readonly within: number };
     }
   /**
    * A creature the casting puts into the world, out of the bestiary.

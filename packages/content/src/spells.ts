@@ -12548,10 +12548,17 @@ export const SILENCE: SpellDefinition = {
  * pure reassertion; each arm is read from its own base here, which is the
  * plain reading and a one-field change if the table rules otherwise.
  *
- * Commanding a creature the caster controls is taking its turn, which a bonded
- * creature's summoner already does; the Bonus Action the book spends on the
- * order, its sixty feet, and what an uncommanded creature does are the
- * table's.
+ * **The bones are the table's to have said.** A pile of bones is not a creature
+ * the engine holds, so the DM lays one in the room (`declareBones`); a
+ * Skeleton rises only where a pile lies — a point nobody has said holds one is
+ * asked about, before the slot or the rite — and takes the pile with it.
+ *
+ * **The order costs what the book says it costs.** `commandedWith` pins the
+ * Bonus Action and the sixty feet on each controlled bond, and `commandSummons`
+ * charges them: one Bonus Action for every creature given the same order
+ * together, each within sixty feet. Driving the creature's turn is its
+ * summoner's, as for every bonded creature; what the order says, and what an
+ * uncommanded creature does, are the table's in the book's words.
  */
 export const ANIMATE_DEAD: SpellDefinition = {
   id: 'animate-dead',
@@ -12585,21 +12592,24 @@ export const ANIMATE_DEAD: SpellDefinition = {
       // "reasserts your control over up to four creatures … rather than
       // animating a new creature"
       reassertsUpTo: 4,
+      // "On each of your turns, you can take a Bonus Action to mentally
+      // command any creature you made with this spell if the creature is
+      // within 60 feet of you" — the price and the reach, charged by
+      // `commandSummons`; what the order says is the table's, below.
+      commandedWith: { costs: 'bonus-action', within: 60 },
     },
   ],
   // The command, in the book's words: commanding a creature the caster
   // controls is taking its turn, which a bonded creature's summoner already
-  // does, and the Bonus Action the order costs, its sixty feet and what an
-  // uncommanded creature does are the table's to apply from these sentences.
+  // does. The Bonus Action the order costs and its sixty feet are charged by
+  // `commandSummons` off `commandedWith` above; what the order says and what
+  // an uncommanded creature does are the table's to apply from these
+  // sentences, and nothing the engine holds reads either.
   dmDecides: [
     'On each of your turns, you can take a Bonus Action to mentally command any creature you made with this spell if the creature is within 60 feet of you (if you control multiple creatures, you can command any of them at the same time, issuing the same command to each one).',
     'You decide what action the creature will take and where it will move on its next turn, or you can issue a general command, such as to guard a chamber or corridor.',
     'If you issue no commands, the creature takes the Dodge action and moves only to avoid harm.',
     'Once given an order, the creature continues to follow it until its task is complete.',
-  ],
-  unmodelled: [
-    'that a pile of bones lies at the point the caster names is not asked: the engine raises a Skeleton there inside the spell’s range on the caster’s word, and whether any bones lie there is the table’s fact nobody states',
-    'the Bonus Action that commands the undead, and the 60 feet it reaches, are not charged: commanding is taking the creature’s turn, which the caster already may, and nothing spends the Bonus Action or measures the sixty feet',
   ],
 };
 

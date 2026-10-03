@@ -286,6 +286,14 @@ export interface ControlledBond {
   readonly spell: string;
   /** The clock reading the control lapses at: `state.elapsed` at the binding plus the printed span. */
   readonly until: number;
+  /**
+   * What giving the creature an order costs and how far it reaches — SRD
+   * Animate Dead's Bonus Action and sixty feet, pinned from the raise
+   * (`commandedWith`) so `commandSummons` reads the bond and no book. Absent on
+   * a control whose spell prints no such price, which is every bond written
+   * before the field existed.
+   */
+  readonly commanded?: { readonly costs: 'bonus-action'; readonly within: number };
 }
 
 /** The terms of a kept summons, as the log carries them — see {@link SummonBond.kept}. */
