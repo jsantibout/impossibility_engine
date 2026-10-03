@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { SRD_CONTENT } from '@ie/content';
-import { asCharacterId, isErr, isNeedsContext, expect as unwrap, type CharacterId } from '@ie/shared';
+import { asCharacterId, contextRequestsOf, isErr, isNeedsContext, expect as unwrap, type CharacterId } from '@ie/shared';
 import type { CharacterSheet } from './character.js';
 import type { StandingEffect } from './standing.js';
 import { createRng, type Rng, type RngState } from './dice.js';
@@ -406,10 +406,8 @@ describe('a ward turns an attacker away before the roll', () => {
     const log = IN_COMBAT(warded());
     const asked = swing(log, OGRE, CLUB, scripted([1]));
     expect(isNeedsContext(asked)).toBe(true);
-    if (isNeedsContext(asked)) {
-      expect(asked.code).toBe('warded_fallback_required');
-      expect(asked.requests[0]?.kind).toBe('route');
-    }
+    expect(isErr(asked) && asked.code).toBe('warded_fallback_required');
+    expect(contextRequestsOf(asked)[0]?.kind).toBe('route');
   });
 
   /**
@@ -568,7 +566,7 @@ describe('a spell attack meets the same defences a club does', () => {
     const log = IN_COMBAT(warded());
     const asked = bolt(log, CLERIC, WIZARD, scripted([1]));
     expect(isNeedsContext(asked)).toBe(true);
-    if (isNeedsContext(asked)) expect(asked.code).toBe('warded_fallback_required');
+    expect(isErr(asked) && asked.code).toBe('warded_fallback_required');
   });
 
   it('loses a damaging casting to a ward: the action and the slot are spent and nothing lands', () => {
