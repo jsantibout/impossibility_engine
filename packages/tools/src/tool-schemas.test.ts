@@ -408,13 +408,14 @@ describe('toolSchemas', () => {
     // And for E-STABLE: `move.forced` taken off the player's door (a forced
     // move is imposed by somebody else, so a creature could call its own walk
     // one) and given to the DM as `force_move`; `move.using_grant` and
-    // `stabilise_creature` say what changed — the first names the DM's door,
-    // the second the 1d4-hour wake the engine now throws. 132 → 133 tools on
-    // the DM's door; +44 bytes on the player's and +1,906 on the DM's.
+    // `stabilise_creature` say what changed — the first that a forced move is
+    // somebody else's (naming no tool the player's door lacks), the second the
+    // 1d4-hour wake the engine now throws. 132 → 133 tools on
+    // the DM's door; +10 bytes on the player's and +1,872 on the DM's.
     expect(toolSchemas(player())).toHaveLength(100);
     expect(toolSchemas(dm())).toHaveLength(133);
-    expect(JSON.stringify(toolSchemas(player())).length).toBe(165405);
-    expect(JSON.stringify(toolSchemas(dm())).length).toBe(224601);
+    expect(JSON.stringify(toolSchemas(player())).length).toBe(165371);
+    expect(JSON.stringify(toolSchemas(dm())).length).toBe(224567);
   });
 });
 

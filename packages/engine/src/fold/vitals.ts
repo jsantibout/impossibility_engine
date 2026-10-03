@@ -16,7 +16,7 @@ import {
   type ConditionState,
 } from '../conditions.js';
 import { ABILITY_NAMES } from '@ie/shared';
-import { printedLineSource, triggeredSavesOf } from '../monster.js';
+import { hasPrintedTrait, printedLineSource, triggeredSavesOf } from '../monster.js';
 import { isBloodied } from '../standing.js';
 import { creaturesInArea } from '../positioning.js';
 import {
@@ -31,6 +31,7 @@ import {
   dropToZero,
   grantTemporaryHp,
   heal,
+  healingRuleOf,
   isLyingStable,
   resolveDeathSave,
   revive,
@@ -169,6 +170,16 @@ export function clearTemporaryHp(state: GameState, on: CharacterId): GameState {
 export function wakeTheStable(state: GameState, on: CharacterId): GameState {
   const creature = state.creatures[on];
   if (creature === undefined || !isLyingStable(creature.vitals)) return state;
+  // **The two rules `healCreature` meets at its door, met here too**, because
+  // this is the second door hit points come back through: a running effect
+  // that says the creature "can't regain Hit Points" (SRD Chill Touch's shape)
+  // and a block that says it never does (SRD Swarm). The wake is "regains 1
+  // Hit Point", so where neither may land the point is not regained and the
+  // creature lies on, Stable — the reading `healCreature` takes of a Cure
+  // Wounds under the same rule. No SRD content reaches either today (Chill
+  // Touch lasts a turn, a swarm dies at 0); homebrew can.
+  if (healingRuleOf(creature.healingRules) === 'prevented') return state;
+  if (hasPrintedTrait(creature.sheet, 'regains-no-hit-points')) return state;
   const conditions = removeCondition(creature.conditions, 'unconscious', ZERO_HIT_POINTS);
   const gone = instancesLifted(creature.conditions.instances, conditions.instances);
   const woken: GameState = {

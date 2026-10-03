@@ -275,6 +275,21 @@ describe('the wake is cancelled by what the rules say ends it', () => {
     expect(pinnedWake(again)).toBe(fold('seed', dropped).elapsed + 2 * HOUR);
   });
 
+  /**
+   * The wake is "regains 1 Hit Point", so a rule that says the creature
+   * "can't regain Hit Points" (SRD Chill Touch's shape, held for longer here
+   * as homebrew would) stands in front of it exactly as it stands in front of
+   * `healCreature`: the point is not regained and the creature lies on, Stable.
+   */
+  it('regains nothing where a running effect forbids regaining Hit Points', () => {
+    const log = then(stabilised(2), [
+      { type: 'healing-rule-granted', id: KESS, rule: { source: 'a grave curse', rule: 'prevented' } },
+    ]);
+    const after = passing(log, pinnedWake(log));
+    expect(kessIn(after).vitals).toMatchObject({ hp: 0, stable: true });
+    expect(kessIn(after).conditions.conditions).toContain('unconscious');
+  });
+
   it('goes with a creature that dies', () => {
     const log = then(stabilised(3), [{ type: 'creature-died', id: KESS, cause: 'a DM’s ruling' }]);
     expect(fold('seed', log).timers[WAKE_KEY]).toBeUndefined();

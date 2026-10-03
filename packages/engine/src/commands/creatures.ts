@@ -1328,6 +1328,11 @@ export function healCreature(
     // rest is an hour — so what is missing is a guard against homebrew rather
     // than a rule the book owns. It goes here when a rule outlives an hour.
     //
+    // **A Stable creature's wake is the other** (E-STABLE): SRD's "regains 1
+    // Hit Point after 1d4 hours" is a deadline arriving, so the fold heals it
+    // (`wakeTheStable` in `fold/vitals.ts`) — and meets both rules this door
+    // meets, the grant above and the printed trait below, itself.
+    //
     // **An empty batch rather than a refusal**, and the distinction is the one
     // `err` exists to draw. Nothing was done wrong: the Cure Wounds was legal,
     // the slot is gone, the casting happened. What the rule says is that no
@@ -1347,8 +1352,9 @@ export function healCreature(
     // a permanent fact the block states, pinned onto the sheet at arrival and
     // asked for where the rule bites.
     //
-    // **At this door and nowhere else**, for the reason the grant above is at
-    // this door: every way hit points come back passes through here.
+    // **At this door**, for the reason the grant above is at this door: every
+    // way a command brings hit points back passes through here. The fold's one
+    // way — a Stable creature's wake — asks the same trait for itself.
     if (hasPrintedTrait(creature.sheet, 'regains-no-hit-points')) return ok([]);
 
     const events: GameEvent[] = [

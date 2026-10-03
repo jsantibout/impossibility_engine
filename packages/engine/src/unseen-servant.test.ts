@@ -300,14 +300,19 @@ describe('commanding the servant', () => {
    * condition **and a Speed of 0**" — the Speed is a `zero` grant the failed
    * save writes beside the Charmed, not a condition, so E-DOWN's reading of
    * conditions alone let the servant be commanded its fifteen feet anyway.
-   * The grant is written here as the casting writes it, under the casting's
-   * own source, so the test does not hang on a Wisdom save's die.
+   * The failure is written here as the casting writes it — the Charmed, the
+   * Incapacitated and the zero, under the casting's own source — so the test
+   * does not hang on a Wisdom save's die.
    */
   it('refuses a servant Hypnotic Pattern holds at a Speed of 0, though no condition does', () => {
     const { log, servant } = inTheFight();
     const entranced = state([
       ...log,
       { type: 'condition-applied', id: servant, condition: 'charmed', source: 'Hypnotic Pattern#cast:9' },
+      // The failure's second condition — "While Charmed, the creature has the
+      // Incapacitated condition" — which forbids actions and not movement, so
+      // it is not what refuses the fifteen feet.
+      { type: 'condition-applied', id: servant, condition: 'incapacitated', source: 'Hypnotic Pattern#cast:9' },
       {
         type: 'speed-modifier-granted',
         id: servant,

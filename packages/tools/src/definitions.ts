@@ -2603,7 +2603,7 @@ const MOVE = tool({
         .min(1)
         .optional()
         .describe(
-          'Spend feet a feature handed this turn instead of the creature\u2019s own Speed \u2014 SRD Tactical Shift is "whenever you activate your Second Wind with a Bonus Action, you can move up to half your Speed without provoking Opportunity Attacks". `sheet` reports what a creature holds and the feature that handed the feet over is the name to send here. The move spends none of the turn\u2019s own movement and provokes nobody, and it may still not end in a space somebody is standing in: that part is what a forced move allows — one somebody else imposes, which is the DM’s `force_move` — and this is not one. A grant nothing handed this creature is refused rather than quietly charged to their Speed.',
+          'Spend feet a feature handed this turn instead of the creature\u2019s own Speed \u2014 SRD Tactical Shift is "whenever you activate your Second Wind with a Bonus Action, you can move up to half your Speed without provoking Opportunity Attacks". `sheet` reports what a creature holds and the feature that handed the feet over is the name to send here. The move spends none of the turn\u2019s own movement and provokes nobody, and it may still not end in a space somebody is standing in: that part is what a forced move, imposed by somebody else, allows, and this is not one. A grant nothing handed this creature is refused rather than quietly charged to their Speed.',
         ),
       using_line: z
         .string()
