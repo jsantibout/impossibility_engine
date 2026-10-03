@@ -11,7 +11,7 @@
 import { type CharacterId, ok, type Result } from '@ie/shared';
 import { applyEvent, type CreatureState, type GameEvent, type GameState } from '../events.js';
 import { abilityModifier } from '../character.js';
-import { hitDiceRequested, hitDiceRolled } from '../hit-dice.js';
+import { hitDiceRequested, hitDiceRolled, type HitDieSpent } from '../hit-dice.js';
 import { scaledDiceFor, scaledFlatFor } from '../spell-definitions.js';
 import { castingHealingBonus, sheetAsItStands } from '../standing.js';
 import { healingRuleOf, maximisedHealing } from '../vitals.js';
@@ -198,17 +198,19 @@ export function resolveRestBenefitsEffect(
       unverified.push(`${name}: ${target}'s Hit Point Dice were not spent — ${asked.reason}`);
     } else {
       const sheet = sheetAsItStands(current, target) ?? creature.sheet;
+      const spent: HitDieSpent[] = [];
       const thrown = hitDiceRolled(
         ctx.supply.issuer,
         ctx.supply.rng,
         target,
         abilityModifier(sheet.abilities.con),
         asked.value,
+        spent,
       );
       if (!thrown.ok) return thrown;
-      events.push(...thrown.value.events);
-      current = thrown.value.events.reduce(applyEvent, current);
-      const regained = thrown.value.spent.reduce((total, die) => total + die.regained, 0);
+      events.push(...thrown.value);
+      current = thrown.value.reduce(applyEvent, current);
+      const regained = spent.reduce((total, die) => total + die.regained, 0);
       const before = current.creatures[target]?.vitals.hp ?? 0;
       const healed = healCreature(current, target, regained, {}, ctx.source);
       if (!healed.ok) return healed;

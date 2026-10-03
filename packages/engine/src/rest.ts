@@ -566,11 +566,10 @@ export function endRest(
           // whole reason the substitution is available here.
           const constitution = abilityModifier(standing.abilities.con);
           const issuedBefore = supply.issuer.count;
-          const thrown = hitDiceRolled(supply.issuer, supply.rng, id, constitution, dice);
+          const thrown = hitDiceRolled(supply.issuer, supply.rng, id, constitution, dice, spent);
           if (!thrown.ok) return thrown;
-          events.push(...thrown.value.events);
-          spent.push(...thrown.value.spent);
-          const regained = thrown.value.spent.reduce((total, die) => total + die.regained, 0);
+          events.push(...thrown.value);
+          const regained = spent.reduce((total, die) => total + die.regained, 0);
 
           events.push({
             type: 'rolls-issued',

@@ -64,7 +64,8 @@ export function hitDiceRequested(
  * Constitution modifier to it. You regain Hit Points equal to the total
  * (minimum of 1 Hit Point)." **No `rolls-issued` and no `healed`**: the caller
  * owns the generator's accounting and the healing event, so a rest and a
- * spell each write those once, in their own batch.
+ * spell each write those once, in their own batch. What each die gave back is
+ * appended to `spent`, the caller's own list, for the total it heals by.
  */
 export function hitDiceRolled(
   issuer: RollIssuer,
@@ -72,9 +73,9 @@ export function hitDiceRolled(
   id: CharacterId,
   constitution: number,
   dice: readonly { readonly key: string; readonly sides: number }[],
-): Result<{ readonly events: readonly GameEvent[]; readonly spent: readonly HitDieSpent[] }> {
+  spent: HitDieSpent[],
+): Result<readonly GameEvent[]> {
   const events: GameEvent[] = [];
-  const spent: HitDieSpent[] = [];
   for (const { key, sides } of dice) {
     const rolled = rollRecorded(issuer, rng, `1d${sides}`);
     if (!rolled.ok) return rolled;
@@ -97,5 +98,5 @@ export function hitDiceRolled(
       },
     );
   }
-  return ok({ events, spent });
+  return ok(events);
 }
