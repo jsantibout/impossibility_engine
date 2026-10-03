@@ -259,6 +259,25 @@ export interface SummonBond {
    * 24 hours" is the same bond over a different block.
    */
   readonly controlled?: ControlledBond;
+  /**
+   * Who alone may ride the creature — SRD Phantom Steed: "For the duration,
+   * you or a creature you choose can ride the steed." The summoner and the
+   * creature the casting named (`CastSpellRequest.rider`), sorted; read by
+   * `mountCreature`, which refuses anybody else (`not_a_chosen_rider`). Not a
+   * lifetime, so it rides beside whichever one the bond has, and it survives
+   * the fade below. Absent is a creature anybody willing may ride.
+   */
+  readonly riders?: readonly CharacterId[];
+  /**
+   * Seconds the creature outlasts the casting that holds it — SRD Phantom
+   * Steed: "When the spell ends, the steed gradually fades, giving the rider
+   * 1 minute to dismount." Only beside a `castingId`. When that casting ends,
+   * `releaseCasting` re-binds the creature to its summoner as a kept creature
+   * that lasts this long from the clock the casting ended at, which is a
+   * lifetime `strandedSummons` already reads. Absent is a creature that goes
+   * with its casting.
+   */
+  readonly fades?: number;
 }
 
 /** The terms of a controlled summons, as the log carries them — see {@link SummonBond.controlled}. */
@@ -267,12 +286,28 @@ export interface ControlledBond {
   readonly spell: string;
   /** The clock reading the control lapses at: `state.elapsed` at the binding plus the printed span. */
   readonly until: number;
+  /**
+   * What giving the creature an order costs and how far it reaches — SRD
+   * Animate Dead's Bonus Action and sixty feet, pinned from the raise
+   * (`commandedWith`) so `commandSummons` reads the bond and no book. Absent on
+   * a control whose spell prints no such price, which is every bond written
+   * before the field existed.
+   */
+  readonly commanded?: { readonly costs: 'bonus-action'; readonly within: number };
 }
 
 /** The terms of a kept summons, as the log carries them — see {@link SummonBond.kept}. */
 export interface KeptBond {
   readonly spell: string;
   readonly untilSummonerDies: boolean;
+  /**
+   * SRD Find Steed: "it functions as a controlled mount while you ride it" —
+   * pinned from `KeptSummons.controlledMount` at the binding, so the reading
+   * opens no book. While the summoner rides the creature and is not
+   * Incapacitated, `actionRulesOn` narrows its Action to Dash, Disengage and
+   * Dodge. Absent on every other bond, which is every bond written before it.
+   */
+  readonly controlledMount?: true;
   /**
    * SRD Wild Companion: "disappears when you finish a Long Rest" — the
    * summoner's, completed after `since`, which is the clock at the binding.
@@ -583,6 +618,16 @@ export interface CreatureState {
   readonly resting: RestState | null;
   /** When their last Long Rest finished, for the sixteen-hour rule. */
   readonly lastLongRestAt: number | null;
+  /**
+   * The spells that may not affect this creature again until it finishes a
+   * Long Rest — SRD Prayer of Healing: "A creature can't be affected by this
+   * spell again until that creature finishes a Long Rest." Spell ids, sorted;
+   * added by `marked-until-long-rest`, read by the target rule
+   * (`TargetRule.onceUntilLongRest`), and emptied by a `rest-ended` that
+   * earned a Long Rest's benefits. Absent is no such mark, which is every
+   * creature written before the field existed.
+   */
+  readonly untilLongRest?: readonly string[];
   /**
    * When a rest that earned a **Short** Rest's benefits last finished.
    *
@@ -2146,6 +2191,26 @@ export interface PendingCasting {
    * always did.
    */
   readonly bonesAt?: readonly Placement[];
+  /**
+   * The range, in feet, the declared targets must remain within for the whole
+   * rite — SRD Prayer of Healing: "who remain within range for the spell's
+   * entire casting". Pinned at the declaration from the casting's reach, so
+   * the fold measures the rite by the record and no book. Absent is a casting
+   * that asks no such thing.
+   */
+  readonly stayWithin?: number;
+  /**
+   * The declared targets that have been farther than {@link stayWithin} from
+   * the caster at some moment of the rite, sorted — written by the fold as the
+   * moves happen (`markStrayedTargets`), whoever moved, and never unwritten:
+   * a creature that walked off and came back did not *remain*. The settlement
+   * passes them over.
+   */
+  readonly strayed?: readonly CharacterId[];
+  /** The creature the caster chose to ride what it summons — see `CastSpellRequest.rider`. */
+  readonly rider?: CharacterId;
+  /** The Hit Point Dice each creature spends of a rest's benefits — see `CastSpellRequest.hitDice`. */
+  readonly hitDice?: Readonly<Record<string, readonly string[]>>;
   /**
    * The spell this casting stores — SRD Glyph of Warding's spell glyph, whose
    * rite takes an hour, so the request is stated at the declaration and the

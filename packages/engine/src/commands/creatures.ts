@@ -853,8 +853,21 @@ export function bindSummonsToCasting(
   summoned: readonly CharacterId[],
   by: CharacterId,
   castingId: string,
+  /**
+   * The terms the spell's summons prints beside the casting's lifetime — SRD
+   * Phantom Steed's chosen rider and its minute to dismount. See
+   * `SummonBond.riders` and `SummonBond.fades`.
+   */
+  terms: { readonly riders?: readonly CharacterId[]; readonly fades?: number } = {},
 ): readonly GameEvent[] {
-  return summoned.map((id) => ({ type: 'creature-summoned', id, by, castingId }));
+  return summoned.map((id) => ({
+    type: 'creature-summoned',
+    id,
+    by,
+    castingId,
+    ...(terms.riders === undefined ? {} : { riders: terms.riders }),
+    ...(terms.fades === undefined ? {} : { fades: terms.fades }),
+  }));
 }
 
 /**

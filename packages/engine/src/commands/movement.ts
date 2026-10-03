@@ -2624,6 +2624,17 @@ export function mountCreature(
     const scene = sceneFor(state, rider, `${rider} to climb onto ${target} in`);
     if (!scene.ok) return scene;
 
+    // SRD Phantom Steed: "For the duration, you or a creature you choose can
+    // ride the steed." The summons pinned who that is (`SummonBond.riders`), and
+    // nobody else climbs on.
+    const riders = state.creatures[target]?.summonedBy?.riders;
+    if (riders !== undefined && !riders.includes(rider)) {
+      return err(
+        'not_a_chosen_rider',
+        `${target} may be ridden only by ${riders.join(' or ')}, whom its summoning chose`,
+      );
+    }
+
     const mounted = mount(scene.value, rider, target, options);
     if (!mounted.ok) {
       // The refusal stays `mount`'s; this says whose position is missing.

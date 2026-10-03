@@ -484,12 +484,21 @@ export const VERIFIED_SPELLS: readonly string[] = [
   // nobody else and ending the casting when it lands, and a creature the Cube
   // does not cover refused.
   'phantasmal-force',
+  // `phantom-steed-rider.test.ts` (engine, E-L3): the minute's rite declared
+  // and settled, the caster and the one creature it chose seated and anybody
+  // else refused, and the steed outlasting the casting by its minute — after a
+  // dismissal and after the hour — then owed its departure, and not a second
+  // before; `casting-ended-by-a-blow.test.ts` ends the casting on a blow to
+  // the steed.
+  'phantom-steed',
   'plant-growth',
   'poison-spray',
   // Driven end to end by `executed-second-pass.test.ts`: the ten-minute rite
   // declared and settled, the 2d8 and its per-slot die measured over sixty
-  // seeds by the gap between two means, and the Short Rest it does not confer
-  // named in its own clause.
+  // seeds by the gap between two means. And by `prayer-of-healing.test.ts`
+  // (engine, E-L3): the Short Rest's pools given back and its Hit Point Dice
+  // thrown, the second prayer refused until a Long Rest, and a target that
+  // strayed out of range during the ten minutes passed over.
   'prayer-of-healing',
   // `castings-running-at-once.test.ts`: three tricks running beside each
   // other, a fourth ending the oldest, and another caster's three untouched.

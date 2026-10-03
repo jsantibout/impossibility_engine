@@ -100,7 +100,7 @@ export {
   swapInitiativeBetween,
   transferItem,
 } from './commands/declarations.js';
-export type { AwardedItem } from './commands/declarations.js';
+export type { AwardedItem, DeclaredDeath } from './commands/declarations.js';
 export { declareResourcePool, restoreResourcesOn, tradeResource } from './commands/pools.js';
 export type { TradeResourceCommand } from './commands/pools.js';
 export {
@@ -341,6 +341,7 @@ export type {
   EffectCheckCommand,
   EffectCheckResolution,
   ResolvedRepeatSave,
+  SettleAreaEffectsCommand,
   TurnResolution,
 } from './commands/turns.js';
 export { activateSpell } from './commands/activation.js';
@@ -424,6 +425,7 @@ export {
 export type { InitiativeEntrant } from './commands/initiative.js';
 export {
   addSceneLandmark,
+  declareBones,
   advanceTime,
   beginCombat,
   declareCoverBetween,

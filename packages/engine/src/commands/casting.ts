@@ -798,6 +798,12 @@ export interface CastingPlan {
    * is an ordinary `Placement` and there is nothing to normalise.
    */
   readonly bonesAt?: readonly Placement[];
+  /** The range a rite's targets must remain within — see `PendingCasting.stayWithin`. */
+  readonly stayWithin?: number;
+  /** The creature the caster chose to ride what it summons — see `CastSpellRequest.rider`. */
+  readonly rider?: CharacterId;
+  /** The Hit Point Dice each creature spends of a rest's benefits — see `CastSpellRequest.hitDice`. */
+  readonly hitDice?: Readonly<Record<string, readonly string[]>>;
   /**
    * The spell this casting stores — SRD Glyph of Warding's spell glyph, an
    * hour's rite, so the request is stated now and the stored spell is cast
@@ -1237,6 +1243,11 @@ function castSpellWith(
         ...(command.hold.form === undefined ? {} : { form: command.hold.form }),
         // And where the bones lie, for the same reason.
         ...(command.hold.bonesAt === undefined ? {} : { bonesAt: command.hold.bonesAt }),
+        // And the range a rite's targets must stay within — SRD Prayer of
+        // Healing. See `PendingCasting.stayWithin`.
+        ...(command.hold.stayWithin === undefined ? {} : { stayWithin: command.hold.stayWithin }),
+        ...(command.hold.rider === undefined ? {} : { rider: command.hold.rider }),
+        ...(command.hold.hitDice === undefined ? {} : { hitDice: command.hold.hitDice }),
         // And the spell it stores, for the same reason — SRD Glyph of Warding's
         // spell glyph is cast when the rite is finished. (W7-S21)
         ...(command.hold.stores === undefined ? {} : { stores: command.hold.stores }),
@@ -1319,11 +1330,20 @@ function castSpellWith(
     events.push({ type: 'concentration-started', id, castingId, spell: name.value, level: castLevel });
   }
 
-  if (command.duration !== undefined) {
+  // **A check on a casting with no deadline rides on the one that never
+  // arrives.** SRD Glyph of Warding "lasts until dispelled or triggered" and is
+  // still "nearly imperceptible and requires a successful Wisdom (Perception)
+  // check against your spell save DC to notice": the check hangs on the
+  // casting's timer, so a casting that keeps a check and no span is given an
+  // `indefinite` one to hang it on. Only such a casting — `checkSpellDefinition`
+  // refuses a check on one that leaves no record.
+  const lasting =
+    command.duration ?? (command.check === undefined ? undefined : ({ kind: 'indefinite' } as const));
+  if (lasting !== undefined) {
     const timer = schedule(
       state,
       { kind: 'casting', castingId },
-      command.duration,
+      lasting,
       undefined,
       command.check,
     );
@@ -1420,10 +1440,14 @@ export function settlementEvents(
   // lines up. It cannot refuse: the span was resolved and read back off an
   // `elapsed` deadline at the declaration, so it is already a whole number of
   // seconds forwards, and `must` says so rather than a caller having to.
-  const deadline =
+  // And a casting that lasts until dispelled and offers a check rides on the
+  // deadline that never arrives — the atomic path's reading, above.
+  const deadline: Deadline | undefined =
     pending.deadline ??
     (pending.lastsSeconds === undefined
-      ? undefined
+      ? pending.check === undefined
+        ? undefined
+        : { kind: 'indefinite' }
       : mustResolve(state, forSeconds(pending.lastsSeconds)));
 
   if (deadline !== undefined) {

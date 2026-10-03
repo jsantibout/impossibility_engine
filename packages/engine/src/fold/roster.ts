@@ -213,12 +213,24 @@ export function applyRoster({ state, next }: Applying, event: RosterEvent): Game
           }`,
         );
       }
+      // A fade outlasts a casting, so a bond with no casting to outlast is a
+      // log this engine did not write.
+      if (event.fades !== undefined && event.castingId === undefined) {
+        throw new CorruptLogError(event, `${event.id} fades after a casting ends and is held by none`);
+      }
+      // Who may ride it, and how long it outlasts its casting — terms beside
+      // the lifetime rather than lifetimes of their own. Elided where absent,
+      // so every log written before them folds to the bond it always did.
+      const terms = {
+        ...(event.riders === undefined ? {} : { riders: event.riders }),
+        ...(event.fades === undefined ? {} : { fades: event.fades }),
+      };
       const bond: SummonBond =
         event.castingId !== undefined
-          ? { by: event.by, castingId: event.castingId }
+          ? { by: event.by, castingId: event.castingId, ...terms }
           : event.kept !== undefined
-            ? { by: event.by, castingId: null, kept: event.kept }
-            : { by: event.by, castingId: null, controlled: event.controlled! };
+            ? { by: event.by, castingId: null, kept: event.kept, ...terms }
+            : { by: event.by, castingId: null, controlled: event.controlled!, ...terms };
       // A casting that is not running cannot be what is holding a creature
       // here: the link would be born already broken, and `strandedSummons`
       // would report a departure that was owed from the creature's first

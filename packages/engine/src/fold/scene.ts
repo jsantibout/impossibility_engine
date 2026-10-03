@@ -17,6 +17,7 @@ import {
   declareSight,
   dismount,
   footprintOf,
+  declareBonesAt,
   mount,
   moveCreature,
   placeCreature,
@@ -32,6 +33,7 @@ import { raiseAfterMovement } from './areas.js';
 export const SCENE_EVENTS = [
   'scene-set',
   'landmark-added',
+  'bones-declared',
   'creature-placed',
   'creature-moved',
   'creature-unplaced',
@@ -126,6 +128,9 @@ export function applyScene({ state, next }: Applying, event: SceneEvent): GameSt
   switch (event.type) {
     case 'scene-set':
       return { ...next, scene: scene(event.extent, event.light ?? null) };
+
+    case 'bones-declared':
+      return { ...next, scene: must(event, declareBonesAt(sceneOf(state, event), event.name, event.at)) };
 
     case 'landmark-added':
       return { ...next, scene: must(event, addLandmark(sceneOf(state, event), event.name, event.at)) };

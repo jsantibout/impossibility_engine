@@ -50,6 +50,7 @@ export const UPKEEP_EVENTS = [
   'rest-begun',
   'rest-ended',
   'hit-point-maximum-restored',
+  'marked-until-long-rest',
 ] as const;
 
 /** The narrowed union this seam reduces, `Extract`ed from the list above. */
@@ -201,6 +202,12 @@ export function applyUpkeep({ state, next }: Applying, event: UpkeepEvent): Game
       // A Long Rest only starts the sixteen-hour clock if it was actually
       // finished as one. A Long Rest that collapsed into a Short Rest does
       // not, or an interrupted night would lock out the next one.
+      // SRD Prayer of Healing's "until that creature finishes a Long Rest": a
+      // finished one takes every such mark away. Dropped rather than emptied,
+      // so a creature that held none folds to the record it always did.
+      const { untilLongRest: _marks, ...unmarked } = creature;
+      void _marks;
+      const rested = event.benefit === 'long' && creature.untilLongRest !== undefined ? unmarked : creature;
       return withCreature(
         next,
         event.id,
@@ -212,8 +219,17 @@ export function applyUpkeep({ state, next }: Applying, event: UpkeepEvent): Game
           // earned rather than what it set out to be.
           ...(event.benefit === 'short' ? { lastShortRestAt: state.elapsed } : {}),
         },
-        creature,
+        rested,
       );
+    }
+
+    // SRD Prayer of Healing: "A creature can't be affected by this spell again
+    // until that creature finishes a Long Rest." The mark, sorted and once.
+    case 'marked-until-long-rest': {
+      const creature = creatureOf(state, event, event.id);
+      const held = creature.untilLongRest ?? [];
+      if (held.includes(event.spell)) return next;
+      return withCreature(next, event.id, { untilLongRest: [...held, event.spell].sort() }, creature);
     }
 
     case 'hit-point-maximum-restored': {

@@ -108,7 +108,7 @@ export const MISSING_SHAPES = {
   'a-repeat-save-raised-by-a-trigger':
     'a repeat save raised by something that happened — taking damage, having moved, coming within a distance, another effect trying to cure it. The turn hook is the only thing that raises one, which `docs/design/time-and-turns.md` states outright: "Raising is derived; rolling is commanded ... `turn-advanced` *raises* the saves the boundary owes". The fourth of the four mechanisms the audit found bundled under `a-repeat-save-beyond-the-turn-hook`.',
   'a-casting-ended-by-a-trigger':
-    'a casting ends by its deadline, by Concentration, by a dispel or by a recast — `docs/design/casting.md`, "Lifecycle, and the one place it ends". IE-032 built the fifth way, `endsEarly` in spell-definitions.ts, and its causes have grown one sentence at a time since: the target attacks, deals damage, casts or dons armour; the caster or an ally damages it; it takes any damage or drops to 0; a summon takes damage or drops; a sleeper is shaken awake; the caster leaves the area, drops to 0 or is separated past a distance. **W9-S2 built two more and they finished six spells between them**: a strong wind (`dispersed-by-wind`, read off a casting whose area pins `disperses` or a `wind-declared`), which is Fog Cloud and Stinking Cloud and what Gust of Wind blows; and the table’s word that a cause the spell prints has happened (`the-table-declares`, a phrase the record pins and `declareEnding` matches), which is Web’s webs not anchored, Suggestion’s activity complete and a glyph’s surface moved. **What is left in reach is three sentences, and each is more than a cause.** SRD Remove Curse ends **curses**: which of the castings and marks a creature holds is a curse is a fact nothing records. SRD Web’s fire burns away a 5-foot Cube of the area and deals 2d4 Fire at the turn start in it, which is ending **part** of a casting — neither scope says it. And SRD Prayer of Healing’s targets must remain within range for the ten minutes, which is a drift measured during a rite rather than at its end. **Out of level-5 reach** the id still holds Sequester’s condition the caster chooses, Polymorph’s Temporary Hit Points running out, Geas and its punishment, Mislead’s double outliving its invisibility, the Arcane Hand, Astral Projection and Simulacrum dropping to 0, Maze’s escape, Modify Memory’s damage or another spell, and the Hat of Disguise.',
+    'a casting ends by its deadline, by Concentration, by a dispel or by a recast — `docs/design/casting.md`, "Lifecycle, and the one place it ends". IE-032 built the fifth way, `endsEarly` in spell-definitions.ts, and its causes have grown one sentence at a time since: the target attacks, deals damage, casts or dons armour; the caster or an ally damages it; it takes any damage or drops to 0; a summon takes damage or drops; a sleeper is shaken awake; the caster leaves the area, drops to 0 or is separated past a distance. **W9-S2 built two more and they finished six spells between them**: a strong wind (`dispersed-by-wind`, read off a casting whose area pins `disperses` or a `wind-declared`), which is Fog Cloud and Stinking Cloud and what Gust of Wind blows; and the table’s word that a cause the spell prints has happened (`the-table-declares`, a phrase the record pins and `declareEnding` matches), which is Web’s webs not anchored, Suggestion’s activity complete and a glyph’s surface moved. **What is left in reach is two sentences, and each is more than a cause.** SRD Remove Curse ends **curses**: which of the castings and marks a creature holds is a curse is a fact nothing records. SRD Web’s fire burns away a 5-foot Cube of the area and deals 2d4 Fire at the turn start in it, which is ending **part** of a casting — neither scope says it. (SRD Prayer of Healing’s targets remaining within range for the ten minutes, a drift measured during a rite rather than at its end, was the third: E-L3 built it as a fold pass that marks a target strayed as it happens, `PendingCasting.strayed`, and the settlement passes it over.) **Out of level-5 reach** the id still holds Sequester’s condition the caster chooses, Polymorph’s Temporary Hit Points running out, Geas and its punishment, Mislead’s double outliving its invisibility, the Arcane Hand, Astral Projection and Simulacrum dropping to 0, Maze’s escape, Modify Memory’s damage or another spell, and the Hat of Disguise.',
   'a-fact-only-the-table-can-declare':
     'a fact the engine does not hold and cannot derive, which a rule then reads — how well you know a creature, whether you are outdoors in a storm, whether you are fighting it. Declared cover, declared sight and declared allegiance are the discipline CLAUDE.md already draws for this; the audit (§4) is where these clauses were found filed as a selector problem when what they want is the fact. **IE-030 built the fought fact**: `CastSpellRequest.fought` carries it, the five spells that read it as Advantage are finished, and SRD Enthrall reads the same fact as an automatic success through `autoSucceedIf: { fought: true }`. What is left under this id is every other fact of the kind — how well you know a creature, whether you are outdoors — that no request yet states.',
   'an-automatic-success-by-creature-type':
@@ -219,8 +219,6 @@ export const MISSING_SHAPES = {
     'PROGRESS.md, on Major Image: "Concentration and duration that **change with the slot level** ... which `SpellDefinition` cannot express". **IE-035 built the half that is a longer span**: `durationAtSlot` is a per-definition table of slot level to seconds, read where the deadline is scheduled, and the six spells printing the SRD’s "Your Concentration can last longer with a spell slot of…" — Hex, Hunter’s Mark, the three Dominates — and SRD Mass Suggestion’s "The duration is longer with…" all read their own table. **And the Concentration half is built too**: `concentrationEndsAtSlot` is the slot from which a spell stops requiring Concentration, which SRD Bestow Curse prints at level 5 and SRD Major Image prints at level 4, beside its other clause. **And the ending half is built now too**: `untilDispelledAtSlot` is the slot from which a casting stops having a deadline at all, which SRD Major Image prints at level 4 beside its Concentration clause — so that spell is executed and the field it wanted is the third of the family, read by `untilDispelledAt` where the deadline would have been scheduled. SRD Bestow Curse’s level 9 slot prints the same "lasts until dispelled" and reads the same field. What is left under this id is an ending that is **not** the absence of one: SRD Geas’s level 9 slot makes the spell last "until it is ended by one of the spells mentioned above" — one spell naming another as its ending, which no field here says and a table of seconds could not.',
   'a-duration-the-chosen-branch-sets':
     'a duration a casting’s chosen branch sets rather than the spell. `SpellOption` in spell-definitions.ts carries a branch’s effects, its area clauses and its own handovers, and no duration: the deadline is the definition’s, scheduled once whichever branch ran. SRD Thaumaturgy prints six wonders under one minute and calls two of them instantaneous, so every casting leaves a record the cap of three counts, and a door flung open counts against Booming Voice. W8-S26 filed it under `a-duration-the-slot-changes` as the closest id; the duration is the branch’s, not the slot’s. W9-S2 minted this one as filing only.',
-  'a-duration-earlier-castings-lengthen':
-    'a duration that earlier castings of the same spell lengthen. SRD Arcanist’s Magic Aura, cast on the same target every day for thirty days, lasts until dispelled. `durationAtSlot` and `untilDispelledAtSlot` in spell-definitions.ts read the slot in hand, and nothing in the vocabulary counts the castings of a spell a creature has had before — the log holds every one and no field asks. W8-S26 filed it under `a-duration-the-slot-changes` as the closest id; W9-S2 minted this one as filing only.',
   'a-deadline-anchored-to-a-rest':
     '`docs/design/time-and-turns.md`: "`duration.ts` has two types" — "A span of time" and "A moment in the turn order". A rest is neither, and the SRD anchors effects to one constantly. The clock records `lastShortRestAt` and a rest is a span the engine measures, so the fact is there and no deadline can name it.',
   'an-effect-that-fires-when-the-casting-ends':
@@ -286,7 +284,7 @@ export const MISSING_SHAPES = {
   'a-random-outcome-that-is-not-a-d20':
     '**Half built, and the half that is names itself.** PROGRESS.md ranked it "A random outcome that is not a d20 | 1 / 19 | the generator, `parseNotation`", over three different dice: a percentage chance, a 1d10 behaviour table and a 1d100 mishap roll. The **percentage** is built — the `chance` effect throws a d100 against a number the book printed, flat or grown by the castings that have gone before, and the count is the `Tally` a Wind Fan’s uses were already kept in. Augury is executed off it and Gust of Wind’s 50 and Sending’s 5 are writable by it. What is left is every other die in this family, and they are not the same shape twice: a **table** the face indexes into, which needs somewhere for the rows to live, and a die thrown **at a turn boundary** whose face branches — SRD Blink’s 1d6 — which is a payout that can hand over hit points and cannot ask a question. **Two consumers have left the count, and one of them because it was built.** Slow prints a 25 percent chance that a casting with a Somatic component fails; it sat in that spell’s own `unmodelled` list while the engine could not tell what a spell’s components were, and it is executed now (W7-S22) — `SpellEntry.components` carries the book’s V, S and M out of the parsed index, and `ActionRule`’s `casting-chance` throws the same d100 through `thrownAgainst` after the casting’s cost is paid, so a failure keeps the slot spent and writes `spell-fizzled`. **Gust of Wind left for a different reason**: it was tracked and filed here for the 50 percent chance of snuffing a lantern, the push and both saving throws are executed now, and the clause went with it into that spell’s own `unmodelled` list, because the executed map has no marker-less entry form — `Adjudication` carries a clause, a shape and a note, and `CLAUSE_MARKERS` knows dice, saves, checks and twenty other words but not a percentage. So the census fell by one on a day nothing was built, which is what this paragraph exists to say out loud, and the day `Adjudication` gains the null marker `TrackedAdjudication` already has is the day it comes back to this count.',
   'a-rest-an-effect-gives-or-denies':
-    'a rest is a span the engine measures and its payout is `endRest`’s — `docs/design/time-and-turns.md`, "**A rest is a span, not a button**". No effect confers the benefits of one without the hours, and none takes them away from a rest that was completed.',
+    'a rest is a span the engine measures and its payout is `endRest`’s — `docs/design/time-and-turns.md`, "**A rest is a span, not a button**". **The giving half is built (E-L3)**: the `rest-benefits` effect confers a Short Rest’s two benefits without the hour — the pools a Short Rest recovers, through the `resources-restored` a rest emits, and the Hit Point Dice the creature names, thrown by the one roller `endRest` throws them with — which finished SRD Prayer of Healing. What is left is the other half: nothing takes the benefits away from a rest that was completed.',
   'damage-with-neither-an-attack-roll-nor-a-save':
     '**built for the spell vocabulary, and this is what is left of it.** PROGRESS.md ranked it at 19 open spells and Magic Missile was the one it named; the `auto-damage` effect is that sentence — typed damage with a flat addend and nothing rolled to decide whether it lands, dealt as a pool of separate hits among the creatures the caster named, with the count and the split an `attack` already carried. Magic Missile is executed off it, Heat Metal’s opening 2d8 is expressible by it and waits on the two clauses beside it, and Shield’s clause has left this id for the shape that actually blocks it. What is left is the **item** half, which is a different door: `packages/engine/src/content.ts` admits fourteen effect kinds to a conferral and this is not one of them, so a Potion of Poison’s 4d6, a talisman that burns whoever touches it and a manual that scorches whoever cannot read it are still filed here. A conferral has no casting, no slot and no caster level for a `DiceScaling` to read, which is what admitting the kind has to answer for rather than assume.',
   'an-area-moved-by-the-casters-own-movement':
@@ -303,8 +301,17 @@ export const MISSING_SHAPES = {
   // notice check, which is Glyph of Warding's sentence on a casting with no
   // deadline and files beside Glyph's below. A shape nothing is blocked on is
   // one the guard deletes.
-  'a-check-a-casting-with-no-deadline-offers':
-    'a check a casting offers when the casting has no timer for the check to ride on. `SpellDefinition.check` in spell-definitions.ts is pinned onto the casting’s timer, which is where `availableChecks` finds it, and a casting that lasts until dispelled schedules no timer — so `checkSpellDefinition` refuses a check on one. SRD Glyph of Warding prints the sentence SRD Spike Growth prints, a Wisdom (Perception) check against the caster’s spell save DC to notice it, on a glyph that runs until dispelled or triggered, and SRD Symbol prints it again on a glyph that lasts as long. W8-S26 filed Glyph’s under `a-check-another-creature-may-attempt` as the closest id, since retired; W9-S2 minted this one as filing only, to be built beside Glyph’s other blocker, and W9-T filed Symbol’s here too.',
+  //
+  // **And `a-check-a-casting-with-no-deadline-offers`, its successor, is
+  // retired too** (E-L3). A casting that lasts until dispelled and offers a
+  // check is given the deadline that never arrives (`indefinite`) for the
+  // check to ride on, which is SRD Glyph of Warding's notice check executed;
+  // SRD Symbol's, the same sentence, is `expressible` in the tracked map.
+  //
+  // **And `a-duration-earlier-castings-lengthen`** (E-L3): SRD Arcanist's Magic
+  // Aura's thirty days are `SpellDefinition.untilDispelledAfterDays`, a run of
+  // daily castings pinned on each record (`OngoingSpell.dailySince`), and the
+  // spell was its only claimant.
   'an-area-trigger-measured-from-a-point':
     '`docs/design/casting.md` names it spell by spell: "Ending a turn within 5 feet of a point, and a point rolled into a creature’s space | Flaming Sphere". `AreaTrigger` hangs off a template, and a reach measured from the casting’s own origin is what `CastingOrigin.reach` answers for an attack and for nothing that fires on its own.',
   'light-and-obscurement-the-scene-holds':
@@ -660,30 +667,11 @@ export interface Adjudication {
  * append to — the same reason `VERIFIED_SPELLS` and the catalogue are sorted.
  */
 export const ADJUDICATED: Readonly<Record<string, readonly Adjudication[]>> = {
-  'animate-dead': [
-    {
-      clause: 'whether any bones lie there',
-      why: 'a-fact-only-the-table-can-declare',
-      note: 'W8-S26 re-read this as a debt. The corpse is a creature the engine holds and the target rule names; a pile of bones is not, so the Skeleton is raised at whatever point the caster states. That there are bones at that point is a fact only the table holds, and it is read — the spell refuses to raise anything where there are none — so it is a fact the table must be able to state and no request yet can. A declared object would be the natural place to put it.',
-    },
-    {
-      clause: 'the Bonus Action that commands the undead',
-      why: 'an-action-a-spell-compels-or-forbids',
-      note: 'W8-S26 re-read this as a debt. The command sentences are in `dmDecides` and stay there — which action a Zombie takes is the table’s — but the price of giving the order is not: the Bonus Action the caster spends and the sixty feet it reaches are the action economy and the ruler, and nothing charges either. It is the Magic-action-for-an-errand shape this id describes for Wind Walk: an action a spell hands over for something no spender is told apart by. A line that is both, which `docs/design/content.md` says to say.',
-    },
-  ],
   'arcane-sword': [
     {
       clause: 'to a spot you can see',
       why: 'table',
       note: 'SRD: "move the sword up to 30 feet to a spot you can see". Sight here is a declared fact from one creature to another — `sight-declared` names a `from` and a `to`, both creatures — and a destination is a coordinate. There is no pairwise declaration for the relocation to read and nothing it could read instead, so this is the line declared cover and declared sight already draw: the DM says what the caster can see, and the engine measures the thirty feet.',
-    },
-  ],
-  'arcanists-magic-aura': [
-    {
-      clause: 'thirty consecutive daily castings',
-      why: 'a-duration-earlier-castings-lengthen',
-      note: 'SRD: "If you cast the spell on the same target every day for 30 days, the illusion lasts until dispelled." The Mask it would keep is a creature type `mustBeType` reads on every casting, so the permanence is read; what is missing is a duration that earlier castings of the spell lengthen, which is this id. W8-S26 filed it under the slot’s id as the closest; W9-S2 minted its own.',
     },
   ],
   banishment: [
@@ -774,25 +762,14 @@ export const ADJUDICATED: Readonly<Record<string, readonly Adjudication[]>> = {
       note: 'The engine owns the death and records it; what the corpse then looks like, and whether it ever thaws, is narration with no mechanical consequence the engine could read back. There is nothing here for a rule to decide.',
     },
   ],
-  // **Conjure Animals, executed whole and with two sentences left to the
-  // table.** The pack walks thirty feet with its druid's own move
-  // (`areaMovesWithCaster`, spent by `MoveCommand.alsoMoves`), bites whoever it
-  // comes within ten feet of and keeps the once-per-turn cap across all three of
-  // its clauses, and lends its caster Advantage on a Strength save five feet from
-  // it — a mode derived from where the druid is standing at the moment the die is
-  // thrown. What is left is the sight the clauses are gated on and the word "can".
-  'conjure-animals': [
-    {
-      clause: 'the caster’s sight of whoever the pack reaches is not read at the boundary',
-      why: 'an-area-that-filters-its-catch',
-      note: 'W8-S26 re-read this as a debt. SRD gates all three of the pack’s clauses on "a creature you can see", and sight is a declared fact the engine reads — `canSee` answers it everywhere else. An area trigger catches whoever the geometry catches, and a boundary raised in the fold cannot ask a question nobody has declared an answer to; that is an area that catches only some of the creatures in it, which is what this id describes for Hypnotic Pattern’s sight of the pattern.',
-    },
-    {
-      clause: 'is read as a save the pack forces',
-      why: 'an-area-that-filters-its-catch',
-      note: 'W8-S26 re-read this as a debt. "you can force that creature to make a Dexterity saving throw" is a permission, and the engine rolls the save and deals the 3d10 whatever the caster wanted — a number applied that the book lets the caster withhold. No trigger has a word for the caster declining it; the closest id is the one for an area that catches fewer than everybody in it, because a declined bite is a creature the pack did not catch.',
-    },
-  ],
+  // **Conjure Animals files nothing now** (E-L3). The pack walks thirty feet
+  // with its druid's own move (`areaMovesWithCaster`, spent by
+  // `MoveCommand.alsoMoves`), bites whoever it comes within ten feet of and
+  // keeps the once-per-turn cap across all three of its clauses, and lends its
+  // caster Advantage on a Strength save five feet from it. The two sentences
+  // that stood here are built: the caster's sight of the creature is read where
+  // the save is forced (`AreaTrigger.onlyWhomCasterSees`), and the word "can"
+  // is the settlement's `spare` (`AreaTrigger.casterMayDecline`).
   'conjure-fey': [
     {
       clause: 'a Fey creature of your choice',
@@ -946,14 +923,9 @@ export const ADJUDICATED: Readonly<Record<string, readonly Adjudication[]>> = {
   ],
   'find-steed': [
     {
-      clause: 'the controlled-mount rules the steed is ridden under are not applied',
-      why: 'a-creature-somebody-else-is-playing',
-      note: 'W8-S26 read this line for the first time. SRD: "In combat, it shares your Initiative count, and it functions as a controlled mount while you ride it (as defined in the rules on mounted combat)." Mounting is built; what a controlled mount may do with its turn — move as its rider directs and take only the Dash, Disengage or Dodge action — is a turn directed by somebody else and narrowed to what such a turn may contain, which is this id.',
-    },
-    {
       clause: 'acts independently, focusing on protecting you',
       why: 'table',
-      note: 'The reading that lets the handed-over sentence past the marker rule (W8-S26). SRD: "If you have the Incapacitated condition, the steed takes its turn immediately after yours and acts independently, focusing on protecting you." The marker fires on the Incapacitated; the turn immediately after its rider’s is the seating the summon already has, and what the steed does with that turn is the question left open for every creature in the scene — the table plays it.',
+      note: 'The reading that lets the handed-over sentence past the marker rule (W8-S26). SRD: "If you have the Incapacitated condition, the steed takes its turn immediately after yours and acts independently, focusing on protecting you." The marker fires on the Incapacitated, which the engine reads: an Incapacitated rider lifts the controlled-mount narrowing (E-L3, `KeptBond.controlledMount`). The turn immediately after its rider’s is the seating the summon already has, and what the steed does with that turn is the question left open for every creature in the scene — the table plays it.',
     },
   ],
   'finger-of-death': [
@@ -988,18 +960,6 @@ export const ADJUDICATED: Readonly<Record<string, readonly Adjudication[]>> = {
   // to the table. The owner overruled that on 2026-09-26: the sentence is the
   // definition's `dmDecides`, whole and flagged for the DM, and the object
   // clauses inside it are still `forbids.objects`.
-  'glyph-of-warding': [
-    {
-      clause: 'refining the trigger so that only creatures of certain types',
-      why: 'a-creature-type-predicate-an-area-reads',
-      note: 'W8-S26 read this line for the first time, and it is this id’s own sentence: an area or a trigger that catches only named creature types. The rune catches whoever stands in the Sphere when the DM fires it.',
-    },
-    {
-      clause: 'to notice the glyph is not offered by the casting',
-      why: 'a-check-a-casting-with-no-deadline-offers',
-      note: 'W8-S26 re-read this as a debt, and W9-S2 re-filed it to the id it names. SRD: "The glyph is nearly imperceptible and requires a successful Wisdom (Perception) check against your spell save DC to notice." Spike Growth writes the same sentence as a check the casting offers, and `checkSpellDefinition` refuses one here because a check rides on the casting’s timer and a glyph that lasts until dispelled has none — so the DM states a DC the rules fix. A check on a casting with no deadline, which is this id.',
-    },
-  ],
   goodberry: [
     {
       clause: 'enough nourishment to sustain a creature for one day',
@@ -1183,16 +1143,6 @@ export const ADJUDICATED: Readonly<Record<string, readonly Adjudication[]>> = {
       why: 'table',
       note: 'The reading that lets the handed-over sentence past the marker rule (W8-S26). SRD: "The steed uses the Riding Horse stat block (see "Monsters"), except it has a Speed of 100 feet and can travel 13 miles in an hour." The marker fires on the Speed, which the `phantom-steed` bestiary entry carries whatever the table reads; the thirteen miles are an overland pace nothing in the engine travels at.',
     },
-    {
-      clause: 'the minute the rider has to dismount is not given',
-      why: 'an-effect-that-fires-when-the-casting-ends',
-      note: 'W8-S26 read this line for the first time. SRD: "When the spell ends, the steed gradually fades, giving the rider 1 minute to dismount." For that minute the steed is still a mount at a Speed of 100 feet; the departure takes it away the moment the casting ends. Something laid when a casting ends is this id.',
-    },
-    {
-      clause: 'who may ride it',
-      why: 'a-choice-made-at-the-casting',
-      note: 'W8-S26 read this line for the first time. SRD: "For the duration, you or a creature you choose can ride the steed." Mounting is a command the engine has, and it seats anybody willing; the caster’s choice of rider is a value the casting would have to state for the mount command to read. The closest id: a choice named at the casting and pinned for later reads.',
-    },
   ],
   'plant-growth': [
     {
@@ -1212,35 +1162,11 @@ export const ADJUDICATED: Readonly<Record<string, readonly Adjudication[]>> = {
   // no about it and `summonedBy` — the link `strandedSummons` already reads —
   // is what says which casting a bleeding steed belongs to. Everything else
   // this spell prints is the table's.
-  'prayer-of-healing': [
-    {
-      clause: 'the benefits of a Short Rest are not conferred',
-      why: 'a-rest-an-effect-gives-or-denies',
-      note: 'W8-S26 read this line for the first time, and it is this id word for word: no effect confers the benefits of a rest without the hours, and Hit Point Dice and the features a Short Rest recovers are read by everything afterwards.',
-    },
-    {
-      clause: 'until that creature finishes a Long Rest',
-      why: 'a-deadline-anchored-to-a-rest',
-      note: 'W8-S26 read this line for the first time, and it is this id: a deadline is a span of seconds or a moment in the turn order, and a rest is neither, so the second casting on the same creature is not refused.',
-    },
-    {
-      clause: 'remain within range for the spell',
-      why: 'a-casting-ended-by-a-trigger',
-      note: 'W8-S26 re-read this as a debt. Range is measured when the rite settles, and a creature that walked away during the ten minutes and came back is healed; a target leaving the range during the casting drops out of it by the book. The closest id: a consequence raised by two creatures drifting apart, which this description names for Warding Bond.',
-    },
-  ],
   'remove-curse': [
     {
       clause: 'the curses the touch ends are not ended',
       why: 'a-casting-ended-by-a-trigger',
       note: 'W8-S26 re-read this as a debt, because the reason it gave, that nothing the engine applies is one, stopped being true when Bestow Curse was executed and a lycanthrope’s curse went on the record. SRD: "At your touch, all curses affecting one creature or object end." Another spell ending this one is a cause this id names for Geas, whose own text names Remove Curse; what is missing is knowing which of the castings and marks a creature holds is a curse.',
-    },
-  ],
-  revivify: [
-    {
-      clause: 'a creature that died of old age is not refused',
-      why: 'a-fact-only-the-table-can-declare',
-      note: 'W8-S26 re-read this as a debt. SRD refuses it by name: "This spell can’t revive a creature that has died of old age, nor does it restore any missing body parts." How a creature died is the table’s fact and the revival reads it — the book refuses the spell on it — so it is a fact the table must be able to state and no request yet can. The body parts are narration nothing reads, and ride in the same sentence.',
     },
   ],
   // Blink and Rope Trick left the tracked map on the second place. Blink
@@ -3000,8 +2926,8 @@ export const TRACKED_ADJUDICATED: Readonly<Record<string, readonly TrackedAdjudi
     {
       marker: 'ability-check',
       clause: 'requires a successful Wisdom (Perception) check against your spell save DC to notice',
-      why: 'a-check-a-casting-with-no-deadline-offers',
-      note: 'W9-T re-filed this from `a-check-another-creature-may-attempt`, whose derivation already makes a casting with no victim anybody’s to see through. The sentence is Glyph of Warding’s word for word, on a glyph that likewise lasts until dispelled or triggered: a casting check rides on the casting’s timer, this casting schedules none, and `checkSpellDefinition` refuses a check on it. A check on a casting with no deadline, which is this id.',
+      why: 'expressible',
+      note: 'W9-T filed this under `a-check-a-casting-with-no-deadline-offers`, the sentence being Glyph of Warding’s word for word on a glyph that likewise lasts until dispelled or triggered. E-L3 built that shape for Glyph of Warding: a casting that lasts until dispelled and offers a check is given the deadline that never arrives (`indefinite`) for the check to ride on, and `checkSpellDefinition` admits the pair. So the check is a `SpellCheck` on this definition the day it is written, and needs nothing new.',
     },
   ],
   'true-polymorph': [

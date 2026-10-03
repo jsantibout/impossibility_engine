@@ -193,6 +193,12 @@ const AUDIT: readonly {
       otherPlane: because(
         'that the recipient of a message spell is on another plane — SRD Sending’s "if the target is on a different plane than you, there is a 5 percent chance that the message doesn’t arrive". One spell prints the clause, the engine refuses the fact on every other, and no benchmark character has Sending prepared; the answer is a stated fact and never a number, because the die it gates is the engine’s. `packages/tools` publishes it as `cast_spell.otherPlane`',
       ),
+      rider: because(
+        'who else may ride what a casting summons — SRD Phantom Steed’s "you or a creature you choose can ride the steed". One spell prints the clause, a minute’s rite neither benchmark character prepares, and the answer is a creature named and never a number. `packages/tools` publishes it as `cast_spell.rider`',
+      ),
+      hitDice: because(
+        'the Hit Point Dice each creature spends of the Short Rest’s benefits a spell gives it — SRD Prayer of Healing. One spell prints the clause, a ten-minute rite neither benchmark character prepares, and the answer is pool keys the creature chooses to spend, which the engine rolls. `packages/tools` publishes it as `cast_spell.hitDice`',
+      ),
       stores: because(
         'a spell stored in the casting — SRD Glyph of Warding’s spell glyph: "You can store a prepared spell of level 3 or lower in the glyph by casting it as part of creating the glyph." One spell prints the option, it takes an hour to cast, and neither benchmark character prepares it: an hour’s rite opens a pending casting, and nothing on this surface settles one — the reason `hold` and `ritual` are withheld below. `packages/tools` publishes it as `cast_spell.stores`, and the stored spell is set off by the DM’s `trigger_glyph.by`',
       ),

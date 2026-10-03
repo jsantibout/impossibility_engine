@@ -83,6 +83,22 @@ export interface Vitals {
    */
   readonly preservedSeconds?: number;
   /**
+   * That this death was of old age — the DM's ruling, pinned on the
+   * `creature-died` that recorded it (`oldAge`).
+   *
+   * > SRD Revivify: "This spell can't revive a creature that has died of old
+   * > age". Resurrection and True Resurrection print the same refusal.
+   *
+   * No engine road kills a creature of age — damage, a third failed death save
+   * and Exhaustion 6 are each something else — so the only death that can be
+   * one is a declared one, and the declaration is what says so. Read by a
+   * `revive` that prints `notOfOldAge`. Absent on every other death, which is
+   * every death written before the field existed; dropped on the way back
+   * with {@link diedAt}, so a creature revived and killed again is judged on
+   * its second death.
+   */
+  readonly diedOfOldAge?: true;
+  /**
    * SRD: "A monster dies the instant it drops to 0 Hit Points, although a Game
    * Master can ignore this rule for an individual monster and treat it like a
    * character." So this is per-creature rather than a type check.
@@ -616,8 +632,9 @@ export function revive(v: Vitals, hitPoints: number): Vitals {
   // The days a repose kept this body go with the death they were kept
   // against — see {@link Vitals.preservedSeconds}. Dropped rather than zeroed,
   // so a revived creature's record is the record it always was.
-  const { preservedSeconds: _spent, ...rest } = v;
+  const { preservedSeconds: _spent, diedOfOldAge: _age, ...rest } = v;
   void _spent;
+  void _age;
   return {
     ...rest,
     hp: Math.min(v.hpMax, hitPoints),

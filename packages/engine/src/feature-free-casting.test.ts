@@ -374,7 +374,7 @@ describe("a Paladin's Faithful Steed casts Find Steed once between rests", () =>
       castingId: null,
       // And what it leaves behind when it goes, the spell's own sentence pinned
       // on the bond (W9-S3).
-      kept: { spell: 'find-steed', untilSummonerDies: true, leavesBehind: true },
+      kept: { spell: 'find-steed', untilSummonerDies: true, controlledMount: true, leavesBehind: true },
     });
   });
 });
