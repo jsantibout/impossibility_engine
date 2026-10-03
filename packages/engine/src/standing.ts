@@ -219,7 +219,8 @@ export type AreaStanding =
   | AreaDeflectionStanding
   | AreaAttackModeStanding
   | AreaConditionImmunityStanding
-  | AreaDispersalStanding;
+  | AreaDispersalStanding
+  | AreaDousingStanding;
 
 /**
  * How much of a creature has to be in the area for a clause to reach it.
@@ -624,6 +625,23 @@ export type AreaConditionImmunityStanding = AreaSide & {
 export interface AreaDispersalStanding {
   readonly kind: 'disperses';
   readonly what: 'gas';
+}
+
+/**
+ * SRD Sleet Storm: "The area is Heavily Obscured, and **exposed flames in the
+ * area are doused**."
+ *
+ * The flame the engine holds is the glossary's Burning hazard, on a creature,
+ * and SRD Burning prints the consequence: "The fire also goes out if it is
+ * doused". So a creature standing in the area does not burn — whether it was
+ * alight when the sleet began, walked in, was shoved in, or caught fire where
+ * it stood — which `douseStandingFlames` in the fold derives off the pinned
+ * area after every event, the same derived-at-the-read reading every clause
+ * here takes. The fire it puts out stays out: a creature that walks back into
+ * the open is not burning again, because a doused fire is over. (E-L2)
+ */
+export interface AreaDousingStanding {
+  readonly kind: 'douses-flames';
 }
 
 /**

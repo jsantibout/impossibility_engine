@@ -10854,14 +10854,12 @@ export const SLEET_STORM: SpellDefinition = {
     ],
   },
   durationSeconds: 60,
-  // **A debt, and not the table's** (W8-S26, on review). A torch in the open
-  // is light the table declares and takes away, but a creature on fire is not:
-  // the Burning hazard sits on the creature and deals 1d4 at the start of each
-  // of its turns, and a burning creature standing in the sleet goes on burning.
-  // So the sentence stays owed; its Heavily Obscured half is `areaObscurement`.
-  unmodelled: [
-    'the exposed flames the sleet douses are not doused: a creature with the Burning hazard in the Cylinder goes on taking its 1d4 at every turn start — the torches and campfires in the area are light the table declares and takes away',
-  ],
+  // "and exposed flames in the area are doused" (W8-S26 filed it a debt; E-L2
+  // built it). The flame the engine holds is the Burning hazard on a creature,
+  // and SRD Burning says "The fire also goes out if it is doused": a creature
+  // standing in the Cylinder does not burn, however it came to be there, and
+  // the fold derives it off this pinned clause after every event.
+  areaStanding: [{ kind: 'douses-flames' }],
 };
 
 /**

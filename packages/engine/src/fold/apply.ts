@@ -34,7 +34,7 @@ import { castingIdOf } from '../spells.js';
 import { featureOfSource } from '../progression.js';
 import { type Applying, unhandledEvent } from './common.js';
 import { releaseCasting, releaseGrants } from './release.js';
-import { dropOrphanedAreaEffects } from './areas.js';
+import { dropOrphanedAreaEffects, douseStandingFlames } from './areas.js';
 import { openTurnStart, reachStartOfTurn } from './turns.js';
 import {
   dropOrphanedSaves,
@@ -300,6 +300,11 @@ function applyEventUnder(state: GameState, event: GameEvent, legacy: Content | n
   // right whichever of them fired, rather than right for the ones somebody
   // remembered.
   return settleHitPointMaxima(reachStartOfTurn(
+    // **A fire the sleet puts out**, against the world every pass below has
+    // settled — a storm whose casting just ended douses nothing — and before
+    // the turn's start is reached, so a creature standing in the sleet is not
+    // owed a burn it is no longer suffering. See `douseStandingFlames`. (E-L2)
+    douseStandingFlames(
     // After every pass that can end a feature — a deadline, a lost condition,
     // an explicit ending — because what this puts back is a sheet a feature
     // was holding up, and it has to see the feature gone first. The size an
@@ -410,6 +415,7 @@ function applyEventUnder(state: GameState, event: GameEvent, legacy: Content | n
     ),
     // The world before this event, so the pass sees an override leave.
     state,
+    ),
     ),
   ));
 }

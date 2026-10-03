@@ -392,6 +392,56 @@ export function endConditionsLeftBehind(state: GameState): GameState {
 }
 
 /**
+ * SRD Sleet Storm's "exposed flames in the area are doused", read against
+ * every burning creature after every event. (E-L2)
+ *
+ * **Derived and eventless, for the reason every pass here is**: nobody decides
+ * that the sleet puts a fire out. A creature can come to be burning in the
+ * Cylinder by catching fire there, by walking in, by being shoved or carried in,
+ * or by the sleet starting over it, and one question asked of the world after
+ * the event is right in every one of them where an event written at each
+ * moment would be right in the moments somebody remembered. SRD Burning: "The
+ * fire also goes out if it is doused" — so the hazard is dropped, and stays
+ * dropped when the creature leaves; a doused fire is over.
+ *
+ * Cheap where it has nothing to do, which is almost always: it returns before
+ * reading any geometry unless somebody is burning **and** a running casting
+ * pins the clause.
+ */
+export function douseStandingFlames(state: GameState): GameState {
+  const scene = state.scene;
+  if (scene === null) return state;
+  const burning = Object.keys(state.creatures)
+    .sort()
+    .filter((who) =>
+      state.creatures[who]!.hazards.some((one) => one.hazard === 'burning'),
+    ) as CharacterId[];
+  if (burning.length === 0) return state;
+
+  const doused = new Set<CharacterId>();
+  for (const castingId of Object.keys(state.ongoing).sort()) {
+    const record = state.ongoing[castingId]!;
+    if (record.areaStanding?.some((standing) => standing.kind === 'douses-flames') !== true) {
+      continue;
+    }
+    const inside = creaturesStandingInCastingArea(scene, record);
+    if (inside === null) continue;
+    for (const who of burning) if (inside.has(who)) doused.add(who);
+  }
+  if (doused.size === 0) return state;
+
+  const creatures = { ...state.creatures };
+  for (const who of doused) {
+    const creature = creatures[who]!;
+    creatures[who] = {
+      ...creature,
+      hazards: creature.hazards.filter((one) => one.hazard !== 'burning'),
+    };
+  }
+  return { ...state, creatures };
+}
+
+/**
  * The conditions a trigger's clauses said last only while their holder is in
  * the area.
  *

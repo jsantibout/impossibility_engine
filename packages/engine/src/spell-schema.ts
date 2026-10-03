@@ -725,6 +725,7 @@ function checkChoiceOption(
  * | `attack-mode` | Magic Circle | Advantage or Disadvantage, and the attacker's types it reaches |
  * | `condition-immunity` | Magic Circle | the SRD's conditions, and the causer's types it holds against |
  * | `disperses` | Gust of Wind | what it disperses, which is gas |
+ * | `douses-flames` | Sleet Storm | nothing: it is a fact with no fields |
  *
  * `statesTypes` is whether the definition prints a choice of types for the
  * casting to fill in: a clause saying `'stated'` on a spell that prints none
@@ -854,6 +855,11 @@ function checkAreaStanding(
       return;
 
     case 'deflects-projectiles':
+      return;
+
+    // SRD Sleet Storm: "exposed flames in the area are doused". A fact with no
+    // fields, read by the fold against whoever is burning there. (E-L2)
+    case 'douses-flames':
       return;
 
     // SRD Gust of Wind: "The gust disperses gas or vapor." One thing a wind

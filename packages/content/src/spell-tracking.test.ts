@@ -2370,6 +2370,10 @@ describe('every spell this batch added is cast for real', () => {
     // that disperses gas or the table's `declare_wind`, read in the fold.
     // What is left is the bank it lays, which is executed. (W9-S2)
     'fog-cloud',
+    // And the sleet, whose one line was the doused flames: a creature burning
+    // in the Cylinder is put out by the fold off the `douses-flames` clause the
+    // casting pins, so nothing is left for the table. (E-L2)
+    'sleet-storm',
   ];
 
   /**

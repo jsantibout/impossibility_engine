@@ -1257,13 +1257,9 @@ export const ADJUDICATED: Readonly<Record<string, readonly Adjudication[]>> = {
     // owner's ruling of 2026-09-22 and the engine's rule, not a gap and not
     // the table's, and the definition's docstring carries it.
   ],
-  'sleet-storm': [
-    {
-      clause: 'the exposed flames the sleet douses are not doused',
-      why: 'a-standing-effect-derived-from-where-a-creature-stands',
-      note: 'W8-S26 filed this on review, after first handing it over. SRD: "The area is Heavily Obscured, and exposed flames in the area are doused." A torch in the open is light the table declares and takes away, but a creature on fire is not: the Burning hazard sits on the creature and deals 1d4 at the start of each of its turns, and `extinguishFire`’s own note names doused as the gap. Standing in the Cylinder is what should put it out, which is a standing effect derived from where a creature stands — the closest id.',
-    },
-  ],
+  // **Sleet Storm files nothing now** (E-L2): "exposed flames in the area are
+  // doused" is `douses-flames`, an `AreaStanding` clause the fold reads against
+  // every burning creature standing in the Cylinder after every event.
   // **The shaking has left this map**, and it left by being built: "someone
   // within 5 feet of it takes an action to shake it out of the spell's effect"
   // is `wakeCreature`, a command that spends the onlooker's Action, measures
