@@ -73,7 +73,7 @@ const hall = (south = 0): readonly GameEvent[] => [
       ability: 'int',
       classId: 'wizard',
       cantrips: ['fire-bolt'],
-      prepared: ['fog-cloud'],
+      prepared: ['fog-cloud', 'silent-image'],
     }),
   },
   ...slots(CLERIC),
@@ -158,6 +158,21 @@ describe('SRD Dispel Magic aimed at a magical effect', () => {
     expect(code(dispel(far.log, { magicalEffect: far.castingId }))).toBe('out_of_range');
     const near = fogged(100);
     expect(code(dispel(near.log, { magicalEffect: near.castingId }))).toBeNull();
+  });
+
+  it('ends an effect that holds no place, and says the range was the table’s', () => {
+    // SRD Silent Image: an image "within range" that the engine places nowhere,
+    // so the distance to it cannot be measured — the casting goes ahead and
+    // says so rather than inventing a place.
+    const image = unwrap(cast(HALL, WIZARD, { spellId: 'silent-image', targets: [], slotLevel: 1 }), 'image');
+    const log = [...HALL, ...image.events];
+    expect(fold('s', log).ongoing[image.castingId!]?.origin).toBeUndefined();
+    const out = unwrap(dispel(log, { magicalEffect: image.castingId! }), 'dispel') as unknown as {
+      readonly events: readonly GameEvent[];
+      readonly unverified: readonly string[];
+    };
+    expect(fold('s', [...log, ...out.events]).ongoing[image.castingId!]).toBeUndefined();
+    expect(out.unverified.join(' ')).toContain('within range is the table');
   });
 
   it('refuses a casting that is on a creature, which is aimed at through the creature', () => {

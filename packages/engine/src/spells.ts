@@ -577,8 +577,11 @@ export interface OngoingSpell {
   /**
    * What this casting lays is a curse — `SpellDefinition.curse`, pinned at the
    * cast so SRD Remove Curse's `end-curses` reads the record and no
-   * catalogue. Absent on every casting that lays none, which is every record
-   * written before the field. (E-L1)
+   * catalogue. Absent on every casting that lays none — **and on a curse
+   * casting recorded before the field**, a Hex or a Bestow Curse made under an
+   * engine that did not pin it: rule 5 forbids reading the mark back out of
+   * today's book, so Remove Curse does not end such a casting, and it runs out
+   * on its own deadline or Concentration. (E-L1)
    */
   readonly curse?: true;
   /**

@@ -3293,9 +3293,12 @@ export interface PrintedCastingOutcome {
  * *not* a pool on the grant — two ledgers for one heading is how a creature
  * comes to cast four Blesses out of a 3/Day line, once through each door.
  *
- * **"Requiring no spell components" is fiction here.** The engine models no
- * components at all, so the clause changes nothing it could check; it is said
- * in the note the casting hands back rather than enforced.
+ * **"Requiring no spell components" is enforced, not narrated** (E-L1). The
+ * parser carries what the line waives onto the route (`GrantedSpell.waives`),
+ * and the casting reads it: SRD Counterspell's window does not open on a
+ * casting with no component left, SRD Slow's die is not thrown for gestures
+ * the line does without, and SRD Silence does not stop a casting that waives
+ * its Verbal component.
  *
  * **A line that casts on itself has no target to state.** SRD Imp, Quasit and
  * Sprite print "casts _Invisibility_ **on itself**", and the parser reads the

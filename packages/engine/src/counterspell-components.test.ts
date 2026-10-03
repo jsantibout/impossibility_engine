@@ -61,7 +61,7 @@ const sheet = (): CharacterSheet => ({
 });
 
 /** A room, a wizard holding Counterspell, and a caster of the given block twenty feet off. */
-function room(block: string): GameEvent[] {
+function room(block: string, quiet = false): GameEvent[] {
   const log: GameEvent[] = [];
   const step = (produce: (state: GameState) => Result<readonly GameEvent[] | { readonly events: readonly GameEvent[] }>) => {
     const out = unwrap(produce(fold('counter', log)), 'step');
@@ -97,6 +97,34 @@ function room(block: string): GameEvent[] {
   step((s) => declareCreatureSide(s, CASTER, 'foes'));
   step((s) => declareSightBetween(s, WIZARD, CASTER, true));
   step((s) => declareSightBetween(s, CASTER, WIZARD, true));
+  // And, where asked, an SRD Silence laid over the caster before the fight:
+  // "no sound can be created within or pass through" the Sphere.
+  if (quiet) {
+    log.push(
+      {
+        type: 'spellcasting-declared',
+        id: WIZARD,
+        spellcasting: declaredCasting({
+          ability: 'int',
+          classId: 'wizard',
+          prepared: ['counterspell', 'silence'],
+        }),
+      },
+      {
+        type: 'resource-pool-declared',
+        id: WIZARD,
+        pool: { key: 'spell-slot:2', label: 'level 2', max: 2, recovers: 'long-rest' },
+      },
+    );
+    step((s) =>
+      resolveSpell(
+        s,
+        WIZARD,
+        { spellId: 'silence', targets: [], at: { x: 100, y: 120, z: 0 }, slotLevel: 2 } as never,
+        supply(s),
+      ),
+    );
+  }
   step((s) =>
     beginCombat(s, [
       { id: CASTER, initiative: 20, speed: 30 },
@@ -107,8 +135,14 @@ function room(block: string): GameEvent[] {
 }
 
 /** The caster takes the block's line, held open, and the state it leaves. */
-function heldLine(block: string, line: string, spell: string, casting: Record<string, unknown>) {
-  const log = room(block);
+function heldLine(
+  block: string,
+  line: string,
+  spell: string,
+  casting: Record<string, unknown>,
+  quiet = false,
+) {
+  const log = room(block, quiet);
   const out = unwrap(
     castPrintedLine(
       fold('counter', log),
@@ -212,5 +246,42 @@ describe('SRD Counterspell sees only a casting with components', () => {
     const state = fold('counter', [...worn, ...declared.events]);
     expect(state.pendingCastings[declared.castingId!]?.componentless).toBe(true);
     expect(counterspellOffered(state)).toBe(false);
+  });
+});
+
+/**
+ * SRD Silence: a creature in the Sphere cannot cast a spell with a Verbal
+ * component. The road that waives every component waives that one too (E-L1),
+ * so a Dust Mephit's Sleep is cast in the silence; a Drider's Darkness waives
+ * only its Material component, and its Verbal one is still stopped.
+ */
+describe('SRD Silence reads what the road waives', () => {
+  const MEPHIT_SLEEP = SRD_CONTENT.monsterById('dust-mephit')!.actions.find(
+    (line) => line.casts !== undefined,
+  )!.name;
+  const DRIDER_MAGIC = SRD_CONTENT.monsterById('drider')!.bonusActions.find(
+    (line) => line.casts !== undefined,
+  )!.name;
+
+  it('lets a casting with no Verbal component left be made in the Sphere', () => {
+    const { log, castingId } = heldLine(
+      'dust-mephit',
+      MEPHIT_SLEEP,
+      'sleep',
+      { at: { x: 100, y: 100, z: 0 }, targets: [WIZARD] },
+      true,
+    );
+    expect(fold('counter', log).pendingCastings[castingId]).toBeDefined();
+  });
+
+  it('stops one whose Verbal component the line does not waive', () => {
+    const log = room('drider', true);
+    const refused = castPrintedLine(
+      fold('counter', log),
+      CASTER,
+      { line: DRIDER_MAGIC, spell: 'darkness', casting: { at: { x: 100, y: 110, z: 0 } } as never },
+      supply(fold('counter', log)),
+    );
+    expect(isErr(refused) && refused.code).toBe('silenced');
   });
 });

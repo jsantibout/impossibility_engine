@@ -1912,9 +1912,25 @@ export function castOrRelease(
         );
       }
       const reach = rangeFeetAt(definition, numbersAsCast().casterLevel);
-      if (effect.origin === undefined || state.scene === null || reach === null) {
+      if (effect.origin === undefined || reach === null) {
         unverified.push(
           `${definition.name}: whether ${effect.spell} (${effect.castingId}) is within range is the table's — it holds no place in the scene the engine can measure`,
+        );
+      } else if (state.scene === null) {
+        // A place with no scene to measure it in is a missing fact, asked the
+        // way a creature target's range asks it.
+        return needsContext(
+          'no_scene',
+          `${definition.name} measures its range to the place ${effect.spell} holds, and there is no scene to measure it in`,
+          [
+            {
+              kind: 'scene',
+              subject: casterId,
+              need: 'a scene, so that the distance to the effect means something',
+              because: `${definition.name} is aimed at a magical effect within range`,
+              satisfyWith: 'a setScene command',
+            },
+          ],
         );
       } else {
         const away = distanceToPoint(state.scene, casterId, effect.origin);

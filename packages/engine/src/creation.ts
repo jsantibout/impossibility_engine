@@ -3008,15 +3008,6 @@ const languagesChosenOnFeatures = (
   );
 
 /**
- * Every language a character ends up knowing: the free ones, the chosen, and
- * the ones a feature put there.
- *
- * **Deduplicated rather than concatenated**, because the three sources can
- * name the same tongue and a sheet listing Elvish twice is a sheet that is
- * wrong about one of them. The order is the order of arrival, which is what
- * every sheet written before features could grant a language already had.
- */
-/**
  * The languages a character on the record knows, worked out the way its sheet
  * was — or null where the record names a class, species or background this
  * catalogue no longer holds.
@@ -3033,6 +3024,15 @@ export function languagesOfRecord(content: Content, record: CharacterRecord): re
   return languagesKnown(content, record.choices, grantedFeatures(content, record.choices, parts));
 }
 
+/**
+ * Every language a character ends up knowing: the free ones, the chosen, and
+ * the ones a feature put there.
+ *
+ * **Deduplicated rather than concatenated**, because the three sources can
+ * name the same tongue and a sheet listing Elvish twice is a sheet that is
+ * wrong about one of them. The order is the order of arrival, which is what
+ * every sheet written before features could grant a language already had.
+ */
 function languagesKnown(
   content: Content,
   choices: CharacterChoices,

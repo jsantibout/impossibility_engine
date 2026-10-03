@@ -328,9 +328,9 @@ describe('SRD Slow: a Somatic casting may fail', () => {
 
   /**
    * SRD "Spells Cast from Items": the item's casting needs none of the
-   * caster's gestures — the reason Counterspell's own window is an open
-   * question in `docs/design/casting.md` — so a slowed wizard waving a Wand of
-   * Fireballs throws no die for it.
+   * caster's gestures — the same reading that keeps Counterspell's window shut
+   * on an item's casting (`componentsWaivedBy`, E-L1) — so a slowed wizard
+   * waving a Wand of Fireballs throws no die for it.
    */
   it('throws nothing for a casting an item makes', () => {
     const awarded = [
