@@ -1362,7 +1362,7 @@ export const ADJUDICATED: Readonly<Record<string, readonly Adjudication[]>> = {
     {
       clause: 'a hurled boulder let through',
       why: 'a-barrier-that-blocks-passage',
-      note: 'W8-S26 read this line for the first time. The barring and the deflection are built as `areaStanding`; what it cannot tell is an arrow from a boulder, because a stat block’s printed line does not say what it looses, so a monster’s ranged shot is made and the wall reported beside it. A creature whose ranged attack should miss automatically is owed that miss. The closest id: what a wall stops crossing it.',
+      note: 'W8-S26 read this line for the first time. The barring and the deflection are built as `areaStanding`; what it cannot tell is an arrow from a boulder, because a stat block’s printed line does not say what it looses, so a monster’s ranged shot is made and the wall reported beside it. A creature whose ranged attack should miss automatically is owed that miss. The closest id: what a wall stops crossing it. **E-L2 narrowed it**: a line named after a catalogue weapon that is fired or thrown looses that weapon and is deflected as the weapon is (`projectileOfLine`). What is left is the lines named after no weapon — a Tail Spike, a Rock, a Hurl Flame, a Bone Bow — which need the table to say what each looses (an owner question: a content table per line, or a fact stated on the attack).',
     },
     // **The gases left with E-L2.** "fog, smoke and other gases are not kept at
     // bay" was filed against suppression; the gases the engine holds are SRD Fog

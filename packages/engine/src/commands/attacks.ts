@@ -1885,6 +1885,31 @@ function castWithTheSwing(
 }
 
 /**
+ * The projectile a stat block's printed ranged line looses, where the line is
+ * named after a catalogue weapon that can be fired or thrown — or null where
+ * it is named after nothing the catalogue holds. (E-L2)
+ *
+ * SRD Wind Wall deflects "arrows, bolts, and other ordinary projectiles" and
+ * lets "boulders hurled by Giants or siege engines, and similar projectiles"
+ * by. The line prints no projectile, but its **name** is the weapon's when it
+ * is one — a Scout's Longbow, an Ogre's Javelin — so it is read off the
+ * catalogue the caller supplied, by the name the line prints and the
+ * parenthetical stripped (SRD Werewolf's "Longbow (Humanoid or Hybrid Form
+ * Only)"), exactly as a catalogue weapon's ranged attack is read: every one of
+ * them is ordinary. The engine names no weapon; the content does.
+ */
+function projectileOfLine(content: Content, line: string): string | null {
+  const name = line.replace(/\s*\(.*\)\s*$/, '').trim().toLowerCase();
+  const item = content.items.find(
+    (candidate) => candidate.weapon !== null && candidate.name.toLowerCase() === name,
+  );
+  if (item === undefined || item.weapon === null) return null;
+  // Fired or thrown: an Ammunition weapon's range, or a Thrown one's.
+  const looses = item.weapon.ammunitionRange !== null || item.weapon.thrownRange !== null;
+  return looses ? item.name.toLowerCase() : null;
+}
+
+/**
  * Swing at somebody, and let the engine work out the numbers.
  *
  * `rollAttack` is pure and always has been: hand it a sheet, a target Armour
@@ -2765,10 +2790,18 @@ export function resolveAttack(
           if (!segmentCrossesRegion(state.scene, region, centre(fromSpace), centre(toSpace))) {
             continue;
           }
-          if (printed !== null) {
+          // **A printed line named after a catalogue weapon looses that
+          // weapon** — a Scout's Longbow, an Ogre's thrown Javelin — so it is
+          // deflected as the weapon is. A line named after nothing the
+          // catalogue holds (a Manticore's Tail Spike, a Giant's Rock) is the
+          // table's to say, and is reported. (E-L2)
+          const looses = printed === null ? null : projectileOfLine(supply.content, printed.name);
+          if (printed !== null && looses === null) {
             unverified.push(
-              `${attackName} was launched through ${spell}, which deflects arrows, bolts and other ordinary projectiles and not boulders; a stat block's line does not say which it is, so the roll was made without it`,
+              `${attackName} was launched through ${spell}, which deflects arrows, bolts and other ordinary projectiles and not boulders; a stat block's line named after no weapon does not say which it is, so the roll was made without it`,
             );
+          } else if (looses !== null) {
+            autoMiss = `${spell} deflects the ${looses} upward`;
           } else {
             autoMiss = `${spell} deflects ${weapon?.name ?? 'the projectile'} upward`;
           }

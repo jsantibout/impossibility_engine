@@ -12917,8 +12917,12 @@ export const WIND_WALL: SpellDefinition = {
     { kind: 'disperses', what: 'gas' },
   ],
   durationSeconds: 60,
+  // **Narrowed by E-L2**: a printed line named after a catalogue weapon — a
+  // Scout's Longbow, an Ogre's thrown Javelin — looses that weapon and is
+  // deflected as the weapon is. What is left is a line named after nothing the
+  // catalogue holds.
   unmodelled: [
-    'objects are not in the scene: a Small flying object turned back, and a hurled boulder let through, are the DM’s — a stat block’s printed line does not say whether it looses an arrow or a boulder, so that shot is made and the wall reported beside it rather than deflecting it',
+    'objects are not in the scene: a Small flying object turned back, and a hurled boulder let through, are the DM’s — and a stat block’s printed ranged line named after no catalogue weapon (a Manticore’s Tail Spike, a Rock) does not say whether it looses an arrow or a boulder, so that shot is made and the wall reported beside it rather than deflecting it',
   ],
   // The loose material, in the book's words (W8-S26): what flies upward in
   // the wind is a thing the engine holds none of, and nothing reads it.
