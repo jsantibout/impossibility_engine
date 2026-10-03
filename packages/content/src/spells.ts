@@ -15307,7 +15307,7 @@ export const GLYPH_OF_WARDING: SpellDefinition = {
   // and read by the trigger below (`onlyStatedTypes`): a refined glyph is set
   // off only by a creature the DM names whose type, as magic sees it, is one
   // of them.
-  typesStated: { options: [...CREATURE_TYPES], optional: true },
+  typesStated: { options: [...CREATURE_TYPES], orNone: true },
   // "The glyph is nearly imperceptible and requires a successful Wisdom
   // (Perception) check against your spell save DC to notice." A check the
   // casting offers to anybody, as Spike Growth's is — riding on the deadline

@@ -4097,7 +4097,20 @@ describe('every branch judges untyped input rather than throwing on it', () => {
     {
       kind: 'revive',
       base: { kind: 'revive', within: 60, hitPoints: 1 },
-      fields: { within: required(NUMBER_JUNK), hitPoints: required(NUMBER_JUNK) },
+      fields: {
+        within: required(NUMBER_JUNK),
+        hitPoints: required(NUMBER_JUNK),
+        // SRD Revivify's "can't revive a creature that has died of old age":
+        // printed as true or not at all.
+        notOfOldAge: [false, null, 'nonsense', 7, {}],
+      },
+    },
+    {
+      // SRD Prayer of Healing's "the benefits of a Short Rest": the one rest an
+      // effect prints, named by its word.
+      kind: 'rest-benefits',
+      base: { kind: 'rest-benefits', rest: 'short' },
+      fields: { rest: required(STRING_JUNK) },
     },
     {
       kind: 'creature-type-override',

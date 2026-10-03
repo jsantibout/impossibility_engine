@@ -187,7 +187,7 @@ describe('toolSchemas', () => {
     // word that a printed cause happened. And one on each for W9-S3,
     // `draw_rope`, and one more on the DM's alone, `declare_portal_height`.
     expect(toolSchemas(player())).toHaveLength(100);
-    expect(toolSchemas(dm())).toHaveLength(133);
+    expect(toolSchemas(dm())).toHaveLength(134);
     // Re-pinned 2026-09-24 for the printed-lines track, which opened one door
     // on the DM's surface alone: `teleport_printed_line` takes the teleport a
     // stat block prints, at the distance the block prints, to a space the DM
@@ -420,9 +420,9 @@ describe('toolSchemas', () => {
     // carry, +1,253 each; and `ability_check.tool` on the DM's alone, +509. No
     // tool added: +2,182 on the player's door and +2,691 on the DM's.
     expect(toolSchemas(player())).toHaveLength(100);
-    expect(toolSchemas(dm())).toHaveLength(133);
-    expect(JSON.stringify(toolSchemas(player())).length).toBe(167553);
-    expect(JSON.stringify(toolSchemas(dm())).length).toBe(227258);
+    expect(toolSchemas(dm())).toHaveLength(134);
+    expect(JSON.stringify(toolSchemas(player())).length).toBe(170838);
+    expect(JSON.stringify(toolSchemas(dm())).length).toBe(232161);
   });
 });
 

@@ -6280,13 +6280,13 @@ export interface SpellDefinition {
    * refused off the list (`type_not_offered`), and never defaulted. Pinned onto
    * the record substituted, so the fold reads a list and never the word.
    *
-   * **`optional` where the book says "you can"** — SRD Glyph of Warding's
+   * **`orNone` where the book says "you can"** — SRD Glyph of Warding's
    * "You can refine the trigger so that only creatures of certain types
    * activate it". A casting that names none is not refused: it has made no
    * refinement, and nothing is defaulted in its place. The list then reaches
    * the trigger (`TriggeredEffects.onlyStatedTypes`) rather than an area clause.
    */
-  readonly typesStated?: { readonly options: readonly string[]; readonly optional?: true };
+  readonly typesStated?: { readonly options: readonly string[]; readonly orNone?: true };
   /**
    * The branches this spell prints, of which a casting runs exactly one.
    *
@@ -8583,7 +8583,7 @@ export interface TriggeredEffects {
    *
    * The types are the caster's, stated at the casting through
    * {@link SpellDefinition.typesStated} — which a spell printing this must
-   * carry, and which is `optional` where the book says "you can" — and pinned
+   * carry, and which is `orNone` where the book says "you can" — and pinned
    * on the record as `OngoingSpell.activatedBy`. A refined glyph is set off
    * only by a creature the DM names (`TriggerGlyphCommand.by`) whose type, as
    * spells and magical effects see it, is one of them; who the rune then

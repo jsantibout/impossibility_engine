@@ -1812,7 +1812,7 @@ export function declaredFacts(
   } else if (request.types === undefined || request.types.length === 0) {
     // "You can refine the trigger" — a choice the caster may leave unmade, and
     // then nothing is refined and nothing is defaulted in its place.
-    if (printedTypes.optional !== true) {
+    if (printedTypes.orNone !== true) {
       return err(
         'types_required',
         `${definition.name} prints ${printedTypes.options.join(', ')} and the engine will not choose among them; name one or more`,

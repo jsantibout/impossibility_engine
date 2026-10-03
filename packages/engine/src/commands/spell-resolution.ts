@@ -170,7 +170,7 @@ import {
   fixedChoiceOf,
 } from './casting.js';
 import { creatureOf, turnContextFor, unknownCreature } from './command.js';
-import { hitDiceRequested } from '../rest.js';
+import { hitDiceRequested } from '../hit-dice.js';
 import {
   chargeSpend,
   itemCastOf,

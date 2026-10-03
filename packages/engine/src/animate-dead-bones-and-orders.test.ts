@@ -13,7 +13,7 @@ import type { CharacterSheet } from './character.js';
 import { createRng, type Rng } from './dice.js';
 import { createRollIssuer } from './rolls.js';
 import { applyEvent, fold, type GameEvent, type GameState } from './events.js';
-import { pointFromPlacement, type Placement } from './positioning.js';
+import type { Placement } from './positioning.js';
 import { checkSpellDefinitionValue } from './spell-schema.js';
 import { declaredCasting } from './spellcasting.js';
 import {
@@ -96,7 +96,7 @@ const pile = (bearing: number): Placement => ({ from: { creature: WIZ }, feet: 5
 
 /** The DM lays a pile of bones where this placement points. */
 const laid = (state: GameState, name: string, where: Placement): GameState =>
-  step(state, must(declareBones(state, name, must(pointFromPlacement(state.scene!, where), 'the point')), 'bones'));
+  step(state, must(declareBones(state, name, where), 'bones'));
 
 /** The minute's rite over the piles named, waited out and settled. */
 const rite = (state: GameState, bonesAt: readonly Placement[], slotLevel = 3): Result<GameState> => {
@@ -158,7 +158,7 @@ describe('"a pile of bones" is the table’s to have said', () => {
   });
 
   it('is refused a pile outside the scene', () => {
-    const out = declareBones(fold('seed', SETUP), 'the void', { x: 9000, y: 0, z: 0 });
+    const out = declareBones(fold('seed', SETUP), 'the void', { from: { creature: WIZ }, feet: 9000, bearing: 0 });
     expect(isErr(out) && out.code).toBe('outside_scene');
   });
 });

@@ -11,7 +11,7 @@
 import { type CharacterId, ok, type Result } from '@ie/shared';
 import { applyEvent, type CreatureState, type GameEvent, type GameState } from '../events.js';
 import { abilityModifier } from '../character.js';
-import { hitDiceRequested, hitDiceRolled } from '../rest.js';
+import { hitDiceRequested, hitDiceRolled } from '../hit-dice.js';
 import { scaledDiceFor, scaledFlatFor } from '../spell-definitions.js';
 import { castingHealingBonus, sheetAsItStands } from '../standing.js';
 import { healingRuleOf, maximisedHealing } from '../vitals.js';

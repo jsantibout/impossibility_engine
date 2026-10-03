@@ -7364,10 +7364,10 @@ export function checkSpellDefinition(
       }
     }
     // "You can refine the trigger": the one word that lets a casting name none.
-    const optional = (definition.typesStated as { readonly optional?: unknown } | null)?.optional;
-    if (optional !== undefined && optional !== true) {
+    const orNone = (definition.typesStated as { readonly orNone?: unknown } | null)?.orNone;
+    if (orNone !== undefined && orNone !== true) {
       found.push({
-        field: 'typesStated.optional',
+        field: 'typesStated.orNone',
         code: 'malformed_field',
         reason: 'a choice of types the caster may leave unmade says so with true, or says nothing',
       });

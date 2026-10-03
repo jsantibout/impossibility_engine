@@ -309,7 +309,12 @@ const aimedAt = (definition: (typeof SPELL_DEFINITIONS)[number]) => {
       : [
           definition.targets.self === true
             ? CLERIC
-            : definition.targets.mustBeDead === true
+            : // A body for a spell that takes one — Gentle Repose's target rule,
+              // or a revival's effect (SRD Revivify, which joined with E-L3):
+              // the fixture's corpse died at the clock's first second, inside
+              // Revivify's minute.
+              definition.targets.mustBeDead === true ||
+                definition.effects.some((effect) => effect.kind === 'revive')
               ? CORPSE
               : bodyFor(definition),
         ];
@@ -620,6 +625,13 @@ describe('the catalogue hands over exactly the text it means to', () => {
       'prestidigitation',
       'protection-from-evil-and-good',
       'purify-food-and-drink',
+      // **Revivify's last sentence, whose fiction is the half nobody reads**
+      // (E-L3). "This spell can't revive a creature that has died of old age"
+      // is executed — the DM's ruling on the death, refused by
+      // `notOfOldAge` — and "nor does it restore any missing body parts" is
+      // narration the engine holds no anatomy for. One sentence, so it goes
+      // over whole beside the half the engine executes.
+      'revivify',
       'rope-trick',
       // Rope Trick left this list on the second place: the climb, the eight,
       // the isolation and the drop are executed, and the rope and the portal

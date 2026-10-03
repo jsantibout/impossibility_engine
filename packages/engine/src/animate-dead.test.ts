@@ -175,7 +175,7 @@ class Game {
     for (const [i, pile] of (rite.bonesAt ?? []).entries()) {
       const point = pointFromPlacement(this.state.scene!, pile);
       if (!point.ok) continue;
-      this.push(unwrap(declareBones(this.state, `pile-${this.events.length}-${i}`, point.value), 'the bones'));
+      this.push(unwrap(declareBones(this.state, `pile-${this.events.length}-${i}`, pile), 'the bones'));
     }
     const declared = resolveSpell(
       this.state,

@@ -176,6 +176,28 @@ describe('"the benefits of a Short Rest"', () => {
     expect(isErr(out) && out.code).toBe('not_enough_hit_dice');
   });
 
+  it('refuses Hit Point Dice on a spell that gives no rest’s benefits', () => {
+    const out = resolveSpell(
+      fold('seed', [
+        ...SETUP,
+        {
+          type: 'spellcasting-declared',
+          id: CLERIC,
+          spellcasting: declaredCasting({ ability: 'wis', classId: 'cleric', prepared: ['prayer-of-healing', 'healing-word'] }),
+        },
+        {
+          type: 'resource-pool-declared',
+          id: CLERIC,
+          pool: { key: spellSlotKey(1), label: 'level 1 spell slot', max: 2, recovers: 'long-rest' },
+        },
+      ]),
+      CLERIC,
+      { spellId: 'healing-word', targets: [HURT], slotLevel: 1, hitDice: { [HURT]: [hitDieKey(10)] } },
+      supply('declare'),
+    );
+    expect(isErr(out) && out.code).toBe('no_rest_benefits');
+  });
+
   it('refuses Hit Point Dice named for a creature the prayer is not said over', () => {
     const out = resolveSpell(
       fold('seed', SETUP),

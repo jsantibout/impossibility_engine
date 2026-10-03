@@ -240,7 +240,7 @@ describe('what a definition may say about either sentence', () => {
   it('lets a trigger be refined to the stated types', () => {
     expect(
       codes({
-        typesStated: { options: ['Undead', 'Fiend'], optional: true },
+        typesStated: { options: ['Undead', 'Fiend'], orNone: true },
         triggered: { ...base.triggered, onlyStatedTypes: true },
       }),
     ).toEqual([]);

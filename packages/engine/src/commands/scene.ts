@@ -99,6 +99,7 @@ import {
   declareSight,
   type LightLevel,
   placeCreature,
+  pointFromPlacement,
   type Placement,
   type Point,
   type SceneExtent,
@@ -180,20 +181,24 @@ export function addSceneLandmark(
  * Humanoid within range." A corpse is a creature and the engine holds it; a
  * pile of bones is a fact about the room only the table can state, and the
  * raising reads it — a Skeleton rises only where bones lie, and takes the pile
- * with it. Map-making, like a landmark, so it takes a coordinate; `null` takes
- * a pile away. On the DM's door: what is lying on the floor of a crypt is not
- * a caster's to say.
+ * with it. Where it lies is a placement, measured from a landmark or a
+ * creature like every other space, and the event pins the space it resolved to;
+ * `null` takes a pile away. On the DM's door: what is lying on the floor of a
+ * crypt is not a caster's to say.
  */
 export function declareBones(
   state: GameState,
   name: string,
-  at: Point | null,
+  where: Omit<Placement, 'size'> | null,
   command: CommandIdentity = {},
 ): Result<GameEvent[]> {
-  return once(state, `declare-bones:${name}`, { ...command, at }, () => [], (stamp) => {
+  return once(state, `declare-bones:${name}`, { ...command, where }, () => [], (stamp) => {
     const scene = sceneFor(state, name, `${name} to lie in`);
     if (!scene.ok) return scene;
 
+    const resolved = where === null ? ok(null) : pointFromPlacement(scene.value, where);
+    if (!resolved.ok) return resolved;
+    const at = resolved.value;
     const laid = declareBonesAt(scene.value, name, at);
     if (!laid.ok) return laid;
 
