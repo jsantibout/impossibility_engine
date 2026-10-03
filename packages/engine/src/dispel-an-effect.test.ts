@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { SRD_CONTENT } from '@ie/content';
-import { asCharacterId, isErr, expect as unwrap, type CharacterId, type Result } from '@ie/shared';
+import { asCharacterId, contextRequestsOf, isErr, expect as unwrap, type CharacterId, type Result } from '@ie/shared';
 import type { CharacterSheet } from './character.js';
 import { createRng, type Rng } from './dice.js';
 import { createRollIssuer } from './rolls.js';
@@ -179,6 +179,25 @@ describe('SRD Dispel Magic aimed at a magical effect', () => {
     const blessed = unwrap(cast(HALL, CLERIC, { spellId: 'bless', targets: [ALLY], slotLevel: 1 }), 'bless');
     const log = [...HALL, ...blessed.events];
     expect(code(dispel(log, { magicalEffect: blessed.castingId! }))).toBe('effect_on_a_creature');
+  });
+
+  /**
+   * A place with no scene to measure it in asks for the scene rather than
+   * being waved through as unmeasured. No log the engine writes reaches this —
+   * a scene, once set, is never unset — so the state is made by hand: the
+   * branch is a guard on a record whose place outlived its room. (E-L1)
+   */
+  it('asks for a scene when the effect holds a place and there is none', () => {
+    const { log, castingId } = fogged(60);
+    const roomless: GameState = { ...fold('s', log), scene: null };
+    const out = resolveSpell(
+      roomless,
+      CLERIC,
+      { spellId: 'dispel-magic', targets: [], slotLevel: 3, magicalEffect: castingId },
+      supply(roomless),
+    );
+    expect(code(out)).toBe('no_scene');
+    expect(contextRequestsOf(out).map((one) => one.kind)).toEqual(['scene']);
   });
 
   it('refuses a casting that is not running', () => {

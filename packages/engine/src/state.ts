@@ -1558,6 +1558,17 @@ export interface LastDamage {
 }
 
 /**
+ * Who is touching a declared object, and the moment it was said. See
+ * {@link CreatureState.contact}; read back by `contactNow`, on
+ * {@link FallMoment}'s rule. (E-L1)
+ */
+export interface ContactMoment {
+  readonly creatures: readonly CharacterId[];
+  readonly turn: number | null;
+  readonly elapsed: number;
+}
+
+/**
  * That this creature is falling, and the moment it was said.
  *
  * {@link LastDamage}'s shape with its one identifying field taken away, for
@@ -1572,17 +1583,6 @@ export interface LastDamage {
  * SRD makes the table's, and a fall that the engine claimed to measure would
  * be the engine inventing it.
  */
-/**
- * Who is touching a declared object, and the moment it was said. See
- * {@link CreatureState.contact}; read back by `contactNow`, on
- * {@link FallMoment}'s rule. (E-L1)
- */
-export interface ContactMoment {
-  readonly creatures: readonly CharacterId[];
-  readonly turn: number | null;
-  readonly elapsed: number;
-}
-
 export interface FallMoment {
   readonly turn: number | null;
   readonly elapsed: number;

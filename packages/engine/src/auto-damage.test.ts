@@ -334,7 +334,7 @@ describe('a dart is harm aimed at a creature the casting named', () => {
       resolveSpell(
         state,
         WIZARD,
-        { spellId: 'magic-missile', targets: [GOBLIN], slotLevel: 1, ifWarded: 'lose' } as never,
+        { spellId: 'magic-missile', targets: [GOBLIN], slotLevel: 1, ifWarded: 'lose' },
         supply(state, always(1)),
       ),
       'magic missile at a warded creature',

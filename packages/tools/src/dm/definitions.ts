@@ -141,6 +141,8 @@ import {
   TOOLS,
   towardsOf,
   who,
+  ifWardedOf,
+  ifWardedSchema,
 } from '../definitions.js';
 import { catchOf } from '../observe.js';
 import { fromErr, okOutcome } from '../outcome.js';
@@ -2081,6 +2083,7 @@ const CAST_PRINTED_LINE = tool({
       .array(creatureId)
       .optional()
       .describe('Creatures this casting designates unaffected, for a spell that offers it.'),
+    ifWarded: ifWardedSchema.describe('What this casting does if a creature it harms is warded and the Wisdom save fails — SRD Sanctuary: "either choose a new target or lose the attack or spell". `{ "target": … }` casts it at that creature instead, in this call; `"lose"` spends what the casting cost and the spell does nothing. Asked for only where a ward stands in the way; leave it out and the engine says so before any die is thrown.'),
   }),
   run: (context, args) =>
     settle(
@@ -2093,6 +2096,7 @@ const CAST_PRINTED_LINE = tool({
           ...(args.spell === undefined ? {} : { spell: args.spell }),
           casting: {
             targets: (args.targets ?? []).map(who),
+            ...ifWardedOf(args.ifWarded),
             ...(args.at === undefined ? {} : { at: aPoint(args.at) }),
             ...(args.towards === undefined ? {} : { towards: aPoint(args.towards) }),
             ...(args.teleportTo === undefined
@@ -2285,7 +2289,9 @@ const TAKE_LEGENDARY_ACTION = tool({
   description:
     'Spend one of a creature’s legendary action uses, immediately after another creature’s turn has ended and before the next creature acts. Name the heading as the block prints it and, for an attack line, whom it strikes; for a shield line, whom it covers (the creature itself where you leave it out). The engine spends the use, refuses a fourth in a round and a shield already used this round, throws the block’s own dice and swings the block’s own attack, and gives every use back at the start of the creature’s turn. The move a Charging Horn prints is yours, with `move_creature`.',
   mutates: true,
-  selfAnswers: ['creature'],
+  // And SRD Sanctuary's fallback, by re-sending this call with `ifWarded`.
+  // (E-L1)
+  selfAnswers: ['creature', 'route'],
   input: z.strictObject({
     who: creatureId.describe('Which creature is spending the use.'),
     line: printedLineName,
@@ -2294,6 +2300,7 @@ const TAKE_LEGENDARY_ACTION = tool({
       .describe(
         'Whom the line is aimed at: the creature a Charging Horn strikes, or the one a Shimmering Shield covers. Leave it out on a shield to cover the creature itself; leave it out on an attack and you will be asked.',
       ),
+    ifWarded: ifWardedSchema.describe('What this swing does if the target is warded and the Wisdom save fails — SRD Sanctuary: "either choose a new target or lose the attack". `{ "target": … }` swings at that creature instead, in this call; `"lose"` spends the attack and makes no roll. Asked for only where a ward stands in the way; leave it out and the engine says so before any die is thrown.'),
   }),
   run: (context, args) =>
     settle(
@@ -2304,6 +2311,7 @@ const TAKE_LEGENDARY_ACTION = tool({
         {
           line: args.line,
           ...(args.target === undefined ? {} : { target: who(args.target) }),
+          ...ifWardedOf(args.ifWarded),
           ...identity(context),
         },
         context.campaign.supply(),

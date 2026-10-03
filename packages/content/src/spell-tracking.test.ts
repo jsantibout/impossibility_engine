@@ -1840,8 +1840,9 @@ describe('every spell this batch added is cast for real', () => {
    * with nobody taking a Reaction. Mirror Image also needed the one thing no
    * casting had ever hung on a creature — a count that goes down — and
    * Sanctuary needed a ruling about what a failed ward costs, which the owner
-   * gave: the attack is lost, nothing is spent, and one save per ward per
-   * turn.
+   * gave on 2026-09-22 — the attack is lost, nothing is spent, and one save
+   * per ward per turn — and revised on 2026-10-03: "lose the attack or spell"
+   * costs what it says, and the attacker names its fallback up front (E-L1).
    */
   /**
    * **Augury leaves by a door built out of the item vocabulary**, which is

@@ -2735,9 +2735,16 @@ const MOVE = tool({
  */
 /**
  * SRD Sanctuary's choice, stated up front: a new target, or lose the attack or
- * spell. A wire shape of its own because both doors that target take it.
+ * spell. A wire shape of its own because every door that targets takes it —
+ * `attack`, `cast_spell`, `order_summons_attack`, `release_ready`, and on the
+ * DM's surface `cast_printed_line` and `take_legendary_action`. (E-L1)
  */
-const ifWardedOf = (
+export const ifWardedSchema = z
+  .union([z.literal('lose'), z.strictObject({ target: creatureId })])
+  .optional();
+
+/** The wire shape as the engine takes it. */
+export const ifWardedOf = (
   given: 'lose' | { readonly target: string } | undefined,
 ): { readonly ifWarded: 'lose' | { readonly target: CharacterId } } | Record<string, never> =>
   given === undefined
@@ -2768,10 +2775,7 @@ const ATTACK = tool({
       .describe(
         'An attack this creature’s own stat block prints, by its printed name — a Wolf’s "Bite". Use it instead of `weapon`, never beside it: a Bite is not an item, so no catalogue id names one and an Unarmed Strike is not what the book printed. `look` reports what a creature is; the attack bonus, the reach and the damage dice are read off the line the engine pinned when the creature entered the game, and a name the block does not print is refused.',
       ),
-    ifWarded: z
-      .union([z.literal('lose'), z.strictObject({ target: creatureId })])
-      .optional()
-      .describe(
+    ifWarded: ifWardedSchema.describe(
         'What this swing does if the target is warded and the Wisdom save fails — SRD Sanctuary: "either choose a new target or lose the attack". `{ "target": … }` swings at that creature instead, in this call; `"lose"` spends the attack and makes no roll. Asked for only where the target stands behind a ward you have not settled this turn: leave it out and the engine says so before any die is thrown. Never chosen for you.',
       ),
     thrown: z
@@ -3011,10 +3015,7 @@ const CAST_SPELL = tool({
       .describe(
         'Which branch each creature runs, for the one spell that prints "(choose for each creature)" — Calm Emotions’ Immunity or indifference, chosen goblin by goblin. One entry per creature the casting catches: a caught creature left out is refused, and so is a creature the area did not reach. Refused on any spell that chooses once, where `option` is the word. Cannot be held: a declaration cannot record a choice for creatures it has not caught yet.',
       ),
-    ifWarded: z
-      .union([z.literal('lose'), z.strictObject({ target: creatureId })])
-      .optional()
-      .describe(
+    ifWarded: ifWardedSchema.describe(
         'What this casting does if a creature it harms is warded and the Wisdom save fails — SRD Sanctuary: "either choose a new target or lose the attack or spell". `{ "target": … }` casts it at that creature instead, in this call; `"lose"` spends the action and the slot and the spell does nothing. Asked for only where a damaging spell names a creature behind a ward you have not settled this turn; leave it out and the engine says so before any die is thrown. Never chosen for you.',
       ),
     magicalEffect: z
@@ -3945,6 +3946,9 @@ const ACTIVATE_FEATURE = tool({
  */
 const ORDER_SUMMONS_ATTACK = tool({
   name: 'order_summons_attack',
+  // SRD Sanctuary's fallback is answered by re-sending this call with
+  // `ifWarded` on it, as `attack` answers it. (E-L1)
+  selfAnswers: ['route'],
   description:
     'Give up one of your own attacks so that a creature you summoned may make one of its own, with its Reaction — Pact of the Chain is the one the SRD writes this way, and its familiar cannot attack in any other way. The engine charges the Attack action (taking it, if the character has not already) and the summoned creature’s Reaction, then rolls the creature’s own attack: name `attack` to pick one of the lines its stat block prints, or `weapon` for an item it is carrying, and say neither to let the engine take its best printed melee line. It is refused if the character has no attack of the Attack action left, if the creature has already taken its Reaction, or if the creature is not the familiar this feature is about. Use `sheet` to see which feature licenses it.',
   mutates: true,
@@ -3963,6 +3967,7 @@ const ORDER_SUMMONS_ATTACK = tool({
       .min(1)
       .optional()
       .describe('A line the creature’s own stat block prints, by its printed name, e.g. Sting.'),
+    ifWarded: ifWardedSchema.describe('What this swing does if the target is warded and the Wisdom save fails — SRD Sanctuary: "either choose a new target or lose the attack". `{ "target": … }` swings at that creature instead, in this call; `"lose"` spends the attack and makes no roll. Asked for only where a ward stands in the way; leave it out and the engine says so before any die is thrown.'),
   }),
   run: (context, args) =>
     settle(
@@ -3976,6 +3981,7 @@ const ORDER_SUMMONS_ATTACK = tool({
           target: who(args.target),
           ...(args.weapon === undefined ? {} : { weapon: args.weapon }),
           ...(args.attack === undefined ? {} : { attack: args.attack }),
+          ...ifWardedOf(args.ifWarded),
           ...identity(context),
         },
         context.campaign.supply(),
@@ -6364,6 +6370,9 @@ const TAKE_READY = tool({
 
 const RELEASE_READY = tool({
   name: 'release_ready',
+  // SRD Sanctuary's fallback for a readied spell is answered by re-sending
+  // this call with `ifWarded` on it, as `cast_spell` answers it. (E-L1)
+  selfAnswers: ['route'],
   description:
     'Let a readied action go, because the thing it was waiting for happened — or ignore the trigger, which costs nothing and keeps the Reaction. The Reaction is spent here; a readied spell lands here and a readied move is made here. A readied **action** is the one with no second half: the hold closes and the Reaction goes, and its content is resolved by nothing on this surface, because every tool that takes an action is a creature’s own turn’s. Either way the hold is over: the trigger has been and gone.',
   mutates: true,
@@ -6377,6 +6386,7 @@ const RELEASE_READY = tool({
       .array(creatureId)
       .optional()
       .describe('Who a readied spell lands on. Empty for an area spell, which picks its own.'),
+    ifWarded: ifWardedSchema.describe('What this casting does if a creature it harms is warded and the Wisdom save fails — SRD Sanctuary: "either choose a new target or lose the attack or spell". `{ "target": … }` casts it at that creature instead, in this call; `"lose"` spends what the casting cost and the spell does nothing. Asked for only where a ward stands in the way; leave it out and the engine says so before any die is thrown.'),
     rollsAt: z
       .array(z.strictObject({ target: creatureId, count: z.int().min(1) }))
       .optional()
@@ -6405,6 +6415,7 @@ const RELEASE_READY = tool({
         {
           ...(args.ignore === true ? { ignore: true } : {}),
           ...(args.targets === undefined ? {} : { targets: args.targets.map(who) }),
+          ...ifWardedOf(args.ifWarded),
           ...(args.rollsAt === undefined
             ? {}
             : {

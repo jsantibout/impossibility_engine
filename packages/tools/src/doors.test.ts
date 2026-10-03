@@ -435,6 +435,13 @@ const SELF_ANSWERED_FIELDS: Readonly<Record<string, readonly string[]>> = {
   // target: a new target, or lose it (E-L1).
   'cast_spell:route': ['willing', 'ifWarded'],
   'attack:route': ['ifWarded'],
+  // The same choice on the two other doors of this surface that aim at a
+  // creature the caller picks: a familiar's swing given up from the Attack
+  // action, and a readied spell, whose targets are chosen at the release —
+  // which also carries the path a readied move took, the release's other
+  // re-send (E-L1).
+  'order_summons_attack:route': ['ifWarded'],
+  'release_ready:route': ['route', 'ifWarded'],
   // The second place's way back. SRD Blink's "an unoccupied space of your
   // choice … within 10 feet of the space you vanished from" is a `position`
   // the engine asks for and will not pick, and the three calls that bring a
@@ -1069,8 +1076,19 @@ const ANSWERS: Readonly<Record<string, Answer>> = {
   // creature, answered as a list of pairs on the one door that casts.
   option_by_target_required: { fields: ['cast_spell.optionByTarget'] },
   // SRD Sanctuary's choice, made by the attacker before the die (E-L1, owner's
-  // ruling of 2026-10-03): a new target, or lose the attack or spell.
-  warded_fallback_required: { fields: ['attack.ifWarded', 'cast_spell.ifWarded'] },
+  // ruling of 2026-10-03): a new target, or lose the attack or spell. The
+  // DM's `cast_printed_line` and `take_legendary_action` carry the same field
+  // on that surface, which this registry does not read; an Opportunity
+  // Attack, a swing at whoever dealt the damage and a glyph's stored spell
+  // are aimed by their own rule and lose it without asking.
+  warded_fallback_required: {
+    fields: [
+      'attack.ifWarded',
+      'cast_spell.ifWarded',
+      'order_summons_attack.ifWarded',
+      'release_ready.ifWarded',
+    ],
+  },
 
   // — and two that are not a caller's to answer at all —————————————————————
   missing_field: {

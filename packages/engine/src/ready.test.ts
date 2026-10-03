@@ -290,6 +290,32 @@ describe('a readied spell is cast now and released later', () => {
     if (isErr(out)) expect(out.code).toBe('not_readiable');
   });
 
+  /**
+   * SRD Sanctuary in front of a release (E-L1, the owner's ruling of
+   * 2026-10-03): the release chooses the targets, so it states what the spell
+   * does if a ward turns it away, and is asked when it does not.
+   */
+  it('asks what a released spell does at a warded creature, and loses it when told to', () => {
+    const log: readonly GameEvent[] = [
+      ...nextTurn(readySpell()),
+      {
+        type: 'passive-defense-granted',
+        id: CULTIST,
+        defense: { source: 'Sanctuary#cast:99', defense: { kind: 'ward', ability: 'wis', dc: 99 } },
+      },
+    ];
+    const asked = releaseReady(fold('seed', log), ARCHER, { targets: [CULTIST] }, supply('release'));
+    expect(isErr(asked) && asked.code).toBe('warded_fallback_required');
+
+    const lost = unwrap(
+      releaseReady(fold('seed', log), ARCHER, { targets: [CULTIST], ifWarded: 'lose' }, supply('release')),
+      'release',
+    );
+    expect(lost.spell?.warded).toBe(true);
+    const after = fold('seed', [...log, ...lost.events]);
+    expect(after.creatures[CULTIST]!.vitals.hp).toBe(fold('seed', log).creatures[CULTIST]!.vitals.hp);
+  });
+
   it('resolves the spell on release, at the slot it was readied with', () => {
     const log = nextTurn(readySpell());
     const released = unwrap(

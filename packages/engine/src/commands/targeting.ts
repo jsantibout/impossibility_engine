@@ -202,12 +202,15 @@ export interface SpellResolution {
   readonly castingId: string | null;
   readonly outcomes: readonly SpellTargetOutcome[];
   /**
-   * A ward turned this casting away before anything was spent.
+   * A ward turned this casting away.
    *
    * SRD Sanctuary, on the casting's side of "an attack roll or a damaging
-   * spell". `castingId` is null and `events` holds the save the caster failed
-   * — nothing else happened, because the ward is asked with the targets
-   * settled and before the slot, the action and the first die.
+   * spell", by the owner's ruling of 2026-10-03 (reversing that of
+   * 2026-09-22, which spent nothing). Either the spell was lost — the casting
+   * was made, its action and slot spent, and it ended at once under the ward
+   * (`spell-fizzled`), so `castingId` names it and `outcomes` is empty — or
+   * it was cast at the new target `ifWarded` named, and `outcomes` are that
+   * casting's.
    *
    * Absent rather than false, so a reader asks one question and a log written
    * before wards existed reads back unchanged. It is not a fourth outcome

@@ -236,9 +236,12 @@ function endingFactsOf(state: GameState, event: GameEvent): readonly EndingFact[
   switch (event.type) {
     // A slot of the Attack action spent on a printed use rather than a swing
     // — the Roper's Reel, the Wight's Life Drain — made no attack at all.
-    // (W7-B10)
+    // (W7-B10) Nor did a swing a ward turned away, which spent its slot and
+    // rolled nothing. (E-L1)
     case 'attack-made':
-      return event.use === undefined ? [{ cause: 'target-attacks', who: event.id }] : [];
+      return event.use === undefined && event.turnedAway !== true
+        ? [{ cause: 'target-attacks', who: event.id }]
+        : [];
     // "makes an attack roll": every road — the Attack action, an Opportunity
     // Attack, a readied swing, a swing outside any fight, a later
     // activation's spell attack — and only the roll that says it was one.

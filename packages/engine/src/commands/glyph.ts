@@ -417,6 +417,11 @@ function releaseStoredSpell(
     ...(stored.damageType === undefined ? {} : { damageType: stored.damageType }),
     ...(stored.choice === undefined ? {} : { choice: stored.choice }),
     ...(stored.option === undefined ? {} : { option: stored.option }),
+    // SRD Sanctuary at the creature that set the glyph off: the stored spell
+    // is aimed at that creature and nobody is present to choose another, so a
+    // failed save loses it — what this road did before the 2026-10-03 ruling
+    // made the attacker name its fallback. (E-L1)
+    ifWarded: 'lose',
   };
   const resolved = castOrRelease(
     state,

@@ -124,6 +124,7 @@ import { durationSecondsAt, untilDispelledAt } from '../spell-definitions.js';
 import { endOfCurrentTurn, startOfNextTurn } from '../time.js';
 import { OBJECT_CREATURE_TYPE } from '../objects.js';
 import type { MonsterTreeStride } from '@ie/srd';
+import type { WardFallback } from './passive-defenses.js';
 import { castSpell, chooseRoute, type Supply, nextCastingId } from './casting.js';
 import { creatureOf, reachedBy, sceneFor, unknownCreature } from './command.js';
 import {
@@ -1905,6 +1906,13 @@ export interface LegendaryActionCommand extends CommandIdentity {
    * caller is asked, because a swing at nobody is not a swing.
    */
   readonly target?: CharacterId;
+  /**
+   * What the swing does if a ward turns it away — SRD Sanctuary's "either
+   * choose a new target or lose the attack or spell", stated up front as
+   * `resolveAttack`'s and `resolveSpell`'s own `ifWarded` is, and asked for
+   * when it is missing and a ward stands in the way. (E-L1)
+   */
+  readonly ifWarded?: WardFallback;
 }
 
 export interface LegendaryActionOutcome {
@@ -2119,6 +2127,7 @@ export function takeLegendaryAction(
             weapon: null,
             action: printed.attack,
             free: true,
+            ...(command.ifWarded === undefined ? {} : { ifWarded: command.ifWarded }),
             ...inner('swing'),
           },
           supply,
@@ -5194,6 +5203,14 @@ export interface ReleaseCommand extends CommandIdentity {
   /** Who a readied spell lands on. Empty for an area spell, which picks its own. */
   readonly targets?: readonly CharacterId[];
   /**
+   * What the released spell does if a ward turns it away — SRD Sanctuary's "either
+   * choose a new target or lose the attack or spell", stated up front as
+   * `resolveAttack`'s and `resolveSpell`'s own `ifWarded` is, and asked for
+   * when it is missing and a ward stands in the way. (E-L1)
+   */
+  readonly ifWarded?: WardFallback;
+
+  /**
    * How many of a readied casting's attack rolls go at each of those creatures.
    *
    * **Stated here rather than at the Ready**, which is where it parts company
@@ -5414,6 +5431,9 @@ function releaseSpell(
     {
       spellId: response.spellId,
       targets: command.targets ?? [],
+      // Beside the targets, because it is the release that chooses them —
+      // and so is what a ward at one of them costs. (E-L1)
+      ...(command.ifWarded === undefined ? {} : { ifWarded: command.ifWarded }),
       // Beside the targets, because it is the release that chooses them.
       ...(command.rollsAt === undefined ? {} : { rollsAt: command.rollsAt }),
       ...(command.at === undefined ? {} : { at: command.at }),

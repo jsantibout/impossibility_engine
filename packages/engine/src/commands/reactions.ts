@@ -1550,6 +1550,10 @@ export function takeDamageResponse(
         // rather than an Unarmed Strike nobody printed.
         ...reactionSwing(sheetAsItStands(after, reactor) ?? creature.sheet, command),
         free: true,
+        // The swing is at the creature that dealt the damage and no other, so
+        // a ward that turns it away leaves no new target to choose: it is
+        // lost, as an Opportunity Attack's is. (E-L1)
+        ifWarded: 'lose',
       },
       supply,
     );

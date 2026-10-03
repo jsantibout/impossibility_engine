@@ -2915,6 +2915,15 @@ export type GameEvent =
        */
       readonly use?: string;
       /**
+       * The swing a ward turned away — SRD Sanctuary's "lose the attack". The
+       * slot is spent, as the owner's ruling of 2026-10-03 has it, and **no
+       * attack roll was made**, so nothing that ends when its creature makes
+       * one reads this one (`fold/endings.ts`): an invisible attacker turned
+       * away stays unseen, and a warded one keeps its own ward. Absent on
+       * every swing that rolled. (E-L1)
+       */
+      readonly turnedAway?: true;
+      /**
        * The catalogue id of the **Light** weapon this swing used, where it
        * used one.
        *

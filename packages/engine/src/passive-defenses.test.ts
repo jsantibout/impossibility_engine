@@ -7,7 +7,8 @@ import { createRng, type Rng, type RngState } from './dice.js';
 import { createRollIssuer } from './rolls.js';
 import { fold, type GameEvent, type GameState } from './events.js';
 import { spellSlotKey } from './resources.js';
-import { resolveAttack, resolveSpell } from './commands.js';
+import { resolveAttack, resolveMove, resolveSpell, takeOpportunityAttack } from './commands.js';
+import { ongoingSpellsOn } from './commands/ongoing.js';
 import { declaredCasting } from './spellcasting.js';
 import { PASSIVE_DEFENSE_LEDGER } from './combat.js';
 
@@ -446,6 +447,35 @@ describe('a ward turns an attacker away before the roll', () => {
     );
   });
 
+  /** A second ward at the new target is a second targeting, and failed it loses the swing. */
+  it('loses the swing when the new target is warded too and that save fails', () => {
+    const log = IN_COMBAT(cast(warded(), CLERIC, { spellId: 'sanctuary', targets: [CLERIC], slotLevel: 1 }));
+    const out = hit(log, OGRE, { ...CLUB, ifWarded: { target: CLERIC } }, scripted([1, 1]));
+
+    expect(out.warded).toBe(true);
+    expect(out.attack).toBeNull();
+    expect(out.events.filter((e) => e.type === 'attack-made')).toHaveLength(1);
+    const after = fold('seed', [...log, ...out.events]);
+    expect(hpOf(after, CLERIC)).toBe(hpOf(fold('seed', log), CLERIC));
+    expect(hpOf(after, WIZARD)).toBe(hpOf(fold('seed', log), WIZARD));
+  });
+
+  /**
+   * "Lose the attack" spends the swing and **makes no attack roll**, so a
+   * ward on the attacker itself — which ends "if the warded creature makes an
+   * attack roll" — is still there afterwards.
+   */
+  it('leaves the attacker’s own ward standing, because a lost swing rolled nothing', () => {
+    const log = IN_COMBAT(cast(warded(), CLERIC, { spellId: 'sanctuary', targets: [OGRE], slotLevel: 1 }));
+    const onOgre = (state: GameState) =>
+      ongoingSpellsOn(state, OGRE).filter((one) => one.spellId === 'sanctuary');
+    expect(onOgre(fold('seed', log))).toHaveLength(1);
+
+    const out = hit(log, OGRE, CLUB_OR_LOSE, scripted([1]));
+    expect(out.warded).toBe(true);
+    expect(onOgre(fold('seed', [...log, ...out.events]))).toHaveLength(1);
+  });
+
   it('refuses a new target that is the warded creature itself, or nobody', () => {
     const log = IN_COMBAT(warded());
     const same = swing(log, OGRE, { ...CLUB, ifWarded: { target: WIZARD } }, scripted([1]));
@@ -511,6 +541,47 @@ describe('a ward turns an attacker away before the roll', () => {
     expect(out.warded).toBeUndefined();
     expect(out.attack!.hit).toBe(true);
   });
+
+  /**
+   * **An Opportunity Attack is aimed by its own rule** — "one melee attack
+   * against the provoking creature" — so the new target a ward offers is no
+   * choice on it, and nobody is asked: a failed save loses the swing. The
+   * Reaction is what it cost, and it is spent. (E-L1)
+   */
+  it('loses an Opportunity Attack at a warded creature without asking, on a failed save', () => {
+    const log = cast(SETUP, CLERIC, { spellId: 'sanctuary', targets: [WIZARD], slotLevel: 1 });
+    const fight: readonly GameEvent[] = [
+      ...log,
+      {
+        type: 'combat-started',
+        combatants: [
+          { id: WIZARD, initiative: 20, speed: 30 },
+          { id: OGRE, initiative: 10, speed: 30 },
+        ],
+      },
+    ];
+    const moved = [
+      ...fight,
+      ...unwrap(
+        resolveMove(
+          fold('seed', fight),
+          WIZARD,
+          { placement: { from: { landmark: 'the hall' }, feet: 20, bearing: 180 } },
+          supply(createRng('move') as Rng),
+        ),
+        'move',
+      ).events,
+    ];
+    const out = unwrap(
+      takeOpportunityAttack(fold('seed', moved), OGRE, { weapon: 'greatclub' }, supply(scripted([1]))),
+      'opportunity',
+    );
+    expect(out.warded).toBe(true);
+    expect(out.attack).toBeNull();
+    const after = fold('seed', [...moved, ...out.events]);
+    expect(hpOf(after, WIZARD)).toBe(hpOf(fold('seed', moved), WIZARD));
+    expect(after.combat!.budgets[OGRE]!.reaction).toBe(false);
+  });
 });
 
 // — the other attack path, and the casting's own side of the ward ————————————
@@ -575,7 +646,7 @@ describe('a spell attack meets the same defences a club does', () => {
       resolveSpell(
         fold('seed', log),
         CLERIC,
-        { spellId: 'guiding-bolt', targets: [WIZARD], slotLevel: 1, ifWarded: 'lose' } as never,
+        { spellId: 'guiding-bolt', targets: [WIZARD], slotLevel: 1, ifWarded: 'lose' },
         supply(scripted([1])),
       ),
       'bolt',
@@ -598,7 +669,7 @@ describe('a spell attack meets the same defences a club does', () => {
       resolveSpell(
         fold('seed', log),
         CLERIC,
-        { spellId: 'fire-bolt', targets: [WIZARD], ifWarded: { target: OGRE } } as never,
+        { spellId: 'fire-bolt', targets: [WIZARD], ifWarded: { target: OGRE } },
         supply(scripted([1, 20, 6])),
       ),
       'bolt',
@@ -609,6 +680,40 @@ describe('a spell attack meets the same defences a club does', () => {
     expect(hpOf(fold('seed', [...log, ...out.events]), WIZARD)).toBe(
       hpOf(fold('seed', log), WIZARD),
     );
+  });
+
+  it('refuses a new target that is the warded creature itself, or nobody, before the slot', () => {
+    const log = IN_COMBAT(warded());
+    const at = (target: CharacterId) =>
+      resolveSpell(
+        fold('seed', log),
+        CLERIC,
+        { spellId: 'fire-bolt', targets: [WIZARD], ifWarded: { target } },
+        supply(scripted([1])),
+      );
+    const same = at(WIZARD);
+    expect(isErr(same) && same.code).toBe('bad_fallback');
+    const nobody = at(asCharacterId('nobody'));
+    expect(isErr(nobody) && nobody.code).toBe('unknown_creature');
+  });
+
+  it('loses the casting when the new target is warded too and that save fails', () => {
+    const log = IN_COMBAT(cast(warded(), CLERIC, { spellId: 'sanctuary', targets: [OGRE], slotLevel: 1 }));
+    const out = unwrap(
+      resolveSpell(
+        fold('seed', log),
+        CLERIC,
+        { spellId: 'guiding-bolt', targets: [WIZARD], slotLevel: 1, ifWarded: { target: OGRE } },
+        supply(scripted([1, 1])),
+      ),
+      'bolt',
+    );
+    const after = fold('seed', [...log, ...out.events]);
+    expect(out.warded).toBe(true);
+    expect(out.outcomes).toEqual([]);
+    expect(out.events.some((e) => e.type === 'spell-fizzled')).toBe(true);
+    expect(hpOf(after, OGRE)).toBe(hpOf(fold('seed', log), OGRE));
+    expect(hpOf(after, WIZARD)).toBe(hpOf(fold('seed', log), WIZARD));
   });
 
   /**
@@ -695,7 +800,7 @@ describe('a ward is not a shield against an area', () => {
       resolveSpell(
         fold('seed', log),
         WIZARD,
-        { spellId: 'fire-bolt', targets: [OGRE], ifWarded: 'lose' } as never,
+        { spellId: 'fire-bolt', targets: [OGRE], ifWarded: 'lose' },
         supply(scripted([1])),
       ),
       'bolt',
@@ -860,7 +965,7 @@ describe('a ward throws a d20, and the log says so', () => {
         resolveSpell(
           fold('seed', log),
           OGRE,
-          { spellId: 'fire-bolt', targets: [WIZARD], ifWarded: 'lose' } as never,
+          { spellId: 'fire-bolt', targets: [WIZARD], ifWarded: 'lose' },
           { issuer, rng: scripted([face]), content: SRD_CONTENT },
         ),
         'bolt',

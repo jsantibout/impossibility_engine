@@ -3310,6 +3310,20 @@ function resolveOnTargets(
   // `hold` to ask for one, which is where that rule is actually enforced — a
   // runtime guard here would be unreachable code claiming to be a rule.
   if (held !== null) {
+    // **A release a ward turned away is lost here** — SRD Sanctuary's "lose
+    // the … spell", on the casting the Ready or the glyph already paid for:
+    // it ends at once under the ward, as a cast one does below, before a die
+    // of its own. (E-L1)
+    if (context.lostToWard !== undefined) {
+      events.push({
+        type: 'spell-fizzled',
+        castingId: held.castingId,
+        id: casterId,
+        source: context.lostToWard.source,
+        label: context.lostToWard.label,
+      });
+      return charged(ok({ events, castingId: held.castingId, outcomes: [], unverified: [], warded: true }));
+    }
     return charged(
       resolveEffects(state, casterId, caster, definition, {
         castLevel,

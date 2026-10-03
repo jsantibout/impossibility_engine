@@ -446,11 +446,15 @@ describe('toolSchemas', () => {
     // a declared object may be the target, +185 on each door; and on the DM's
     // alone `declare_contact` (who is touching a declared object, a new
     // door), +979 with its separator. 134 → 135 tools on the DM's door;
-    // +185 bytes on the player's and +1,164 on the DM's.
+    // +185 bytes on the player's and +1,164 on the DM's. And Sanctuary's
+    // fallback on every other door that aims a swing or a spell at a creature
+    // the caller picks: `order_summons_attack.ifWarded` and
+    // `release_ready.ifWarded` on both doors, +1,220; `cast_printed_line` and
+    // `take_legendary_action` on the DM's alone, +1,220. No tool added.
     expect(toolSchemas(player())).toHaveLength(100);
     expect(toolSchemas(dm())).toHaveLength(135);
-    expect(JSON.stringify(toolSchemas(player())).length).toBe(174043);
-    expect(JSON.stringify(toolSchemas(dm())).length).toBe(236345);
+    expect(JSON.stringify(toolSchemas(player())).length).toBe(175263);
+    expect(JSON.stringify(toolSchemas(dm())).length).toBe(238785);
   });
 });
 

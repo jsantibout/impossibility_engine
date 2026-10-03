@@ -17,6 +17,7 @@ import {
   type Result,
 } from '@ie/shared';
 import { CONFERRED_LEVEL, isMagicalItem, itemChargePool } from '../catalogue.js';
+import type { WardFallback } from './passive-defenses.js';
 import {
   modifierFor,
   proficiencyBonus,
@@ -1281,6 +1282,13 @@ export interface SummonsAttackCommand extends CommandIdentity {
    * `reactionSwing`, which takes the block's best printed melee line.
    */
   readonly attack?: string;
+  /**
+   * What the swing does if a ward turns it away — SRD Sanctuary's "either
+   * choose a new target or lose the attack or spell", stated up front as
+   * `resolveAttack`'s and `resolveSpell`'s own `ifWarded` is, and asked for
+   * when it is missing and a ward stands in the way. (E-L1)
+   */
+  readonly ifWarded?: WardFallback;
 }
 
 /**
@@ -1410,6 +1418,7 @@ export function orderSummonsAttack(
         command.summons,
         {
           target: command.target,
+          ...(command.ifWarded === undefined ? {} : { ifWarded: command.ifWarded }),
           // `attack` is this command's name for what `reactionSwing` calls
           // `action`, and has to be handed across under that name: passed as
           // it stood, the field was never read and every familiar swung its

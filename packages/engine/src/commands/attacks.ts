@@ -1684,9 +1684,10 @@ export interface AttackResolution {
   /**
    * A ward turned this swing away before it was thrown.
    *
-   * SRD Sanctuary. `attack` is null and nothing was spent, which is the owner's
-   * ruling of 2026-09-22: the attacker may swing at a creature nobody warded
-   * instead, or take the book's other branch by simply not swinging again.
+   * SRD Sanctuary. Either the swing was lost — `attack` is null, the swing is
+   * spent out of the Attack action and no attack roll was made — or it went to
+   * the new target `ifWarded` named, and `attack` is that swing. The owner's
+   * ruling of 2026-10-03, reversing that of 2026-09-22, which spent nothing.
    *
    * Absent rather than false, so a reader asks one question and a log written
    * before wards existed reads back unchanged.
@@ -2297,10 +2298,11 @@ function swingAt(
     // SRD Sanctuary: "any creature who **targets** the warded creature with an
     // attack roll ... must succeed on a Wisdom saving throw or either choose a
     // new target or lose the attack or spell." Targeting, so it is asked
-    // before the roll — and **before the economy**, which is the owner's
-    // ruling of 2026-09-22 and the whole of why both of the book's branches
-    // stay reachable: an attacker turned away still holds the Attack action
-    // and may swing at somebody nobody warded.
+    // before the roll. **What a failure costs is the book's** (the owner's
+    // ruling of 2026-10-03, reversing that of 2026-09-22): the attacker states
+    // its branch up front as `ifWarded`, a new target is swung at in this
+    // command, and a lost swing is spent out of the Attack action below and
+    // makes no roll.
     //
     // Nothing is a Reaction here and nothing is held: the defender elects
     // nothing and is not asked. See `commands/passive-defenses.ts`.
@@ -2411,11 +2413,11 @@ function swingAt(
 
     // — the casting this swing is made through ————————————————————————————
     //
-    // **Here, and this is where the Action goes.** After the ward, because an
-    // attacker the ward turned away has lost the attack and paid nothing for
-    // it — the owner's ruling of 2026-09-22, which this casting must not
-    // quietly overturn by spending the caster's Action on a swing that never
-    // happened. Before the roll, because the spell is what makes the roll:
+    // **Here, and this is where the Action goes.** After the ward, so the
+    // casting is made at the creature the swing is really at, and spent even
+    // where the ward turned the swing away — "lose the attack or spell" costs
+    // what it says, the owner's ruling of 2026-10-03, reversing that of
+    // 2026-09-22. Before the roll, because the spell is what makes the roll:
     // `spell-cast` stands ahead of it in the log, which is the order the book
     // prints and the order a reader needs.
     if (castWithIt !== null) {
@@ -2652,6 +2654,9 @@ function swingAt(
         id,
         ...(unarmedStrike ? { unarmed: true } : {}),
         ...(narrowedGrant ? { swing: { line: attackName, against: command.target } } : {}),
+        // A swing a ward turned away spends this slot and rolls nothing, so
+        // nothing that ends on an attack roll ends on it. (E-L1)
+        ...(lostToWard ? { turnedAway: true as const } : {}),
         // SRD Light, recorded where the Attack action is paid for: the budget
         // is what the extra attack reads, and only this command knew which
         // weapon the swing used. Never the extra attack's own weapon — that
