@@ -6253,6 +6253,8 @@ const TAKE_READY = tool({
           ...identity(context),
         },
         context.campaign.content,
+        // A readied spell is cast here, so SRD Slow's die may be thrown here.
+        context.campaign.supply(),
       ),
       { readied: args.response.kind, waitingFor: args.trigger },
     );

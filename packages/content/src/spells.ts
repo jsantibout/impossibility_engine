@@ -2660,10 +2660,12 @@ export const HYPNOTIC_PATTERN: SpellDefinition = {
  * attack inside the Attack action is `caps-attacks`; the 25 percent is
  * `casting-chance`, a die the casting pipeline throws after the slot and the
  * action are spent, read against the Somatic component the spell's entry
- * prints — `SpellEntry.components`, carried out of the parsed book. Three roads
- * make a casting without passing that point — a Ready, a spell cast with or on
- * a hit, a glyph's stored spell — and do not throw the die yet, which is the
- * `unmodelled` line below. (W7-S22)
+ * prints — `SpellEntry.components`, carried out of the parsed book. (W7-S22)
+ * **And on the four roads that make a casting elsewhere**, through the same
+ * `castingFailure`: a spell readied with the Ready action, where it is cast; a
+ * cantrip cast with the swing, whose failure makes no attack; a spell cast on
+ * a hit, whose failure adds nothing to the blow; and the spell a Glyph of
+ * Warding stores, whose failure leaves the glyph holding nothing. (E-L1)
  */
 export const SLOW: SpellDefinition = {
   id: 'slow',
@@ -2737,9 +2739,6 @@ export const SLOW: SpellDefinition = {
     },
   ],
   durationSeconds: 60,
-  unmodelled: [
-    'the 25 percent chance is thrown where a casting is made through the casting pipeline, and not yet on three roads that make one elsewhere: a spell readied with the Ready action (cast at the Ready), a cantrip cast with a swing or a smite cast on a hit, and the spell a Glyph of Warding stores at its inscription',
-  ],
 };
 
 /**

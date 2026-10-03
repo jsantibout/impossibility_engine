@@ -144,7 +144,7 @@ import { featureTimer } from './features.js';
 import { actorRefusal, mayAct } from './holds.js';
 import { teleportTo } from './teleport.js';
 import { type MoveResolution, moveWithin } from './movement.js';
-import { castOrRelease } from './spell-resolution.js';
+import { casterOwesTheDie, castingFailure, castOrRelease } from './spell-resolution.js';
 import {
   aimedIdentity,
   type AimedRolls,
@@ -4877,6 +4877,17 @@ export function takeReady(
   id: CharacterId,
   command: ReadyCommand,
   content: Content,
+  /**
+   * The dice a readied **spell** may need, because the casting is made here.
+   *
+   * SRD Slow: "If it casts a spell with a Somatic component, there is a 25
+   * percent chance the spell fails" — and SRD Ready: "you cast it as normal …
+   * but hold its energy", so the gestures are made at the Ready and the die
+   * is thrown here. Every other Ready throws nothing, which is why the
+   * parameter is optional; a readied casting that owes the die and was given
+   * none is a caller's mistake and throws (E-L1).
+   */
+  dice?: Pick<Supply, 'issuer' | 'rng'>,
 ): Result<GameEvent[]> {
   return once(state, `ready:${id}`, command, () => [], (stamp) => {
     // A mandatory effect this creature has been caught by, or a turn whose start
@@ -4917,9 +4928,14 @@ export function takeReady(
     let response: ReadiedResponse;
 
     if (command.response.kind === 'spell') {
-      const held = holdSpell(state, content, id, command.response);
+      const held = holdSpell(state, content, id, command.response, dice);
       if (!held.ok) return held;
       events.push(...held.value.events);
+      // **A casting whose gestures failed holds nothing.** The action and the
+      // slot are spent and the Concentration the hold began is ended with the
+      // casting (`spell-fizzled`), so there is no energy to release and no
+      // Reaction is waiting on the trigger. (E-L1)
+      if (held.value.response === null) return ok(events);
       response = held.value.response;
     } else if (command.response.kind === 'move') {
       response = { kind: 'move' };
@@ -4964,7 +4980,8 @@ function holdSpell(
   content: Content,
   id: CharacterId,
   response: ReadyResponse & { readonly kind: 'spell' },
-): Result<{ readonly events: readonly GameEvent[]; readonly response: ReadiedResponse }> {
+  dice: Pick<Supply, 'issuer' | 'rng'> | undefined,
+): Result<{ readonly events: readonly GameEvent[]; readonly response: ReadiedResponse | null }> {
   const definition = content.spell(response.spellId);
   if (definition === null) {
     return err(
@@ -5069,8 +5086,30 @@ function holdSpell(
   });
   if (!cast.ok) return cast;
 
+  // **The gestures are made now**, because the spell is cast now — SRD Slow's
+  // 25 percent, asked after the slot is spent and before anything is held.
+  // The die is `castingFailure`'s, the one every casting road throws. (E-L1)
+  const owes = casterOwesTheDie(state, id, content.spellEntry(definition.id));
+  if (owes && dice === undefined) {
+    throw new Error(
+      `takeReady: ${id}'s readied ${definition.name} owes a die to a casting-chance rule, and the caller passed no dice`,
+    );
+  }
+  const fumbled = owes
+    ? castingFailure(state, id, content.spellEntry(definition.id), {
+        castingId,
+        name: definition.name,
+        supply: { ...dice!, content },
+        exempt: false,
+      })
+    : ok({ events: [] as readonly GameEvent[], failed: false });
+  if (!fumbled.ok) return fumbled;
+  if (fumbled.value.failed) {
+    return ok({ events: [...cast.value, ...fumbled.value.events], response: null });
+  }
+
   return ok({
-    events: cast.value,
+    events: [...cast.value, ...fumbled.value.events],
     response: {
       kind: 'spell',
       spellId: response.spellId,

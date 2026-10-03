@@ -1299,13 +1299,10 @@ export const ADJUDICATED: Readonly<Record<string, readonly Adjudication[]>> = {
   // repeat save is hosted by the casting on one creature at a time, filed on
   // the `grants` timer the casting's own source already keys, so "ending the
   // spell on itself" reaches the goblin that made its save and nobody else.
-  slow: [
-    {
-      clause: 'the 25 percent chance is thrown where a casting is made through the casting pipeline',
-      why: 'a-random-outcome-that-is-not-a-d20',
-      note: 'W8-S26 read this line for the first time. SRD: "If it casts a spell with a Somatic component, there is a 25 percent chance the spell fails as a result of the target making the spell’s gestures too slowly." The percentage is built and thrown where a casting goes through the pipeline; three roads that make a casting elsewhere do not throw it, so a slowed caster’s readied spell never fails. The closest id, whose built half is this percentage.',
-    },
-  ],
+  // **And the last of them is gone too** (E-L1): the 25 percent is thrown on
+  // the four roads that make a casting outside the pipeline — the Ready, a
+  // cantrip cast with the swing, a spell cast on a hit, and the spell a glyph
+  // stores — through the same exported `castingFailure`. Slow has left the map.
   'spike-growth': [
     {
       clause: 'Wisdom (Perception or Survival) check against your spell save DC',

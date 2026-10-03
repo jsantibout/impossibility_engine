@@ -2711,7 +2711,12 @@ describe('a consumer count is a query', () => {
     // Fog Cloud, Stinking Cloud, Gust of Wind's gas, Web's anchoring,
     // Suggestion's errand and Glyph's surface — so the coin flip leads alone
     // again and the trigger shape is in the band below it.
-    expect(leaders).toEqual(['a-random-outcome-that-is-not-a-d20']);
+    //
+    // **And the tie is back on a build** (E-L1): Slow's 25 percent is thrown
+    // on the four roads that make a casting outside the pipeline, so the coin
+    // flip lost its one executed consumer in reach and the trigger shape drew
+    // level with it.
+    expect(leaders).toEqual(['a-casting-ended-by-a-trigger', 'a-random-outcome-that-is-not-a-d20']);
     expect(Object.keys(SPLIT_BUNDLES)).toContain('an-action-a-spell-compels-or-forbids');
     // And the split is visible from here rather than only in the record: the
     // bundle stands below the leader, and the largest piece to come out of it
@@ -2790,7 +2795,11 @@ describe('a consumer count is a query', () => {
       // **And W9-S3 retired the second place** — Magic Circle's crossing and
       // Rope Trick's rope were its last claimants — so the trigger shape
       // stands in this band alone.
-      'a-casting-ended-by-a-trigger',
+      //
+      // **And E-L1 lifted it into the leaders' band** by taking the coin flip
+      // down to meet it, so the band below is the next size down, where the
+      // wall shape stands alone.
+      'a-wall-or-several-templates-in-one-area',
     ]);
     // **Moved from 20 to 15 by the third catalogue pass, and the total fell
     // further than the tracked column rose.** Twelve undefined spells named

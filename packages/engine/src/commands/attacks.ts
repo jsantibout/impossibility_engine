@@ -103,7 +103,7 @@ import {
   type SpellDefinition,
   type SpellEffect,
 } from '../spell-definitions.js';
-import { resolveEffects } from './spell-resolution.js';
+import { castingFailure, resolveEffects } from './spell-resolution.js';
 import type { RepeatSave } from '../timers.js';
 import { ONGOING_RECORD_VERSION } from '../ongoing-compatibility.js';
 import { schedule } from './conditions.js';
@@ -1684,6 +1684,15 @@ export interface AttackResolution {
    */
   readonly warded?: true;
   /**
+   * The spell this swing was cast with failed before the attack was made.
+   *
+   * SRD Slow's 25 percent on SRD True Strike: "you make one attack with the
+   * weapon used in the spell's casting", and the casting failed, so `attack`
+   * is null and the Action is spent. Absent rather than false, for
+   * {@link warded}'s reason. (E-L1)
+   */
+  readonly fizzled?: true;
+  /**
    * A duplicate took the blow, so nothing of it reached the target.
    *
    * SRD Mirror Image. `attack` is the roll that was made and it *hit* — what
@@ -2351,6 +2360,48 @@ export function resolveAttack(
       const cast = castWithTheSwing(state, id, castWithIt);
       if (!cast.ok) return cast;
       events.push(...cast.value);
+
+      // **And the gestures are made now** — SRD Slow's 25 percent, after the
+      // Action is spent and before the attack the spell makes. Inside this
+      // command's own count of dice (`bracketed`), which the ward's die is in
+      // already. A failure is the spell failing, and the attack is the spell:
+      // the Action is gone and no attack is made. (E-L1)
+      const made = cast.value.find((event) => event.type === 'spell-cast');
+      if (made?.type !== 'spell-cast') {
+        throw new Error(`castWithTheSwing: ${castWithIt.definition.name} wrote no spell-cast`);
+      }
+      const fumbled = castingFailure(
+        state,
+        id,
+        supply.content.spellEntry(castWithIt.definition.id),
+        {
+          castingId: made.castingId,
+          name: castWithIt.definition.name,
+          supply,
+          exempt: false,
+          bracketed: true,
+        },
+      );
+      if (!fumbled.ok) return fumbled;
+      events.push(...fumbled.value.events);
+      if (fumbled.value.failed) {
+        return ok({
+          events: [
+            ...events,
+            {
+              type: 'rolls-issued',
+              count: supply.issuer.count - issuedBefore,
+              rng: supply.rng.snapshot(),
+            },
+          ],
+          // No roll was made, because the spell that makes it failed. Not a
+          // miss, and not a ward: `fizzled` says which.
+          attack: null,
+          fizzled: true,
+          unverified,
+          duplicate: false,
+        });
+      }
     }
 
     // — the sequence this creature's block prints ——————————————————————————
@@ -4205,6 +4256,38 @@ function castOnHit(
   }, null);
   if (!cast.ok) return cast;
 
+  // **Whether the gestures fail** — SRD Slow's 25 percent, after the Bonus
+  // Action and the slot (or the free casting) are spent and before a die of
+  // the spell's own. Its own `rolls-issued`, beside the bracket the blow opens
+  // afterwards around its own dice. A failure is the spell failing and nothing
+  // else: the weapon's blow lands as it would have, with nothing added and
+  // nothing left running. Every SRD spell cast on a hit is Verbal only, so this
+  // is a homebrew road today. (E-L1)
+  const made = cast.value.find((event) => event.type === 'spell-cast');
+  if (made?.type !== 'spell-cast') {
+    throw new Error(`castOnHit: ${definition.name} wrote no spell-cast`);
+  }
+  const fumbled = castingFailure(state, id, content.spellEntry(definition.id), {
+    castingId: made.castingId,
+    name: definition.name,
+    supply,
+    exempt: false,
+  });
+  if (!fumbled.ok) return fumbled;
+  if (fumbled.value.failed) {
+    return ok({
+      events: [
+        ...(freePool === null
+          ? []
+          : [{ type: 'resource-spent' as const, id, key: freePool, amount: 1 }]),
+        ...cast.value,
+        ...fumbled.value.events,
+      ],
+      damage: [],
+      unverified: [],
+    });
+  }
+
   // A second component rather than a bigger notation: the SRD writes two
   // sentences, so the log shows two contributions and says *why* the second
   // one is there. Same damage type, so they meet the target's defences as one
@@ -4243,6 +4326,8 @@ function castOnHit(
   const events: GameEvent[] = [
     ...(freePool === null ? [] : [{ type: 'resource-spent' as const, id, key: freePool, amount: 1 }]),
     ...cast.value,
+    // The die the gestures were thrown against, where one was.
+    ...fumbled.value.events,
     ...keeps.value,
   ];
   const unverified: string[] = [];

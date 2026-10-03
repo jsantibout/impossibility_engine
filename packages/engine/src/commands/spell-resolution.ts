@@ -532,7 +532,29 @@ export function resolveDeclaredCast(
     if (fumbled.value.failed) {
       return ok({ events, castingId: pending.castingId, outcomes: [], unverified: [] });
     }
-    if (storedCast !== null) events.push(storedCast.event);
+    // **And the spell it stores is a casting too**, made "as part of creating
+    // the glyph" with gestures of its own — so SRD Slow's die is thrown again
+    // for it, after its slot is spent. A failure is that spell failing: the
+    // glyph was made and holds nothing, neither the spell nor the rune its
+    // caster did not choose. See `OngoingRecordPlan.storedFizzled`. (E-L1)
+    let storedFizzled = false;
+    if (storedCast !== null) {
+      events.push(storedCast.event);
+      const storedFumble = castingFailure(
+        state,
+        pending.caster,
+        supply.content.spellEntry(storedCast.stored.spellId),
+        {
+          castingId: storedCast.stored.castingId,
+          name: storing.value!.definition.name,
+          supply,
+          exempt: false,
+        },
+      );
+      if (!storedFumble.ok) return storedFumble;
+      events.push(...storedFumble.value.events);
+      storedFizzled = storedFumble.value.failed;
+    }
 
     // What the caster stated at the declaration, read back off the record it
     // was written on. Normalised already — this is the same function that
@@ -681,7 +703,8 @@ export function resolveDeclaredCast(
         ? {
             becomesOngoing: {
               spellId: definition.id,
-              ...(storedCast === null ? {} : { stored: storedCast.stored }),
+              ...(storedCast === null || storedFizzled ? {} : { stored: storedCast.stored }),
+              ...(storedFizzled ? { storedFizzled: true as const } : {}),
               on: onCaster(definition)
                 ? ('caster' as const)
                 : pending.origin === undefined
@@ -2365,6 +2388,38 @@ function itemFailure(
 }
 
 /**
+ * The likeliest `casting-chance` rule standing on a caster that reaches a spell
+ * with this entry's components, or null where none does — the one search
+ * {@link castingFailure} throws against and {@link casterOwesTheDie} asks.
+ */
+function worstCastingChance(
+  state: GameState,
+  casterId: CharacterId,
+  entry: SpellEntry | null,
+): { readonly held: GrantedActionRule; readonly percent: number } | null {
+  let worst: { readonly held: GrantedActionRule; readonly percent: number } | null = null;
+  for (const held of actionRulesOn(state, casterId)) {
+    const rule = held.rule;
+    if (rule.kind !== 'casting-chance' || !hasComponent(entry, rule.component)) continue;
+    if (worst === null || rule.percent > worst.percent) worst = { held, percent: rule.percent };
+  }
+  return worst;
+}
+
+/**
+ * Whether casting a spell with this entry would throw SRD Slow's die for this
+ * caster — pure, so a road that holds no dice of its own (the Ready) can ask
+ * before it is handed any. (E-L1)
+ */
+export function casterOwesTheDie(
+  state: GameState,
+  casterId: CharacterId,
+  entry: SpellEntry | null,
+): boolean {
+  return worstCastingChance(state, casterId, entry) !== null;
+}
+
+/**
  * Whether a casting fails for want of a component its caster cannot manage,
  * and the die that decided it.
  *
@@ -2391,9 +2446,20 @@ function itemFailure(
  *
  * **Its own `rolls-issued`**, because a failure never reaches `runEffects`,
  * which writes the batch's — and a casting that holds writes this one and then
- * that one, which is `itemFailure`'s arrangement. (W7-S22)
+ * that one, which is `itemFailure`'s arrangement. (W7-S22) **Unless the caller
+ * is inside a bracket of its own** (`bracketed`): SRD True Strike's casting is
+ * made inside an attack command that counts every die it throws from one mark,
+ * the ward's included, and a second count of the same die would re-issue a
+ * `RollId` over one already in the log.
+ *
+ * **Exported for the roads that make a casting outside the pipeline** (E-L1):
+ * see {@link casterOwesTheDie}, which a road with no dice in hand asks first.
+ * a spell readied at the Ready, a cantrip cast with the swing, a spell cast on
+ * a hit, and the spell a glyph stores at its inscription. Each asks here after
+ * its own cost is paid, so a slowed caster's gestures fail on every road the
+ * same way.
  */
-function castingFailure(
+export function castingFailure(
   state: GameState,
   casterId: CharacterId,
   entry: SpellEntry | null,
@@ -2402,15 +2468,11 @@ function castingFailure(
     readonly name: string;
     readonly supply: Supply;
     readonly exempt: boolean;
+    readonly bracketed?: true;
   },
 ): Result<{ readonly events: readonly GameEvent[]; readonly failed: boolean }> {
   if (casting.exempt) return ok({ events: [], failed: false });
-  let worst: { readonly held: GrantedActionRule; readonly percent: number } | null = null;
-  for (const held of actionRulesOn(state, casterId)) {
-    const rule = held.rule;
-    if (rule.kind !== 'casting-chance' || !hasComponent(entry, rule.component)) continue;
-    if (worst === null || rule.percent > worst.percent) worst = { held, percent: rule.percent };
-  }
+  const worst = worstCastingChance(state, casterId, entry);
   if (worst === null) return ok({ events: [], failed: false });
 
   const { supply } = casting;
@@ -2426,7 +2488,15 @@ function castingFailure(
 
   const events: GameEvent[] = [
     thrown.value.recorded,
-    { type: 'rolls-issued', count: supply.issuer.count - issuedBefore, rng: supply.rng.snapshot() },
+    ...(casting.bracketed === true
+      ? []
+      : [
+          {
+            type: 'rolls-issued' as const,
+            count: supply.issuer.count - issuedBefore,
+            rng: supply.rng.snapshot(),
+          },
+        ]),
   ];
   if (thrown.value.failed) {
     events.push({
@@ -2732,10 +2802,13 @@ function resolveOnTargets(
    * written. See `storedSpellCast`. (W7-S21)
    */
   let storedRecord: StoredCasting | undefined;
+  /** The stored spell's gestures failed — see `OngoingRecordPlan.storedFizzled`. */
+  let storedFizzled = false;
 
   const ongoingWith = (): OngoingRecordPlan => ({
     spellId: definition.id,
     ...(storedRecord === undefined ? {} : { stored: storedRecord }),
+    ...(storedFizzled ? { storedFizzled: true as const } : {}),
     // **What this casting turns aside**, where the definition says its benefit
     // does. SRD *Shield*'s "you take no damage from *Magic Missile*" is the
     // only sentence of this shape in the book, and both halves of what is
@@ -3468,7 +3541,23 @@ function resolveOnTargets(
       context.storing,
     );
     events.push(storedCast.event);
-    storedRecord = storedCast.stored;
+    // SRD Slow's die for the stored spell's own gestures, as the settlement
+    // throws it. (E-L1)
+    const storedFumble = castingFailure(
+      state,
+      casterId,
+      supply.content.spellEntry(storedCast.stored.spellId),
+      {
+        castingId: storedCast.stored.castingId,
+        name: context.storing.definition.name,
+        supply,
+        exempt: false,
+      },
+    );
+    if (!storedFumble.ok) return storedFumble;
+    events.push(...storedFumble.value.events);
+    if (storedFumble.value.failed) storedFizzled = true;
+    else storedRecord = storedCast.stored;
   }
 
   // **What the spell puts in its caster's hand**, after the casting itself so
@@ -4184,7 +4273,9 @@ export function resolveEffects(
         // **Or the spell it stores in the rune's place**, never both — see
         // `OngoingSpell.stored`. (W7-S21)
         ...(becomes.stored === undefined ? {} : { stored: becomes.stored }),
-        ...(definition.triggered === undefined || becomes.stored !== undefined
+        ...(definition.triggered === undefined ||
+        becomes.stored !== undefined ||
+        becomes.storedFizzled === true
           ? {}
           : {
               triggered: {
@@ -4935,6 +5026,13 @@ interface OngoingRecordPlan {
   readonly spellId: string;
   /** The spell this casting stores — see `OngoingSpell.stored`. (W7-S21) */
   readonly stored?: StoredCasting;
+  /**
+   * The spell this casting was storing failed as it was cast — SRD Slow's 25
+   * percent, thrown for its gestures. The glyph was made and holds nothing: no
+   * stored spell, and not the rune the caster chose against either, so the
+   * record pins neither. (E-L1)
+   */
+  readonly storedFizzled?: true;
   readonly on: 'caster' | 'targets' | 'point';
   /** What this casting answered and turns aside — see `OngoingSpell.negates`. */
   readonly negates?: { readonly casting: string; readonly spell: string };

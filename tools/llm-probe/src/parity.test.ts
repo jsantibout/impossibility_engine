@@ -151,6 +151,9 @@ const AUDIT: readonly {
       choice: because(
         'the one value a spell asks its caster to pick — Blindness/Deafness’ Blinded or Deafened, Lesser Restoration’s one condition of four, Enhance Ability’s five abilities, Guidance’s eighteen skills. The engine refuses a casting of one of those that names none, so this is required rather than optional the day any of them is castable here; no benchmark character has one prepared',
       ),
+      choiceByTarget: because(
+        'the value `choice` names, answered again for each creature — SRD Enhance Ability’s upcast, "You can choose a different ability for each target". A caster decision and not a number; the engine refuses a value off the printed list, a target left out and a creature not named. No benchmark character prepares Enhance Ability, and `choice` alone already casts it for every target alike. `packages/tools` publishes it as `cast_spell.choiceByTarget`',
+      ),
       types: because(
         'the creature types a casting states where a spell prints "choose one or more" of a list — SRD Magic Circle’s Celestials, Elementals, Fey, Fiends, or Undead. A list where `choice` is one value, and the engine refuses a casting of such a spell that names none, so it is required rather than optional the day one is castable here; no benchmark character prepares one. `packages/tools` publishes it as `cast_spell.types`',
       ),
