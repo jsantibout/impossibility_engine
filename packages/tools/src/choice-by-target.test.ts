@@ -137,4 +137,47 @@ describe('attack.ifWarded', () => {
     ) as { readonly resolution: Record<string, unknown> };
     if (answered.resolution['warded'] === true) expect(answered.resolution['hit']).toBeNull();
   });
+
+  /**
+   * And `cast_spell` says when a ward lost the casting, so an empty
+   * `outcomes` is not read as a spell that caught nobody. The ward's save is
+   * the engine's die, so seeds are tried until one fails it, and every casting
+   * lost that way must say so.
+   */
+  it('reports a casting lost to a ward as warded', () => {
+    const lostOn = (seed: string): Record<string, unknown> => {
+      const campaign = createCampaign({ content: SRD_CONTENT, seed });
+      const surface = createSurface(campaign);
+      let calls = 0;
+      const call = (tool: string, input: unknown = {}): ToolOutcome =>
+        surface.call({ tool, input, commandId: `toolu_${(calls += 1)}` });
+
+      outcomeOf(call('create_character', { id: 'ada', choices: cleric('Ada') }), 'ok');
+      outcomeOf(call('create_character', { id: 'bo', choices: cleric('Bo') }), 'ok');
+      outcomeOf(call('set_scene', { width: 60, depth: 40, height: 20 }), 'ok');
+      outcomeOf(call('add_landmark', { name: 'the door', at: { x: 10, y: 10 } }), 'ok');
+      outcomeOf(call('place_creature', { who: 'ada', fromLandmark: 'the door', feet: 0 }), 'ok');
+      outcomeOf(call('place_creature', { who: 'bo', fromCreature: 'ada', feet: 10, bearing: 90 }), 'ok');
+      outcomeOf(call('declare_sight', { from: 'bo', to: 'ada', seen: true }), 'ok');
+      outcomeOf(
+        call('cast_spell', { caster: 'ada', spellId: 'sanctuary', targets: ['ada'], slotLevel: 1, payment: 'slot' }),
+        'ok',
+      );
+      return (
+        outcomeOf(
+          call('cast_spell', { caster: 'bo', spellId: 'sacred-flame', targets: ['ada'], ifWarded: 'lose' }),
+          'ok',
+        ) as { readonly resolution: Record<string, unknown> }
+      ).resolution;
+    };
+
+    const tried = Array.from({ length: 12 }, (_, i) => lostOn(`warded-cast-${i}`));
+    const lost = tried.filter((one) => one['warded'] === true);
+    expect(lost.length).toBeGreaterThan(0);
+    for (const one of lost) expect(one['outcomes']).toEqual([]);
+    // And a casting that cleared the ward lands, and is not marked.
+    for (const one of tried.filter((t) => t['warded'] !== true)) {
+      expect((one['outcomes'] as readonly unknown[]).length).toBeGreaterThan(0);
+    }
+  });
 });

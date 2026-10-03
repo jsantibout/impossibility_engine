@@ -2137,6 +2137,8 @@ const CAST_PRINTED_LINE = tool({
         ),
         castingId: value.castingId,
         outcomes: value.outcomes,
+        // A ward turned the casting away — SRD Sanctuary. (E-L1)
+        ...(value.warded === true ? { warded: true } : {}),
       }),
       (value) => value.unverified,
     ),
@@ -2576,7 +2578,9 @@ const TRIGGER_GLYPH = tool({
         context.campaign.supply(),
       ),
       (value) => value.events,
-      (value) => ({ castingId: value.castingId, outcomes: value.outcomes }),
+      // `warded`: the stored spell was lost to a ward on the triggerer (SRD
+      // Sanctuary), not cast at nobody. (E-L1)
+      (value) => ({ castingId: value.castingId, outcomes: value.outcomes, ...(value.warded === true ? { warded: true } : {}) }),
       (value) => value.unverified,
     ),
 });

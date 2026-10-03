@@ -3353,7 +3353,14 @@ const CAST_SPELL = tool({
       context,
       resolveSpell(state, who(args.caster), request, context.campaign.supply()),
       (value) => value.events,
-      (value) => ({ castingId: value.castingId, outcomes: value.outcomes }),
+      // `warded`: a ward turned the casting away (SRD Sanctuary), so an empty
+      // `outcomes` is the spell lost rather than the spell catching nobody.
+      // (E-L1)
+      (value) => ({
+        castingId: value.castingId,
+        outcomes: value.outcomes,
+        ...(value.warded === true ? { warded: true } : {}),
+      }),
       (value) => value.unverified,
     );
   },
@@ -6434,7 +6441,11 @@ const RELEASE_READY = tool({
         took: value.took,
         ...(value.spell === undefined
           ? {}
-          : { castingId: value.spell.castingId, outcomes: value.spell.outcomes }),
+          : {
+              castingId: value.spell.castingId,
+              outcomes: value.spell.outcomes,
+              ...(value.spell.warded === true ? { warded: true } : {}),
+            }),
         ...(value.move === undefined ? {} : { feetMoved: value.move.feet }),
       }),
       (value) => [...(value.spell?.unverified ?? []), ...(value.move?.unverified ?? [])],

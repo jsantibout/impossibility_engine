@@ -78,7 +78,7 @@ const TEMPLE: readonly GameEvent[] = [
     spellcasting: declaredCasting({
       ability: 'wis',
       classId: 'cleric',
-      prepared: ['glyph-of-warding', 'hold-person', 'banishment', 'shatter', 'aid', 'animate-dead', 'inflict-wounds'],
+      prepared: ['glyph-of-warding', 'hold-person', 'banishment', 'shatter', 'aid', 'animate-dead', 'inflict-wounds', 'phantasmal-killer'],
     }),
   },
   ...[2, 3, 4].map(
@@ -441,8 +441,36 @@ describe('SRD Glyph of Warding’s spell glyph', () => {
     const fired = must(triggerGlyph(before, { castingId, by: BANDIT }, supply('step')), 'trigger');
     expect(fired.outcomes).toEqual([]);
     expect(fired.warded).toBe(true);
+    // Outside a fight the ward says it holds nobody to one save, and the lost
+    // release keeps that line.
+    expect(fired.unverified.some((line) => line.includes('no turns here to hold them to one save'))).toBe(true);
     const after = fold('seed', [...warded, ...fired.events]) as GameState;
     expect(after.creatures[BANDIT]!.vitals.hp).toBe(before.creatures[BANDIT]!.vitals.hp);
     expect(after.ongoing[castingId]).toBeUndefined();
+  });
+
+  /**
+   * And a stored spell with a Duration starts no clock when a ward loses it:
+   * it ended under the ward, and a deadline on a casting that is not running
+   * is the stale timer `fold/release.ts` exists to prevent. (E-L1)
+   */
+  it('starts no duration for a stored spell a ward turned away', () => {
+    const { log, castingId } = inscribed({ spellId: 'phantasmal-killer', slotLevel: 4 }, 4);
+    const warded: readonly GameEvent[] = [
+      ...log,
+      {
+        type: 'passive-defense-granted',
+        id: BANDIT,
+        defense: { source: 'Sanctuary#cast:99', defense: { kind: 'ward', ability: 'wis', dc: 99 } },
+      },
+    ];
+    const fired = must(
+      triggerGlyph(fold('seed', warded) as GameState, { castingId, by: BANDIT }, supply('step')),
+      'trigger',
+    );
+    expect(fired.warded).toBe(true);
+    const after = fold('seed', [...warded, ...fired.events]) as GameState;
+    expect(Object.keys(after.ongoing)).toEqual([]);
+    expect(Object.values(after.timers).filter((t) => t.target.kind === 'casting')).toEqual([]);
   });
 });

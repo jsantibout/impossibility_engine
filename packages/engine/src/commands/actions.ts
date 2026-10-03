@@ -3266,6 +3266,8 @@ export interface PrintedCastingOutcome {
   /** What the casting and the line between them left to the table. */
   readonly unverified: readonly string[];
   readonly duplicate: boolean;
+  /** A ward turned the casting away — see `SpellResolution.warded`. (E-L1) */
+  readonly warded?: true;
 }
 
 /**
@@ -3541,6 +3543,7 @@ export function castPrintedLine(
         events: [...events, ...cast.value.events],
         castingId: cast.value.castingId,
         outcomes: cast.value.outcomes,
+        ...(cast.value.warded === true ? { warded: true as const } : {}),
         unverified: [
           ...cast.value.unverified,
           // "requiring no spell components" used to be said out loud here as
@@ -3723,6 +3726,7 @@ function castThroughTrait(
     events,
     castingId: cast.value.castingId,
     outcomes: cast.value.outcomes,
+    ...(cast.value.warded === true ? { warded: true as const } : {}),
     // The components clause is read now — see `GrantedSpell.waives` — so it is
     // no longer confessed here. (E-L1)
     unverified: [...cast.value.unverified],
