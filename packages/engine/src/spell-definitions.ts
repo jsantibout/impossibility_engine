@@ -5534,6 +5534,18 @@ export interface TargetRule {
    */
   readonly objectOrSelf?: true;
   /**
+   * SRD *Suggestion*: "one creature you can see within range **that can hear
+   * and understand you**."
+   *
+   * Two facts read at the casting, before the slot: the target is not
+   * Deafened, and it understands a language the caster speaks — a
+   * character's off its record, a stat block's off its Languages line (see
+   * `hearsAndUnderstands` in `languages.ts`). A target that cannot is refused
+   * `cannot_hear` or `does_not_understand`; one about which nothing the engine
+   * holds can say is cast at, with that said. (E-L1)
+   */
+  readonly hearsAndUnderstands?: true;
+  /**
    * SRD "each creature of your choice", which names no number at all.
    *
    * Compulsion, Weird and Divine Word are all written this way. There is no

@@ -3920,6 +3920,33 @@ export const featureSchema = z.object({
 export interface Feature extends z.infer<typeof featureSchema> {}
 export const FeatureSchema: z.ZodType<Feature> = featureSchema;
 
+/**
+ * A stat block's Languages line, read (E-L1).
+ *
+ * SRD Monsters, "Languages": "This entry lists languages that the monster can
+ * use to communicate. Sometimes a monster can understand a language but can't
+ * communicate with it, which is noted in its entry. 'None' indicates that a
+ * creature doesn't comprehend any language." SRD Suggestion's target must
+ * "hear and understand you", so the line is a fact a rule reads.
+ *
+ * - `speaks`: the tongues the block uses to communicate, in printed order.
+ *   Primordial's four dialects are Primordial, because "creatures that know
+ *   one of these dialects can communicate with those that know a different one".
+ * - `understands`: the ones it understands "but can't speak", and no others.
+ * - `others`: "Common plus one other language" — a count the GM fills in, and
+ *   whether the block speaks them or only understands them.
+ * - `all`: "All".
+ * - `telepathy`: the range, which is not hearing and which no rule here reads.
+ */
+export const MonsterSpeechSchema = z.object({
+  speaks: z.array(z.string().min(1)),
+  understands: z.array(z.string().min(1)),
+  others: z.object({ count: z.number().int().min(1), spoken: z.boolean() }).optional(),
+  all: z.literal(true).optional(),
+  telepathy: z.number().int().positive().optional(),
+});
+export type MonsterSpeech = z.infer<typeof MonsterSpeechSchema>;
+
 export const MonsterSchema = z.object({
   id: z.string().regex(/^[a-z0-9-]+$/),
   name: z.string().min(1),
@@ -3984,6 +4011,12 @@ export const MonsterSchema = z.object({
     .optional(),
   passivePerception: z.number().int().min(0),
   languages: z.array(z.string()),
+  /**
+   * The Languages line, read — see {@link MonsterSpeechSchema}. Absent where
+   * the line prints a clause the shape has no field for (the lycanthropes'
+   * "can't speak in wolf form"); `languages` keeps the book's strings. (E-L1)
+   */
+  speech: MonsterSpeechSchema.optional(),
 
   /** Numeric challenge rating; `1/8` becomes `0.125`. */
   cr: z.number().min(0),

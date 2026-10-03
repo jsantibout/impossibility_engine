@@ -40,6 +40,7 @@ import type {
   MonsterRecharge,
   MonsterSwallow,
   MonsterSave,
+  MonsterSpeech,
   MonsterTeleport,
   MonsterTrait,
   WeaponMastery,
@@ -807,6 +808,15 @@ export interface StatedValues {
    * Absent for every character and for every block the parser read whole.
    */
   readonly unreadActions?: readonly StatedAction[];
+  /**
+   * The block's Languages line, read — the tongues it speaks, the ones it only
+   * understands, the "plus N other languages" its GM fills in, "All", and its
+   * telepathy. SRD Suggestion's target must "hear and understand you", and a
+   * stat block's half of that question is read here; a character's is read
+   * off its record (`languages.ts`). Absent where the parser left the line
+   * unread, and for every character. (E-L1)
+   */
+  readonly speech?: MonsterSpeech;
 }
 
 /**

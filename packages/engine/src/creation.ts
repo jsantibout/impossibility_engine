@@ -3016,6 +3016,23 @@ const languagesChosenOnFeatures = (
  * wrong about one of them. The order is the order of arrival, which is what
  * every sheet written before features could grant a language already had.
  */
+/**
+ * The languages a character on the record knows, worked out the way its sheet
+ * was — or null where the record names a class, species or background this
+ * catalogue no longer holds.
+ *
+ * SRD Suggestion's target must "hear and understand you", and the owner's
+ * ruling reads a character's languages off `CreatureState.character`. The
+ * record holds the choices and not the list, so the list is derived again from
+ * them through {@link languagesKnown}, the same function creation wrote the
+ * sheet's with — one answer to one question. (E-L1)
+ */
+export function languagesOfRecord(content: Content, record: CharacterRecord): readonly string[] | null {
+  const { parts } = resolveParts(content, record.choices);
+  if (parts === null) return null;
+  return languagesKnown(content, record.choices, grantedFeatures(content, record.choices, parts));
+}
+
 function languagesKnown(
   content: Content,
   choices: CharacterChoices,

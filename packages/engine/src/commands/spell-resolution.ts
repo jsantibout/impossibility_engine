@@ -128,6 +128,7 @@ import {
   type SequencedBurst,
 } from '../spell-definitions.js';
 import { castsAtWill, type CastingRoute, componentsWaivedBy } from '../spellcasting.js';
+import { hearsAndUnderstands } from '../languages.js';
 import {
   castingNumber,
   castingSource,
@@ -1583,6 +1584,30 @@ export function castOrRelease(
           'warded',
           `${definition.name} is a ${definition.school} spell, and ${target} can't be targeted by one while ${ward} holds`,
         );
+      }
+    }
+
+    // — a target that can hear and understand the caster (E-L1) ——————————————
+    //
+    // SRD Suggestion: "one creature you can see within range that can hear
+    // and understand you". Hearing is the Deafened condition and understanding
+    // is a shared language, read off a character's record and a stat block's
+    // Languages line; a target that has neither is refused before anything is
+    // spent. Where nothing the engine holds can say — no record and no line, or
+    // a shared tongue that could only be one of the GM's "other languages" —
+    // the casting goes ahead and says so, because there is no door a table
+    // could answer a question through and the book's default is the casting.
+    if (definition.targets.hearsAndUnderstands === true) {
+      for (const target of targets) {
+        const heard = hearsAndUnderstands(state, supply.content, casterId, target);
+        if (heard.answer === 'no') {
+          return err(heard.code, `${definition.name} needs a target that can hear and understand you: ${heard.why}`);
+        }
+        if (heard.answer === 'unknown') {
+          unverified.push(
+            `${definition.name}: whether ${target} can hear and understand ${casterId} is the table's — ${heard.why}`,
+          );
+        }
       }
     }
 

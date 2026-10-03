@@ -3109,6 +3109,9 @@ export function adaptMonster(printed: Monster, id: CharacterId): AdaptedMonster 
     ...(bonusActions.length === 0 ? {} : { bonusActions }),
     ...(multiattack === undefined ? {} : { multiattack }),
     ...(unreadActions.length === 0 ? {} : { unreadActions }),
+    // The Languages line, where the parser read it — SRD Suggestion's "hear
+    // and understand you" reads it. (E-L1)
+    ...(monster.speech === undefined ? {} : { speech: monster.speech }),
   };
 
   // **The count follows the composition.** A block that states a sequence

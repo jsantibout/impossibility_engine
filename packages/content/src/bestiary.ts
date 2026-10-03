@@ -236,6 +236,8 @@ export const PHANTOM_STEED_BLOCK: Monster = {
   senses: [],
   passivePerception: 10,
   languages: ['None'],
+  // The Riding Horse's line read, as the parser reads it there (E-L1).
+  speech: { speaks: [], understands: [] },
   cr: 0.25,
   crLabel: '1/4',
   xp: 50,

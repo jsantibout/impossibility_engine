@@ -6182,6 +6182,17 @@ function checkWhatACastingMayBeAimedAt(
     }
   }
 
+  // SRD Suggestion's "that can hear and understand you" — a flag, read where
+  // the targets are settled. (E-L1)
+  const hears = (definition.targets as { readonly hearsAndUnderstands?: unknown }).hearsAndUnderstands;
+  if (hears !== undefined && hears !== true) {
+    found.push({
+      field: 'targets.hearsAndUnderstands',
+      code: 'malformed_field',
+      reason: 'a spell either needs its target to hear and understand the caster or it does not; the only value is true',
+    });
+  }
+
   definition.effects.forEach((effect, i) => {
     if (effect.kind !== 'weapon-rider') return;
     const makesMagical = (effect as { readonly makesMagical?: unknown }).makesMagical;

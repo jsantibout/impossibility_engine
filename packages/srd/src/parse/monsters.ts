@@ -16,6 +16,8 @@ import {
   MonsterPlaneShiftSchema,
   MonsterPullSchema,
   MonsterSpellcastingSchema,
+  MonsterSpeechSchema,
+  type MonsterSpeech,
   MonsterSwallowSchema,
   MonsterTeleportSchema,
   MonsterTreeStrideSchema,
@@ -2037,6 +2039,89 @@ export function parseTraitShape(text: string): MonsterTrait | null {
   }
 
   return null;
+}
+
+/** The count words a Languages line prints for "plus N other languages". */
+const OTHER_COUNT: Readonly<Record<string, number>> = {
+  one: 1,
+  two: 2,
+  three: 3,
+  four: 4,
+  five: 5,
+  six: 6,
+};
+
+/**
+ * A run of tongue names — "Common, Elvish, and Sylvan", "Common plus two other
+ * languages" — or null where a word is not a name this reads.
+ *
+ * Primordial's dialects are Primordial: "Primordial includes the Aquan, Auran,
+ * Ignan, and Terran dialects. Creatures that know one of these dialects can
+ * communicate with those that know a different one." Any other parenthesis is
+ * a clause the shape has no field for, and the line is left unread.
+ */
+function readTongues(
+  run: string,
+): { readonly names: readonly string[]; readonly others?: number } | null {
+  let text = run.replace(/Primordial \([A-Za-z, ]+\)/g, 'Primordial');
+  if (/[()]/.test(text)) return null;
+  let others: number | undefined;
+  const plus = /^(.+) plus (one|two|three|four|five|six) other languages?$/.exec(text);
+  if (plus !== null) {
+    text = plus[1]!;
+    others = OTHER_COUNT[plus[2]!];
+  }
+  const names = text
+    .split(/,? and |, /)
+    .map((name) => name.trim())
+    .filter((name) => name !== '');
+  if (names.length === 0 || names.some((name) => !/^[A-Z][A-Za-z'’ ]*$/.test(name))) return null;
+  return { names: [...new Set(names)], ...(others === undefined ? {} : { others }) };
+}
+
+/**
+ * A stat block's Languages line, read whole or not at all (E-L1) — see
+ * `MonsterSpeechSchema`. The clauses are separated by "; " in the book: the
+ * tongues spoken, the ones understood "but can't speak", and telepathy.
+ */
+export function parseLanguagesLine(text: string): MonsterSpeech | null {
+  const line = text.replace(/\s+/g, ' ').trim();
+  if (line === '') return null;
+  const speaks: string[] = [];
+  const understands: string[] = [];
+  let others: { count: number; spoken: boolean } | undefined;
+  let all = false;
+  let telepathy: number | undefined;
+
+  for (const clause of line.split('; ')) {
+    const mind = new RegExp(`^telepathy (\\d+) ft\\.(?: \\([^()]*\\))?$`).exec(clause);
+    if (mind !== null) {
+      telepathy = Number(mind[1]);
+      continue;
+    }
+    if (clause === 'None') continue;
+    if (clause === 'All') {
+      all = true;
+      continue;
+    }
+    const heard = new RegExp(`^[Uu]nderstands (.+?) but can${APOSTROPHE}t speak(?: them)?$`).exec(clause);
+    const run = readTongues(heard === null ? clause : heard[1]!);
+    if (run === null) return null;
+    (heard === null ? speaks : understands).push(...run.names);
+    if (run.others !== undefined) {
+      if (others !== undefined) return null;
+      others = { count: run.others, spoken: heard === null };
+    }
+  }
+
+  const checked = MonsterSpeechSchema.safeParse({
+    speaks: [...new Set(speaks)],
+    understands: [...new Set(understands)].filter((name) => !speaks.includes(name)),
+    ...(others === undefined ? {} : { others }),
+    ...(all ? { all: true } : {}),
+    ...(telepathy === undefined ? {} : { telepathy }),
+  });
+  return checked.success ? checked.data : null;
 }
 
 /**
@@ -4100,6 +4185,11 @@ function parseEntry(
     ...(specialSenses.length === 0 ? {} : { specialSenses }),
     passivePerception: passiveMatch ? Number(passiveMatch[1]) : 10,
     languages: splitList(fields.get('languages') ?? ''),
+    // And the line read, where every clause of it could be (E-L1).
+    ...(() => {
+      const speech = parseLanguagesLine(fields.get('languages') ?? '');
+      return speech === null ? {} : { speech };
+    })(),
 
     cr,
     crLabel,

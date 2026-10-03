@@ -2786,6 +2786,13 @@ export const BANISHMENT: SpellDefinition = {
  * Whether "fetch the key and give it to me" is achievable, and whether it
  * obviously harms the target, is a judgement the SRD hands the table, so the
  * engine spends the slot, runs the eight hours, and says so.
+ *
+ * **"That can hear and understand you" is the engine's** (E-L1): a Deafened
+ * target is refused, and so is one that shares no language with the caster —
+ * a character's languages off its record, a stat block's off its parsed
+ * Languages line. Where nothing the engine holds can say (a creature with
+ * neither, or a tongue among a block's "other languages" its GM chooses), the
+ * casting goes ahead and says so.
  */
 export const SUGGESTION: SpellDefinition = {
   id: 'suggestion',
@@ -2795,7 +2802,10 @@ export const SUGGESTION: SpellDefinition = {
   castingTime: 'action',
   concentration: true,
   range: { kind: 'ranged', feet: 30 },
-  targets: { count: 1 },
+  // "one creature you can see within range that can hear and understand you"
+  // — not Deafened, and sharing a language with the caster: a character's off
+  // its record, a stat block's off its Languages line. (E-L1)
+  targets: { count: 1, hearsAndUnderstands: true },
   requiresSight: true,
   effects: [{ kind: 'save', ability: 'wis', condition: 'charmed' }],
   durationSeconds: 28800,
@@ -2821,9 +2831,6 @@ export const SUGGESTION: SpellDefinition = {
     'For example, you could say, "Fetch the key to the cult\'s treasure vault, and give the key to me."',
     'Or you could say, "Stop fighting, leave this library peacefully, and don\'t return."',
     'The Charmed target pursues the suggestion to the best of its ability.',
-  ],
-  unmodelled: [
-    'the target must be able to hear and understand you: neither a Deafened target nor one that shares no language with the caster is refused',
   ],
 };
 
