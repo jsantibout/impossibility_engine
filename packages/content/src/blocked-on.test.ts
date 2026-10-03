@@ -2803,7 +2803,14 @@ describe('a consumer count is a query', () => {
       // **And E-L3 widened it to two by a build**: SRD Prayer of Healing's
       // range for the whole rite is a fold pass now, so the trigger shape lost
       // a consumer and fell level with the wall-and-templates shape.
+      //
+      // **And E-L2 widened it to four by two more builds**: SRD Web's fire
+      // took one off the trigger shape and SRD Dancing Lights' several lights
+      // one off the wall-and-templates shape, so both fell level with the
+      // second place and the stat block.
       'a-casting-ended-by-a-trigger',
+      'a-second-place-to-put-a-creature',
+      'a-stat-block-created-mid-fight',
       'a-wall-or-several-templates-in-one-area',
     ]);
     // **Moved from 20 to 15 by the third catalogue pass, and the total fell
