@@ -26,6 +26,7 @@ import {
   triggerGlyph,
   addCreature,
   addSceneLandmark,
+  declareBones,
   advanceTime,
   assumeShape,
   revertShape,
@@ -3236,6 +3237,12 @@ const GUARDED: readonly Guarded[] = [
     run: (s, commandId) => addSceneLandmark(s, 'the hearth', { x: 20, y: 30, z: 0 }, { commandId }),
   },
   {
+    name: 'declareBones',
+    log: SETUP,
+    run: (s, commandId) =>
+      declareBones(s, 'the ossuary', { from: { landmark: 'here' }, feet: 20, bearing: 180 }, { commandId }),
+  },
+  {
     name: 'placeCreatureInScene',
     log: untyped(),
     run: (s, commandId) =>
@@ -3945,8 +3952,11 @@ const COMMAND_MODULES = readdirSync(`${SRC}commands`)
   .filter((file) => file.endsWith('.ts'))
   .map((file) => `commands/${file}`);
 
+// `hit-dice.ts` beside `rest.ts`: the spend `endRest` and SRD Prayer of
+// Healing's `rest-benefits` share lives there, off the engine's barrel, and a
+// sweep that did not read it would lose `endRest`'s Hit Dice from its closure.
 const MODULE_SOURCE: Readonly<Record<string, string>> = Object.fromEntries(
-  [...COMMAND_MODULES, 'rest.ts'].map((file) => [file, readFileSync(`${SRC}${file}`, 'utf8')]),
+  [...COMMAND_MODULES, 'rest.ts', 'hit-dice.ts'].map((file) => [file, readFileSync(`${SRC}${file}`, 'utf8')]),
 );
 
 /**
@@ -5096,6 +5106,8 @@ const DECLARED_NOT_ACTED: Readonly<Record<string, string>> = {
     'not an action in the turn economy: the room the fight is happening in is a fact the DM declares, and no SRD rule spends anything to describe it',
   addSceneLandmark:
     'not an action in the turn economy: laying out the room is map-making, and a bar nobody had mentioned costs its describer nothing',
+  declareBones:
+    'not an action in the turn economy: a pile of bones on the crypt floor is the room being described — SRD Animate Dead reads it — and saying it lies there costs its describer nothing',
   placeCreatureInScene:
     'not an action in the turn economy: a creature walking into the scene is placed rather than moved, and SRD spends movement only on a move from somewhere',
   declareSightBetween:
@@ -5198,6 +5210,10 @@ describe('the DM-declared commands declare facts rather than taking actions', ()
   const declaring: readonly { readonly name: string; readonly run: (s: GameState) => Result<unknown> }[] = [
     { name: 'setScene', run: (s) => setScene(s, { width: 400, depth: 400, height: 40 }) },
     { name: 'addSceneLandmark', run: (s) => addSceneLandmark(s, 'the hearth', { x: 20, y: 30, z: 0 }) },
+    {
+      name: 'declareBones',
+      run: (s) => declareBones(s, 'the ossuary', { from: { landmark: 'the slick' }, feet: 20, bearing: 180 }),
+    },
     {
       name: 'placeCreatureInScene',
       run: (s) => placeCreatureInScene(s, C, { from: { landmark: 'the slick' }, feet: 30, bearing: 90 }),

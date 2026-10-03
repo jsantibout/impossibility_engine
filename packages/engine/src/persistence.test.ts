@@ -207,6 +207,9 @@ const KNOWN_EVENT_TYPES: readonly string[] = [
   'benefit-denied',
   // A block's own countdown to becoming another — W7-B12, SRD Troll Spawn.
   'block-deadline-set',
+  // A pile of bones the table laid in the room, or one gone from it — SRD
+  // Animate Dead's "a pile of bones". E-L3.
+  'bones-declared',
   'bonus-action-spent',
   'bonus-applied',
   'bonus-removed',
@@ -295,6 +298,9 @@ const KNOWN_EVENT_TYPES: readonly string[] = [
   'jump-allowance-spent',
   'landmark-added',
   'light-declared',
+  // A spell that may not affect a creature again until it finishes a Long
+  // Rest — SRD Prayer of Healing. E-L3.
+  'marked-until-long-rest',
   'mounted',
   'movement-completed',
   'movement-declared',

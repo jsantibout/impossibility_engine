@@ -2237,7 +2237,15 @@ describe('every spell this batch added is cast for real', () => {
     const castings = (state: GameState) =>
       Object.values(state.timers).filter((timer) => timer.target.kind === 'casting');
     if (seconds === undefined) {
-      expect(castings(fold('seed', log)), spellId).toHaveLength(0);
+      // **No span is no deadline that arrives** — but a casting that lasts
+      // until dispelled and offers a check holds the one that never does,
+      // for the check to ride on (E-L3): SRD Glyph of Warding's notice check.
+      const definition = SRD_CONTENT.spell(spellId)!;
+      const held = castings(fold('seed', log));
+      expect(
+        held.map((timer) => timer.deadline),
+        spellId,
+      ).toEqual(definition.untilDispelled === true && definition.check !== undefined ? [{ kind: 'indefinite' }] : []);
       return;
     }
     expect(castings(fold('seed', log)), spellId).toHaveLength(1);

@@ -1424,7 +1424,7 @@ const BORROW_SENSES = tool({
 const COMMAND_SUMMONS = tool({
   name: 'command_summons',
   description:
-    'Command a creature a casting of yours holds — SRD Unseen Servant’s servant — to move up to the feet its spell prints and, if you like, to do something with an object. Spends **your** Bonus Action in a fight, so once a turn; the creature spends nothing of its own. Say where it goes, measured from a landmark or a creature, and the engine refuses a move past the feet the spell prints, into a space somebody stands in, or across ground that asks for its route; leave the destination out to have it act where it stands. What it does with the object is yours to say and the engine reports it back as such. Refused for a creature you do not hold through a running casting and for one whose spell prints no command. If the move would take it more than the distance its spell allows from you, the spell ends and the creature is owed its departure.',
+    'Command a creature a casting of yours holds — SRD Unseen Servant’s servant — to move up to the feet its spell prints and, if you like, to do something with an object. Spends **your** Bonus Action in a fight, so once a turn; the creature spends nothing of its own. Say where it goes, measured from a landmark or a creature, and the engine refuses a move past the feet the spell prints, into a space somebody stands in, or across ground that asks for its route; leave the destination out to have it act where it stands. What it does with the object is yours to say and the engine reports it back as such. Refused for a creature you do not hold through a running casting and for one whose spell prints no command. If the move would take it more than the distance its spell allows from you, the spell ends and the creature is owed its departure. A creature you **control** — Animate Dead’s Zombie or Skeleton — is given an order for its own turn instead: say it in `order`, name any others given the same order in `also`, and the engine spends your one Bonus Action for all of them in a fight and refuses any farther from you than the spell’s 60 feet; it moves nothing now, so `to` and `interact` are refused for it.',
   mutates: true,
   establishes: ['route'],
   input: z.object({
@@ -1441,6 +1441,19 @@ const COMMAND_SUMMONS = tool({
       .min(1)
       .optional()
       .describe('What it does with an object, in your words: "open the door", "pour the wine". Reported back as the table’s.'),
+    also: z
+      .array(creatureId)
+      .optional()
+      .describe(
+        'Other creatures you control through the same spell, given the same order with the same Bonus Action. Only for a creature you control; refused for one a casting holds.',
+      ),
+    order: z
+      .string()
+      .min(1)
+      .optional()
+      .describe(
+        'The order for a creature you control, in your words: "attack the ghoul", "guard the corridor". It acts on its own turn; the words are reported back as the table’s.',
+      ),
   }),
   run: (context, args) =>
     settle(
@@ -1453,6 +1466,8 @@ const COMMAND_SUMMONS = tool({
           ...(args.to === undefined ? {} : { to: placementOf(args.to) }),
           ...(args.route === undefined ? {} : { route: args.route.map(point) }),
           ...(args.interact === undefined ? {} : { interact: args.interact }),
+          ...(args.also === undefined ? {} : { also: args.also.map(who) }),
+          ...(args.order === undefined ? {} : { order: args.order }),
           ...identity(context),
         },
         context.campaign.supply(),
@@ -2956,7 +2971,7 @@ const CAST_SPELL = tool({
       .min(1)
       .optional()
       .describe(
-        'The creature types this casting is drawn against, for a spell that prints "choose one or more" of a list — Magic Circle’s Celestials, Elementals, Fey, Fiends, or Undead. One or more of the printed names. Leaving it out for such a spell is refused and comes back listing them; naming any for a spell that prints no such choice is refused too. Not `choice`, which is one value: this is a list.',
+        'The creature types this casting is drawn against, for a spell that prints "choose one or more" of a list — Magic Circle’s Celestials, Elementals, Fey, Fiends, or Undead — or lets you refine it to some, as Glyph of Warding’s "only creatures of certain types activate it". One or more of the printed names. Leaving it out is refused where the spell insists on the choice and comes back listing them, and means no refinement where it only offers one; naming any for a spell that prints no such choice is refused too. Not `choice`, which is one value: this is a list.',
       ),
     optionByTarget: z
       .array(
@@ -3052,7 +3067,26 @@ const CAST_SPELL = tool({
       .array(placementSchema)
       .optional()
       .describe(
-        'Where the piles of bones lie that Animate Dead turns into Skeletons, one placement per pile, measured from a landmark or a creature like every other space and never as a raw coordinate. A corpse is a creature and goes in `targets` instead; bones were never one, so you point at the space. The engine checks that each pile is inside the spell’s range and that corpses and piles together do not exceed what the slot allows — one at level 3 and two more per level above for a casting that animates anything; a casting that only renews control over undead you already command reaches four at level 3 and two more per level above — and raises a Skeleton at each; whether bones really lie there is yours. Naming any on a spell that raises nothing from bones is refused, and so is a casting that names neither a corpse nor a pile.',
+        'Where the piles of bones lie that Animate Dead turns into Skeletons, one placement per pile, measured from a landmark or a creature like every other space and never as a raw coordinate. A corpse is a creature and goes in `targets` instead; bones were never one, so you point at the space. The engine checks that each pile is inside the spell’s range and that corpses and piles together do not exceed what the slot allows — one at level 3 and two more per level above for a casting that animates anything; a casting that only renews control over undead you already command reaches four at level 3 and two more per level above — and raises a Skeleton at each out of the pile the DM said lies in that space, which goes with it. A space nobody has said holds a pile of bones is asked about rather than raised from — the DM lays piles with `declare_bones`. Naming any on a spell that raises nothing from bones is refused, and so is a casting that names neither a corpse nor a pile.',
+      ),
+    rider: creatureId
+      .optional()
+      .describe(
+        'The creature you choose to ride what the spell summons — Phantom Steed’s "you or a creature you choose can ride the steed". The caster may always ride it; this names the one other creature who may, and the engine then refuses anybody else who tries to mount. Leave it out and only the caster may. Refused on a spell whose summons prints no such choice.',
+      ),
+    hitDice: z
+      .array(
+        z.strictObject({
+          target: creatureId.describe('A creature the spell is cast on.'),
+          dice: z
+            .array(z.string().min(1))
+            .min(1)
+            .describe('The Hit Point Dice it spends, by pool key — one entry per die, as a rest takes them.'),
+        }),
+      )
+      .optional()
+      .describe(
+        'The Hit Point Dice each creature spends of the Short Rest’s benefits a spell gives it — Prayer of Healing’s "gain the benefits of a Short Rest". How many is each creature’s own decision; the engine rolls every die and adds that creature’s Constitution, exactly as at the end of a rest. A creature the spell is not cast on, a die it does not have, or any of this on a spell that gives no rest’s benefits is refused before anything is spent.',
       ),
     stores: z
       .strictObject({
@@ -3231,6 +3265,12 @@ const CAST_SPELL = tool({
       // A stated fact and never a number: the die it gates is the engine's.
       ...(args.otherPlane === true ? { otherPlane: true as const } : {}),
       ...(args.bonesAt === undefined ? {} : { bonesAt: args.bonesAt.map((pile) => placementOf(pile)) }),
+      // Who else may ride what the spell summons — a creature named, no number.
+      ...(args.rider === undefined ? {} : { rider: who(args.rider) }),
+      // Pairs on the wire and a map in the engine, for `saveModes`' reason.
+      ...(args.hitDice === undefined
+        ? {}
+        : { hitDice: Object.fromEntries(args.hitDice.map((one) => [who(one.target), one.dice])) }),
       // The spell a glyph stores, said once at the inscription. (W7-S21)
       ...(args.stores === undefined
         ? {}
@@ -5601,13 +5641,30 @@ const SETTLE_SAVES = tool({
 const SETTLE_AREA_EFFECTS = tool({
   name: 'settle_area_effects',
   description:
-    'Settle what a persistent area — a Grease, a Web — has caught somebody doing. The engine rolls the save, reads the DC off the casting and applies whatever the spell says; you supply nothing but the instruction to do it now. Until this is called every other action refuses, including ending the turn, so call it as soon as the state shows any owed.',
+    'Settle what a persistent area — a Grease, a Web — has caught somebody doing. The engine rolls the save, reads the DC off the casting and applies whatever the spell says; you supply nothing but the instruction to do it now. Where the spell lets its caster hold back — Conjure Animals’ "you can force that creature" — name the creatures spared in `spare` and they are let alone, nothing rolled; a spell that says "must" refuses it. A creature its caster cannot see is let alone by a spell that reaches only one its caster can see. Until this is called every other action refuses, including ending the turn, so call it as soon as the state shows any owed.',
   mutates: true,
-  input: z.object({}),
-  run: (context) =>
+  input: z.object({
+    spare: z
+      .array(
+        z.strictObject({
+          castingId: z.string().min(1).describe('The casting that caught them, as `look` lists it among what is owed.'),
+          target: creatureId.describe('The creature its caster holds the effect back from.'),
+        }),
+      )
+      .optional()
+      .describe(
+        'The creatures the caster declines to force, for a spell that prints "can force" rather than "must". A decision, never a number.',
+      ),
+  }),
+  run: (context, args) =>
     settle(
       context,
-      settleAreaEffects(context.campaign.state(), context.campaign.supply(), identity(context)),
+      settleAreaEffects(context.campaign.state(), context.campaign.supply(), {
+        ...identity(context),
+        ...(args.spare === undefined
+          ? {}
+          : { spare: args.spare.map((one) => ({ castingId: one.castingId, target: who(one.target) })) }),
+      }),
       (value) => value.events,
       (value) => ({
         settled: value.settled.map((owed) => ({

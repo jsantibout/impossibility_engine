@@ -58,7 +58,6 @@ import { castsWithComponent, type Content, type SpellComponent, type SpellEntry 
 import { type CommandIdentity, commandOutcome, once } from '../idempotency.js';
 import {
   type Ability,
-  ABILITY_NAMES,
   type CharacterId,
   type ContextRequest,
   contextRequestsOf,
@@ -80,9 +79,11 @@ import {
 } from '../events.js';
 import { ONGOING_RECORD_VERSION } from '../ongoing-compatibility.js';
 import {
+  bonesInSpace,
   creaturesInArea,
   distanceBetween,
   distanceToPoint,
+  pointFromPlacement,
   positionOf,
   snapToSpace,
   type Placement,
@@ -173,6 +174,7 @@ import {
   fixedChoiceOf,
 } from './casting.js';
 import { creatureOf, turnContextFor, unknownCreature } from './command.js';
+import { hitDiceRequested } from '../hit-dice.js';
 import {
   chargeSpend,
   itemCastOf,
@@ -250,6 +252,7 @@ import {
 } from './spell-effect-movement.js';
 import {
   resolveHealEffect,
+  resolveRestBenefitsEffect,
   resolveTempHpEffect,
   resolveHealingRuleEffect,
   resolveHitPointMaximumEffect,
@@ -271,7 +274,7 @@ import { resolveChanceEffect, thrownAgainst } from './spell-effect-chance.js';
 import { aimsHarmAtATarget } from '../spell-definitions.js';
 import { wardAgainst } from './passive-defenses.js';
 import { resolveTeleportEffect } from './spell-effect-teleport.js';
-import { resolveRaiseEffect, resolveSummonEffect } from './spell-effect-summon.js';
+import { bonesUnstated, resolveRaiseEffect, resolveSummonEffect } from './spell-effect-summon.js';
 import { resolveElsewhereEffect } from './elsewhere.js';
 import { bindSummonsToCasting } from './creatures.js';
 import {
@@ -661,7 +664,11 @@ export function resolveDeclaredCast(
       route: chosen.value,
       ...(pending.numbers === undefined ? {} : { numbers: pending.numbers }),
       ...(pending.ability === undefined ? {} : { ability: pending.ability }),
-      targets: pending.targets,
+      // **Less whoever did not remain** — SRD Prayer of Healing's "who remain
+      // within range for the spell's entire casting". The fold marked them as
+      // they strayed (`PendingCasting.strayed`); the book gives the benefit to
+      // those who stayed, so a stray is passed over and said, not refused.
+      targets: pending.targets.filter((target) => !(pending.strayed ?? []).includes(target)),
       // The sixth stated fact, read back off the record beside the targets it
       // is aligned to. A Scorching Ray declared three-and-one settles three
       // and one.
@@ -673,7 +680,13 @@ export function resolveDeclaredCast(
       ...(pending.choiceByTarget === undefined
         ? {}
         : { choiceByTarget: pending.choiceByTarget }),
-      unverified: [...pending.unverified],
+      unverified: [
+        ...pending.unverified,
+        ...(pending.strayed ?? []).map(
+          (who) =>
+            `${definition.name}: ${who} did not remain within ${pending.stayWithin ?? 0} feet for the whole casting and is passed over`,
+        ),
+      ],
       supply,
       castingId: pending.castingId,
       events,
@@ -714,6 +727,8 @@ export function resolveDeclaredCast(
       // And the bones, read back the same way: a rite of a minute stated where
       // they lie before there was a casting to raise anything at.
       ...(pending.bonesAt === undefined ? {} : { bonesAt: pending.bonesAt }),
+      ...(pending.rider === undefined ? {} : { rider: pending.rider }),
+      ...(pending.hitDice === undefined ? {} : { hitDice: pending.hitDice }),
       ...(persists(definition, pending.option)
         ? {
             becomesOngoing: {
@@ -1253,18 +1268,9 @@ export function castOrRelease(
       // And what the *item* hands to the table, where an item is casting it —
       // the same question one host along again. See `itemHandovers`.
       ...(route.kind === 'item' ? itemHandovers(supply.content.item(route.item)) : []),
-      // **A check that had nowhere to hang, said out loud.** `SpellCheck`
-      // rides on the casting's own timer — which is why the validator refuses
-      // one on an Instantaneous spell — and a slot that makes this casting run
-      // until dispelled leaves no timer to ride. It is a fact about *this*
-      // casting rather than about the spell, so it is said here rather than in
-      // an `unmodelled` line that would also reach the castings where the
-      // check is offered.
-      ...(definition.check !== undefined && untilDispelledAt(definition, castLevel)
-        ? [
-            `${definition.name}: cast at level ${castLevel} it lasts until dispelled, and the ${ABILITY_NAMES[definition.check.ability]}${definition.check.skill === undefined ? '' : ` (${definition.check.skill})`} check against it rides on a deadline this casting has none of — a creature examining it is the table's`,
-          ]
-        : []),
+      // A check on a casting that runs until dispelled is no longer said here:
+      // it rides on the `indefinite` deadline `castOrRelease` gives such a
+      // casting — SRD Glyph of Warding's glyph, SRD Major Image at level 4+.
     ];
     const needs: ContextRequest[] = [];
 
@@ -1839,8 +1845,47 @@ export function castOrRelease(
     for (const effect of definition.effects) {
       if (effect.kind !== 'revive') continue;
       for (const target of targets) {
-        const raisable = reviveProblem(state, target, effect.within, definition.name);
+        const raisable = reviveProblem(state, target, effect, definition.name);
         if (!raisable.ok) return raisable;
+      }
+    }
+
+    // SRD Prayer of Healing: "A creature can't be affected by this spell again
+    // until that creature finishes a Long Rest." Asked before the slot or the
+    // rite, so a cleric who named the wrong creature has spent nothing.
+    if (definition.targets.onceUntilLongRest === true) {
+      for (const target of targets) {
+        if (state.creatures[target]?.untilLongRest?.includes(definition.id) === true) {
+          return err(
+            'affected_until_long_rest',
+            `${definition.name} has already affected ${target}, and can't again until ${target} finishes a Long Rest`,
+          );
+        }
+      }
+    }
+
+    // And the Hit Point Dice its rest's benefits are spent with — "You can
+    // spend one or more of your Hit Point Dice". The creature's decision, held
+    // to the dice the creature has and to the creatures the spell is cast on,
+    // before anything is spent. See `CastSpellRequest.hitDice`.
+    if (request.hitDice !== undefined) {
+      if (!definition.effects.some((effect) => effect.kind === 'rest-benefits')) {
+        return err(
+          'no_rest_benefits',
+          `${definition.name} gives nobody the benefits of a rest, so no Hit Point Dice are spent of it`,
+        );
+      }
+      for (const [who, keys] of Object.entries(request.hitDice).sort(([a], [b]) => a.localeCompare(b))) {
+        if (!targets.includes(who as CharacterId)) {
+          return err(
+            'hit_dice_off_target',
+            `${definition.name} is not cast on ${who}, so ${who} spends no Hit Point Dice of it`,
+          );
+        }
+        const holder = state.creatures[who];
+        if (holder === undefined) return unknownCreature(who as CharacterId);
+        const asked = hitDiceRequested(holder, who as CharacterId, keys);
+        if (!asked.ok) return asked;
       }
     }
 
@@ -2096,6 +2141,19 @@ export function castOrRelease(
           'too_many_raised',
           `${definition.name} at level ${castLevel} animates or reasserts control over ${allowed} creature(s); ${targets.length} corpse(s) and ${piles} pile(s) of bones were named`,
         );
+      }
+      // "Choose a pile of bones": that one lies where the caster pointed is
+      // the table's to have said, asked here before the slot or the rite and
+      // asked again at the raising, where the rule lives. A placement the
+      // ruler cannot resolve is the raising's own refusal, not this question.
+      for (const pile of request.bonesAt ?? []) {
+        if (state.scene === null) break;
+        const { size: _stated, ...placement } = pile;
+        void _stated;
+        const point = pointFromPlacement(state.scene, placement);
+        if (point.ok && bonesInSpace(state.scene, point.value) === null) {
+          return bonesUnstated(definition.name, placement);
+        }
       }
       // SRD Gentle Repose: "can't become Undead". A corpse a running repose
       // keeps is refused here, before the slot or the rite; the resolver asks
@@ -2914,8 +2972,13 @@ function resolveOnTargets(
   /** The stored spell's gestures failed — see `OngoingRecordPlan.storedFizzled`. */
   let storedFizzled = false;
 
+  // SRD Arcanist's Magic Aura's thirty days — read off the castings running
+  // before this one, on the state as it stood. See `dailyRunOf`.
+  const daily = dailyRunOf(state, casterId, definition, targets);
+
   const ongoingWith = (): OngoingRecordPlan => ({
     spellId: definition.id,
+    ...(daily === undefined ? {} : { dailySince: daily.since }),
     ...(storedRecord === undefined ? {} : { stored: storedRecord }),
     ...(storedFizzled ? { storedFizzled: true as const } : {}),
     // **What this casting turns aside**, where the definition says its benefit
@@ -3163,6 +3226,8 @@ function resolveOnTargets(
         ...(request.form === undefined ? {} : { form: request.form }),
         ...(request.otherPlane === undefined ? {} : { otherPlane: request.otherPlane }),
         ...(request.bonesAt === undefined ? {} : { bonesAt: request.bonesAt }),
+        ...(request.rider === undefined ? {} : { rider: request.rider }),
+        ...(request.hitDice === undefined ? {} : { hitDice: request.hitDice }),
         alters,
         // A released spell leaves the same thing running that a cast one does.
         // This was the one resolution path of three that wrote no record, so a
@@ -3520,7 +3585,11 @@ function resolveOnTargets(
       // **Nor does a branch that is over in an instant** — SRD Thaumaturgy's
       // door flung open, whatever the spell's minute says. See
       // `SpellOption.instantaneous`, read through `persists` with the word.
-      ...(untilDispelledAt(definition, castLevel) || !persists(definition, request.option)
+      // **And a run of castings may take it away too** — SRD Arcanist's Magic
+      // Aura cast on the run's thirtieth day. See `dailyRunOf`.
+      ...(untilDispelledAt(definition, castLevel) ||
+      !persists(definition, request.option) ||
+      daily?.forGood === true
         ? {}
         : definition.durationSeconds !== undefined
         ? {
@@ -3544,6 +3613,13 @@ function resolveOnTargets(
             hold: {
               spellId: request.spellId,
               targets,
+              // SRD Prayer of Healing's "who remain within range for the
+              // spell's entire casting": the range the rite is measured by,
+              // pinned so the fold can mark a target that strays while it is
+              // said. See `TargetRule.remainInRange`.
+              ...(definition.targets.remainInRange === true && altered.reachFeet !== null
+                ? { stayWithin: altered.reachFeet }
+                : {}),
               // **Beside the targets, because it is aligned to them.** A held
               // Scorching Ray settles the split it was declared with; a
               // settlement takes no fresh request, so dropping this would
@@ -3611,6 +3687,8 @@ function resolveOnTargets(
               // The seventh: where the bones lie, which a rite of a minute
               // states before there is a casting to raise anything at.
               ...(request.bonesAt === undefined ? {} : { bonesAt: request.bonesAt }),
+              ...(request.rider === undefined ? {} : { rider: request.rider }),
+              ...(request.hitDice === undefined ? {} : { hitDice: request.hitDice }),
               // And the spell it stores, which is cast when the settlement is
               // — SRD Glyph of Warding's spell glyph. (W7-S21)
               ...(request.stores === undefined ? {} : { stores: request.stores }),
@@ -3761,6 +3839,8 @@ function resolveOnTargets(
       ...(request.form === undefined ? {} : { form: request.form }),
       ...(request.otherPlane === undefined ? {} : { otherPlane: request.otherPlane }),
       ...(request.bonesAt === undefined ? {} : { bonesAt: request.bonesAt }),
+      ...(request.rider === undefined ? {} : { rider: request.rider }),
+      ...(request.hitDice === undefined ? {} : { hitDice: request.hitDice }),
       alters,
       // The casting this Reaction answers, as an **id** rather than as the record
       // that was read. The resolver looks it up again on the state its own events
@@ -3978,6 +4058,8 @@ function resolveOneEffect(
       return resolveHealEffect(ctx, effect, target, victim, world);
     case 'revive':
       return resolveReviveEffect(ctx, effect, target, world);
+    case 'rest-benefits':
+      return resolveRestBenefitsEffect(ctx, target, world);
     case 'stabilise':
       return resolveStabiliseEffect(ctx, target, world);
     case 'preserves':
@@ -4276,6 +4358,10 @@ export function resolveEffects(
      * reason: a rite of a minute states them before anything is raised.
      */
     readonly bonesAt?: readonly Placement[];
+    /** The creature the caster chose to ride what it summons — see `CastSpellRequest.rider`. */
+    readonly rider?: CharacterId;
+    /** The Hit Point Dice each creature spends of a rest's benefits — see `CastSpellRequest.hitDice`. */
+    readonly hitDice?: Readonly<Record<string, readonly string[]>>;
     /**
      * Which casting a Reaction spell answers, by id.
      *
@@ -4377,6 +4463,8 @@ export function resolveEffects(
     ...(context.form === undefined ? {} : { form: context.form }),
     ...(context.otherPlane === undefined ? {} : { otherPlane: context.otherPlane }),
     ...(context.bonesAt === undefined ? {} : { bonesAt: context.bonesAt }),
+    ...(context.rider === undefined ? {} : { rider: context.rider }),
+    ...(context.hitDice === undefined ? {} : { hitDice: context.hitDice }),
     ...(context.answers === undefined ? {} : { answers: context.answers }),
     ...(context.alters === undefined ? {} : { alters: context.alters }),
   });
@@ -4413,6 +4501,13 @@ export function resolveEffects(
         // **Or the spell it stores in the rune's place**, never both — see
         // `OngoingSpell.stored`. (W7-S21)
         ...(becomes.stored === undefined ? {} : { stored: becomes.stored }),
+        // And who alone sets it off, where the caster refined the trigger —
+        // SRD Glyph of Warding's "only creatures of certain types activate it",
+        // read by the rune and the spell glyph alike. See
+        // `OngoingSpell.activatedBy`.
+        ...(definition.triggered?.onlyStatedTypes === true && becomes.types !== undefined
+          ? { activatedBy: becomes.types }
+          : {}),
         ...(definition.triggered === undefined ||
         becomes.stored !== undefined ||
         becomes.storedFizzled === true
@@ -4509,6 +4604,9 @@ export function resolveEffects(
         // And the moment the body began being kept — see
         // `OngoingSpell.preserving`, which `revive` is the one reader of.
         ...(becomes.preserving === undefined ? {} : { preserving: becomes.preserving }),
+        // And where it stands in a run of daily castings — SRD Arcanist's
+        // Magic Aura. See `OngoingSpell.dailySince`.
+        ...(becomes.dailySince === undefined ? {} : { dailySince: becomes.dailySince }),
         // And the two endings that are exceptions to the free dismissal — see
         // `OngoingSpell.endsAfterTrigger` and `OngoingSpell.dismissibleBy`.
         ...(becomes.endsAfterTrigger === undefined
@@ -4532,7 +4630,35 @@ export function resolveEffects(
   // skeleton is still standing next week. `summonCreature` says the same in
   // the same words for a DM binding a creature by hand.
   if (becomes !== undefined && summoned.length > 0) {
-    events.push(...bindSummonsToCasting(summoned, casterId, castingId));
+    // And the terms the summons prints beside the casting's lifetime, pinned
+    // on the same link — SRD Phantom Steed's "you or a creature you choose can
+    // ride the steed" and its minute to dismount. Read off the definition here,
+    // where it is open, so the mount command and the fold read the bond.
+    const printing = definition.effects.find(
+      (effect): effect is Extract<SpellEffect, { readonly kind: 'summon' }> =>
+        effect.kind === 'summon' && (effect.riddenBy !== undefined || effect.fadesOver !== undefined),
+    );
+    events.push(
+      ...bindSummonsToCasting(summoned, casterId, castingId, {
+        ...(printing?.riddenBy === 'caster-or-chosen'
+          ? { riders: [...new Set([casterId, ...(context.rider === undefined ? [] : [context.rider])])].sort() }
+          : {}),
+        ...(printing?.fadesOver === undefined ? {} : { fades: printing.fadesOver }),
+      }),
+    );
+  }
+
+  // **The creatures this spell may not affect again until they rest** — SRD
+  // Prayer of Healing. Every creature an effect of this casting landed on is
+  // marked, once, with the spell's id; a creature the settlement passed over
+  // was not affected and is not marked. See `TargetRule.onceUntilLongRest`.
+  if (definition.targets.onceUntilLongRest === true) {
+    const affected = [
+      ...new Set(outcomes.filter((one) => one.affected === true).map((one) => one.target as CharacterId)),
+    ].sort();
+    for (const id of affected) {
+      events.push({ type: 'marked-until-long-rest', id, spell: definition.id });
+    }
   }
 
   // **The casting its own saving throw ended, released below the record it
@@ -4658,6 +4784,10 @@ export interface EffectRun {
   readonly form?: string;
   readonly otherPlane?: true;
   readonly bonesAt?: readonly Placement[];
+  /** The creature the caster chose to ride what it summons — see `CastSpellRequest.rider`. */
+  readonly rider?: CharacterId;
+  /** The Hit Point Dice each creature spends of a rest's benefits — see `CastSpellRequest.hitDice`. */
+  readonly hitDice?: Readonly<Record<string, readonly string[]>>;
   readonly answers?: string;
   /**
    * What the caster's features do to this casting's damage, and what electing
@@ -4970,6 +5100,8 @@ export function runEffects(
     ...(run.form === undefined ? {} : { form: run.form }),
     ...(run.otherPlane === undefined ? {} : { otherPlane: run.otherPlane }),
     ...(run.bonesAt === undefined ? {} : { bonesAt: run.bonesAt }),
+    ...(run.rider === undefined ? {} : { rider: run.rider }),
+    ...(run.hitDice === undefined ? {} : { hitDice: run.hitDice }),
     ...(run.answers === undefined ? {} : { answers: run.answers }),
   };
 
@@ -5228,6 +5360,39 @@ interface OngoingRecordPlan {
   readonly inAStorm?: true;
   /** The one creature the cast singled out — see `OngoingSpell.singledOut`. */
   readonly singledOut?: string;
+  /** When this casting's run of daily castings began — see `OngoingSpell.dailySince`. */
+  readonly dailySince?: number;
+}
+
+/** Twenty-four hours: a day of SRD Arcanist's Magic Aura's run, on a clock with no calendar. */
+const DAY_SECONDS = 86_400;
+
+/**
+ * Where this casting stands in a run of daily castings, for a spell that
+ * prints one — SRD Arcanist's Magic Aura: "If you cast the spell on the same
+ * target every day for 30 days, the illusion lasts until dispelled."
+ *
+ * The run is carried on from this caster's own casting of the spell that is
+ * still running on the same target — the Mask lasts a day, so a run is never
+ * letting it lapse — and starts now where there is none. A day is each
+ * twenty-four hours from the run's start, so the casting made on the run's
+ * last day lasts until dispelled, and two castings on one day are one day.
+ * Undefined for every spell that prints no run.
+ */
+function dailyRunOf(
+  state: GameState,
+  casterId: CharacterId,
+  definition: SpellDefinition,
+  targets: readonly CharacterId[],
+): { readonly since: number; readonly forGood: boolean } | undefined {
+  const days = definition.untilDispelledAfterDays;
+  if (days === undefined) return undefined;
+  const carried = targets
+    .flatMap((target) => ongoingSpellsOn(state, target))
+    .filter((record) => record.caster === casterId && record.spellId === definition.id)
+    .flatMap((record) => (record.dailySince === undefined ? [] : [record.dailySince]));
+  const since = carried.length === 0 ? state.elapsed : Math.min(...carried);
+  return { since, forGood: state.elapsed - since >= (days - 1) * DAY_SECONDS };
 }
 
 /**

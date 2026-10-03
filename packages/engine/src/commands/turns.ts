@@ -1328,8 +1328,9 @@ export interface AreaEffectResolution {
 export function settleAreaEffects(
   state: GameState,
   supply: Supply,
-  command: CommandIdentity = {},
+  command: SettleAreaEffectsCommand = {},
 ): Result<AreaEffectResolution> {
+  const spare = command.spare ?? [];
   // Before every guard below, as always: a retry arrives at the world its own
   // first run made, and reporting "nothing is owed" for a settlement that has
   // already happened is the confusion command ids exist to prevent.
@@ -1337,8 +1338,13 @@ export function settleAreaEffects(
     return { events: [], settled: [], outcomes: [], unverified: [] };
   }, (stamp) => {
     if (state.owedAreaEffects.length === 0) {
+      if (spare.length > 0) {
+        return err('nothing_to_spare', 'nothing is owed by any area, so there is nobody to spare');
+      }
       return ok({ events: [], settled: [], outcomes: [], unverified: [] });
     }
+    /** Which of the caster's spared debts this settlement has met, so a name it never meets is refused. */
+    const met = new Set<number>();
 
     const events: GameEvent[] = [];
     const settled: OwedAreaEffect[] = [];
@@ -1411,6 +1417,48 @@ export function settleAreaEffects(
         continue;
       }
 
+      // **"You can force that creature"** — SRD Conjure Animals. A debt the
+      // caster spared is discharged with nothing rolled, and only off a trigger
+      // that prints the permission: the book's "must" is not the caster's to
+      // waive. See `AreaTrigger.casterMayDecline`.
+      const spared = spare.findIndex(
+        (one) => one.castingId === owed.castingId && one.target === owed.target,
+      );
+      if (spared >= 0) {
+        if (trigger.casterMayDecline !== true) {
+          return err(
+            'must_be_forced',
+            `${record.spell} prints no "can": ${owed.target} is owed its effect whatever ${record.caster} would rather`,
+          );
+        }
+        met.add(spared);
+        events.push(discharge);
+        current = applyEvent(current, discharge);
+        settled.push(owed);
+        outcomes.push({ target: owed.target as CharacterId, affected: false });
+        continue;
+      }
+
+      // **"A creature you can see"** — the caster's own line to the creature,
+      // read here, where the save is forced. Unseen is owed nothing; unsaid is
+      // forced and the question named, the ruling every gate on a sight nobody
+      // declared already takes. See `AreaTrigger.onlyWhomCasterSees`.
+      if (trigger.onlyWhomCasterSees === true && casterId !== null) {
+        const seen = canSee(current, casterId, owed.target as CharacterId);
+        if (seen === false) {
+          events.push(discharge);
+          current = applyEvent(current, discharge);
+          settled.push(owed);
+          outcomes.push({ target: owed.target as CharacterId, affected: false });
+          continue;
+        }
+        if (seen === null) {
+          unverified.push(
+            `${record.spell}: nobody has said whether ${record.caster} can see ${owed.target}, and it reaches only a creature its caster can see; ${owed.target} was caught rather than passed over`,
+          );
+        }
+      }
+
       const resolved = resolveEffects(current, casterId!, caster, definition, {
         // Pinned at the casting: a Cleric who levels does not upcast a swarm
         // that has been buzzing since the first round.
@@ -1442,8 +1490,31 @@ export function settleAreaEffects(
       settled.push(owed);
     }
 
+    // A creature named to be spared that nothing owed is a caller who believes
+    // they held something back; saying so is the only honest answer.
+    const unmet = spare.filter((_, i) => !met.has(i));
+    if (unmet.length > 0) {
+      return err(
+        'nothing_to_spare',
+        `nothing owes ${unmet.map((one) => `${one.target} (${one.castingId})`).join(', ')} an effect to spare them from`,
+      );
+    }
+
     return ok({ events, settled, outcomes, unverified });
   });
+}
+
+/** What a settlement may be told — see {@link settleAreaEffects}. */
+export interface SettleAreaEffectsCommand extends CommandIdentity {
+  /**
+   * The debts the caster declines to force — SRD Conjure Animals: "you **can**
+   * force that creature to make a Dexterity saving throw". Each names the
+   * casting and the creature; a spared debt is discharged with nothing rolled
+   * and nothing dealt. Refused off a trigger that prints no such permission
+   * (`must_be_forced`) and where nothing owes the creature named
+   * (`nothing_to_spare`). No number: who is spared is a decision.
+   */
+  readonly spare?: readonly { readonly castingId: string; readonly target: CharacterId }[];
 }
 
 /**

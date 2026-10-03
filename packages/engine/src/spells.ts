@@ -302,6 +302,25 @@ export interface OngoingSpell {
    */
   readonly stored?: StoredCasting;
   /**
+   * The creature types that alone set this casting's trigger off — SRD Glyph
+   * of Warding: "You can refine the trigger so that only creatures of certain
+   * types activate it." The caster's stated `types`, pinned where the spell's
+   * trigger reads them (`TriggeredEffects.onlyStatedTypes`), so the DM's door
+   * reads the record and no book. Absent is a glyph anybody sets off: one whose
+   * spell prints no refinement, or whose caster made none.
+   */
+  readonly activatedBy?: readonly string[];
+  /**
+   * When this casting's unbroken run of daily castings began — SRD Arcanist's
+   * Magic Aura: "If you cast the spell on the same target every day for 30
+   * days, the illusion lasts until dispelled." Carried on from the same
+   * caster's casting on the same target that was still running when this one
+   * was made, and the clock now where there was none. Pinned on every casting
+   * of a spell that prints the run (`SpellDefinition.untilDispelledAfterDays`)
+   * and absent on every other.
+   */
+  readonly dailySince?: number;
+  /**
    * What stops this casting before its time is up — **as cast**.
    *
    * Pinned for the reason {@link area} and {@link numbers} are, and the rule

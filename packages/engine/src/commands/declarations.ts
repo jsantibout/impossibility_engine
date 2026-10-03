@@ -353,16 +353,42 @@ export function declareCreatureDead(
   id: CharacterId,
   cause: string,
   command: CommandIdentity = {},
+  /**
+   * What a later rule reads about this death, beside the words of {@link cause}.
+   * `oldAge` is SRD Revivify's "a creature that has died of old age" — a fact
+   * only the table holds, and one the revivals refuse on. See
+   * `Vitals.diedOfOldAge`.
+   */
+  death: DeclaredDeath = {},
 ): Result<GameEvent[]> {
-  return once(state, `declare-dead:${id}`, { ...command, cause }, () => [], (stamp) => {
-    const creature = creatureOf(state, id);
-    if (creature === null) return unknownCreature(id);
-    if (creature.vitals.dead) return ok([]);
+  const oldAge = death.oldAge === true;
+  return once(
+    state,
+    `declare-dead:${id}`,
+    { ...command, cause, ...(oldAge ? { oldAge } : {}) },
+    () => [],
+    (stamp) => {
+      const creature = creatureOf(state, id);
+      if (creature === null) return unknownCreature(id);
+      if (creature.vitals.dead) return ok([]);
 
-    return ok([
-      { type: 'creature-died', id, cause, ...(stamp === null ? {} : { command: stamp }) },
-    ]);
-  });
+      return ok([
+        {
+          type: 'creature-died',
+          id,
+          cause,
+          ...(oldAge ? { oldAge: true as const } : {}),
+          ...(stamp === null ? {} : { command: stamp }),
+        },
+      ]);
+    },
+  );
+}
+
+/** What a declared death says that a rule reads — see {@link declareCreatureDead}. */
+export interface DeclaredDeath {
+  /** SRD Revivify: "a creature that has died of old age". */
+  readonly oldAge?: boolean;
 }
 
 /**

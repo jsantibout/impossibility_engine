@@ -13,8 +13,10 @@ import { timerKey } from './timers.js';
 import type { GameEvent, GameState } from './events.js';
 import { once, type CommandIdentity } from './idempotency.js';
 import { rechosenSpellKey } from './progression.js';
-import { hitDieSides, remaining } from './resources.js';
-import { rollRecorded, type RollIssuer } from './rolls.js';
+import { hitDiceRequested, hitDiceRolled, type HitDieSpent } from './hit-dice.js';
+import { type RollIssuer } from './rolls.js';
+
+export type { HitDieSpent } from './hit-dice.js';
 import { castingIdOf } from './spells.js';
 import { sheetAsItStands } from './standing.js';
 import type { CreatureState } from './state.js';
@@ -159,16 +161,6 @@ export function beginRest(
       { type: 'rest-begun', id, kind, ...(stamp === null ? {} : { command: stamp }) },
     ]);
   });
-}
-
-/** One Hit Die spent, and what it gave back. */
-export interface HitDieSpent {
-  readonly key: string;
-  readonly sides: number;
-  /** What the die showed. */
-  readonly natural: number;
-  /** The die plus Constitution, never below 1. */
-  readonly regained: number;
 }
 
 /** One prepared spell studied out of the list and one studied in. */
@@ -548,19 +540,9 @@ export function endRest(
 
       // Validate every die before rolling any: a request for more dice than are
       // left must cost neither a die nor a turn of the generator.
-      const needed = new Map<string, number>();
-      for (const key of requested) {
-        const sides = hitDieSides(key);
-        if (sides === null) return err('bad_hit_die', `${key} is not a Hit Die pool`);
-        dice.push({ key, sides });
-        needed.set(key, (needed.get(key) ?? 0) + 1);
-      }
-      for (const [key, count] of needed) {
-        const left = remaining(creature.resources, key);
-        if (left < count) {
-          return err('not_enough_hit_dice', `${id} has ${left} ${key} left, and asked to spend ${count}`);
-        }
-      }
+      const asked = hitDiceRequested(creature, id, requested);
+      if (!asked.ok) return asked;
+      dice.push(...asked.value);
     }
 
     switch (benefit) {
@@ -584,31 +566,10 @@ export function endRest(
           // whole reason the substitution is available here.
           const constitution = abilityModifier(standing.abilities.con);
           const issuedBefore = supply.issuer.count;
-          let regained = 0;
-
-          for (const { key, sides } of dice) {
-            const rolled = rollRecorded(supply.issuer, supply.rng, `1d${sides}`);
-            if (!rolled.ok) return rolled;
-
-            // SRD: "You regain Hit Points equal to the total (minimum of 1)."
-            const natural = rolled.value.total;
-            const gain = Math.max(1, natural + constitution);
-            regained += gain;
-            spent.push({ key, sides, natural, regained: gain });
-
-            events.push(
-              { type: 'resource-spent', id, key, amount: 1 },
-              {
-                type: 'roll-recorded',
-                who: id,
-                label: `Hit Die (d${sides})`,
-                natural,
-                total: natural + constitution,
-                contributions: [{ source: 'Constitution', amount: constitution }],
-                outcome: `${gain} hit points`,
-              },
-            );
-          }
+          const thrown = hitDiceRolled(supply.issuer, supply.rng, id, constitution, dice, spent);
+          if (!thrown.ok) return thrown;
+          events.push(...thrown.value);
+          const regained = spent.reduce((total, die) => total + die.regained, 0);
 
           events.push({
             type: 'rolls-issued',

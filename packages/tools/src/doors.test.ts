@@ -586,6 +586,14 @@ const DECLARATIONS: Readonly<
    */
   declareWayInHeight: { tool: 'declare_portal_height', dmOnly: true },
   /**
+   * **A pile of bones, and the DM's alone for `declare_object`'s reason**: what
+   * is lying on the floor is the DM's to say, and a model that could lay bones
+   * wherever its necromancer pointed would be writing the world it then raises
+   * Skeletons out of. It carries no number — a name and a placement — and SRD
+   * Animate Dead reads it.
+   */
+  declareBones: { tool: 'declare_bones', dmOnly: true },
+  /**
    * **Withheld until this batch, and the reason it gave has stopped being
    * true.** The line here read "the clock and what a morning refills, which is
    * the rest slice `definitions.ts` says is left for a later batch. It also
@@ -1203,6 +1211,9 @@ const KIND_SETTLED_BY: Readonly<Record<string, ContextRequestKind | null>> = {
   // A climb into a place stops on it, and asks as a fact about the room:
   // `scene`, which the DM's door declares it establishes. (W9-S3)
   declareWayInHeight: 'scene',
+  // A Skeleton raised where nobody said bones lie stops on it, and asks as a
+  // fact about the room: `scene`, as the climb above does.
+  declareBones: 'scene',
 };
 
 /**
