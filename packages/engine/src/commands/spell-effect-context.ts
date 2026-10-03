@@ -328,6 +328,8 @@ export interface EffectContext {
    * see `resolveRaiseEffect`.
    */
   readonly bonesAt?: readonly Placement[];
+  /** The creature the caster chose to ride what it summons — see `CastSpellRequest.rider`. */
+  readonly rider?: CharacterId;
   /**
    * The weapon a `weapon-rider` effect was aimed at, by catalogue id.
    *

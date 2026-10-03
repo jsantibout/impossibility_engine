@@ -33,6 +33,8 @@ import {
 } from '../spell-definitions.js';
 import type { CastingRoute } from '../spellcasting.js';
 import { creaturesStandingInCastingArea, type StoredCasting } from '../spells.js';
+import { typeMagicSees } from '../creature-type.js';
+import { unknownCreature } from './command.js';
 import { sheetAsItStands } from '../standing.js';
 import { type CommandIdentity, commandOutcome, once } from '../idempotency.js';
 import { chooseRoute, chooseSlotKind, type Supply } from './casting.js';
@@ -75,6 +77,30 @@ export function triggerGlyph(
     if (record === undefined) {
       return err('not_ongoing', `${command.castingId} is not a spell that is still running`);
     }
+    // **A trigger refined to creatures of certain types** reads who set it off,
+    // whichever option the glyph holds — SRD: "You can refine the trigger so
+    // that only creatures of certain types activate it." The type is the one
+    // spells and magical effects see (`typeMagicSees`), so a Mask is believed.
+    // Asked before either option runs, because neither may run for a creature
+    // the glyph does not answer to.
+    const refined = record.activatedBy;
+    if (refined !== undefined) {
+      if (command.by === undefined) {
+        return err(
+          'triggerer_required',
+          `${record.spell} is set off only by ${refined.join(', ')}; name who set it off in \`by\``,
+        );
+      }
+      const who = state.creatures[command.by];
+      if (who === undefined) return unknownCreature(command.by);
+      const seen = typeMagicSees(who);
+      if (seen === null || !refined.includes(seen)) {
+        return err(
+          'type_does_not_activate',
+          `${record.spell} is set off only by ${refined.join(', ')}, and ${command.by} is ${seen ?? 'of no stated type'} to a spell`,
+        );
+      }
+    }
     // **A spell glyph lets its stored spell go** at the creature the DM names,
     // and runs no rune — the book's two options, never both. See
     // `releaseStoredSpell`.
@@ -95,7 +121,7 @@ export function triggerGlyph(
         stamp,
       );
     }
-    if (command.by !== undefined) {
+    if (command.by !== undefined && refined === undefined) {
       return err(
         'nothing_stored',
         `${record.spell} stores no spell; its rune catches whoever stands in the Sphere, and naming who set it off says nothing the engine reads`,

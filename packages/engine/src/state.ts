@@ -259,6 +259,25 @@ export interface SummonBond {
    * 24 hours" is the same bond over a different block.
    */
   readonly controlled?: ControlledBond;
+  /**
+   * Who alone may ride the creature — SRD Phantom Steed: "For the duration,
+   * you or a creature you choose can ride the steed." The summoner and the
+   * creature the casting named (`CastSpellRequest.rider`), sorted; read by
+   * `mountCreature`, which refuses anybody else (`not_a_chosen_rider`). Not a
+   * lifetime, so it rides beside whichever one the bond has, and it survives
+   * the fade below. Absent is a creature anybody willing may ride.
+   */
+  readonly riders?: readonly CharacterId[];
+  /**
+   * Seconds the creature outlasts the casting that holds it — SRD Phantom
+   * Steed: "When the spell ends, the steed gradually fades, giving the rider
+   * 1 minute to dismount." Only beside a `castingId`. When that casting ends,
+   * `releaseCasting` re-binds the creature to its summoner as a kept creature
+   * that lasts this long from the clock the casting ended at, which is a
+   * lifetime `strandedSummons` already reads. Absent is a creature that goes
+   * with its casting.
+   */
+  readonly fades?: number;
 }
 
 /** The terms of a controlled summons, as the log carries them — see {@link SummonBond.controlled}. */
@@ -273,6 +292,14 @@ export interface ControlledBond {
 export interface KeptBond {
   readonly spell: string;
   readonly untilSummonerDies: boolean;
+  /**
+   * SRD Find Steed: "it functions as a controlled mount while you ride it" —
+   * pinned from `KeptSummons.controlledMount` at the binding, so the reading
+   * opens no book. While the summoner rides the creature and is not
+   * Incapacitated, `actionRulesOn` narrows its Action to Dash, Disengage and
+   * Dodge. Absent on every other bond, which is every bond written before it.
+   */
+  readonly controlledMount?: true;
   /**
    * SRD Wild Companion: "disappears when you finish a Long Rest" — the
    * summoner's, completed after `since`, which is the clock at the binding.
@@ -2146,6 +2173,8 @@ export interface PendingCasting {
    * always did.
    */
   readonly bonesAt?: readonly Placement[];
+  /** The creature the caster chose to ride what it summons — see `CastSpellRequest.rider`. */
+  readonly rider?: CharacterId;
   /**
    * The spell this casting stores — SRD Glyph of Warding's spell glyph, whose
    * rite takes an hour, so the request is stated at the declaration and the

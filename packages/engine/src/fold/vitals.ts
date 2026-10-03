@@ -524,7 +524,16 @@ function reduceVitals({ state, next }: Applying, event: VitalsEvent): GameState 
       return withCreature(
         next,
         event.id,
-        { vitals: { ...creature.vitals, hp: 0, dead: true } },
+        {
+          vitals: {
+            ...creature.vitals,
+            hp: 0,
+            dead: true,
+            // The DM's ruling that it was age, held for the revivals that
+            // refuse one — see `Vitals.diedOfOldAge`.
+            ...(event.oldAge === true ? { diedOfOldAge: true as const } : {}),
+          },
+        },
         creature,
       );
     }

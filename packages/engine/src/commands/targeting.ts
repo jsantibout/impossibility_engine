@@ -727,6 +727,19 @@ export interface CastSpellRequest extends CommandIdentity {
    */
   readonly bonesAt?: readonly Placement[];
   /**
+   * The creature the caster chooses to ride what the casting summons.
+   *
+   * SRD Phantom Steed: "For the duration, **you or a creature you choose** can
+   * ride the steed." A fact only the caster can state, and the mount command
+   * reads it: the steed takes the caster and this creature, and refuses
+   * anybody else (`not_a_chosen_rider`). Absent is the caster alone — nobody
+   * was chosen, and the engine chooses nobody. Refused for a spell whose
+   * summons prints no such sentence (`no_rider_clause`) and for a creature the
+   * engine has never heard of. Pinned on the declaration for the form's
+   * reason: the steed is a rite of a minute.
+   */
+  readonly rider?: CharacterId;
+  /**
    * A spell this casting stores, to take effect when a DM says the casting's
    * trigger occurred — SRD Glyph of Warding's spell glyph: "You can store a
    * prepared spell of level 3 or lower in the glyph by casting it as part of
@@ -1297,6 +1310,22 @@ export function declaredFacts(
    */
   bought: CastingResolution = {},
 ): Result<null> {
+  // — who may ride what the casting summons ———————————————————————————————
+  //
+  // SRD Phantom Steed's "you or a creature you choose can ride the steed": the
+  // choice is the caster's, the summons pins it, and a spell whose summons
+  // prints no such sentence is refused the fact rather than quietly ignoring it.
+  if (request.rider !== undefined) {
+    const offers = definition.effects.some((effect) => effect.kind === 'summon' && effect.riddenBy !== undefined);
+    if (!offers) {
+      return err(
+        'no_rider_clause',
+        `${definition.name} does not let its caster choose who rides what it summons`,
+      );
+    }
+    if (creatureOf(state, request.rider) === null) return unknownCreature(request.rider);
+  }
+
   const named = request.unaffected ?? [];
   if (named.length > 0) {
     // SRD Careful Spell's "choose a number of those creatures" is the same
@@ -1766,10 +1795,14 @@ export function declaredFacts(
       );
     }
   } else if (request.types === undefined || request.types.length === 0) {
-    return err(
-      'types_required',
-      `${definition.name} prints ${printedTypes.options.join(', ')} and the engine will not choose among them; name one or more`,
-    );
+    // "You can refine the trigger" — a choice the caster may leave unmade, and
+    // then nothing is refined and nothing is defaulted in its place.
+    if (printedTypes.optional !== true) {
+      return err(
+        'types_required',
+        `${definition.name} prints ${printedTypes.options.join(', ')} and the engine will not choose among them; name one or more`,
+      );
+    }
   } else {
     const off = request.types.filter((type) => !printedTypes.options.includes(type));
     if (off.length > 0) {

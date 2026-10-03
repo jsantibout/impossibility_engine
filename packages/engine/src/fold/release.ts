@@ -332,6 +332,27 @@ export function releaseCasting(
       updated = { ...updated, concentration: null };
     }
 
+    // **A creature that fades rather than goes.** SRD Phantom Steed: "When the
+    // spell ends, the steed gradually fades, giving the rider 1 minute to
+    // dismount." The bond pinned the span (`SummonBond.fades`); the casting
+    // holding the creature has just ended, so it is re-bound to its summoner
+    // as a kept creature lasting exactly that long from the moment the casting
+    // ended — the lifetime `strandedSummons` already reads off a kept bond —
+    // and who may ride it is unchanged. Derived and written nowhere, for the
+    // landing's reason above: nobody decides that a spell's minute began.
+    const bond = updated.summonedBy;
+    if (record !== undefined && bond != null && bond.castingId === castingId && bond.fades !== undefined) {
+      updated = {
+        ...updated,
+        summonedBy: {
+          by: bond.by,
+          castingId: null,
+          kept: { spell: record.spellId, untilSummonerDies: false, lastsSeconds: bond.fades, since: spentUntil },
+          ...(bond.riders === undefined ? {} : { riders: bond.riders }),
+        },
+      };
+    }
+
     // **And what the ending costs, after everything it takes away.** SRD
     // Haste's lethargy is filed under the spell's bare name, so the removals
     // above walk past it — which is the whole reason it can be laid here at

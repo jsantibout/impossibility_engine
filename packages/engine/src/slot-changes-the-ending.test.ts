@@ -93,25 +93,26 @@ describe('Major Image at the slot the book prints', () => {
   it('runs until dispelled and takes no Concentration at level 4', () => {
     const { state, castingId } = castAt(4);
     expect(state.creatures[CASTER]?.concentration ?? null).toBeNull();
-    expect(castingTimers(state)).toEqual([]);
     // Still running, and still findable: "until dispelled" is the absence of a
-    // deadline rather than the absence of a casting.
+    // deadline rather than the absence of a casting — and the one timer it
+    // holds is the deadline that never arrives, for the check to ride on.
+    expect(castingTimers(state).map((key) => state.timers[key]?.deadline)).toEqual([{ kind: 'indefinite' }]);
     expect(state.ongoing[castingId]).toBeDefined();
   });
 
-  it('says the check it could not offer, because the check rides on a timer', () => {
+  it('still offers its Investigation check, on the deadline that never arrives', () => {
+    const { state, castingId } = castAt(4);
+    const key = castingTimers(state)[0]!;
+    expect(state.timers[key]?.check).toMatchObject({ ability: 'int', skill: 'investigation' });
+    expect(state.timers[key]?.target).toEqual({ kind: 'casting', castingId });
+
     const before = fold('seed', SETUP);
     const out = unwrap(
       resolveSpell(before, CASTER, { spellId: 'major-image', targets: [], slotLevel: 4 }, supply()),
       'Major Image at level 4',
     );
-    expect(out.unverified.some((line) => line.includes('Intelligence (investigation)'))).toBe(true);
-
-    const printed = unwrap(
-      resolveSpell(before, CASTER, { spellId: 'major-image', targets: [], slotLevel: 3 }, supply()),
-      'Major Image at level 3',
-    );
-    expect(printed.unverified.some((line) => line.includes('Intelligence (investigation)'))).toBe(false);
+    // Nothing is said about a check that had nowhere to hang: it has somewhere.
+    expect(out.unverified.some((line) => line.includes('Intelligence (investigation)'))).toBe(false);
   });
 });
 

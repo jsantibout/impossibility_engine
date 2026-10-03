@@ -58,7 +58,6 @@ import { type Content, hasComponent, type SpellEntry } from '../content.js';
 import { type CommandIdentity, commandOutcome, once } from '../idempotency.js';
 import {
   type Ability,
-  ABILITY_NAMES,
   type CharacterId,
   type ContextRequest,
   contextRequestsOf,
@@ -672,6 +671,7 @@ export function resolveDeclaredCast(
       // And the bones, read back the same way: a rite of a minute stated where
       // they lie before there was a casting to raise anything at.
       ...(pending.bonesAt === undefined ? {} : { bonesAt: pending.bonesAt }),
+      ...(pending.rider === undefined ? {} : { rider: pending.rider }),
       ...(persists(definition)
         ? {
             becomesOngoing: {
@@ -1210,18 +1210,9 @@ export function castOrRelease(
       // And what the *item* hands to the table, where an item is casting it —
       // the same question one host along again. See `itemHandovers`.
       ...(route.kind === 'item' ? itemHandovers(supply.content.item(route.item)) : []),
-      // **A check that had nowhere to hang, said out loud.** `SpellCheck`
-      // rides on the casting's own timer — which is why the validator refuses
-      // one on an Instantaneous spell — and a slot that makes this casting run
-      // until dispelled leaves no timer to ride. It is a fact about *this*
-      // casting rather than about the spell, so it is said here rather than in
-      // an `unmodelled` line that would also reach the castings where the
-      // check is offered.
-      ...(definition.check !== undefined && untilDispelledAt(definition, castLevel)
-        ? [
-            `${definition.name}: cast at level ${castLevel} it lasts until dispelled, and the ${ABILITY_NAMES[definition.check.ability]}${definition.check.skill === undefined ? '' : ` (${definition.check.skill})`} check against it rides on a deadline this casting has none of — a creature examining it is the table's`,
-          ]
-        : []),
+      // A check on a casting that runs until dispelled is no longer said here:
+      // it rides on the `indefinite` deadline `castOrRelease` gives such a
+      // casting — SRD Glyph of Warding's glyph, SRD Major Image at level 4+.
     ];
     const needs: ContextRequest[] = [];
 
@@ -1772,7 +1763,7 @@ export function castOrRelease(
     for (const effect of definition.effects) {
       if (effect.kind !== 'revive') continue;
       for (const target of targets) {
-        const raisable = reviveProblem(state, target, effect.within, definition.name);
+        const raisable = reviveProblem(state, target, effect, definition.name);
         if (!raisable.ok) return raisable;
       }
     }
@@ -2976,6 +2967,7 @@ function resolveOnTargets(
         ...(request.form === undefined ? {} : { form: request.form }),
         ...(request.otherPlane === undefined ? {} : { otherPlane: request.otherPlane }),
         ...(request.bonesAt === undefined ? {} : { bonesAt: request.bonesAt }),
+        ...(request.rider === undefined ? {} : { rider: request.rider }),
         alters,
         // A released spell leaves the same thing running that a cast one does.
         // This was the one resolution path of three that wrote no record, so a
@@ -3393,6 +3385,7 @@ function resolveOnTargets(
               // The seventh: where the bones lie, which a rite of a minute
               // states before there is a casting to raise anything at.
               ...(request.bonesAt === undefined ? {} : { bonesAt: request.bonesAt }),
+              ...(request.rider === undefined ? {} : { rider: request.rider }),
               // And the spell it stores, which is cast when the settlement is
               // — SRD Glyph of Warding's spell glyph. (W7-S21)
               ...(request.stores === undefined ? {} : { stores: request.stores }),
@@ -3522,6 +3515,7 @@ function resolveOnTargets(
       ...(request.form === undefined ? {} : { form: request.form }),
       ...(request.otherPlane === undefined ? {} : { otherPlane: request.otherPlane }),
       ...(request.bonesAt === undefined ? {} : { bonesAt: request.bonesAt }),
+      ...(request.rider === undefined ? {} : { rider: request.rider }),
       alters,
       // The casting this Reaction answers, as an **id** rather than as the record
       // that was read. The resolver looks it up again on the state its own events
@@ -4027,6 +4021,8 @@ export function resolveEffects(
      * reason: a rite of a minute states them before anything is raised.
      */
     readonly bonesAt?: readonly Placement[];
+    /** The creature the caster chose to ride what it summons — see `CastSpellRequest.rider`. */
+    readonly rider?: CharacterId;
     /**
      * Which casting a Reaction spell answers, by id.
      *
@@ -4126,6 +4122,7 @@ export function resolveEffects(
     ...(context.form === undefined ? {} : { form: context.form }),
     ...(context.otherPlane === undefined ? {} : { otherPlane: context.otherPlane }),
     ...(context.bonesAt === undefined ? {} : { bonesAt: context.bonesAt }),
+    ...(context.rider === undefined ? {} : { rider: context.rider }),
     ...(context.answers === undefined ? {} : { answers: context.answers }),
     ...(context.alters === undefined ? {} : { alters: context.alters }),
   });
@@ -4162,6 +4159,13 @@ export function resolveEffects(
         // **Or the spell it stores in the rune's place**, never both — see
         // `OngoingSpell.stored`. (W7-S21)
         ...(becomes.stored === undefined ? {} : { stored: becomes.stored }),
+        // And who alone sets it off, where the caster refined the trigger —
+        // SRD Glyph of Warding's "only creatures of certain types activate it",
+        // read by the rune and the spell glyph alike. See
+        // `OngoingSpell.activatedBy`.
+        ...(definition.triggered?.onlyStatedTypes === true && becomes.types !== undefined
+          ? { activatedBy: becomes.types }
+          : {}),
         ...(definition.triggered === undefined || becomes.stored !== undefined
           ? {}
           : {
@@ -4276,7 +4280,22 @@ export function resolveEffects(
   // skeleton is still standing next week. `summonCreature` says the same in
   // the same words for a DM binding a creature by hand.
   if (becomes !== undefined && summoned.length > 0) {
-    events.push(...bindSummonsToCasting(summoned, casterId, castingId));
+    // And the terms the summons prints beside the casting's lifetime, pinned
+    // on the same link — SRD Phantom Steed's "you or a creature you choose can
+    // ride the steed" and its minute to dismount. Read off the definition here,
+    // where it is open, so the mount command and the fold read the bond.
+    const printing = definition.effects.find(
+      (effect): effect is Extract<SpellEffect, { readonly kind: 'summon' }> =>
+        effect.kind === 'summon' && (effect.riddenBy !== undefined || effect.fadesOver !== undefined),
+    );
+    events.push(
+      ...bindSummonsToCasting(summoned, casterId, castingId, {
+        ...(printing?.riddenBy === 'caster-or-chosen'
+          ? { riders: [...new Set([casterId, ...(context.rider === undefined ? [] : [context.rider])])].sort() }
+          : {}),
+        ...(printing?.fadesOver === undefined ? {} : { fades: printing.fadesOver }),
+      }),
+    );
   }
 
   // **The casting its own saving throw ended, released below the record it
@@ -4394,6 +4413,8 @@ export interface EffectRun {
   readonly form?: string;
   readonly otherPlane?: true;
   readonly bonesAt?: readonly Placement[];
+  /** The creature the caster chose to ride what it summons — see `CastSpellRequest.rider`. */
+  readonly rider?: CharacterId;
   readonly answers?: string;
   /**
    * What the caster's features do to this casting's damage, and what electing
@@ -4705,6 +4726,7 @@ export function runEffects(
     ...(run.form === undefined ? {} : { form: run.form }),
     ...(run.otherPlane === undefined ? {} : { otherPlane: run.otherPlane }),
     ...(run.bonesAt === undefined ? {} : { bonesAt: run.bonesAt }),
+    ...(run.rider === undefined ? {} : { rider: run.rider }),
     ...(run.answers === undefined ? {} : { answers: run.answers }),
   };
 

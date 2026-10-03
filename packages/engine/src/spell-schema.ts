@@ -4279,6 +4279,14 @@ function checkEffect(
           reason: `a creature comes back at a whole number of hit points, at least one; got ${String(effect.hitPoints)}`,
         });
       }
+      // A refusal the book prints or does not: written as `true`, or absent.
+      if (effect.notOfOldAge !== undefined && (effect.notOfOldAge as unknown) !== true) {
+        found.push({
+          field: `${path}.notOfOldAge`,
+          code: 'bad_old_age_clause',
+          reason: `a revival that refuses a death of old age says so with true; got ${String(effect.notOfOldAge)}`,
+        });
+      }
       return;
     }
 
@@ -4861,6 +4869,35 @@ function checkEffect(
       }
       checkKeptSummons(effect.kept, `${path}.kept`, found);
       checkPrintedSummonSpeeds(effect.speeds, `${path}.speeds`, found);
+      // SRD Phantom Steed's "you or a creature you choose can ride the steed":
+      // one reading, written once.
+      const riddenBy = (effect as { riddenBy?: unknown }).riddenBy;
+      if (riddenBy !== undefined && riddenBy !== 'caster-or-chosen') {
+        found.push({
+          field: `${path}.riddenBy`,
+          code: 'malformed_field',
+          reason: 'who may ride a summons is written as "caster-or-chosen" — the caster and the creature they choose — or not at all',
+        });
+      }
+      // And its minute to dismount: a whole number of seconds a creature
+      // outlasts the casting holding it, so only on a summons a casting holds.
+      const fadesOver = (effect as { fadesOver?: unknown }).fadesOver;
+      if (fadesOver !== undefined) {
+        if (!Number.isInteger(fadesOver) || (fadesOver as number) <= 0) {
+          found.push({
+            field: `${path}.fadesOver`,
+            code: 'bad_fade',
+            reason: 'a summons fades over a positive whole number of seconds after its casting ends',
+          });
+        }
+        if (effect.kept !== undefined) {
+          found.push({
+            field: `${path}.fadesOver`,
+            code: 'bad_fade',
+            reason: 'a kept summons is held by no casting, so there is no ending for it to fade after',
+          });
+        }
+      }
       const cannotAttack = (effect as { cannotAttack?: unknown }).cannotAttack;
       if (cannotAttack !== undefined && cannotAttack !== true) {
         found.push({
@@ -7292,13 +7329,25 @@ export function checkSpellDefinition(
         });
       }
     }
+    // "You can refine the trigger": the one word that lets a casting name none.
+    const optional = (definition.typesStated as { readonly optional?: unknown } | null)?.optional;
+    if (optional !== undefined && optional !== true) {
+      found.push({
+        field: 'typesStated.optional',
+        code: 'malformed_field',
+        reason: 'a choice of types the caster may leave unmade says so with true, or says nothing',
+      });
+    }
     const clauses = [
       ...(Array.isArray(definition.areaStanding) ? definition.areaStanding : []),
       ...Object.values(definition.options ?? {}).flatMap((branch) =>
         Array.isArray(branch?.areaStanding) ? branch.areaStanding : [],
       ),
     ];
-    if (!clauses.some((clause) => JSON.stringify(clause).includes('"stated"'))) {
+    // SRD Glyph of Warding: the list reaches the trigger rather than an area
+    // clause — "only creatures of certain types activate it".
+    const refinesTrigger = definition.triggered?.onlyStatedTypes === true;
+    if (!refinesTrigger && !clauses.some((clause) => JSON.stringify(clause).includes('"stated"'))) {
       found.push({
         field: 'typesStated',
         code: 'stated_types_reach_nothing',
@@ -7383,6 +7432,22 @@ export function checkSpellDefinition(
           field: 'triggered.storesSpell',
           code: 'malformed_field',
           reason: 'a rune either offers to store a spell in its place or says nothing; the only value is true',
+        });
+      }
+      // SRD Glyph of Warding's refinement reads the types the caster states,
+      // so a spell printing it must offer the statement.
+      const only = (definition.triggered as { readonly onlyStatedTypes?: unknown }).onlyStatedTypes;
+      if (only !== undefined && only !== true) {
+        found.push({
+          field: 'triggered.onlyStatedTypes',
+          code: 'malformed_field',
+          reason: 'a trigger refined to stated types says so with true, or says nothing',
+        });
+      } else if (only === true && definition.typesStated === undefined) {
+        found.push({
+          field: 'triggered.onlyStatedTypes',
+          code: 'refines_to_nothing',
+          reason: 'a trigger refined to the types the caster states needs `typesStated` for the caster to state them',
         });
       }
     }
@@ -8168,9 +8233,12 @@ export function checkSpellDefinition(
   }
 
   // SRD hangs the check on the casting's own timer, so a spell with no
-  // duration leaves nothing standing there to be examined.
+  // duration leaves nothing standing there to be examined. A casting that lasts
+  // until dispelled is standing there for good — SRD Glyph of Warding's "nearly
+  // imperceptible" glyph — and its check rides on the deadline that never
+  // arrives.
   if (definition.check !== undefined) {
-    if (!lasts) {
+    if (!lasts && definition.untilDispelled !== true) {
       found.push({
         field: 'check',
         code: 'check_without_duration',
@@ -10110,6 +10178,16 @@ function checkKeptSummons(kept: unknown, path: string, found: SpellDefinitionPro
       field: `${path}.leavesBehind`,
       code: 'malformed_field',
       reason: 'a spell either prints that its creature leaves behind what it was wearing or carrying, or does not; the only value is true',
+    });
+  }
+  // SRD Find Steed's "it functions as a controlled mount while you ride it":
+  // printed or not.
+  const controlled = (kept as { readonly controlledMount?: unknown }).controlledMount;
+  if (controlled !== undefined && controlled !== true) {
+    found.push({
+      field: `${path}.controlledMount`,
+      code: 'malformed_field',
+      reason: 'a spell either prints that its creature is a controlled mount while its summoner rides it, or does not; the only value is true',
     });
   }
   // SRD Find Familiar's pocket dimension: one number, how far from the

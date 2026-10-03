@@ -2330,12 +2330,21 @@ export type SpellEffect =
    * that is reliably true — a creature that was alive and now is not — rather
    * than from any one of the four events that can kill somebody.
    *
-   * What the spell leaves to the table is what it says it leaves: dying of old
-   * age, and the body parts it does not restore. Neither is a fact the engine
-   * holds, and neither would be settled by holding one.
+   * What the spell leaves to the table is the body parts it does not restore,
+   * which nothing reads. Dying of old age is the table's fact and the
+   * revival's to read — see {@link notOfOldAge}.
    */
   | {
       readonly kind: 'revive';
+      /**
+       * SRD Revivify: "This spell can't revive a creature that has died of old
+       * age". Resurrection and True Resurrection print the same refusal; a
+       * revival that does not print it reads nothing about how the creature
+       * died. How it died is the DM's ruling, pinned on the death
+       * (`Vitals.diedOfOldAge`), and a corpse so marked is refused
+       * `died_of_old_age` before a slot is spent.
+       */
+      readonly notOfOldAge?: true;
       /**
        * How long after death the spell still reaches, in whole seconds.
        *
@@ -4499,6 +4508,29 @@ export type SpellEffect =
        * through the record. (W7-S19)
        */
       readonly commanded?: { readonly costs: 'bonus-action'; readonly moveUpTo: number };
+      /**
+       * SRD Phantom Steed: "For the duration, you or a creature you choose can
+       * ride the steed."
+       *
+       * Who may climb on: the caster, and the one creature the caster names at
+       * the casting (`CastSpellRequest.rider`), pinned onto the bond as
+       * `SummonBond.riders` so the mount command reads the record and no book
+       * and refuses anybody else (`not_a_chosen_rider`). The only value is
+       * `'caster-or-chosen'`. Absent is a summons anybody willing may ride.
+       */
+      readonly riddenBy?: 'caster-or-chosen';
+      /**
+       * SRD Phantom Steed: "When the spell ends, the steed gradually fades,
+       * giving the rider 1 minute to dismount."
+       *
+       * Seconds the creature outlasts the casting that holds it. Pinned onto
+       * the bond (`SummonBond.fades`); when the casting ends — however it ends
+       * — the fold re-binds the creature to its summoner for exactly this long
+       * (`KeptBond.lastsSeconds`, from the clock the casting ended at), and
+       * `strandedSummons` owes its departure when that runs out. Only on a
+       * summons a casting holds: a kept creature has no casting to outlast.
+       */
+      readonly fadesOver?: number;
     };
 
 /**
@@ -4609,6 +4641,19 @@ export interface InlineStatBlock {
 export interface KeptSummons {
   /** SRD Find Steed: "or if you die". */
   readonly untilSummonerDies?: true;
+  /**
+   * SRD Find Steed: "it functions as a controlled mount while you ride it (as
+   * defined in the rules on mounted combat). If you have the Incapacitated
+   * condition, the steed … acts independently".
+   *
+   * Pinned onto the bond at the binding (`KeptBond.controlledMount`) and read
+   * by `actionRulesOn`: while the summoner sits on the creature and is not
+   * Incapacitated, its Action is narrowed to the three the mounted-combat
+   * rules leave a controlled mount — Dash, Disengage and Dodge. Absent for a
+   * kept creature the book gives no such sentence, which is SRD Find
+   * Familiar's familiar.
+   */
+  readonly controlledMount?: true;
   /**
    * SRD Find Familiar: "when you cast a spell with a range of touch, your
    * familiar can deliver the touch. Your familiar must be within 100 feet of
@@ -6148,8 +6193,14 @@ export interface SpellDefinition {
    * (`types_required`), refused where it prints none (`no_types_clause`),
    * refused off the list (`type_not_offered`), and never defaulted. Pinned onto
    * the record substituted, so the fold reads a list and never the word.
+   *
+   * **`optional` where the book says "you can"** — SRD Glyph of Warding's
+   * "You can refine the trigger so that only creatures of certain types
+   * activate it". A casting that names none is not refused: it has made no
+   * refinement, and nothing is defaulted in its place. The list then reaches
+   * the trigger (`TriggeredEffects.onlyStatedTypes`) rather than an area clause.
    */
-  readonly typesStated?: { readonly options: readonly string[] };
+  readonly typesStated?: { readonly options: readonly string[]; readonly optional?: true };
   /**
    * The branches this spell prints, of which a casting runs exactly one.
    *
@@ -8424,6 +8475,21 @@ export interface TriggeredEffects {
    * trigger. Absent is every other rune. (W7-S21)
    */
   readonly storesSpell?: true;
+  /**
+   * SRD Glyph of Warding: "You can refine the trigger so that only creatures
+   * of certain types activate it (for example, the glyph could be set to
+   * affect Aberrations)."
+   *
+   * The types are the caster's, stated at the casting through
+   * {@link SpellDefinition.typesStated} — which a spell printing this must
+   * carry, and which is `optional` where the book says "you can" — and pinned
+   * on the record as `OngoingSpell.activatedBy`. A refined glyph is set off
+   * only by a creature the DM names (`TriggerGlyphCommand.by`) whose type, as
+   * spells and magical effects see it, is one of them; who the rune then
+   * catches is still whoever stands in the Sphere. Absent, or a casting that
+   * named no types, is a glyph anybody sets off.
+   */
+  readonly onlyStatedTypes?: true;
 }
 
 /**

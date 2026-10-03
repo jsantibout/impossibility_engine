@@ -134,7 +134,13 @@ describe('SRD Glyph of Warding’s explosive rune', () => {
     const { state, castingId } = inscribed();
     const record = state.ongoing[castingId];
     expect(record?.spell).toBe('Glyph of Warding');
-    expect(Object.values(state.timers).some((one) => one.target.kind === 'casting')).toBe(false);
+    // Until dispelled: the one timer the casting holds is the deadline that
+    // never arrives, which the check to notice the glyph rides on.
+    expect(
+      Object.values(state.timers)
+        .filter((one) => one.target.kind === 'casting')
+        .map((one) => one.deadline),
+    ).toEqual([{ kind: 'indefinite' }]);
     expect(record?.triggered?.effects[0]).toMatchObject({ kind: 'save-damage', damageType: 'fire' });
     // Nobody standing on the threshold was hurt by the inscribing.
     expect(hp(state, NEAR)).toBe(60);

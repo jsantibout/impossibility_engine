@@ -1181,6 +1181,16 @@ export type GameEvent =
        */
       readonly controlled?: ControlledBond;
       /**
+       * Who alone may ride it — see `SummonBond.riders`. SRD Phantom Steed's
+       * "you or a creature you choose". Absent is anybody willing.
+       */
+      readonly riders?: readonly CharacterId[];
+      /**
+       * Seconds it outlasts the casting holding it — see `SummonBond.fades`.
+       * SRD Phantom Steed's minute to dismount. Only beside `castingId`.
+       */
+      readonly fades?: number;
+      /**
        * The body the creature was raised out of, where that body keeps its
        * record — see `CreatureState.raisedFrom`. SRD Animate Dead's Zombie
        * from a player character's corpse. Absent for every other summons,
@@ -1997,6 +2007,14 @@ export type GameEvent =
       readonly type: 'creature-died';
       readonly id: CharacterId;
       readonly cause: string;
+      /**
+       * That the death was of old age — the one cause a rule reads, so it is
+       * a field rather than words in {@link cause}. SRD Revivify: "This spell
+       * can't revive a creature that has died of old age." See
+       * `Vitals.diedOfOldAge`. Absent is any other death, which is what every
+       * log written before it says.
+       */
+      readonly oldAge?: true;
       readonly command?: CommandStamp;
     }
   /**

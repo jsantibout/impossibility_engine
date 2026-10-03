@@ -302,6 +302,15 @@ export interface OngoingSpell {
    */
   readonly stored?: StoredCasting;
   /**
+   * The creature types that alone set this casting's trigger off — SRD Glyph
+   * of Warding: "You can refine the trigger so that only creatures of certain
+   * types activate it." The caster's stated `types`, pinned where the spell's
+   * trigger reads them (`TriggeredEffects.onlyStatedTypes`), so the DM's door
+   * reads the record and no book. Absent is a glyph anybody sets off: one whose
+   * spell prints no refinement, or whose caster made none.
+   */
+  readonly activatedBy?: readonly string[];
+  /**
    * What stops this casting before its time is up — **as cast**.
    *
    * Pinned for the reason {@link area} and {@link numbers} are, and the rule

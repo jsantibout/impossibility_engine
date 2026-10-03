@@ -12672,11 +12672,13 @@ export const BLINK: SpellDefinition = {
  *
  * **The hour holds it here.** The casting leaves an ongoing record, the steed
  * is bound to it, and when the hour is up `strandedSummons` says the steed is
- * owed a departure and `dismissStrandedSummons` performs it. That is the whole
- * of "when the spell ends, the steed gradually fades". The minute the rider
- * has to dismount was read as narration over it, and W8-S26 files it as the
- * debt it is: for that minute the steed is still under its rider at a Speed of
- * 100 feet, and the departure takes it away at once.
+ * owed a departure and `dismissStrandedSummons` performs it — **a minute
+ * later**: "the steed gradually fades, giving the rider 1 minute to dismount",
+ * so when the casting ends, however it ends, the fold re-binds the steed to its
+ * caster as a kept creature lasting that minute (`fadesOver`), still under its
+ * rider at a Speed of 100 feet. Who may ride it is the caster and the one
+ * creature the casting names (`riddenBy`, `CastSpellRequest.rider`), and the
+ * mount command seats nobody else.
  */
 export const PHANTOM_STEED: SpellDefinition = {
   id: 'phantom-steed',
@@ -12692,7 +12694,20 @@ export const PHANTOM_STEED: SpellDefinition = {
   // is the shape Dimension Door already takes: the printed Range is the reach
   // the steed appears within rather than a reach to a target.
   targets: { count: 1, self: true },
-  effects: [{ kind: 'summon', monster: 'phantom-steed' }],
+  effects: [
+    {
+      kind: 'summon',
+      monster: 'phantom-steed',
+      // "For the duration, you or a creature you choose can ride the steed."
+      // The caster and the creature the casting names (`rider`), pinned on the
+      // bond; the mount command seats nobody else.
+      riddenBy: 'caster-or-chosen',
+      // "When the spell ends, the steed gradually fades, giving the rider 1
+      // minute to dismount." However the spell ends, the steed is re-bound to
+      // its caster for that minute and owed its departure when it is up.
+      fadesOver: 60,
+    },
+  ],
   durationSeconds: 3600,
   // "the spell ends if the steed takes any damage" — the whole casting, not a
   // release on the steed: there is nothing hung on the steed to release, and
@@ -12707,10 +12722,6 @@ export const PHANTOM_STEED: SpellDefinition = {
     "You decide the creature's appearance, and it is equipped with a saddle, bit, and bridle.",
     'Any of the equipment created by the spell vanishes in a puff of smoke if it is carried more than 10 feet away from the steed.',
     'The steed uses the Riding Horse stat block (see "Monsters"), except it has a Speed of 100 feet and can travel 13 miles in an hour.',
-  ],
-  unmodelled: [
-    'the minute the rider has to dismount is not given: the steed departs when the spell ends, with its rider still up, where the book has it fade over a minute',
-    'who may ride it — "you or a creature you choose can ride the steed" — is not asked: the mount command seats anybody willing, and the caster’s choice of rider is nowhere for it to read',
   ],
 };
 
@@ -12802,11 +12813,13 @@ export const PLANT_GROWTH: SpellDefinition = {
  * `state.elapsed` is now. A corpse older than sixty seconds is refused before
  * the slot is spent, and so is a creature who is standing up.
  *
- * What is left is what the spell says it leaves: a creature that died of old
- * age, and the body parts it does not restore. They are one sentence and one
- * debt (W8-S26): the body parts are fiction nothing reads, but old age is a
- * table fact the revival reads — the book refuses the spell on it — and a
- * corpse the table says died of age is revived here all the same.
+ * **The last sentence is two halves, and only one is fiction.** Old age is a
+ * table fact the revival reads — the book refuses the spell on it — so it is
+ * the DM's ruling on the death (`creature-died.oldAge`, held as
+ * `Vitals.diedOfOldAge`), and `notOfOldAge` refuses such a corpse before the
+ * slot is spent. The body parts it does not restore are narration the engine
+ * holds no anatomy for, and nothing reads them: handed over in the sentence
+ * they are printed in, and `ADJUDICATED` anchors that reading to them.
  */
 export const REVIVIFY: SpellDefinition = {
   id: 'revivify',
@@ -12817,9 +12830,11 @@ export const REVIVIFY: SpellDefinition = {
   concentration: false,
   range: { kind: 'touch' },
   targets: { count: 1 },
-  effects: [{ kind: 'revive', within: 60, hitPoints: 1 }],
-  unmodelled: [
-    'a creature that died of old age is not refused: how a creature died is the table’s fact, nobody states it and the revival reads none — the missing body parts the same sentence says it does not restore are narration the engine holds no anatomy for',
+  // "That creature revives with 1 Hit Point. This spell can't revive a
+  // creature that has died of old age".
+  effects: [{ kind: 'revive', within: 60, hitPoints: 1, notOfOldAge: true }],
+  dmDecides: [
+    "This spell can't revive a creature that has died of old age, nor does it restore any missing body parts.",
   ],
 };
 
@@ -14682,7 +14697,11 @@ export const FIND_STEED: SpellDefinition = {
       // it disappears, it leaves behind anything it was wearing or carrying."
       // Both on the bond; a second casting's replacement is a disappearance
       // too, and puts the gear down (W9-S3).
-      kept: { untilSummonerDies: true, leavesBehind: true },
+      // "it functions as a controlled mount while you ride it (as defined in
+      // the rules on mounted combat)" — Dash, Disengage and Dodge, and nothing
+      // else on its Action, while its summoner sits on it and is not
+      // Incapacitated. Read off the bond by `actionRulesOn`.
+      kept: { untilSummonerDies: true, leavesBehind: true, controlledMount: true },
       sharesCastersInitiative: true,
     },
   ],
@@ -14692,9 +14711,6 @@ export const FIND_STEED: SpellDefinition = {
   // each of them as a line nothing applies; filing them here as well would
   // count one debt in two populations. The Slam's numbers are the casting's
   // and are executed.
-  unmodelled: [
-    'the controlled-mount rules the steed is ridden under are not applied: while its rider is up, the book lets it take only the Dash, Disengage and Dodge actions and move as the rider directs, and nothing narrows a mount’s turn',
-  ],
   // What the steed looks like, what it says and what it does with a turn its
   // rider cannot direct are the table's (W8-S26). The last is the question
   // left open for every creature in the scene, and the turn itself — taken
@@ -15228,12 +15244,13 @@ export const GIANT_INSECT: SpellDefinition = {
  * (`triggered.storesSpell`, `OngoingSpell.stored`), so nothing sits open for a
  * Counterspell between the inscription and the trigger; the DM names who set
  * it off and it takes effect on them, or centred on them for an area. The
- * **creature-type refinement** stays filed — a predicate an area does not read,
- * so the rune catches whoever stands in the Sphere when the DM says it went
- * off. The check to notice the glyph is filed as a debt rather than the
- * table's (W8-S26): Spike Growth's check is the same sentence written on a
- * definition, and what keeps it off this one is that a glyph lasting until
- * dispelled has no timer for a check to ride on.
+ * **creature-type refinement** is the caster's stated `types`, optional
+ * because the book says "you can", pinned as the glyph's activators: a refined
+ * glyph asks the DM who set it off and answers only to a creature of a named
+ * type as magic sees it — and the rune, once let go, still catches whoever
+ * stands in the Sphere. **The check to notice the glyph** is Spike Growth's
+ * sentence on this definition, riding on the `indefinite` deadline a casting
+ * that lasts until dispelled is given for it.
  */
 export const GLYPH_OF_WARDING: SpellDefinition = {
   id: 'glyph-of-warding',
@@ -15251,10 +15268,24 @@ export const GLYPH_OF_WARDING: SpellDefinition = {
   // "Acid, Cold, Fire, Lightning, or Thunder damage (your choice when you
   // create the glyph)": stated at the inscription and pinned into the rune.
   damageTypeStated: ['acid', 'cold', 'fire', 'lightning', 'thunder'],
+  // "You can refine the trigger so that only creatures of certain types
+  // activate it (for example, the glyph could be set to affect Aberrations)."
+  // Any of the fourteen, named at the inscription or not at all — "you can" —
+  // and read by the trigger below (`onlyStatedTypes`): a refined glyph is set
+  // off only by a creature the DM names whose type, as magic sees it, is one
+  // of them.
+  typesStated: { options: [...CREATURE_TYPES], optional: true },
+  // "The glyph is nearly imperceptible and requires a successful Wisdom
+  // (Perception) check against your spell save DC to notice." A check the
+  // casting offers to anybody, as Spike Growth's is — riding on the deadline
+  // that never arrives, because the glyph lasts until dispelled or triggered.
+  // What noticing it buys is knowing, which changes nothing the engine holds.
+  check: { ability: 'wis', skill: 'perception', onSuccess: 'none' },
   // Nothing happens at the inscription; the rune is what the decision fires.
   effects: [],
   triggered: {
     label: 'Glyph of Warding (the explosive rune)',
+    onlyStatedTypes: true,
     // "_Spell Glyph._ You can store a prepared spell of level 3 or lower in the
     // glyph by casting it as part of creating the glyph." The other option: a
     // casting that names a spell to store (`CastSpellRequest.stores`) runs no
@@ -15288,10 +15319,6 @@ export const GLYPH_OF_WARDING: SpellDefinition = {
   dmDecides: [
     'You inscribe it either on a surface (such as a table or a section of floor) or within an object that can be closed (such as a book or chest) to conceal the glyph.',
     "You can also set conditions for creatures that don't trigger the glyph, such as those who say a certain password.",
-  ],
-  unmodelled: [
-    'refining the trigger so that only creatures of certain types set it off is not applied: the rune catches whoever stands in the Sphere when the DM says it went off, and a predicate over a creature type is a filter an area does not read',
-    'the Wisdom (Perception) check against your spell save DC to notice the glyph is not offered by the casting: a check a casting offers rides on its timer, and a glyph that lasts until dispelled has none, so the DM calls for it and states a DC the rules fix',
   ],
 };
 

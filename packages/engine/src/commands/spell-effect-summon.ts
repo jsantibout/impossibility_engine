@@ -187,6 +187,9 @@ export function resolveSummonEffect(
             // And its sentence about what the creature leaves behind when it
             // goes, pinned so the departure opens no book. (W9-S3)
             ...(effect.kept.leavesBehind === true ? { leavesBehind: true as const } : {}),
+            // And SRD Find Steed's "it functions as a controlled mount while
+            // you ride it", read by `actionRulesOn` off the bond.
+            ...(effect.kept.controlledMount === true ? { controlledMount: true as const } : {}),
             // SRD Wild Companion: a lifetime the *feature* puts on the bond,
             // over what the spell prints — read off the route the casting came
             // by, and dated so a rest already taken does not count.
