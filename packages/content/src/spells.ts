@@ -12838,7 +12838,8 @@ export const PLANT_GROWTH: SpellDefinition = {
  * `Vitals.diedOfOldAge`), and `notOfOldAge` refuses such a corpse before the
  * slot is spent. The body parts it does not restore are narration the engine
  * holds no anatomy for, and nothing reads them: handed over in the sentence
- * they are printed in, and `ADJUDICATED` anchors that reading to them.
+ * they are printed in, which trips no mechanical marker and so needs no
+ * `ADJUDICATED` reading to pass.
  */
 export const REVIVIFY: SpellDefinition = {
   id: 'revivify',
