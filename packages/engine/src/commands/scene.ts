@@ -108,7 +108,7 @@ import { statedDawnAmount } from '../resources.js';
 import { isDown } from '../vitals.js';
 import { type SpellcastingState } from '../spellcasting.js';
 import { type Supply } from './casting.js';
-import { anchorNeeded, creatureOf, sceneFor, unknownCreature } from './command.js';
+import { anchorNeeded, creatureOf, dyingOutsideAFight, sceneFor, unknownCreature } from './command.js';
 import {
   settleBoundaryPayouts,
   settleStartOfTurnGrants,
@@ -613,6 +613,11 @@ export function advanceTime(
         `a fight is running, and inside one the clock is the turn order's: a round is six seconds and the fold charges them as the order wraps, so ${seconds} declared here would be counted twice over and would expire this fight's own deadlines without a turn being taken. Advance the order with resolveTurn, or close the fight with endCombat and declare the time then`,
       );
     }
+
+    // A creature still dying is owed death saves the clock cannot make for it
+    // — E-STABLE. See `dyingOutsideAFight` for the reading and its question.
+    const dying = dyingOutsideAFight(state, seconds);
+    if (dying !== null) return dying;
 
     return ok([
       { type: 'time-advanced', seconds, reason, ...(stamp === null ? {} : { command: stamp }) },

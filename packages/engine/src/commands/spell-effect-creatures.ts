@@ -18,6 +18,7 @@ import { walkerOf } from '../state.js';
 import { isCreatureType } from '../spell-definitions.js';
 import { type EffectContext, type EffectOfKind } from './spell-effect-context.js';
 import { ongoingSpellsOn } from './ongoing.js';
+import { wakeOfTheStable } from './stable-wake.js';
 
 /**
  * How many seconds of this creature's death do not count, because a casting
@@ -279,10 +280,21 @@ export function resolveStabiliseEffect(
   const allowed = dyingProblem(world, target, name);
   if (!allowed.ok) return allowed;
 
-  const steadied = { type: 'stabilised' as const, id: target };
-  events.push(steadied);
+  // A creature already Stable is left as it lies: its wake was thrown when it
+  // became so, and a second throw would be a cantrip that fishes for a
+  // shorter one. The spell has still landed on it.
   outcomes.push({ target, affected: true });
-  return ok(applyEvent(world, steadied));
+  if (world.creatures[target]?.vitals.stable === true) return ok(world);
+
+  // SRD: "A Stable creature that isn't healed regains 1 Hit Point after 1d4
+  // hours" — the d4 thrown now, inside the effect list's own bracket, and its
+  // hours pinned on the wake's deadline. See `wakeOfTheStable`.
+  const steadied = { type: 'stabilised' as const, id: target };
+  const wake = wakeOfTheStable(world, target, ctx.supply);
+  if (!wake.ok) return wake;
+  const written = [steadied, ...wake.value];
+  events.push(...written);
+  return ok(written.reduce(applyEvent, world));
 }
 
 /**

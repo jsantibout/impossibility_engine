@@ -43,7 +43,7 @@ import {
 import type { ObjectMaker } from '../standing.js';
 import { sheetAsItStands } from '../standing.js';
 import type { Placement } from '../positioning.js';
-import { creatureOf, reachedBy, spendFor, unknownCreature } from './command.js';
+import { creatureOf, dyingOutsideAFight, reachedBy, spendFor, unknownCreature } from './command.js';
 import { mayAct } from './holds.js';
 import { removeCreatureEverywhere } from './creatures.js';
 
@@ -182,6 +182,10 @@ export function createDevice(
         `${maker.name} takes ${maker.castingSeconds} seconds of casting, and inside a fight the clock is the turn order's — a round is six seconds and nothing else moves it`,
       );
     }
+    // And outside one, the clock's other rule: it does not run on over a
+    // creature still dying. See `dyingOutsideAFight`. (E-STABLE)
+    const dying = dyingOutsideAFight(state, maker.castingSeconds);
+    if (dying !== null) return dying;
 
     // — from here it costs time ———————————————————————————————————————————
     //

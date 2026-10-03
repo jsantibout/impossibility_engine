@@ -1497,17 +1497,26 @@ const RECALL_FAMILIAR = tool({
  * On the model's surface, and therefore on both, because the DM's is a
  * superset of it. Putting it on the DM's alone would have left a model-driven
  * session exactly where it was.
+ *
+ * **It throws a die now** — E-STABLE: SRD's "A Stable creature that isn't
+ * healed regains 1 Hit Point after 1d4 hours". The d4 is the engine's and the
+ * generator is the campaign's, so the call still carries no number.
  */
 const STABILISE_CREATURE = tool({
   name: 'stabilise_creature',
   description:
-    'Record that a creature at 0 Hit Points has been stabilised, so it stops making death saving throws. SRD stabilises with a successful DC 10 Wisdom (Medicine) check or a use of a Healer’s Kit — the check is the DM’s, and this is what says it worked. A creature that still has hit points has nothing to be stabilised from, and a dead one is past it.',
+    'Record that a creature at 0 Hit Points has been stabilised, so it stops making death saving throws. SRD stabilises with a successful DC 10 Wisdom (Medicine) check or a use of a Healer’s Kit — the check is the DM’s, and this is what says it worked. The engine throws the 1d4 hours after which a Stable creature nobody heals regains 1 Hit Point and wakes; the clock arriving there does the rest. A creature that still has hit points has nothing to be stabilised from, and a dead one is past it.',
   mutates: true,
   input: z.object({ who: creatureId.describe('Who is on the floor.') }),
   run: (context, args) =>
     settleEvents(
       context,
-      stabiliseCreature(context.campaign.state(), who(args.who), identity(context)),
+      stabiliseCreature(
+        context.campaign.state(),
+        who(args.who),
+        identity(context),
+        context.campaign.supply(),
+      ),
       { stabilised: args.who },
     ),
 });
@@ -2505,6 +2514,18 @@ const END_COMBAT = tool({
   },
 });
 
+/**
+ * A creature's own movement.
+ *
+ * **Its own, and nothing else** — E-STABLE. This tool carried `forced` —
+ * "somebody is moving them rather than them walking" — which spends no Speed,
+ * offers nobody an Opportunity Attack and asks nothing of the mover's body,
+ * so a caller holding the player's door could call its own walk forced and
+ * carry a corpse off on its own feet. Forced movement is imposed on a creature
+ * by an effect or by somebody else, which is a decision about the world and
+ * the DM's: `force_move` on the DM's door. A call that sends the word here
+ * has it dropped, and the move is the creature's own.
+ */
 const MOVE = tool({
   name: 'move',
   description:
@@ -2514,12 +2535,6 @@ const MOVE = tool({
   input: z
     .object({
       who: creatureId,
-      forced: z
-        .boolean()
-        .optional()
-        .describe(
-          'True when somebody is moving them rather than them walking — a shove, a gust, a trap. Costs no Speed and provokes nobody.',
-        ),
       mode: z
         .enum(['walk', 'climb', 'fly', 'swim', 'burrow'])
         .optional()
@@ -2588,7 +2603,7 @@ const MOVE = tool({
         .min(1)
         .optional()
         .describe(
-          'Spend feet a feature handed this turn instead of the creature\u2019s own Speed \u2014 SRD Tactical Shift is "whenever you activate your Second Wind with a Bonus Action, you can move up to half your Speed without provoking Opportunity Attacks". `sheet` reports what a creature holds and the feature that handed the feet over is the name to send here. The move spends none of the turn\u2019s own movement and provokes nobody, and it may still not end in a space somebody is standing in: that part is what `forced` allows and this is not forced. A grant nothing handed this creature is refused rather than quietly charged to their Speed.',
+          'Spend feet a feature handed this turn instead of the creature\u2019s own Speed \u2014 SRD Tactical Shift is "whenever you activate your Second Wind with a Bonus Action, you can move up to half your Speed without provoking Opportunity Attacks". `sheet` reports what a creature holds and the feature that handed the feet over is the name to send here. The move spends none of the turn\u2019s own movement and provokes nobody, and it may still not end in a space somebody is standing in: that part is what a forced move allows — one somebody else imposes, which is the DM’s `force_move` — and this is not one. A grant nothing handed this creature is refused rather than quietly charged to their Speed.',
         ),
       using_line: z
         .string()
@@ -2607,7 +2622,6 @@ const MOVE = tool({
         who(args.who),
         {
           placement: placementOf(args),
-          ...(args.forced === true ? { forced: true } : {}),
           ...(args.alongSurface === true ? { alongSurface: true as const } : {}),
           ...(args.using_grant === undefined ? {} : { usingGrant: args.using_grant }),
           ...(args.using_line === undefined ? {} : { usingLine: args.using_line }),

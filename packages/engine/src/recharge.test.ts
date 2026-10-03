@@ -18,6 +18,7 @@ import {
   resolveAttack,
   resolveTurn,
   setScene,
+  stabiliseCreature,
   addSceneLandmark,
   takeStatedAction,
   takeStatedBonusAction,
@@ -762,6 +763,9 @@ describe('a recharge printed on an Actions line', () => {
     // The wolf's side yields: since W7-B13 the breath is rolled and may have
     // dropped Bren, and a side with nobody standing on it cannot surrender.
     table.do('the fight ends', (s) => endCombat(s, { kind: 'surrender', side: 'wild' }));
+    // And Bren, whom it dropped, is steadied — the clock does not run on over
+    // a creature still dying outside a fight (E-STABLE, `dying_outside_a_fight`).
+    table.do('Bren is steadied', (s) => stabiliseCreature(s, BREN, {}, supply('the kit')));
     table.do('the rest begins', (s) => beginRest(s, WINTER, 'short'));
     table.do('time passes', (s) => advanceTime(s, 3600, 'the rest'));
     table.did('the rest ends', (s) => endRest(s, WINTER));

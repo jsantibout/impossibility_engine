@@ -187,7 +187,7 @@ describe('toolSchemas', () => {
     // word that a printed cause happened. And one on each for W9-S3,
     // `draw_rope`, and one more on the DM's alone, `declare_portal_height`.
     expect(toolSchemas(player())).toHaveLength(100);
-    expect(toolSchemas(dm())).toHaveLength(132);
+    expect(toolSchemas(dm())).toHaveLength(133);
     // Re-pinned 2026-09-24 for the printed-lines track, which opened one door
     // on the DM's surface alone: `teleport_printed_line` takes the teleport a
     // stat block prints, at the distance the block prints, to a space the DM
@@ -405,10 +405,16 @@ describe('toolSchemas', () => {
     // anchor where the creature ends up and not the distance moved — a model
     // read it as the walk. Fifty-one bytes wherever a placement is published:
     // +867 on the player's door and +1,173 on the DM's, no tool added.
+    // And for E-STABLE: `move.forced` taken off the player's door (a forced
+    // move is imposed by somebody else, so a creature could call its own walk
+    // one) and given to the DM as `force_move`; `move.using_grant` and
+    // `stabilise_creature` say what changed — the first names the DM's door,
+    // the second the 1d4-hour wake the engine now throws. 132 → 133 tools on
+    // the DM's door; +44 bytes on the player's and +1,906 on the DM's.
     expect(toolSchemas(player())).toHaveLength(100);
-    expect(toolSchemas(dm())).toHaveLength(132);
-    expect(JSON.stringify(toolSchemas(player())).length).toBe(165361);
-    expect(JSON.stringify(toolSchemas(dm())).length).toBe(222695);
+    expect(toolSchemas(dm())).toHaveLength(133);
+    expect(JSON.stringify(toolSchemas(player())).length).toBe(165405);
+    expect(JSON.stringify(toolSchemas(dm())).length).toBe(224601);
   });
 });
 

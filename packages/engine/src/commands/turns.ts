@@ -105,6 +105,7 @@ import { grapplerOf, grapplesOn, attachmentsOf } from './unarmed.js';
 import { attachedTo } from '../state.js';
 import { strandedElsewhere } from '../elsewhere.js';
 import { settleElsewhereAtBoundary, type StatedReturn } from './elsewhere.js';
+import { wakeOfTheStable } from './stable-wake.js';
 
 /** One turn-boundary save, rolled and settled. */
 export interface ResolvedRepeatSave {
@@ -2593,6 +2594,12 @@ function rollTheDeathSave(
   });
   if (!rolled.ok) return rolled;
 
+  // SRD: "On your third success, you become Stable" — and "a Stable creature
+  // that isn't healed regains 1 Hit Point after 1d4 hours". The d4 is thrown
+  // after the d20, in the same bracket, and pinned on the wake's deadline.
+  const wake = rolled.value.vitals.stable ? wakeOfTheStable(state, who, supply) : ok([]);
+  if (!wake.ok) return wake;
+
   return ok([
     {
       type: 'death-save-recorded',
@@ -2617,6 +2624,7 @@ function rollTheDeathSave(
           },
         ]
       : []),
+    ...wake.value,
     {
       type: 'rolls-issued',
       count: supply.issuer.count - issuedBefore,

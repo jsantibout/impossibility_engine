@@ -27,14 +27,12 @@ import { type Anchor, distanceBetween, positionOf, type PositionState } from '..
 import { actionRulesOn } from '../standing.js';
 
 /**
- * The source recorded for unconsciousness that comes from having no hit points
- * left, as opposed to a spell.
- *
- * It is a named constant because healing has to lift *this* cause and leave
- * every other one standing: a character knocked out by Sleep and then dropped
- * to 0 wakes from the hit points, not from the spell.
+ * Written in `vitals.ts`, beside the arithmetic of dying, since the fold lifts
+ * it too — the wake of a Stable creature is a deadline arriving, and
+ * `fold/expiry.ts` may not reach up into this directory. Re-exported here so
+ * every command that already reads it from here still does.
  */
-export const ZERO_HIT_POINTS = 'zero hit points';
+export { ZERO_HIT_POINTS } from '../vitals.js';
 
 /**
  * How much damage a batch actually recorded, out of what was asked for.
@@ -336,6 +334,57 @@ export function turnContextFor(refused: Err, duration: Duration, holder: string)
   }
 
   return refused;
+}
+
+/**
+ * Time passing outside a fight over a creature that is still dying — E-STABLE.
+ *
+ * > SRD, Death Saving Throws: "Whenever you start your turn with 0 Hit Points,
+ * > you must make a Death Saving Throw."
+ * >
+ * > SRD, Rhythm of Play: "Outside combat, the GM ensures that every character
+ * > has a chance to act and decides how to resolve their activity. In combat,
+ * > the characters take turns."
+ *
+ * **The book gives no rate outside a fight**, and that is the reading taken
+ * here. A death save is owed at a moment in the turn order, and outside
+ * combat there is no turn; calling each six seconds of the clock "a turn"
+ * would be a rule the SRD does not print — the very substitution the
+ * duration split exists to refuse (`turnContextFor` above) — and letting the
+ * clock run on in silence is the defect the app found: a hero still dying
+ * when the fight ended rolled no more saves, for ever. So the clock does not
+ * move over a dying creature until the table settles what happens to it, and
+ * the command says which facts would: a turn order to make the saves in
+ * (`beginCombat`, which is what the `turn-order` request names), or the dying
+ * ended some other way — Stable (`stabiliseCreature`, after the Medicine check
+ * or the Healer's Kit), healed, or dead by a DM's word. Whether the table
+ * would rather the engine rolled a save every six seconds is the owner's to
+ * rule, and this is the question it is asked in until then.
+ *
+ * Null when nobody is dying, and for a span of nothing: no time passes.
+ * "Dying" is a creature alive at 0, not Stable, that makes death saves —
+ * a creature that dies at 0 never does, so it is never asked about.
+ */
+export function dyingOutsideAFight(state: GameState, seconds: number): Err | null {
+  if (seconds <= 0 || state.combat !== null) return null;
+  const dying = Object.keys(state.creatures)
+    .sort()
+    .filter((key) => {
+      const v = state.creatures[key as CharacterId]?.vitals;
+      return v !== undefined && !v.dead && !v.stable && !v.diesAtZero && v.hp === 0;
+    }) as CharacterId[];
+  if (dying.length === 0) return null;
+  return needsContext(
+    'dying_outside_a_fight',
+    `${dying.join(', ')} ${dying.length === 1 ? 'is' : 'are'} at 0 Hit Points and making death saving throws, which are owed at the start of a turn — and outside a fight there are no turns, so the SRD sets no rate for them. Settle it before ${seconds} seconds pass: begin a fight so the saves are made on turns, or end the dying — stabilise the creature (a DC 10 Wisdom (Medicine) check or a Healer's Kit), heal it, or declare it dead`,
+    dying.map((subject) => ({
+      kind: 'turn-order' as const,
+      subject,
+      need: `an Initiative order, so that the turns ${subject}'s death saving throws are made at exist`,
+      because: `SRD: "Whenever you start your turn with 0 Hit Points, you must make a Death Saving Throw", and outside combat there is no turn`,
+      satisfyWith: 'a beginCombat command',
+    })),
+  );
 }
 
 /**

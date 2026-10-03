@@ -7329,7 +7329,11 @@ export function speedOf(
 
   let halvings = 0;
   let doublings = 0;
-  let zeroed = false;
+  // The one fact {@link speedZeroedByEffect} answers, through the one helper,
+  // so the two readers — this Speed and a move paid out of an allowance —
+  // cannot differ. The areas are read once and handed to both uses.
+  const areas = areaStandingOn(state, who);
+  const zeroed = zeroedAmong(creature, areas);
   for (const granted of creature.speedModifiers) {
     // **A doubling reaches every mode, as a halving does**: the glossary's
     // "if your Speed is halved and you have a Fly Speed, your Fly Speed is
@@ -7337,7 +7341,6 @@ export function speedOf(
     // hasted Cockatrice walks and flies at twice the pace.
     if (granted.change === 'double') doublings += 1;
     else if (granted.change === 'halve') halvings += 1;
-    else if (granted.change === 'zero') zeroed = true;
   }
 
   // An area carries no mode — SRD Spirit Guardians halves a Speed rather than
@@ -7351,11 +7354,10 @@ export function speedOf(
   // 0. The type is narrowed now, so nothing typed can arrive; naming the
   // members is what makes a *later* widening ignore what it cannot compute
   // rather than zero somebody's Speed.
-  for (const { standing } of areaStandingOn(state, who)) {
+  for (const { standing } of areas) {
     if (standing.kind !== 'speed') continue;
     if (standing.change === 'add') flattenInMode({ feet: standing.feet ?? 0 });
     else if (standing.change === 'halve') halvings += 1;
-    else if (standing.change === 'zero') zeroed = true;
   }
   // `double` is deliberately absent from that loop and from the type it reads
   // — see {@link AreaSpeedStanding.change}.
@@ -7391,6 +7393,39 @@ export function speedOf(
   // into its own mode because a log written before the floor carries one,
   // and it reads as it was written.
   return combineSpeed(base, flat, halvings, zeroed, creature.conditions, doublings);
+}
+
+/**
+ * Whether an effect that is **not a condition** holds this creature at a Speed
+ * of 0 — the `zeroed` step of {@link combineSpeed}, asked on its own.
+ *
+ * SRD Hypnotic Pattern: "While Charmed, the creature has the Incapacitated
+ * condition **and a Speed of 0**." The Speed is a `zero` grant the failed save
+ * writes beside the Charmed, and an area may print one too; neither is one of
+ * the five pinning conditions `speedPinnedByCondition` reads. Both are read
+ * here, and nowhere else, by the two questions that need them: {@link speedOf}
+ * for the Speed itself, and `actorRefusal` for a move paid out of feet
+ * something else handed the creature — an Unseen Servant's commanded fifteen,
+ * a readied move — where the creature's own Speed is not what pays and so is
+ * not what is asked (E-STABLE). Presence and not count, as `combineSpeed`
+ * reads it: two Hypnotic Patterns on one goblin are one Speed of 0, and the
+ * zero reaches every mode by the glossary's "your Climb Speed is also reduced
+ * to 0".
+ */
+export function speedZeroedByEffect(state: GameState, who: CharacterId): boolean {
+  const creature = state.creatures[who];
+  return creature !== undefined && zeroedAmong(creature, areaStandingOn(state, who));
+}
+
+/** {@link speedZeroedByEffect} over areas already read — `speedOf`'s own use. */
+function zeroedAmong(
+  creature: CreatureState,
+  areas: readonly { readonly standing: AreaStanding }[],
+): boolean {
+  return (
+    creature.speedModifiers.some((granted) => granted.change === 'zero') ||
+    areas.some(({ standing }) => standing.kind === 'speed' && standing.change === 'zero')
+  );
 }
 
 /**

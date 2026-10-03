@@ -31,9 +31,12 @@ import {
   dropToZero,
   grantTemporaryHp,
   heal,
+  isLyingStable,
   resolveDeathSave,
   revive,
+  STABLE_WAKE,
   stabilize,
+  ZERO_HIT_POINTS,
 } from '../vitals.js';
 import type { GameEvent } from '../events.js';
 import type { GameState } from '../state.js';
@@ -139,6 +142,47 @@ export function clearTemporaryHp(state: GameState, on: CharacterId): GameState {
       [on]: { ...creature, vitals: { ...creature.vitals, temporaryHp: 0 } },
     },
   };
+}
+
+/**
+ * A Stable creature's wake arriving — E-STABLE.
+ *
+ * SRD: "A Stable creature that isn't healed regains 1 Hit Point after 1d4
+ * hours", and the Unconscious from dropping to 0 lasts "until you regain any
+ * Hit Points". So the creature regains the one point — through `heal`, which
+ * resets the death saves and ends Stable exactly as any healing does — and
+ * the Unconscious whose cause was having none is lifted, and only that one: a
+ * creature also held asleep by a spell stays asleep, which is the reading
+ * `healCreature` takes of the same sentence.
+ *
+ * **Derived, like every deadline arriving.** Nobody decides that four hours
+ * have passed; `expireEffects` reaches this when the clock does, whoever moved
+ * it — `advance_time`, a device's making, the rounds of a fight. The hours were
+ * thrown by the command that made the creature Stable and pinned on the
+ * deadline, so nothing here throws anything. What the lifted instance carried
+ * goes with it, by the two rules `condition-removed` applies above.
+ *
+ * Quiet for a creature that is no longer lying Stable — gone, dead, healed or
+ * hurt — because a wake over nobody wakes nobody; `dropBrokenWakes` has
+ * normally taken the deadline away before it could arrive.
+ */
+export function wakeTheStable(state: GameState, on: CharacterId): GameState {
+  const creature = state.creatures[on];
+  if (creature === undefined || !isLyingStable(creature.vitals)) return state;
+  const conditions = removeCondition(creature.conditions, 'unconscious', ZERO_HIT_POINTS);
+  const gone = instancesLifted(creature.conditions.instances, conditions.instances);
+  const woken: GameState = {
+    ...state,
+    creatures: {
+      ...state.creatures,
+      [on]: {
+        ...releaseInstanceGrants(creature, gone),
+        conditions,
+        vitals: heal(creature.vitals, STABLE_WAKE.regains),
+      },
+    },
+  };
+  return withoutTimersFor(woken, on, creature.conditions, conditions);
 }
 
 /**

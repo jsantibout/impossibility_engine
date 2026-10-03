@@ -134,7 +134,34 @@ export type EffectTarget =
    * creature moves, and a deadline over an emptied pool is not a second
    * helping of damage. `fold/expiry.ts` says that in code.
    */
-  | { readonly kind: 'temporary-hit-points'; readonly on: CharacterId };
+  | { readonly kind: 'temporary-hit-points'; readonly on: CharacterId }
+  /**
+   * The Stable a creature is lying in, whose deadline is its wake — E-STABLE.
+   *
+   * SRD, "Stabilizing a Character": "A Stable creature that isn't healed
+   * regains 1 Hit Point after 1d4 hours." The d4 is thrown by whichever
+   * command made the creature Stable — three successful death saves, a
+   * Medicine check or a Healer's Kit a DM records, SRD Spare the Dying, a
+   * stat block's "the target becomes Stable" — and the hours are pinned onto
+   * the `effect-scheduled` beside it, so a replay reads them back and never
+   * throws them again.
+   *
+   * **What the deadline arriving does is heal**, the one target in this union
+   * whose expiry gives something rather than takes it away: 1 Hit Point, and
+   * the Unconscious that having none caused lifted with it, because the SRD
+   * lasts that condition "until you regain any Hit Points". `fold/expiry.ts`
+   * reaches `wakeTheStable` for it.
+   *
+   * **And it stands only while the creature is Stable**, which is a fact read
+   * off the world rather than a list of events that end it: healed, hurt,
+   * dead, or back on its feet by a natural 20 — each is "no longer Stable at
+   * 0", and `dropBrokenWakes` drops the deadline the moment that is true. A
+   * creature Stable again is thrown a new die, measured from then.
+   *
+   * No source, for the reason `temporary-hit-points` has none: a creature is
+   * Stable once or not at all, so the creature is the whole identity.
+   */
+  | { readonly kind: 'stable'; readonly on: CharacterId };
 
 /**
  * A saving throw an effect gets at a turn boundary.
@@ -864,6 +891,9 @@ export function timerKey(target: EffectTarget): string {
     // grant that replaces it lands on this same key rather than beside it.
     case 'temporary-hit-points':
       return `temporary-hit-points|${target.on}`;
+    // One Stable per creature, so one wake: a second stabilising replaces it.
+    case 'stable':
+      return `stable|${target.on}`;
     default:
       return `casting|${target.castingId}`;
   }

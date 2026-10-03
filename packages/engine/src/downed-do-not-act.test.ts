@@ -242,7 +242,7 @@ const killed = (log: readonly GameEvent[], who: CharacterId = BRAM): readonly Ga
 
 const stabilised = (log: readonly GameEvent[]): readonly GameEvent[] => {
   const down = downed(log);
-  return then(down, unwrap(stabiliseCreature(fold('s', down), BRAM), 'stable'));
+  return then(down, unwrap(stabiliseCreature(fold('s', down), BRAM, {}, supply('the kit')), 'stable'));
 };
 
 const code = (out: Result<unknown>): string => (isErr(out) ? out.code : 'ok');
@@ -330,7 +330,7 @@ describe('an Unconscious creature at nought hit points does not act either', () 
     });
 
     it(`${name}: and so outside a fight, where no budget would have caught it`, () => {
-      const outside = name === 'dying' ? downed(room()) : then(downed(room()), unwrap(stabiliseCreature(fold('s', downed(room())), BRAM), 'stable'));
+      const outside = name === 'dying' ? downed(room()) : then(downed(room()), unwrap(stabiliseCreature(fold('s', downed(room())), BRAM, {}, supply('the kit')), 'stable'));
       expect(code(resolveMove(fold('s', outside), BRAM, { placement: AWAY }, supply()))).toBe('no_speed');
     });
 

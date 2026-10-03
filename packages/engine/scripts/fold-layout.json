@@ -128,7 +128,8 @@
     "timersApartFrom",
     "dropStrandedDamage",
     "dropOrphanedSaves",
-    "liftWhatBrokenObjectsHeld"
+    "liftWhatBrokenObjectsHeld",
+    "dropBrokenWakes"
   ],
   "fold/endings.ts": [
     "AllyVerdict",
@@ -190,6 +191,7 @@
     "isVitalsEvent",
     "withoutTimersFor",
     "clearTemporaryHp",
+    "wakeTheStable",
     "withoutTemporaryHpDeadline",
     "applyVitals",
     "stampDeaths",
