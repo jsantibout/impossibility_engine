@@ -263,6 +263,7 @@ const KNOWN_EVENT_TYPES: readonly string[] = [
   'disengage-taken',
   'dismounted',
   'effect-check-resolved',
+  'effect-dispelled',
   'effect-save-resolved',
   'effect-scheduled',
   'exhaustion-set',

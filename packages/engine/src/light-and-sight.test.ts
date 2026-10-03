@@ -617,20 +617,28 @@ describe('a casting lays what its spell prints', () => {
       return record?.type === 'spell-ongoing' ? record.casting.castingId : '';
     };
 
-    /** Daylight is level 3, and Darkness's threshold is 2. It survives. */
-    it('leaves a light the incoming darkness does not out-rank', () => {
+    /**
+     * Daylight is level 3, and Darkness's threshold is 2: the Darkness cannot
+     * put the Daylight out. **And the Daylight's own sentence puts the Darkness
+     * out** — "If any of this spell's area overlaps with an area of Darkness
+     * created by a spell of level 3 or lower, that other spell is dispelled" —
+     * which holds of a Darkness that arrives second as much as of one that was
+     * there first. (E-L2: this test used to say the Darkness ran on, outshone;
+     * the book says it ends, so the Daylight going out later brings no
+     * Darkness back.)
+     */
+    it('puts out a darkness cast into a light that out-ranks it', () => {
       const log = cast(lit(), 'darkness', { x: 350, y: 300, z: 0 }, 2);
       const state = fold('light', log, SRD_CONTENT);
+      const darkness = castingOf(log, 'darkness');
 
-      expect(log.filter((event) => event.type === 'spell-ended')).toEqual([]);
+      expect(
+        log.filter((event) => event.type === 'spell-ended').map((event) =>
+          event.type === 'spell-ended' ? event.castingId : '',
+        ),
+      ).toEqual([darkness]);
       expect(state.ongoing[castingOf(log, 'daylight')]).toBeDefined();
-      // **And the sunlight wins the square, which is the SRD's own sentence
-      // read exactly as far as it goes.** Darkness says "*nonmagical* light
-      // can't illuminate it", so magical light can — and the book's way of
-      // settling which magical light governs is the dispel, which this
-      // Darkness lost by being level 2. A level 2 Darkness cast into a
-      // Daylight therefore does nothing at all, which is what the pair of
-      // printed thresholds says.
+      expect(state.ongoing[darkness]).toBeUndefined();
       expect(lightAt(state, { x: 350, y: 300, z: 0 })).toMatchObject({
         level: 'bright',
         magical: true,
@@ -926,6 +934,17 @@ describe('a definition that sheds or obscures', () => {
   it('refuses sunlight that is not bright', () => {
     expect(codes({ ...base, areaLight: { level: 'dim', sunlight: true } })).toContain(
       'bad_sunlight',
+    );
+  });
+
+  /** SRD Darkness's "a spell of level 2 or lower": a spell level, or nothing. (E-L2) */
+  it('takes a dispel threshold that is a spell level, and refuses one that is not', () => {
+    expect(codes({ ...base, areaLight: { level: 'darkness', dispels: 2 } })).toEqual([]);
+    expect(codes({ ...base, areaLight: { level: 'darkness', dispels: 10 } })).toContain(
+      'bad_dispel_level',
+    );
+    expect(codes({ ...base, areaLight: { level: 'darkness', dispels: 1.5 } })).toContain(
+      'bad_dispel_level',
     );
   });
 

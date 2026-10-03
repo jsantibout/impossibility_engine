@@ -48,6 +48,7 @@ import {
   endEarlyEndedConditions,
   endTriggeredCastings,
   endTriggeredEffects,
+  dispelMovedLight,
   isEndingsEvent,
 } from './endings.js';
 
@@ -305,6 +306,11 @@ function applyEventUnder(state: GameState, event: GameEvent, legacy: Content | n
     // the turn's start is reached, so a creature standing in the sleet is not
     // owed a burn it is no longer suffering. See `douseStandingFlames`. (E-L2)
     douseStandingFlames(
+    // **A light carried into a Darkness**, put out where its bearer arrives —
+    // see dispelMovedLight. Against the world before this event, so the pass
+    // knows who moved. (E-L2)
+    dispelMovedLight(
+    state,
     // After every pass that can end a feature — a deadline, a lost condition,
     // an explicit ending — because what this puts back is a sheet a feature
     // was holding up, and it has to see the feature gone first. The size an
@@ -415,6 +421,7 @@ function applyEventUnder(state: GameState, event: GameEvent, legacy: Content | n
     ),
     // The world before this event, so the pass sees an override leave.
     state,
+    ),
     ),
     ),
   ));

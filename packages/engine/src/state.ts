@@ -1807,6 +1807,13 @@ export interface PendingMove {
    * before the field, and on every move that carries nobody.
    */
   readonly carrying?: readonly { readonly who: CharacterId; readonly placement: Placement }[];
+  /**
+   * SRD Gaseous Form's "can enter and occupy the space of another creature",
+   * read when the move was declared — so a move held open for an Opportunity
+   * Attack completes into an occupied space as the cloud's own move would have,
+   * and says so on the event. Absent on every other move. (E-L2)
+   */
+  readonly occupiesOthers?: true;
   /** Who was offered an Opportunity Attack and has not yet answered. */
   readonly provoked: readonly { readonly reactor: CharacterId; readonly reach: number }[];
 }

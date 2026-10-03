@@ -6223,6 +6223,20 @@ export interface GrantedSpeed {
    */
   readonly hover?: true;
   /**
+   * SRD Gaseous Form: "The target can enter and occupy the space of another
+   * creature." (E-L2)
+   *
+   * A fact about how the creature moves, carried on the grant that makes the
+   * cloud's movement what it is — the sentence follows "the target's only
+   * method of movement is a Fly Speed of 10 feet, and it can hover" — exactly
+   * as {@link hover} is. Read by `resolveMove` through
+   * {@link occupiesOthersOn}: such a creature's own move passes through
+   * anybody's space and may end in one, and the event says it did so the fold
+   * agrees. Lapses with the grant, so the cloud that is a wizard again stands
+   * where it stood and walks round people as everybody does.
+   */
+  readonly occupiesOthers?: true;
+  /**
    * The spell this change is the effect of — see `SameEffect` in
    * `same-effect.ts`. Pinned by the command; absent is its own identity.
    */
@@ -6969,6 +6983,18 @@ export function isGaseousOn(state: GameState, who: CharacterId): boolean {
   if (creature === undefined) return false;
   return creature.speedModifiers.some(
     (granted) => granted.mode === 'fly' && granted.hover === true && granted.change === 'only',
+  );
+}
+
+/**
+ * Whether this creature's own movement may enter and end in another
+ * creature's space — SRD Gaseous Form's "The target can enter and occupy the
+ * space of another creature", read off the grant that carries it
+ * ({@link GrantedSpeed.occupiesOthers}). (E-L2)
+ */
+export function occupiesOthersOn(state: GameState, who: CharacterId): boolean {
+  return (
+    state.creatures[who]?.speedModifiers.some((granted) => granted.occupiesOthers === true) === true
   );
 }
 

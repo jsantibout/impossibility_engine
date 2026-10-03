@@ -2463,7 +2463,7 @@ export interface LightPatch extends LatticePatch {
    * level, because SRD Darkness and SRD Daylight dispel each other by
    * comparing one — see `dispelledByLight`.
    */
-  readonly magical?: { readonly spellLevel: number };
+  readonly magical?: MagicalLight;
   /**
    * SRD sunlight: Bright Light, with the one flag four stat blocks read.
    *
@@ -2505,6 +2505,23 @@ export interface LightPatch extends LatticePatch {
   readonly whileHolding?: string;
 }
 
+/**
+ * What makes a patch of light a spell's: the level of the spell that made it,
+ * and — where that spell prints SRD Darkness's or Daylight's sentence — the
+ * highest level of opposite light it dispels.
+ *
+ * `dispelsUpTo` is pinned from `AreaLight.dispels` at the casting, so the fold
+ * and every later pinning read the printed threshold off the patch rather than
+ * off a catalogue. Absent is a spell that prints no such sentence — Moonbeam,
+ * Light, Flame Blade — which dispels nothing whatever its level, and every
+ * patch written before the field existed. (E-L2)
+ */
+export interface MagicalLight {
+  readonly spellLevel: number;
+  /** SRD Darkness's "created by a spell of level 2 or lower": the 2. */
+  readonly dispelsUpTo?: number;
+}
+
 /** A patch of the room hard to see through for a reason that is not the light. */
 export interface ObscuringPatch extends LatticePatch {
   readonly degree: ObscurementDegree;
@@ -2525,7 +2542,7 @@ export function declareLightPatch(
   level: LightLevel,
   options: {
     readonly source?: string;
-    readonly magical?: { readonly spellLevel: number };
+    readonly magical?: MagicalLight;
     readonly sunlight?: boolean;
     readonly covered?: true;
     readonly whileHolding?: string;
@@ -2546,6 +2563,12 @@ export function declareLightPatch(
     return err(
       'bad_spell_level',
       'magical light carries the level of the spell that made it, as a whole number',
+    );
+  }
+  if (magical?.dispelsUpTo !== undefined && !Number.isInteger(magical.dispelsUpTo)) {
+    return err(
+      'bad_spell_level',
+      'the level a light dispels up to is a spell level, as a whole number',
     );
   }
   // SRD prints no dark sunlight and no dim sunlight. The flag is Bright
@@ -3260,6 +3283,127 @@ export function lightDispelledBy(
     }
   }
   return [...dispelled].sort();
+}
+
+/**
+ * Who loses when a spell's magical light or darkness is pinned over the
+ * opposite kind — SRD Darkness and SRD Daylight's sentence, read whichever
+ * came first. (E-L2)
+ *
+ * SRD Darkness: "If any of this spell's area overlaps with an area of Bright
+ * Light or Dim Light created by a spell of level 2 or lower, that other spell
+ * is dispelled." The sentence is a fact about two areas and holds in both
+ * orders, so a pinning asks two questions:
+ *
+ * - **what it puts out**, where the incoming spell prints the sentence
+ *   (`magical.dispelsUpTo`): every shining opposite patch of a spell at or
+ *   below that level — a casting by its `source`, and a glow on a deadline of
+ *   its own (SRD Starry Wisp's) by the timer it lapses with;
+ * - **whether it is put out itself**: an opposite patch already shining over
+ *   the region whose own spell prints the sentence at or above the incoming
+ *   spell's level. A Flame Blade evoked inside a Darkness is the Flame Blade
+ *   dispelled, not the Darkness.
+ *
+ * **The sentence belongs to the spell that prints it.** A spell that prints
+ * none — Moonbeam, Flame Blade, Light, Faerie Fire — dispels nothing,
+ * whatever its level, and is dispelled where a printing spell's threshold
+ * reaches it. `own` names the incoming patch's casting or timer so a spell's
+ * second patch (Daylight's dim ring) never argues with its first.
+ *
+ * Covered and let-go patches are not shining and so neither dispel nor are
+ * dispelled — {@link shiningPatchesOf}, as for `lightDispelledBy`.
+ */
+export interface LightDispel {
+  /** Other castings this pinning ends. */
+  readonly castings: readonly string[];
+  /** Timers of glows with deadlines of their own that this pinning ends. */
+  readonly glows: readonly string[];
+  /** Whether the incoming patch's own spell is put out by one already shining. */
+  readonly itself: boolean;
+}
+
+export function dispelOnPinning(
+  state: GameState,
+  region: TerrainRegion,
+  level: LightLevel,
+  magical: { readonly spellLevel: number; readonly dispelsUpTo?: number },
+  own: {
+    readonly source?: string;
+    readonly lapsesWith?: string;
+    /**
+     * Every area of light the incoming spell sheds, where that is more than
+     * `region` — SRD Light's Dim Light twenty feet past its Bright. Its own
+     * sentence speaks of **this spell's area**, and a Darkness's speaks of
+     * **an area of Bright Light or Dim Light**, so the first is measured over
+     * `region` and the second over this.
+     */
+    readonly extent?: TerrainRegion;
+  } = {},
+): LightDispel {
+  const none: LightDispel = { castings: [], glows: [], itself: false };
+  const scene = state.scene;
+  if (scene === null) return none;
+
+  const opposite = (patch: LightPatch): boolean =>
+    level === 'darkness' ? patch.level !== 'darkness' : patch.level === 'darkness';
+  const mine = (patch: LightPatch): boolean =>
+    (own.source !== undefined && patch.source === own.source) ||
+    (own.lapsesWith !== undefined && patch.lapsesWith === own.lapsesWith);
+  const endable = (patch: LightPatch): boolean =>
+    patch.source !== undefined || patch.lapsesWith !== undefined;
+
+  const reach = magical.dispelsUpTo;
+  const shining = shiningPatchesOf(state).filter(
+    ([, patch]) => patch.magical !== undefined && opposite(patch) && !mine(patch),
+  );
+  // What this one puts out, and what could put this one out.
+  const victims = reach === undefined
+    ? []
+    : shining.filter(([, patch]) => endable(patch) && patch.magical!.spellLevel <= reach);
+  const dispellers = own.source !== undefined || own.lapsesWith !== undefined
+    ? shining.filter(
+        ([, patch]) =>
+          patch.magical!.dispelsUpTo !== undefined &&
+          patch.magical!.dispelsUpTo >= magical.spellLevel &&
+          !victims.some(([, victim]) => victim === patch),
+      )
+    : [];
+  if (victims.length === 0 && dispellers.length === 0) return none;
+
+  const extent = own.extent ?? region;
+  const overlapping = new Set<LightPatch>();
+  const pending = new Set([...victims, ...dispellers].map(([, patch]) => patch));
+  const victimsOf = new Set(victims.map(([, patch]) => patch));
+  for (let x = 0; x <= scene.extent.width && pending.size > 0; x += CUBE) {
+    for (let y = 0; y <= scene.extent.depth && pending.size > 0; y += CUBE) {
+      for (let z = 0; z <= scene.extent.height && pending.size > 0; z += CUBE) {
+        const space = { x, y, z };
+        const inArea = spaceInRegion(scene, region, space);
+        const lit = extent === region ? inArea : spaceInRegion(scene, extent, space);
+        if (!inArea && !lit) continue;
+        for (const patch of [...pending]) {
+          if (!(victimsOf.has(patch) ? inArea : lit)) continue;
+          if (spaceInRegion(scene, patch.region, space)) {
+            overlapping.add(patch);
+            pending.delete(patch);
+          }
+        }
+      }
+    }
+  }
+
+  const hit = victims.filter(([, patch]) => overlapping.has(patch)).map(([, patch]) => patch);
+  return {
+    castings: [...new Set(hit.flatMap((patch) => (patch.source === undefined ? [] : [patch.source])))].sort(),
+    glows: [
+      ...new Set(
+        hit.flatMap((patch) =>
+          patch.source === undefined && patch.lapsesWith !== undefined ? [patch.lapsesWith] : [],
+        ),
+      ),
+    ].sort(),
+    itself: dispellers.some(([, patch]) => overlapping.has(patch)),
+  };
 }
 
 /** How hard one space is to see into, and why. */

@@ -49,8 +49,8 @@ import {
 } from '../events.js';
 import {
   apartFrom,
+  dispelOnPinning,
   distanceBetween,
-  lightDispelledBy,
   type Placement,
   type Point,
   type PointAnchoring,
@@ -1674,11 +1674,12 @@ export function terrainPatchOf(
  *   at the casting, against the slot in hand.
  *
  * **And one thing a patch of ground never had to do: put another casting
- * out.** SRD Darkness and SRD Daylight each dispel the other where their
- * areas overlap, so laying a magical patch ends the opposite castings
- * `lightDispelledBy` finds under it. That is a consequence of the geometry
- * rather than anybody's decision, which is why it arrives in the same batch
- * as the cast and asks nobody's leave.
+ * out.** SRD Darkness and SRD Daylight each dispel the opposite light of a
+ * spell at or below their printed level where their areas overlap, so laying
+ * a patch ends what `dispelOnPinning` finds under it — and a light laid into a
+ * printing spell's area is itself put out. That is a consequence of the
+ * geometry rather than anybody's decision, which is why it arrives in the same
+ * batch as the cast and asks nobody's leave.
  */
 export function lightPatchesOf(
   state: GameState,
@@ -1693,7 +1694,15 @@ export function lightPatchesOf(
   if ((light === undefined && fog === undefined) || region === null) return [];
 
   const source = lastsWithTheCasting ? { source: castingId } : {};
-  const magical = { magical: { spellLevel: definition.level } };
+  // The level the book's dispel compares, and — on a spell that prints the
+  // sentence, SRD Darkness and SRD Daylight — the threshold it dispels up to,
+  // pinned so every later pinning reads it off the patch. (E-L2)
+  const magical = {
+    magical: {
+      spellLevel: definition.level,
+      ...(light?.dispels === undefined ? {} : { dispelsUpTo: light.dispels }),
+    },
+  };
   const named = (what: string): string => `${definition.name} ${what} (${castingId})`;
   const widened = (by: number): TerrainRegion =>
     region.shape.kind === 'sphere'
@@ -1712,9 +1721,6 @@ export function lightPatchesOf(
       ...(light.sunlight === undefined ? {} : { sunlight: light.sunlight }),
       ...source,
     });
-    for (const dispelled of lightDispelledBy(state, region, light.level, definition.level)) {
-      events.push({ type: 'spell-ended', castingId: dispelled, on: null, reason: 'dispelled' });
-    }
     if (light.dimBeyond !== undefined) {
       events.push({
         type: 'light-declared',
@@ -1737,6 +1743,25 @@ export function lightPatchesOf(
       degree: fog.degree,
       ...source,
     });
+  }
+
+  // **The book's dispel, whichever came first.** What this spell puts out it
+  // names in its own sentence — the opposite light of a spell at or below
+  // `dispels`, measured over its area — and what puts *it* out is a printing
+  // spell already shining over any of the light it sheds. Last in the batch,
+  // after the patches it is about. See `dispelOnPinning`. (E-L2)
+  if (light !== undefined) {
+    const verdict = dispelOnPinning(state, region, light.level, magical.magical, {
+      ...source,
+      ...(light.dimBeyond === undefined ? {} : { extent: widened(light.dimBeyond) }),
+    });
+    for (const dispelled of verdict.castings) {
+      events.push({ type: 'spell-ended', castingId: dispelled, on: null, reason: 'dispelled' });
+    }
+    for (const effectKey of verdict.glows) events.push({ type: 'effect-dispelled', effectKey });
+    if (verdict.itself && lastsWithTheCasting) {
+      events.push({ type: 'spell-ended', castingId, on: null, reason: 'dispelled' });
+    }
   }
 
   return events;

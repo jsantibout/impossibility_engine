@@ -80,6 +80,7 @@ import {
 import { ONGOING_RECORD_VERSION } from '../ongoing-compatibility.js';
 import {
   creaturesInArea,
+  dispelOnPinning,
   distanceBetween,
   positionOf,
   snapToSpace,
@@ -4312,8 +4313,12 @@ export function resolveEffects(
       // which is Instantaneous and so has no record to carry the word.
       context.option ?? becomes?.option,
     ),
+    // Read against the world this casting has already made — the record
+    // written, and a Concentration its caster gave up to cast it already gone
+    // — so a Darkness the caster stopped holding neither puts this out nor is
+    // put out by it. Nothing to fold where the spell sheds no light. (E-L2)
     ...lightPatchesOf(
-      state,
+      definition.areaLight === undefined ? state : events.reduce(applyEvent, state),
       definition,
       castingId,
       context.terrainRegion ?? null,
@@ -4322,7 +4327,49 @@ export function resolveEffects(
     ),
   );
 
+  // **A light this casting shed on somebody, laid into a Darkness**, put out
+  // below the record it ends — SRD Darkness's "that other spell is dispelled",
+  // read of a Light, a Flame Blade or a Faerie Fire's glow cast into one.
+  // `lightPatchesOf` asks the same of a spell's area light itself. (E-L2)
+  if (becomes !== undefined && dispelledOnLaying(state, castingId, events)) {
+    events.push({ type: 'spell-ended', castingId, on: null, reason: 'dispelled' });
+  }
+
   return ok({ events, castingId, outcomes, unverified });
+}
+
+/**
+ * Whether a casting's own light, shed on a creature by its effects, lands in a
+ * light-dispelling spell's area that reaches its level — SRD Darkness's "an
+ * area of Bright Light or Dim Light created by a spell of level 2 or lower".
+ *
+ * Asked of the world the casting's whole batch leaves, so a Darkness the same
+ * casting put out by taking its caster's Concentration is not one that puts
+ * this out. Nothing to ask where the batch laid no light sourced to this
+ * casting, or already ends it. (E-L2)
+ */
+function dispelledOnLaying(
+  state: GameState,
+  castingId: string,
+  events: readonly GameEvent[],
+): boolean {
+  const laid = events.filter(
+    (event): event is Extract<GameEvent, { type: 'light-declared' }> =>
+      event.type === 'light-declared' &&
+      event.source === castingId &&
+      event.magical !== undefined &&
+      event.covered !== true,
+  );
+  if (laid.length === 0) return false;
+  if (events.some((event) => event.type === 'spell-ended' && event.castingId === castingId)) {
+    return false;
+  }
+  const after = events.reduce(applyEvent, state);
+  return laid.some(
+    (patch) =>
+      dispelOnPinning(after, patch.region, patch.level, patch.magical!, { source: castingId })
+        .itself,
+  );
 }
 
 /** What a run of an effect list is: the list, whose it is, and what it reads. */

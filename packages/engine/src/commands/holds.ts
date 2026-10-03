@@ -186,15 +186,30 @@ export function completeIfSettled(state: GameState, answered: readonly GameEvent
   // provoked — there is nothing to re-resolve against, and emitting the
   // placement anyway would write an event no future fold could apply.
   const scene = after.scene;
-  const resolvable =
-    scene !== null && moveCreature(scene, waiting.mover, waiting.placement).ok;
+  //
+  // **And a cloud lands where it was going whoever stands there** — SRD
+  // Gaseous Form, its licence pinned at the declaration — under the same
+  // relaxation the declaration measured it with, and says so. (E-L2)
+  const occupies = waiting.occupiesOthers === true;
+  const landing =
+    scene === null ? null : moveCreature(scene, waiting.mover, waiting.placement, occupies ? { forced: true } : {});
+  const resolvable = landing !== null && landing.ok;
+  const placement = resolvable
+    ? waiting.placement
+    : { ...waiting.placement, from: { point: waiting.destination }, bearing: 0, feet: 0 };
+  const lands =
+    !occupies || scene === null
+      ? null
+      : resolvable
+        ? landing
+        : moveCreature(scene, waiting.mover, placement, { forced: true });
+  const shared = lands !== null && lands.ok && lands.value.sharingWith.length > 0;
 
   const arrived: GameEvent = {
     type: 'creature-moved',
     id: waiting.mover,
-    placement: resolvable
-      ? waiting.placement
-      : { ...waiting.placement, from: { point: waiting.destination }, bearing: 0, feet: 0 },
+    placement,
+    ...(shared ? { intoOccupied: true as const } : {}),
   };
   return [{ type: 'movement-completed', id: waiting.mover }, arrived, ...carriedOnArrival(after, waiting, arrived)];
 }

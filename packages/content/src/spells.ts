@@ -7471,11 +7471,11 @@ export const HASTE: SpellDefinition = {
  *
  * The rest of being a cloud was built after it — the Fly Speed and three of
  * the four things the cloud cannot do — and the fourth, talking, is handed
- * over whole with the sentence it is printed in (the owner, 2026-09-26). What
- * the notes still carry is the misty-cloud fiction and the occupancy the
- * engine owns outright; the numbers are the engine's, and writing none of them
- * because some sentence was missing would have been a Gaseous Form that a
- * Fireball hurt at full price.
+ * over whole with the sentence it is printed in (the owner, 2026-09-26). The
+ * occupancy the engine owns outright is the cloud's now too (E-L2): its Fly
+ * Speed carries `occupiesOthers`, so its own move passes through anybody's
+ * space and may end in one. What the notes still carry is the misty-cloud
+ * fiction, handed over below in the book's words.
  */
 export const GASEOUS_FORM: SpellDefinition = {
   id: 'gaseous-form',
@@ -7509,7 +7509,11 @@ export const GASEOUS_FORM: SpellDefinition = {
     // mode, so a Longstrider standing on the same creature does not put ten
     // feet of walking back into a body that has no legs. The hovering is what
     // `flightLost` reads, so a cloud that stops does not fall.
-    { kind: 'speed', change: 'only', mode: 'fly', feet: 10, hover: true },
+    //
+    // "The target can enter and occupy the space of another creature" is the
+    // next sentence, and it is how that movement goes (E-L2): the cloud's own
+    // move passes through anybody's space and may end in one.
+    { kind: 'speed', change: 'only', mode: 'fly', feet: 10, hover: true, occupiesOthers: true },
     // "The target can't talk or **manipulate objects**, and any objects it was
     // carrying or holding can't be dropped, used, or otherwise interacted
     // with." / "Finally, the target can't attack or cast spells." Three of the
@@ -7553,9 +7557,6 @@ export const GASEOUS_FORM: SpellDefinition = {
     "A willing creature you touch shape-shifts, along with everything it's wearing and carrying, into a misty cloud for the duration.",
     "The target can't talk or manipulate objects, and any objects it was carrying or holding can't be dropped, used, or otherwise interacted with.",
     'The target can pass through narrow openings, but it treats liquids as though they were solid surfaces.',
-  ],
-  unmodelled: [
-    '"The target can enter and occupy the space of another creature" is not applied: occupancy is a rule the engine owns outright, and nothing lets an effect tell that rule to believe something different about one creature',
   ],
 };
 
@@ -8423,7 +8424,10 @@ export const DAYLIGHT: SpellDefinition = {
   range: { kind: 'ranged', feet: 60 },
   targets: { count: 0 },
   area: { kind: 'sphere', radius: 60, origin: 'point' },
-  areaLight: { level: 'bright', dimBeyond: 60, sunlight: true },
+  // "If any of this spell's area overlaps with an area of Darkness created by a
+  // spell of level 3 or lower, that other spell is dispelled." (E-L2: the 3 is
+  // the printed threshold, read whichever came first.)
+  areaLight: { level: 'bright', dimBeyond: 60, sunlight: true, dispels: 3 },
   lightOnObject: 'or-a-point',
   effects: [],
   durationSeconds: 3600,
@@ -8459,8 +8463,13 @@ export const DAYLIGHT: SpellDefinition = {
  * can't see through it, and nonmagical light can't illuminate it" is the
  * `magical` flag the patch carries and the rule `piercesObscurement` keeps;
  * and the dispel is performed, because two areas of light can now overlap —
- * `lightDispelledBy` ends a Bright or Dim patch whose casting is of level 2
- * or lower, which is this spell's printed threshold.
+ * at this spell's printed threshold, `areaLight.dispels`, and whichever came
+ * first (E-L2): a Darkness laid over a light of level 2 or lower puts it out,
+ * a light cast, moved or carried into the Sphere is put out, and a glow on a
+ * deadline of its own — SRD Starry Wisp's — is put out by the timer it lapses
+ * with, since its casting never runs. A light of a higher level is not put out
+ * and does not end the Darkness either, because only a spell that prints the
+ * sentence dispels anything.
  *
  * **And the object is built** (W9-S1). `lightOnObject: 'or-a-point'` lets
  * `moveCastLight` lay a casting made at a declared object's space on that
@@ -8485,13 +8494,15 @@ export const DARKNESS: SpellDefinition = {
   range: { kind: 'ranged', feet: 60 },
   targets: { count: 0 },
   area: { kind: 'sphere', radius: 15, origin: 'point' },
-  areaLight: { level: 'darkness' },
+  // "If any of this spell's area overlaps with an area of Bright Light or Dim
+  // Light created by a spell of level 2 or lower, that other spell is
+  // dispelled." Read whichever came first (E-L2): a light laid over, cast
+  // into or carried into the Sphere is put out, and so is a glow on a deadline
+  // of its own (SRD Starry Wisp's), by the timer it lapses with.
+  areaLight: { level: 'darkness', dispels: 2 },
   lightOnObject: 'or-a-point',
   effects: [],
   durationSeconds: 600,
-  unmodelled: [
-    'an overlapping glow on a deadline of its own — SRD Starry Wisp’s — is not dispelled: it names no running casting for the dispel to end, so for as long as it lasts it lifts the Darkness where the two overlap',
-  ],
 };
 
 /**

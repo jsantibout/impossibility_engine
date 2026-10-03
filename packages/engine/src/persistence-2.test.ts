@@ -708,6 +708,12 @@ const UNCOVERED_EVENT_TYPES: readonly string[] = [
   // and left mid-move, two that overlap, a refusal that names what slowed the
   // walker, and a patch that stops charging when its casting stops running.
   'difficult-terrain-declared',
+  // A glow on a deadline of its own put out by SRD Darkness (E-L2). Neither log
+  // was written when a timer could be dispelled, or a glow could lapse with
+  // one, so both fold to exactly the states they always folded to.
+  // `light-on-a-thing.test.ts` folds it and drives it end to end: Starry Wisp's
+  // glow put out by a Darkness laid over it, and by one it lands in.
+  'effect-dispelled',
   // A fall somebody declared. Neither log could carry one: nothing in the
   // engine could say a creature was falling until the window SRD Feather Fall
   // answers needed a fact to read, and both fixtures fold to the states they

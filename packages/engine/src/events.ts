@@ -83,6 +83,7 @@ import {
 import {
   type CoverDegree,
   type LightLevel,
+  type MagicalLight,
   type ObscurementDegree,
   type Placement,
   type SceneExtent,
@@ -2585,6 +2586,23 @@ export type GameEvent =
       readonly command?: CommandStamp;
     }
   /**
+   * A timed effect put out by a dispel, before its deadline. (E-L2)
+   *
+   * SRD Darkness: "If any of this spell's area overlaps with an area of Bright
+   * Light or Dim Light created by a spell of level 2 or lower, that other spell
+   * is dispelled." SRD Starry Wisp's glow is such an area on a casting that is
+   * over the instant it resolves, so what holds it is not a record in
+   * `state.ongoing` but the `grants` timer its riders run under — and the
+   * spell being dispelled is that timer released early: the glow lapses with
+   * it, and so does the Invisible it denies. `spell-ended` names a running
+   * casting and this names the timer, which is the whole of the difference.
+   */
+  | {
+      readonly type: 'effect-dispelled';
+      readonly effectKey: string;
+      readonly command?: CommandStamp;
+    }
+  /**
    * An ability check somebody attempted against an ongoing effect, and settled.
    *
    * The roll itself is recorded separately as `roll-recorded`; this is what the
@@ -3689,7 +3707,8 @@ export type GameEvent =
       readonly patch: string;
       readonly region: TerrainRegion;
       readonly level: LightLevel;
-      readonly magical?: { readonly spellLevel: number };
+      /** The spell's level, and the threshold of its dispel where it prints one — see `MagicalLight`. */
+      readonly magical?: MagicalLight;
       readonly sunlight?: boolean;
       readonly source?: string;
       /** Something opaque is over the thing it shines from — see `LightPatch.covered`. Additive; absent everywhere before it. */

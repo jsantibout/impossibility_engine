@@ -1435,12 +1435,17 @@ function checkSpeedMode(
   found: SpellDefinitionProblem[],
   carries: SpeedModes,
 ): void {
-  const { mode, hover } = value as { readonly mode?: unknown; readonly hover?: unknown };
+  const { mode, hover, occupiesOthers } = value as {
+    readonly mode?: unknown;
+    readonly hover?: unknown;
+    readonly occupiesOthers?: unknown;
+  };
 
   if (carries === 'no-modes') {
     for (const [field, present] of [
       ['mode', mode !== undefined],
       ['hover', hover !== undefined],
+      ['occupiesOthers', occupiesOthers !== undefined],
     ] as const) {
       if (!present) continue;
       found.push({
@@ -1535,6 +1540,18 @@ function checkSpeedMode(
       code: 'bad_speed_change',
       reason:
         'hovering is the Fly Speed\'s exception to the fall and means nothing without one; the only value is true, beside a granted Fly Speed',
+    });
+  }
+
+  // SRD Gaseous Form's "can enter and occupy the space of another creature" is
+  // how the movement this grant gives goes, so it stands beside a Speed it
+  // gives and nowhere else. (E-L2)
+  if (occupiesOthers !== undefined && (occupiesOthers !== true || mode === undefined || !gives)) {
+    found.push({
+      field: `${path}.occupiesOthers`,
+      code: 'bad_speed_change',
+      reason:
+        'entering and occupying another creature’s space is a fact about a movement this grant gives; the only value is true, beside a Speed in a mode the grant gives',
     });
   }
 }
@@ -7487,7 +7504,19 @@ export function checkSpellDefinition(
         found,
       )
     ) {
-      const { level, dimBeyond, sunlight } = definition.areaLight;
+      const { level, dimBeyond, sunlight, dispels } = definition.areaLight;
+      // SRD Darkness's "created by a spell of level 2 or lower": a spell level,
+      // and one a pinned patch can carry. (E-L2)
+      if (
+        dispels !== undefined &&
+        (typeof dispels !== 'number' || !Number.isInteger(dispels) || dispels < 0 || dispels > 9)
+      ) {
+        found.push({
+          field: 'areaLight.dispels',
+          code: 'bad_dispel_level',
+          reason: `a light dispels the opposite light of a spell at some level or lower, and a spell's level runs from 0 to 9; this is ${String(dispels)}`,
+        });
+      }
       // **The pure function's own rules, read off the same constants.** A
       // second spelling here would be a second chance to disagree with
       // `declareLightPatch`, which the fold calls on the event this definition

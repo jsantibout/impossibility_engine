@@ -3543,6 +3543,12 @@ export type SpellEffect =
        * either, and the pair is what the fall reads.
        */
       readonly hover?: true;
+      /**
+       * SRD Gaseous Form: "The target can enter and occupy the space of
+       * another creature." Beside a Speed in a mode, because it is a fact about
+       * how that movement goes — see `GrantedSpeed.occupiesOthers`. (E-L2)
+       */
+      readonly occupiesOthers?: true;
     }
   /**
    * Light the casting sheds from a thing its target carries — SRD Light: "the
@@ -4969,6 +4975,19 @@ export interface AreaLight {
    * keeps: sunlight is Bright Light with a flag and not a fourth level.
    */
   readonly sunlight?: boolean;
+  /**
+   * SRD Darkness: "If any of this spell's area overlaps with an area of Bright
+   * Light or Dim Light created by a spell of **level 2 or lower**, that other
+   * spell is dispelled." SRD Daylight prints the mirror at 3.
+   *
+   * The printed level, and only on a spell that prints the sentence: it is
+   * pinned onto the patch (`MagicalLight.dispelsUpTo`) and read whichever came
+   * first — the opposite light of a spell at or below it is put out when this
+   * one is laid over it, and when it is laid, carried or moved into this one.
+   * Absent is a spell that dispels nothing, whatever its own level: Moonbeam's
+   * Dim Light loses to a Darkness and never ends one. (E-L2)
+   */
+  readonly dispels?: number;
 }
 
 /**

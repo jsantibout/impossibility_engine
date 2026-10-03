@@ -807,12 +807,19 @@ describe('the condition-immunity family is read sentence by sentence', () => {
     // rather than lost now that the spell is defined: the sentence moved from
     // its blocked-on entry into the definition's own `unmodelled`, where it is
     // handed to the table on every casting. A reading that survives the spell
-    // being written is the reading that was worth doing.
+    // being written is the reading that was worth doing — and then it was
+    // **built** (E-L2): the cloud's Fly Speed carries `occupiesOthers`, so the
+    // line is gone from `unmodelled` because the engine does what it says.
     expect(
       (SRD_CONTENT.spell('gaseous-form')?.unmodelled ?? []).filter((note) =>
         note.includes('The target can enter and occupy the space of another creature'),
       ),
-    ).toHaveLength(1);
+    ).toHaveLength(0);
+    expect(
+      SRD_CONTENT.spell('gaseous-form')?.effects.some(
+        (effect) => effect.kind === 'speed' && effect.occupiesOthers === true,
+      ),
+    ).toBe(true);
     expect(BLOCKED_ON['gaseous-form']).toBeUndefined();
 
     // And the marker list really cannot see those two, which is what makes them

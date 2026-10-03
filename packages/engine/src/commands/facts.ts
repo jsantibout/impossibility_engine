@@ -25,6 +25,7 @@ import {
   declareDifficultPatch,
   declareLightPatch,
   declareObscuringPatch,
+  dispelOnPinning,
   lightDispelledBy,
   type LightLevel,
   type LightPatch,
@@ -528,6 +529,8 @@ export function moveCastLight(
 
     const events: GameEvent[] = [];
     const dispelled = new Set<string>();
+    const glows = new Set<string>();
+    let itself = false;
     for (const [name, patch] of laid) {
       const region = regionFor(patch);
       const hidden = covered ?? patch.covered === true;
@@ -546,15 +549,20 @@ export function moveCastLight(
         ...(stamp === null || events.length > 0 ? {} : { command: stamp }),
       });
       // Pinned again, so the book's dispel runs as it runs on any pinning —
-      // and a covered patch fills no area, so it puts nothing out.
+      // both ways, by the threshold the patch carries where its spell prints
+      // one — and a covered patch fills no area, so it neither puts anything
+      // out nor is put out. (E-L2)
       if (hidden || patch.magical === undefined) continue;
-      for (const other of lightDispelledBy(state, region, patch.level, patch.magical.spellLevel)) {
-        if (other !== castingId) dispelled.add(other);
-      }
+      const verdict = dispelOnPinning(state, region, patch.level, patch.magical, { source: castingId });
+      for (const other of verdict.castings) dispelled.add(other);
+      for (const glow of verdict.glows) glows.add(glow);
+      itself ||= verdict.itself;
     }
     for (const other of [...dispelled].sort()) {
       events.push({ type: 'spell-ended', castingId: other, on: null, reason: 'dispelled' });
     }
+    for (const effectKey of [...glows].sort()) events.push({ type: 'effect-dispelled', effectKey });
+    if (itself) events.push({ type: 'spell-ended', castingId, on: null, reason: 'dispelled' });
     return ok(events);
   });
 }
