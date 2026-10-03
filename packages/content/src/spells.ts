@@ -1853,7 +1853,7 @@ export const INCENDIARY_CLOUD: SpellDefinition = {
  * Moonbeam prints three trigger clauses in one sentence and the first of them
  * is the beam's own motion — see {@link AreaTrigger.onAreaEntry}.
  *
- * Four sentences, four fields, and none of them invented:
+ * Five sentences, five fields, and none of them invented:
  *
  * | SRD | Where |
  * |---|---|
@@ -1861,6 +1861,7 @@ export const INCENDIARY_CLOUD: SpellDefinition = {
  * | "within range" — 120 feet, measured from the caster at the cast | `range` |
  * | "take a Magic action ... to move the Cylinder up to 60 feet" | `activation.movesArea` |
  * | "when the spell's area moves into its space" | `areaTrigger.onAreaEntry` |
+ * | "it reverts to its true form and can't shape-shift until it leaves the Cylinder" | `revertsShape` on both saves (E-L2) |
  *
  * **The 120 feet is not the allowance.** Range governs where the beam may
  * first be put down; the 60 feet governs how far it travels afterwards, from
@@ -1893,6 +1894,10 @@ export const MOONBEAM: SpellDefinition = {
       damage: { dice: '2d10', perSlotLevelAbove: '1d10' },
       damageType: 'radiant',
       onSuccess: 'half',
+      // "and if the creature is shape-shifted …, it reverts to its true form and
+      // can't shape-shift until it leaves the Cylinder" — on the same failed save.
+      // (E-L2)
+      revertsShape: true,
     },
   ],
   durationSeconds: 60,
@@ -1913,6 +1918,10 @@ export const MOONBEAM: SpellDefinition = {
         damage: { dice: '2d10', perSlotLevelAbove: '1d10' },
         damageType: 'radiant',
         onSuccess: 'half',
+        // "and if the creature is shape-shifted …, it reverts to its true form and
+        // can't shape-shift until it leaves the Cylinder" — on the same failed save.
+        // (E-L2)
+        revertsShape: true,
       },
     ],
   },
@@ -1925,9 +1934,6 @@ export const MOONBEAM: SpellDefinition = {
     label: 'Moonbeam (the beam moves)',
     effects: [],
   },
-  unmodelled: [
-    'a shape-shifted creature reverting to its true form on a failed save, and being unable to shape-shift until it leaves the Cylinder, are not applied: a creature holds a shape now, and no outcome ends one and no area forbids taking one',
-  ],
 };
 
 /**
@@ -7480,6 +7486,9 @@ export const HASTE: SpellDefinition = {
 export const GASEOUS_FORM: SpellDefinition = {
   id: 'gaseous-form',
   name: 'Gaseous Form',
+  // "A willing creature you touch shape-shifts … into a misty cloud": a
+  // creature in this form is shape-shifted, which SRD Moonbeam reads (E-L2).
+  shapeShifts: true,
   level: 3,
   school: 'transmutation',
   castingTime: 'action',
@@ -9315,6 +9324,9 @@ export const GUST_OF_WIND: SpellDefinition = {
 export const POLYMORPH: SpellDefinition = {
   id: 'polymorph',
   name: 'Polymorph',
+  // "shape-shift into a Beast form" — the spell SRD Moonbeam names as its
+  // example of a shape-shifted creature (E-L2).
+  shapeShifts: true,
   level: 4,
   school: 'transmutation',
   castingTime: 'action',
@@ -11137,6 +11149,8 @@ export const FORESIGHT: SpellDefinition = {
 export const SHAPECHANGE: SpellDefinition = {
   id: 'shapechange',
   name: 'Shapechange',
+  // "You shape-shift into another creature" (E-L2).
+  shapeShifts: true,
   level: 9,
   school: 'transmutation',
   castingTime: 'action',
@@ -15745,6 +15759,8 @@ export const WIND_WALK: SpellDefinition = {
 export const ANIMAL_SHAPES: SpellDefinition = {
   id: 'animal-shapes',
   name: 'Animal Shapes',
+  // "Each target shape-shifts into a Large or smaller Beast" (E-L2).
+  shapeShifts: true,
   level: 8,
   school: 'transmutation',
   castingTime: 'action',
@@ -16291,6 +16307,8 @@ export const SYMBOL: SpellDefinition = {
 export const TRUE_POLYMORPH: SpellDefinition = {
   id: 'true-polymorph',
   name: 'True Polymorph',
+  // "The creature shape-shifts into a different creature" (E-L2).
+  shapeShifts: true,
   level: 9,
   school: 'transmutation',
   castingTime: 'action',

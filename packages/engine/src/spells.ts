@@ -1362,7 +1362,17 @@ export type OngoingEndReason =
    * It carries an `on` like every other member: "the spell ends" is null, and
    * "ending the spell on itself" names the creature.
    */
-  | 'saved-against';
+  | 'saved-against'
+  /**
+   * The creature it had shape-shifted was made to take its true form back.
+   *
+   * SRD Moonbeam: "if the creature is shape-shifted (as a result of the
+   * _Polymorph_ spell, for example), it reverts to its true form". The casting
+   * that shaped it is released on that creature — written by the rider that
+   * reverted it, in the same batch as the failed save. Its own member, because
+   * nobody dispelled anything and nobody let it go. (E-L2)
+   */
+  | 'reverted';
 
 /**
  * Why a Concentration ended. Every one of these is in the SRD except

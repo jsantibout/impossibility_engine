@@ -20,6 +20,7 @@ import { timerKey } from '../timers.js';
 import {
   areaStampKey,
   castingIdOf,
+  castingSource,
   creaturesStandingInCastingArea,
   type AreaMoment,
   type OngoingSpell,
@@ -386,6 +387,59 @@ export function endConditionsLeftBehind(state: GameState): GameState {
         const target = { kind: 'condition', on: who, instance: instance.id } as const;
         current = endTimedCondition(current, timerKey(target), target);
       }
+    }
+  }
+  return endShapeBarsLeftBehind(current);
+}
+
+/**
+ * SRD Moonbeam's "can't shape-shift **until it leaves the Cylinder**", lifted
+ * the moment it is true. (E-L2)
+ *
+ * The bar is a `forbids` action rule a reverting outcome hung under the
+ * casting's own source (`OutcomeRiders.revertsShape`), and its lifetime is the
+ * creature's position: the same reading {@link endConditionsLeftBehind} takes
+ * of Web's "while in the webs", asked at the same moments and written as
+ * nothing — leaving is the whole of the ending. A casting that has ended took
+ * its bars with it already, through the source every grant is released by.
+ */
+function endShapeBarsLeftBehind(state: GameState): GameState {
+  const scene = state.scene;
+  if (scene === null) return state;
+  const barred = (rule: { readonly rule: { readonly kind: string } }): boolean =>
+    rule.rule.kind === 'forbids' && (rule.rule as { readonly shapeShifting?: true }).shapeShifting === true;
+  if (!Object.values(state.creatures).some((creature) => creature.actionRules.some(barred))) {
+    return state;
+  }
+
+  let current = state;
+  for (const castingId of Object.keys(state.ongoing).sort()) {
+    const record = current.ongoing[castingId];
+    if (record === undefined) continue;
+    const source = castingSource(record.spell, castingId);
+    const holders = Object.keys(current.creatures)
+      .sort()
+      .filter((who) =>
+        current.creatures[who]!.actionRules.some((held) => held.source === source && barred(held)),
+      ) as CharacterId[];
+    if (holders.length === 0) continue;
+
+    const inside = creaturesStandingInCastingArea(scene, record) ?? new Set<CharacterId>();
+    for (const who of holders) {
+      if (inside.has(who)) continue;
+      const creature = current.creatures[who]!;
+      current = {
+        ...current,
+        creatures: {
+          ...current.creatures,
+          [who]: {
+            ...creature,
+            actionRules: creature.actionRules.filter(
+              (held) => !(held.source === source && barred(held)),
+            ),
+          },
+        },
+      };
     }
   }
   return current;

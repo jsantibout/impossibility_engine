@@ -3583,7 +3583,8 @@ export type GameEvent =
       readonly type: 'feature-ended';
       readonly id: CharacterId;
       readonly feature: string;
-      readonly reason: 'dismissed' | 'expired' | 'incapacitated' | 'heavy-armor';
+      /** `reverted`: SRD Moonbeam made the creature take its true form back (E-L2). */
+      readonly reason: 'dismissed' | 'expired' | 'incapacitated' | 'heavy-armor' | 'reverted';
       readonly command?: CommandStamp;
     }
   /**

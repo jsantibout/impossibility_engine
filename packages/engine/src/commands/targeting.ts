@@ -48,7 +48,8 @@ import { fallWindowOpen } from '../reactions.js';
 import { typeMagicSees } from '../creature-type.js';
 import { OBJECT_CREATURE_TYPE } from '../objects.js';
 import { effectiveSizeOf } from '../size.js';
-import { canSee, canSeePoint, wardBetween } from '../standing.js';
+import { actionRulesOn, canSee, canSeePoint, wardBetween } from '../standing.js';
+import { refuseShapeShifting } from '../combat.js';
 import { type SlotKind } from '../resources.js';
 import {
   aimedRollsIn,
@@ -2840,6 +2841,14 @@ export function namedTargets(
         'target_not_falling',
         `${definition.name} is cast on a falling creature, and nobody has said ${target} is falling`,
       );
+    }
+
+    // SRD Moonbeam's "can't shape-shift until it leaves the Cylinder": a
+    // casting whose target shape-shifts — SRD Gaseous Form — is a shape taken,
+    // and the creature it would shape is barred from taking one. (E-L2)
+    if (definition.shapeShifts === true) {
+      const barred = refuseShapeShifting(target, actionRulesOn(state, target));
+      if (!barred.ok) return barred;
     }
 
     // SRD Spare the Dying: "a creature within range that has 0 Hit Points and

@@ -2474,10 +2474,17 @@ export function checkActionRule(
     if (rule.objects !== undefined && rule.objects !== true) {
       bad('a rule either forbids handling objects or says nothing about it; `objects` is `true` or absent');
     }
+    // **And taking a shape is the fifth** (E-L2): SRD Moonbeam's "can't
+    // shape-shift until it leaves the Cylinder" comes out of a Bonus Action, an
+    // Action or somebody else's casting, so it is no slot and no named action.
+    if (rule.shapeShifting !== undefined && rule.shapeShifting !== true) {
+      bad('a rule either forbids taking a shape or says nothing about it; `shapeShifting` is `true` or absent');
+    }
     if (
       (rule.slots?.length ?? 0) + (rule.actions?.length ?? 0) === 0 &&
       rule.casting !== true &&
-      rule.objects !== true
+      rule.objects !== true &&
+      rule.shapeShifting !== true
     ) {
       bad('a rule that forbids no slot, no action, no casting and no handling forbids nothing; name what the spell takes away');
     }
@@ -3276,7 +3283,7 @@ function checkSuccessRiders(
         'no saving throw in the book rewards a success with damage; a hit a success still takes is the failure branch, or the host\u2019s own onSuccess',
     });
   }
-  for (const slot of ['light', 'drops', 'breaksConcentration', 'at'] as const) {
+  for (const slot of ['light', 'drops', 'breaksConcentration', 'at', 'revertsShape'] as const) {
     if (riders[slot] === undefined) continue;
     found.push({
       field: `${path}.${slot}`,
@@ -3364,6 +3371,7 @@ const RIDER_SLOTS: ReadonlySet<string> = new Set([
   'light',
   'breaksConcentration',
   'drops',
+  'revertsShape',
 ]);
 
 function checkRiders(
@@ -3377,6 +3385,7 @@ function checkRiders(
     readonly breaksConcentration?: true;
     readonly drops?: { readonly all?: unknown; readonly orElse?: readonly ModifierRider[] };
     readonly at?: DeferredMoment;
+    readonly revertsShape?: true;
   },
   level: number,
   path: string,
@@ -3491,6 +3500,15 @@ function checkRiders(
   // The seventh, and the only one with nothing to be wrong about but its own
   // value: a clause the book either prints or does not — see
   // {@link OutcomeRiders.breaksConcentration}.
+  // SRD Moonbeam's revert, which has nothing to be wrong about but its own
+  // value — see {@link OutcomeRiders.revertsShape}. (E-L2)
+  if (riders.revertsShape !== undefined && riders.revertsShape !== true) {
+    found.push({
+      field: `${path}.revertsShape`,
+      code: 'malformed_field',
+      reason: 'a spell either prints "it reverts to its true form" or does not; the only value is true',
+    });
+  }
   if (riders.breaksConcentration !== undefined && riders.breaksConcentration !== true) {
     found.push({
       field: `${path}.breaksConcentration`,
@@ -7926,6 +7944,15 @@ export function checkSpellDefinition(
       field: 'durationSeconds',
       code: 'bad_duration',
       reason: 'a duration of nothing is Instantaneous, which is the absence of one',
+    });
+  }
+
+  // A spell either prints that its target shape-shifts or it does not. (E-L2)
+  if (definition.shapeShifts !== undefined && definition.shapeShifts !== true) {
+    found.push({
+      field: 'shapeShifts',
+      code: 'malformed_field',
+      reason: 'a spell either shape-shifts the creature it is on or does not; the only value is true',
     });
   }
 

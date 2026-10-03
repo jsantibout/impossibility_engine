@@ -1145,13 +1145,10 @@ export const ADJUDICATED: Readonly<Record<string, readonly Adjudication[]>> = {
       note: 'SRD: "The target is also unaffected by anything that would sense its emotions or alignment, read its thoughts, or magically detect its location, and no spell—not even _Wish_—can gather information about the target, observe it remotely, or control its mind." The mind-control half is answered by the Charmed Immunity the definition already grants: every spell in this catalogue that controls a mind does it by imposing that condition. The rest reaches nothing — no emotion, alignment, thought, remote sense or scrying result is a fact this engine holds, and no definition asks for one — so the clause is narration the DM owns rather than debt.',
     },
   ],
-  moonbeam: [
-    {
-      clause: 'a shape-shifted creature reverting to its true form',
-      why: 'a-standing-effect-derived-from-where-a-creature-stands',
-      note: 'W8-S26 re-read this as a debt, because the reason it gave, that shape-shifting is not modelled, stopped being true when Wild Shape and the printed shape-shifters were built. A creature holds a shape now; the failed save should end it, and "can’t shape-shift until it leaves the Cylinder" is a refusal derived from where the creature stands, which is this id. The forced revert rides with it.',
-    },
-  ],
+  // **Moonbeam files nothing now** (E-L2). The revert is `OutcomeRiders.revertsShape`:
+  // a failed save ends whatever shape the creature holds — a Wild Shape, a form
+  // its own block prints, a casting that shape-shifts it (`shapeShifts`) — and
+  // hangs a `forbids.shapeShifting` rule the fold lifts when it leaves the area.
   'phantasmal-killer': [
     {
       clause: 'the Wisdom save at the end of each',

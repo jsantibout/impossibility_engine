@@ -1684,6 +1684,28 @@ export interface OutcomeRiders {
    */
   readonly breaksConcentration?: true;
   /**
+   * SRD Moonbeam: "On a failed save, a creature takes 2d10 Radiant damage, and
+   * **if the creature is shape-shifted** (as a result of the _Polymorph_ spell,
+   * for example), **it reverts to its true form and can't shape-shift until it
+   * leaves the Cylinder**." (E-L2)
+   *
+   * One clause and two halves, and the second is conditional on the first:
+   * only a creature that *was* shape-shifted is barred. What it is shape-shifted
+   * by is read off the creature at the moment the outcome settles — a Wild
+   * Shape it is wearing (the feature ends), a form its own stat block prints
+   * (it takes the true one, the last its line prints), or a running casting on
+   * it whose definition says it shape-shifts its target
+   * ({@link SpellDefinition.shapeShifts}: SRD Gaseous Form, Polymorph — the
+   * casting is released on it). The bar is a `forbids` action rule under this
+   * casting's source, and the fold lifts it the moment the creature is outside
+   * this casting's area, which is the "until it leaves the Cylinder".
+   *
+   * A creature in its own skin loses nothing and is barred from nothing, which
+   * is the silence `breaksConcentration` keeps for a creature holding no
+   * Concentration. `true` is the only value.
+   */
+  readonly revertsShape?: true;
+  /**
    * **When** the riders land, where the book does not land them at the
    * outcome. (W7-S22)
    *
@@ -6041,6 +6063,18 @@ export interface SpellDefinition {
    */
   readonly noVerbalComponent?: true;
   /**
+   * The spell **shape-shifts the creature it is on**: SRD Gaseous Form's "A
+   * willing creature you touch shape-shifts … into a misty cloud", SRD
+   * Polymorph's "shape-shift into a Beast form". (E-L2)
+   *
+   * Read by the two rules that ask whether a creature is shape-shifted, or is
+   * being made to: SRD Moonbeam's revert releases such a casting on the
+   * creature it caught ({@link OutcomeRiders.revertsShape}), and a creature
+   * barred from shape-shifting is refused as such a casting's target. Absent is
+   * every other spell, which shapes nobody.
+   */
+  readonly shapeShifts?: true;
+  /**
    * The damage types this spell prints, where it prints more than one and
    * chooses between them on a fact about the caster.
    *
@@ -9118,6 +9152,10 @@ export function outcomeRidersOf(effect: SpellEffect): OutcomeRiders {
     effect.kind === 'attack' || effect.kind === 'save-damage' || effect.kind === 'save'
       ? effect.drops
       : undefined;
+  // SRD Moonbeam's revert rides the two hosts that carry the riders whole: its
+  // one writer is a `save-damage`. (E-L2)
+  const revertsShape =
+    effect.kind === 'attack' || effect.kind === 'save-damage' ? effect.revertsShape : undefined;
   return {
     ...(conditions.length === 0 ? {} : { conditions }),
     ...(modifiers.length === 0 ? {} : { modifiers }),
@@ -9128,6 +9166,7 @@ export function outcomeRidersOf(effect: SpellEffect): OutcomeRiders {
     ...(breaksConcentration === undefined ? {} : { breaksConcentration }),
     ...(drops === undefined ? {} : { drops }),
     ...(at === undefined ? {} : { at }),
+    ...(revertsShape === undefined ? {} : { revertsShape }),
   };
 }
 
@@ -9149,7 +9188,8 @@ export function hasOutcomeRiders(riders: OutcomeRiders): boolean {
     riders.movement !== undefined ||
     riders.spends !== undefined ||
     riders.light !== undefined ||
-    riders.breaksConcentration !== undefined
+    riders.breaksConcentration !== undefined ||
+    riders.revertsShape !== undefined
   );
 }
 

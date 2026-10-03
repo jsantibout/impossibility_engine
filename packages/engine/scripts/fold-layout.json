@@ -103,6 +103,7 @@
     "raiseAfterMovement",
     "endConditionsLeftBehind",
     "douseStandingFlames",
+    "endShapeBarsLeftBehind",
     "conditionsBoundToTheArea",
     "creaturesThatMoved",
     "raiseCarriedArrivals",
