@@ -379,3 +379,46 @@ describe('a spell a glyph stores: cast "as part of creating the glyph"', () => {
     expect(state.ongoing[castingId]).toBeUndefined();
   });
 });
+
+/**
+ * And a road that does without the gestures throws nothing: SRD Spirit Naga
+ * casts "requiring no Somatic or Material components", so a slowed naga's
+ * Fire Bolt has nothing to fumble — the route's `waives`, read by the same
+ * reader SRD Counterspell's window asks. (E-L1)
+ */
+describe('a casting whose road waives the Somatic component', () => {
+  const byLine = (waives?: readonly ('material' | 'somatic' | 'verbal')[]): readonly GameEvent[] => [
+    ...FIGHT,
+    {
+      type: 'spellcasting-declared',
+      id: WIZARD,
+      spellcasting: declaredCasting({
+        ability: 'int',
+        granted: [
+          {
+            spellId: 'fire-bolt',
+            source: 'printed:naga:spellcasting',
+            ability: 'int',
+            freeCastPool: null,
+            slotCasting: false,
+            atWill: true,
+            ...(waives === undefined ? {} : { waives }),
+          },
+        ],
+      }),
+    },
+  ];
+  const fireBolt = (log: readonly GameEvent[]) => {
+    const state = fold('slow', log);
+    return unwrap(
+      resolveSpell(state, WIZARD, { spellId: 'fire-bolt', targets: [GOBLIN] }, supply(state, faces(10))),
+      'fire bolt',
+    );
+  };
+
+  it('throws no die where the line waives the gestures, and one where it does not', () => {
+    expect(fumbles(fireBolt(byLine(['material', 'somatic'])).events)).toEqual([]);
+    expect(fumbles(fireBolt(byLine(['material'])).events)).toHaveLength(1);
+    expect(fumbles(fireBolt(byLine()).events)).toHaveLength(1);
+  });
+});

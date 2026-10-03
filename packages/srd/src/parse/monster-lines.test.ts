@@ -65,7 +65,7 @@ describe('a line that casts', () => {
       parseCastLine(
         'The mephit casts the _Sleep_ spell, requiring no spell components and using Charisma as the spellcasting ability (spell save DC 10).',
       ),
-    ).toEqual({ spells: ['sleep'], ability: 'cha', saveDc: 10 });
+    ).toEqual({ spells: ['sleep'], ability: 'cha', saveDc: 10, waives: ['material', 'somatic', 'verbal'] });
   });
 
   it('reads a menu, and the ability as the reference the line makes', () => {
@@ -84,7 +84,11 @@ describe('a line that casts', () => {
       parseCastLine(
         'The couatl casts _Bless_, _Lesser Restoration_, or _Sanctuary_, requiring no spell components and using the same spellcasting ability as Spellcasting.',
       ),
-    ).toEqual({ spells: ['bless', 'lesser-restoration', 'sanctuary'], ability: 'spellcasting' });
+    ).toEqual({
+      spells: ['bless', 'lesser-restoration', 'sanctuary'],
+      ability: 'spellcasting',
+      waives: ['material', 'somatic', 'verbal'],
+    });
   });
 
   it('refuses a line whose sentence says more than it casts', () => {
@@ -137,6 +141,7 @@ describe('a line that casts', () => {
       spells: ['detect-thoughts'],
       ability: 'cha',
       saveDc: 12,
+      waives: ['material', 'somatic', 'verbal'],
     });
     expect(lineOf('priest-acolyte', 'Divine Aid (1/Day)').casts).toEqual({
       spells: ['bless', 'healing-word', 'sanctuary'],
@@ -149,6 +154,7 @@ describe('a line that casts', () => {
     expect(lineOf('couatl', 'Divine Aid (2/Day)').casts).toEqual({
       spells: ['bless', 'lesser-restoration', 'sanctuary'],
       ability: 'spellcasting',
+      waives: ['material', 'somatic', 'verbal'],
     });
     expect(lineOf('cultist-fanatic', 'Spiritual Weapon (2/Day)').casts).toEqual({
       spells: ['spiritual-weapon'],
@@ -158,10 +164,12 @@ describe('a line that casts', () => {
       spells: ['sleep'],
       ability: 'cha',
       saveDc: 10,
+      waives: ['material', 'somatic', 'verbal'],
     });
     expect(lineOf('ice-mephit', 'Fog Cloud (1/Day)').casts).toEqual({
       spells: ['fog-cloud'],
       ability: 'cha',
+      waives: ['material', 'somatic', 'verbal'],
     });
   });
 
@@ -174,11 +182,13 @@ describe('a line that casts', () => {
       spells: ['darkness', 'faerie-fire', 'web'],
       ability: 'wis',
       saveDc: 14,
+      waives: ['material'],
     });
     expect(lineOf('stone-golem', 'Slow (Recharge 5–6)').casts).toEqual({
       spells: ['slow'],
       ability: 'con',
       saveDc: 17,
+      waives: ['material', 'somatic', 'verbal'],
     });
   });
 
@@ -199,12 +209,17 @@ describe('a line that casts', () => {
       parseCastLine(
         'The sprite casts _Invisibility_ on itself, requiring no spell components and using Charisma as the spellcasting ability.',
       ),
-    ).toEqual({ spells: ['invisibility'], ability: 'cha', selfOnly: true });
+    ).toEqual({ spells: ['invisibility'], ability: 'cha', selfOnly: true, waives: ['material', 'somatic', 'verbal'] });
     expect(
       parseCastLine(
         'The oni casts _Invisibility_ on itself, requiring no spell components and using the same spellcasting ability as Spellcasting.',
       ),
-    ).toEqual({ spells: ['invisibility'], ability: 'spellcasting', selfOnly: true });
+    ).toEqual({
+      spells: ['invisibility'],
+      ability: 'spellcasting',
+      selfOnly: true,
+      waives: ['material', 'somatic', 'verbal'],
+    });
   });
 
   /**
@@ -218,21 +233,25 @@ describe('a line that casts', () => {
       spells: ['invisibility'],
       ability: 'cha',
       selfOnly: true,
+      waives: ['material', 'somatic', 'verbal'],
     });
     expect(lineOf('quasit', 'Invisibility').casts).toEqual({
       spells: ['invisibility'],
       ability: 'cha',
       selfOnly: true,
+      waives: ['material', 'somatic', 'verbal'],
     });
     expect(lineOf('sprite', 'Invisibility').casts).toEqual({
       spells: ['invisibility'],
       ability: 'cha',
       selfOnly: true,
+      waives: ['material', 'somatic', 'verbal'],
     });
     expect(lineOf('oni', 'Invisibility').casts).toEqual({
       spells: ['invisibility'],
       ability: 'spellcasting',
       selfOnly: true,
+      waives: ['material', 'somatic', 'verbal'],
     });
   });
 
@@ -245,6 +264,59 @@ describe('a line that casts', () => {
     expect(
       parseCastLine(
         'The imp casts _Invisibility_ on another creature, requiring no spell components and using Charisma as the spellcasting ability.',
+      ),
+    ).toBeNull();
+  });
+});
+
+/**
+ * "Requiring no spell components", read rather than dropped (E-L1).
+ *
+ * SRD Counterspell is a Reaction taken "when you see a creature within 60
+ * feet of yourself casting a spell with Verbal, Somatic, or Material
+ * components", and SRD Slow's failure reads a Somatic component — so what a
+ * casting does without is a fact two rules read, and the parser carries it as
+ * the components the line waives. Three wordings in the book, one field.
+ */
+describe('the components a line does without', () => {
+  it('reads "no spell components" as all three', () => {
+    expect(
+      parseCastLine(
+        'The mephit casts the _Sleep_ spell, requiring no spell components and using Charisma as the spellcasting ability (spell save DC 10).',
+      ),
+    ).toEqual({
+      spells: ['sleep'],
+      ability: 'cha',
+      saveDc: 10,
+      waives: ['material', 'somatic', 'verbal'],
+    });
+  });
+
+  it('reads a line that names the ones it waives', () => {
+    expect(
+      parseCastLine(
+        'The imp casts _Invisibility_ on itself, requiring no Somatic or Material components and using Charisma as the spell-casting ability.',
+      )?.waives,
+    ).toEqual(['material', 'somatic']);
+    expect(
+      parseCastLine(
+        'While within 30 feet of at least two hag allies, the hag can cast one of the following spells, requiring no Material components, using the spell’s normal casting time, and using Intelligence as the spellcasting ability (spell save DC 11): _Augury_, _Find Familiar_, _Identify_, _Locate Object_, _Scrying_, or _Unseen Servant_. The hag must finish a Long Rest before using this trait to cast that spell again.',
+      )?.waives,
+    ).toEqual(['material']);
+  });
+
+  it('carries nothing for a line that prints no such clause', () => {
+    expect(
+      parseCastLine(
+        'The priest casts _Bless, Dispel Magic, Healing Word,_ or _Lesser Restoration,_ using the same spellcasting ability as Spellcasting.',
+      ),
+    ).not.toHaveProperty('waives');
+  });
+
+  it('refuses a clause naming something that is not a component', () => {
+    expect(
+      parseCastLine(
+        'The mephit casts the _Sleep_ spell, requiring no costly components and using Charisma as the spellcasting ability (spell save DC 10).',
       ),
     ).toBeNull();
   });
@@ -1622,6 +1694,7 @@ describe('regeneration, forms, coven magic and splits — W7-B12', () => {
       alliesWithin: { count: 2, feet: 30, kind: 'hag' },
       eachSpellOncePer: 'long-rest',
       ownCastingTime: true,
+      waives: ['material'],
     });
     expect(lineOf('green-hag', 'Coven Magic').casts).toEqual(coven(11));
     expect(lineOf('night-hag', 'Coven Magic').casts).toEqual(coven(14));

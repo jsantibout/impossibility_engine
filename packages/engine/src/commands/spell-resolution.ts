@@ -54,7 +54,7 @@ import {
   quantityOf,
 } from './inventory.js';
 import { type GrantedActionRule, spendAction, spendBonusAction, spendReaction } from '../combat.js';
-import { type Content, hasComponent, type SpellEntry } from '../content.js';
+import { castsWithComponent, type Content, type SpellComponent, type SpellEntry } from '../content.js';
 import { type CommandIdentity, commandOutcome, once } from '../idempotency.js';
 import {
   type Ability,
@@ -127,7 +127,7 @@ import {
   castingTimeOf,
   type SequencedBurst,
 } from '../spell-definitions.js';
-import { castsAtWill, type CastingRoute } from '../spellcasting.js';
+import { castsAtWill, type CastingRoute, componentsWaivedBy } from '../spellcasting.js';
 import {
   castingNumber,
   castingSource,
@@ -525,7 +525,13 @@ export function resolveDeclaredCast(
       castingId: pending.castingId,
       name: definition.name,
       supply,
-      exempt: pending.numbers !== undefined || pending.subtle === true,
+      exempt: pending.subtle === true,
+      // An item's casting (the record carries its numbers) requires no
+      // components; a stat block's line waives what it prints. (E-L1)
+      waived:
+        pending.numbers !== undefined
+          ? new Set(['material', 'somatic', 'verbal'] as const)
+          : componentsWaivedBy(chosen.value),
     });
     if (!fumbled.ok) return fumbled;
     events.push(...fumbled.value.events);
@@ -549,6 +555,7 @@ export function resolveDeclaredCast(
           name: storing.value!.definition.name,
           supply,
           exempt: false,
+          waived: componentsWaivedBy(storing.value!.route),
         },
       );
       if (!storedFumble.ok) return storedFumble;
@@ -2396,11 +2403,16 @@ function worstCastingChance(
   state: GameState,
   casterId: CharacterId,
   entry: SpellEntry | null,
+  waived: ReadonlySet<SpellComponent>,
 ): { readonly held: GrantedActionRule; readonly percent: number } | null {
   let worst: { readonly held: GrantedActionRule; readonly percent: number } | null = null;
   for (const held of actionRulesOn(state, casterId)) {
     const rule = held.rule;
-    if (rule.kind !== 'casting-chance' || !hasComponent(entry, rule.component)) continue;
+    // The component **this casting** has — a stat block that casts "requiring
+    // no Somatic or Material components" makes no gestures to fumble. (E-L1)
+    if (rule.kind !== 'casting-chance' || !castsWithComponent(entry, rule.component, waived)) {
+      continue;
+    }
     if (worst === null || rule.percent > worst.percent) worst = { held, percent: rule.percent };
   }
   return worst;
@@ -2415,8 +2427,9 @@ export function casterOwesTheDie(
   state: GameState,
   casterId: CharacterId,
   entry: SpellEntry | null,
+  waived: ReadonlySet<SpellComponent>,
 ): boolean {
-  return worstCastingChance(state, casterId, entry) !== null;
+  return worstCastingChance(state, casterId, entry, waived) !== null;
 }
 
 /**
@@ -2468,11 +2481,13 @@ export function castingFailure(
     readonly name: string;
     readonly supply: Supply;
     readonly exempt: boolean;
+    /** What the road the casting went by waives — see `componentsWaivedBy`. */
+    readonly waived: ReadonlySet<SpellComponent>;
     readonly bracketed?: true;
   },
 ): Result<{ readonly events: readonly GameEvent[]; readonly failed: boolean }> {
   if (casting.exempt) return ok({ events: [], failed: false });
-  const worst = worstCastingChance(state, casterId, entry);
+  const worst = worstCastingChance(state, casterId, entry, casting.waived);
   if (worst === null) return ok({ events: [], failed: false });
 
   const { supply } = casting;
@@ -3279,6 +3294,17 @@ function resolveOnTargets(
     return ok({ events, castingId: null, outcomes: [], unverified: [] });
   }
 
+  // **What this casting is made with**, by the book and by the road it goes:
+  // the entry's components less what the route waives — a stat block's
+  // "requiring no spell components", an item's casting, which "requires no
+  // components". SRD Silence reads the Verbal one, SRD Counterspell's window
+  // reads whether any is left, and SRD Slow's failure reads the Somatic one.
+  // (E-L1)
+  const waived = componentsWaivedBy(route);
+  const componentless = !(['verbal', 'somatic', 'material'] as const).some((component) =>
+    castsWithComponent(supply.content.spellEntry(definition.id), component, waived),
+  );
+
   // The identity is the wrapper's: `castOrRelease` established it over the
   // request the caller actually sent, and a second `identify` here would
   // fingerprint this derived command instead and refuse every honest retry.
@@ -3371,8 +3397,12 @@ function resolveOnTargets(
       // up, because `castSpell` holds a spell's *name* and no definition; and
       // **the casting's** answer rather than the book's, because SRD Subtle
       // Spell casts "without any Verbal, Somatic, or Material components" and
-      // a casting that bought it has none whatever the entry prints.
-      ...(definition.noVerbalComponent === true || altered.resolving.subtle !== undefined
+      // a casting that bought it has none whatever the entry prints. **And a
+      // casting whose road waives it** — a stat block's "requiring no spell
+      // components", an item's casting — has none either. (E-L1)
+      ...(definition.noVerbalComponent === true ||
+      altered.resolving.subtle !== undefined ||
+      waived.has('verbal')
         ? { noVerbalComponent: true as const }
         : {}),
       ...(request.slotless === undefined ? {} : { slotless: request.slotless }),
@@ -3449,6 +3479,9 @@ function resolveOnTargets(
                 ? {}
                 : { saveModes: alters.saveModes }),
               ...(altered.resolving.subtle === undefined ? {} : { subtle: true as const }),
+              // And a casting with no component left by the road it went —
+              // see `PendingCasting.componentless`. (E-L1)
+              ...(componentless ? { componentless: true as const } : {}),
               // The bare value, not the pair: a settlement re-reads the whole
               // definition anyway, so the half it cannot work out again is the
               // caster's answer and nothing else.
@@ -3522,7 +3555,8 @@ function resolveOnTargets(
       castingId,
       name: definition.name,
       supply,
-      exempt: route.kind === 'item' || altered.resolving.subtle !== undefined,
+      exempt: altered.resolving.subtle !== undefined,
+      waived,
     });
     if (!fumbled.ok) return fumbled;
     events.push(...fumbled.value.events);
@@ -3552,6 +3586,7 @@ function resolveOnTargets(
         name: context.storing.definition.name,
         supply,
         exempt: false,
+        waived: componentsWaivedBy(context.storing.route),
       },
     );
     if (!storedFumble.ok) return storedFumble;

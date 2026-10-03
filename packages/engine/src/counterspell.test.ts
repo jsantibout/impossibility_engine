@@ -911,20 +911,21 @@ describe('the trigger clause, checked against what the SRD actually says', () =>
   });
 
   /**
-   * The one clause this definition does not check, pinned so that the reason
-   * it is safe cannot quietly stop being true.
+   * The components clause, and where its answer comes from.
    *
    * SRD Counterspell triggers on "casting a spell with Verbal, Somatic, or
    * Material components". Every spell in SRD 5.2.1 has at least one of the
-   * three, so the qualifier excludes nothing the engine can be asked about —
-   * which is why no field models it whose only reachable value is "yes".
+   * three — pinned here, so the day the data stops saying it something goes
+   * red — and so a class casting always opens the window.
    *
-   * **Safe for spells, and not for stat blocks** (W8-S26): seventeen SRD
-   * blocks cast "requiring no spell components", and a casting of theirs
-   * opens the window all the same. So the clause is a debt the definition
-   * reports in `unmodelled`, and this test holds both halves.
+   * **The answer is the casting's** (E-L1): seventeen SRD blocks cast
+   * "requiring no spell components" and an item's spell "requires no
+   * components", and those castings are pinned `componentless` and open no
+   * window — `counterspell-components.test.ts` drives that half. This one
+   * holds the other: an ordinary casting still opens it, and nothing about
+   * the clause is left unverified.
    */
-  it('is safe to leave the components clause unchecked, and says so', () => {
+  it('reads the components clause off the casting, and an ordinary casting has some', () => {
     const spells = JSON.parse(
       readFileSync(
         fileURLToPath(new URL('../../srd/src/generated/spells.json', import.meta.url)),
@@ -938,7 +939,7 @@ describe('the trigger clause, checked against what the SRD actually says', () =>
     expect(withoutComponents.map((s) => s.name)).toEqual([]);
     expect(spells).toHaveLength(339);
 
-    // And the gap reaches the narrating layer rather than a docstring.
+    // And an ordinary casting is answered, with nothing left to confess.
     const open = unwrap(declareHoldPerson(TABLE), 'declare');
     const countered = unwrap(
       resolveSpell(
@@ -949,7 +950,8 @@ describe('the trigger clause, checked against what the SRD actually says', () =>
       ),
       'counterspell',
     );
-    expect(countered.unverified.join(' ')).toContain('Verbal, Somatic, or Material');
+    expect(countered.unverified.join(' ')).not.toContain('Verbal, Somatic, or Material');
+    expect(fold('s', [...TABLE, ...open.events]).pendingCastings[open.castingId!]?.componentless).toBeUndefined();
   });
 
 });

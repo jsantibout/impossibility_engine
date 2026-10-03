@@ -1924,6 +1924,19 @@ export const MonsterSpellSchema = z.object({
 export type MonsterSpell = z.infer<typeof MonsterSpellSchema>;
 
 /**
+ * One component a printed casting does without, by the engine's own name.
+ *
+ * "requiring no **spell** components" is all three; "requiring no Material
+ * components" and "requiring no Somatic or Material components" name the ones
+ * they waive. **Carried, because two rules read it** (E-L1): SRD Counterspell's
+ * window opens on "a creature … casting a spell with Verbal, Somatic, or
+ * Material components", and SRD Slow's failure reads a Somatic one. A list in
+ * alphabetical order, never empty; absent where the line prints no clause.
+ */
+export const SpellComponentWaivedSchema = z.enum(['material', 'somatic', 'verbal']);
+export type SpellComponentWaived = z.infer<typeof SpellComponentWaivedSchema>;
+
+/**
  * The Spellcasting line a stat block prints, read whole.
  *
  * "The cultist casts one of the following spells, using Wisdom as the
@@ -1953,6 +1966,8 @@ export const MonsterSpellcastingSchema = z.object({
   /** "+4 to hit with spell attacks", where the line prints it. */
   attackBonus: z.number().int().optional(),
   spells: z.array(MonsterSpellSchema).min(1),
+  /** The components the line's castings do without — see {@link SpellComponentWaivedSchema}. */
+  waives: z.array(SpellComponentWaivedSchema).min(1).optional(),
 });
 export type MonsterSpellcasting = z.infer<typeof MonsterSpellcastingSchema>;
 
@@ -1979,9 +1994,11 @@ export type MonsterSpellcasting = z.infer<typeof MonsterSpellcastingSchema>;
  * resolving it (or refusing to) is the engine's, not this reader's. A line
  * that states an ability outright states it here.
  *
- * **"Requiring no spell components" is dropped on purpose.** The engine models
- * no components, so the clause changes nothing it could check; it is fiction
- * the narrating layer already has in the sentence it is handed.
+ * **"Requiring no spell components" is carried** as {@link waives} (E-L1). It
+ * was dropped while the engine modelled no components; it models a spell's
+ * components now (`SpellEntry.components`), SRD Counterspell's window and SRD
+ * Slow's failure both read them, and this is the line saying a casting through
+ * it has fewer.
  */
 export const MonsterCastLineSchema = z.object({
   /**
@@ -2070,6 +2087,11 @@ export const MonsterCastLineSchema = z.object({
    * route states no casting time of its own and the spell's stands.
    */
   ownCastingTime: z.literal(true).optional(),
+  /**
+   * "requiring no spell components" — the components this line's castings do
+   * without. See {@link SpellComponentWaivedSchema}. (E-L1)
+   */
+  waives: z.array(SpellComponentWaivedSchema).min(1).optional(),
 });
 export type MonsterCastLine = z.infer<typeof MonsterCastLineSchema>;
 

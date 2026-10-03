@@ -128,13 +128,21 @@ describe('the preamble', () => {
     expect(acolyte.attackBonus).toBeUndefined();
   });
 
-  it('reads the component clause the book varies and carries none of it', () => {
+  it('reads the component clause the book varies, and carries what it waives', () => {
     // "requiring no Material components", "requiring no spell components",
     // "requiring no Somatic or Material components" — three wordings of a
-    // clause that says what the casting does *not* need, and the engine asks
-    // for no components at all.
-    expect(castingOf('dryad')).toMatchObject({ ability: 'cha', saveDc: 14 });
-    expect(castingOf('couatl')).toMatchObject({ ability: 'wis', saveDc: 15 });
+    // clause that says what the casting does *not* need. SRD Counterspell's
+    // window and SRD Slow's failure both read a casting's components, so the
+    // clause is a fact a rule reads and is carried (E-L1).
+    expect(castingOf('dryad')).toMatchObject({ ability: 'cha', saveDc: 14, waives: ['material'] });
+    expect(castingOf('couatl')).toMatchObject({
+      ability: 'wis',
+      saveDc: 15,
+      waives: ['material', 'somatic', 'verbal'],
+    });
+    expect(castingOf('spirit-naga')?.waives).toEqual(['material', 'somatic']);
+    // A block that prints no clause waives nothing.
+    expect(castingOf('priest-acolyte')).not.toHaveProperty('waives');
   });
 });
 

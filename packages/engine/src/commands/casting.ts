@@ -310,7 +310,14 @@ export function answeredCasting(
   // down. One reading, two readers: `reactionOpportunities` skips exactly these
   // records, so a caller is never offered a window this function would then
   // close.
-  const open = pendingCastingsOf(state).filter((casting) => casting.subtle !== true);
+  //
+  // **Nor is a casting made with no component left** — SRD Counterspell's
+  // "casting a spell with Verbal, Somatic, or Material components", against a
+  // Dust Mephit's "requiring no spell components" or a wand's casting. The
+  // same filter at both readers, for the same reason. (E-L1)
+  const open = pendingCastingsOf(state).filter(
+    (casting) => casting.subtle !== true && casting.componentless !== true,
+  );
   if (open.length === 0) {
     return err(
       'no_trigger',
@@ -750,6 +757,8 @@ export interface CastingPlan {
    * `PendingCasting.subtle`.
    */
   readonly subtle?: true;
+  /** Made with no component left — see `PendingCasting.componentless`. (E-L1) */
+  readonly componentless?: true;
   /**
    * Where a teleporting spell puts its target.
    *
@@ -1232,6 +1241,9 @@ function castSpellWith(
         // Counterspell window respectively read off the record.
         ...(command.hold.saveModes === undefined ? {} : { saveModes: command.hold.saveModes }),
         ...(command.hold.subtle === undefined ? {} : { subtle: command.hold.subtle }),
+        ...(command.hold.componentless === undefined
+          ? {}
+          : { componentless: command.hold.componentless }),
         // And where the teleport goes, which is the one fact a settlement
         // could not possibly work out again.
         ...(command.hold.teleportTo === undefined ? {} : { teleportTo: command.hold.teleportTo }),

@@ -2701,6 +2701,9 @@ function printedSpellcasting(monster: Monster): {
     ...(spell.usesPerDay === undefined ? { atWill: true as const } : {}),
     ...numbers,
     ...(spell.handOver === undefined ? {} : { handOver: spell.handOver }),
+    // "requiring no spell components" — what every casting off this list does
+    // without, which SRD Counterspell's window reads. (E-L1)
+    ...(printed.waives === undefined ? {} : { waives: printed.waives }),
   }));
 
   const spellPools = printed.spells
@@ -2870,6 +2873,9 @@ function printedCastLines(
           slotCasting: false,
           ...(restPool === null ? { atWill: true as const } : {}),
           ...numbers,
+          // And what the line's castings do without — the Dust Mephit's "no
+          // spell components", the hags' "no Material components". (E-L1)
+          ...(printed.waives === undefined ? {} : { waives: printed.waives }),
         });
       }
     }

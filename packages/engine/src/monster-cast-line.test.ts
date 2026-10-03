@@ -182,6 +182,9 @@ describe('the adapter compiles a cast line into the route it is', () => {
         freeCastPool: null,
         slotCasting: false,
         atWill: true,
+        // "requiring no spell components" — all three, which SRD
+        // Counterspell's window reads. (E-L1)
+        waives: ['material', 'somatic', 'verbal'],
       },
     ]);
     // The block prints no Spellcasting line at all, so the creature's
@@ -465,8 +468,14 @@ describe('the rest of the book’s cast lines', () => {
     // recharge and no count.
     expect(after.creatures[IMP]!.expendedLines).toEqual([]);
     expect(tallied(after.creatures[IMP]!.resources, perDayTallyKey(IMP_INVISIBILITY))).toBe(0);
-    // And the components clause is said out loud rather than enforced.
-    expect(cast.unverified.join(' ')).toContain('models no components');
+    // And the components clause is read rather than confessed: the casting
+    // waives all three, so it is made with nothing to see or hear and
+    // nothing is left unverified about it. (E-L1)
+    expect(cast.unverified.join(' ')).not.toContain('components');
+    expect(
+      after.creatures[IMP]!.spellcasting.granted.find((grant) => grant.spellId === 'invisibility')!
+        .waives,
+    ).toEqual(['material', 'somatic', 'verbal']);
 
     const somebodyElse = castPrintedLine(
       table.state,

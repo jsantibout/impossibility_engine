@@ -2,6 +2,7 @@ import type { Ability } from '@ie/shared';
 import type { SlotKind } from './resources.js';
 import type { CastingNumbers, CastingTime } from './spells.js';
 import type { StandingRequirement } from './standing.js';
+import type { SpellComponent } from './content.js';
 
 /**
  * What a creature can actually cast, and by what route.
@@ -202,6 +203,34 @@ export interface GrantedSpell {
    * holder likes.
    */
   readonly throughLine?: string;
+  /**
+   * The components a casting through this route does without.
+   *
+   * SRD Dust Mephit: "The mephit casts the _Sleep_ spell, **requiring no spell
+   * components**"; SRD Drider: "requiring no **Material** components". The
+   * stat block's line, carried by the parser and compiled onto every route the
+   * line opens. SRD Counterspell's window reads what is left — a casting with
+   * nothing to see or hear opens none — and so does SRD Slow's failure, which
+   * a casting that waives its Somatic component never throws. Sorted, never
+   * empty; absent is every route that waives nothing. (E-L1)
+   */
+  readonly waives?: readonly SpellComponent[];
+}
+
+/**
+ * The components a casting by this route does without — see
+ * {@link GrantedSpell.waives}.
+ *
+ * **An item's casting waives all three.** SRD "Spells Cast from Items": the
+ * spell "requires no components unless the item's description notes
+ * otherwise", and no SRD item notes otherwise. A class's route waives nothing:
+ * the book's components are the spell's. (E-L1)
+ */
+export function componentsWaivedBy(route: CastingRoute | null): ReadonlySet<SpellComponent> {
+  if (route === null) return new Set();
+  if (route.kind === 'item') return new Set(['material', 'somatic', 'verbal'] as const);
+  if (route.kind === 'granted') return new Set(route.grant.waives ?? []);
+  return new Set();
 }
 
 /** One class's half of a creature's spellcasting, on that class's terms. */

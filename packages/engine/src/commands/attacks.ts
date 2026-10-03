@@ -152,7 +152,7 @@ import {
 import { creatureOf, unknownCreature } from './command.js';
 import { numbersFor, routeLabel } from './item-casting.js';
 import { remaining } from '../resources.js';
-import type { CastingRoute } from '../spellcasting.js';
+import { type CastingRoute, componentsWaivedBy } from '../spellcasting.js';
 import { landDamage, statedFrom } from './damage.js';
 import {
   CLEAVE_REACH,
@@ -2379,6 +2379,7 @@ export function resolveAttack(
           name: castWithIt.definition.name,
           supply,
           exempt: false,
+          waived: componentsWaivedBy(castWithIt.route),
           bracketed: true,
         },
       );
@@ -4272,6 +4273,7 @@ function castOnHit(
     name: definition.name,
     supply,
     exempt: false,
+    waived: componentsWaivedBy(route),
   });
   if (!fumbled.ok) return fumbled;
   if (fumbled.value.failed) {

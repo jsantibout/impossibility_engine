@@ -145,6 +145,7 @@ import { actorRefusal, mayAct } from './holds.js';
 import { teleportTo } from './teleport.js';
 import { type MoveResolution, moveWithin } from './movement.js';
 import { casterOwesTheDie, castingFailure, castOrRelease } from './spell-resolution.js';
+import { componentsWaivedBy } from '../spellcasting.js';
 import {
   aimedIdentity,
   type AimedRolls,
@@ -3530,14 +3531,11 @@ export function castPrintedLine(
         outcomes: cast.value.outcomes,
         unverified: [
           ...cast.value.unverified,
-          // The one clause of the sentence the engine read and models nothing
-          // of, said out loud at the moment of use rather than dropped at the
-          // door — the discipline a spell's own unmodelled lines already keep.
-          ...(/requiring no [A-Za-z ]+ components/.test(line.text)
-            ? [
-                `${line.name}: "requiring no spell components" — the engine models no components at all, so the clause changes nothing it could check`,
-              ]
-            : []),
+          // "requiring no spell components" used to be said out loud here as
+          // the one clause nothing read. It is read now — the route waives what
+          // the line prints, and SRD Counterspell's window and SRD Slow's
+          // failure ask (`GrantedSpell.waives`, E-L1) — so there is nothing to
+          // confess.
           // And the clause the heading printed that the engine could not gate
           // on — W7-B11.
           ...(unenforcedRequirementOf(line) === null ? [] : [unenforcedRequirementOf(line)!]),
@@ -3713,14 +3711,9 @@ function castThroughTrait(
     events,
     castingId: cast.value.castingId,
     outcomes: cast.value.outcomes,
-    unverified: [
-      ...cast.value.unverified,
-      ...(/requiring no [A-Za-z ]+ components/.test(line.text)
-        ? [
-            `${line.name}: "requiring no Material components" — the engine models no components at all, so the clause changes nothing it could check`,
-          ]
-        : []),
-    ],
+    // The components clause is read now — see `GrantedSpell.waives` — so it is
+    // no longer confessed here. (E-L1)
+    unverified: [...cast.value.unverified],
     duplicate: false,
   });
 }
@@ -5089,7 +5082,8 @@ function holdSpell(
   // **The gestures are made now**, because the spell is cast now — SRD Slow's
   // 25 percent, asked after the slot is spent and before anything is held.
   // The die is `castingFailure`'s, the one every casting road throws. (E-L1)
-  const owes = casterOwesTheDie(state, id, content.spellEntry(definition.id));
+  const waived = componentsWaivedBy(route);
+  const owes = casterOwesTheDie(state, id, content.spellEntry(definition.id), waived);
   if (owes && dice === undefined) {
     throw new Error(
       `takeReady: ${id}'s readied ${definition.name} owes a die to a casting-chance rule, and the caller passed no dice`,
@@ -5101,6 +5095,7 @@ function holdSpell(
         name: definition.name,
         supply: { ...dice!, content },
         exempt: false,
+        waived,
       })
     : ok({ events: [] as readonly GameEvent[], failed: false });
   if (!fumbled.ok) return fumbled;

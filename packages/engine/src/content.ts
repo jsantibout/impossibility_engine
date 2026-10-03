@@ -150,6 +150,26 @@ export function hasComponent(entry: SpellEntry | null, component: SpellComponent
   return component !== 'material';
 }
 
+/**
+ * Whether **this casting** of the spell has the component: the entry prints
+ * it and the road the casting went by does not waive it.
+ *
+ * SRD Dust Mephit: "The mephit casts the _Sleep_ spell, **requiring no spell
+ * components**"; SRD "Spells Cast from Items": the spell "requires no
+ * components unless the item's description notes otherwise". The book's
+ * components are a fact about the spell and these are facts about one way of
+ * casting it, so the reader takes both — see `componentsWaivedBy` — and SRD
+ * Counterspell's window and SRD Slow's failure ask it rather than the entry
+ * alone. (E-L1)
+ */
+export function castsWithComponent(
+  entry: SpellEntry | null,
+  component: SpellComponent,
+  waived: ReadonlySet<SpellComponent>,
+): boolean {
+  return hasComponent(entry, component) && !waived.has(component);
+}
+
 /** Everything a catalogue may contribute. Every field is optional and additive. */
 export interface ContentInput {
   readonly spells?: readonly SpellDefinition[];

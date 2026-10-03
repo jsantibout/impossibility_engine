@@ -2089,6 +2089,24 @@ export interface PendingCasting {
    */
   readonly subtle?: true;
   /**
+   * Whether this casting is made with no component at all, by the road it
+   * went by rather than by an option bought.
+   *
+   * SRD Counterspell is taken "when you see a creature … casting a spell with
+   * Verbal, Somatic, or Material components". A Dust Mephit's Sleep is cast
+   * "requiring no spell components" and a wand's Fireball "requires no
+   * components" (SRD "Spells Cast from Items"), so neither offers the window.
+   * Worked out at the declaration, with the spell's entry and the route in
+   * hand — `castsWithComponent` over `componentsWaivedBy` — and pinned here
+   * because the window reads the record and no catalogue. Beside
+   * {@link subtle} and read by the same two readers; kept apart because Subtle
+   * Spell is bought and pays for more than this. (E-L1)
+   *
+   * Absent for every casting that has a component left, which is every one
+   * written before the field.
+   */
+  readonly componentless?: true;
+  /**
    * Where a teleporting spell puts its target.
    *
    * The fourth stated fact, beside the other three and for the same reason:

@@ -311,13 +311,17 @@ export const ACID_ARROW: SpellDefinition = {
  * counterspeller's spell save DC, which is why this is an effect aimed at a
  * target rather than a roll the caster makes.
  *
- * The one clause not modelled is the components qualifier, and it is worth
- * saying why rather than quietly checking nothing: **all 339 SRD 5.2.1 spells
- * have at least one of Verbal, Somatic or Material**, so the clause excludes
- * nothing the engine can currently be asked about, and a creature casting by
- * some means the engine has not been told the components of is an unknown
- * rather than a no. `counterspell.test.ts` pins that count, so the day the
- * data stops saying it, something goes red.
+ * **The components qualifier is checked, and it is the casting's rather than
+ * the book's.** All 339 SRD 5.2.1 spells print at least one of Verbal, Somatic
+ * or Material — `counterspell.test.ts` pins that count — but a casting may
+ * still be made with none: seventeen stat blocks cast "requiring no spell
+ * components" (a Dust Mephit's Sleep, an Imp's Invisibility), and SRD "Spells
+ * Cast from Items" says an item's spell "requires no components". The route a
+ * casting goes by says what it waives (`GrantedSpell.waives`, carried off the
+ * parsed line; every component, for an item), the declaration pins
+ * `componentless` where nothing is left, and the window does not open on it —
+ * the reading SRD Subtle Spell already took. A line that waives only the
+ * Material component still opens it. (E-L1)
  */
 export const COUNTERSPELL: SpellDefinition = {
   id: 'counterspell',
@@ -334,14 +338,9 @@ export const COUNTERSPELL: SpellDefinition = {
   requiresSight: true,
   targets: { count: 1 },
   effects: [{ kind: 'interrupt-casting', ability: 'con' }],
-  // **A debt, and the reading that called it safe was half right** (W8-S26,
-  // on review). Every SRD 5.2.1 spell prints a component, which
-  // `counterspell.test.ts` (engine) still proves; but seventeen stat blocks
-  // cast "requiring no spell components" — a Giant Owl's Clairvoyance, a
-  // Couatl's Sleep — and a casting of theirs opens the window all the same.
-  unmodelled: [
-    'the trigger reads "casting a spell with Verbal, Somatic, or Material components", and the qualifier is not checked: every SRD 5.2.1 spell prints one of the three, but a stat block that casts "requiring no spell components" — a Giant Owl’s Clairvoyance, a Couatl’s Sleep — opens the window where the book gives none',
-  ],
+  // "casting a spell with Verbal, Somatic, or Material components" — read off
+  // the casting: a stat block's "requiring no spell components" and an item's
+  // casting leave nothing to see or hear, and open no window. (E-L1)
 };
 
 /**
