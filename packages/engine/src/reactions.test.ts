@@ -1710,6 +1710,32 @@ describe('Retaliation', () => {
     expect(taken?.type === 'reaction-taken' ? taken.against : null).toBe(THUG);
   });
 
+  /**
+   * SRD Sanctuary on the creature that dealt the damage (E-L1). The swing is
+   * forced at "that creature", so the ward's new target is no choice here and
+   * nobody is asked: a failed save loses it, and the Reaction is spent.
+   */
+  it('loses the swing to a ward on the creature that dealt the damage, without asking', () => {
+    const g = hurt(new Game(table()));
+    g.push([
+      {
+        type: 'passive-defense-granted',
+        id: THUG,
+        defense: { source: 'Sanctuary#cast:99', defense: { kind: 'ward', ability: 'wis', dc: 99 } },
+      },
+    ]);
+    const before = g.state.creatures[THUG]!.vitals.hp;
+    const out = unwrap(
+      takeDamageResponse(g.state, GRIM, { feature: 'berserker:retaliation', weapon: 'greataxe' }, supply('swing')),
+      'retaliate',
+    );
+    g.push(out.events);
+    expect(out.warded).toBe(true);
+    expect(out.attack).toBeNull();
+    expect(g.state.creatures[THUG]!.vitals.hp).toBe(before);
+    expect(g.reaction(GRIM)).toBe(false);
+  });
+
   /** SRD: "**within 5 feet** of you". */
   it('refuses a creature further than five feet away', () => {
     const g = hurt(new Game(table(20)));

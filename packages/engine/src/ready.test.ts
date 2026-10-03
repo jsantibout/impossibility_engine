@@ -400,6 +400,47 @@ describe('a readied Concentration spell keeps concentrating', () => {
     );
     expect(castingTimers(fold('seed', [...log, ...released.events])).length).toBe(1);
   });
+
+  /**
+   * A release a ward turned away ended under the ward (SRD Sanctuary, E-L1),
+   * so it starts no clock: a deadline on a casting that is not running is the
+   * stale timer `fold/release.ts` exists to prevent.
+   */
+  it('starts no duration for a release a ward turned away', () => {
+    // The cultist within the archer's reach, for the Touch the spell needs.
+    const toucher: readonly GameEvent[] = [
+      ...SETUP.filter(
+        (e) => e.type !== 'spellcasting-declared' && !(e.type === 'creature-placed' && e.id === CULTIST),
+      ),
+      { type: 'creature-placed', id: CULTIST, placement: { from: { creature: ARCHER }, feet: 5, bearing: 0 } },
+      {
+        type: 'resource-pool-declared',
+        id: ARCHER,
+        pool: { key: spellSlotKey(3), label: 'level 3 spell slot', max: 1, recovers: 'long-rest' },
+      },
+      {
+        type: 'spellcasting-declared',
+        id: ARCHER,
+        spellcasting: declaredCasting({ ability: 'int', prepared: ['vampiric-touch'] }),
+      },
+    ];
+    const log: readonly GameEvent[] = [
+      ...nextTurn(ready({ kind: 'spell', spellId: 'vampiric-touch', slotLevel: 3 }, toucher)),
+      {
+        type: 'passive-defense-granted',
+        id: CULTIST,
+        defense: { source: 'Sanctuary#cast:99', defense: { kind: 'ward', ability: 'wis', dc: 99 } },
+      },
+    ];
+    const released = unwrap(
+      releaseReady(fold('seed', log), ARCHER, { targets: [CULTIST], ifWarded: 'lose' }, supply('touch')),
+      'release',
+    );
+    expect(released.spell?.warded).toBe(true);
+    const after = fold('seed', [...log, ...released.events]);
+    expect(Object.keys(after.ongoing)).toEqual([]);
+    expect(castingTimers(after)).toEqual([]);
+  });
 });
 
 describe('a readied spell whose slot buys "until dispelled" schedules no deadline', () => {

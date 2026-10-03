@@ -7585,3 +7585,40 @@ describe('Speed is read through one reader', () => {
     expect(circularSpeedGrants([armoured])).toEqual([]);
   });
 });
+
+/**
+ * SRD Sanctuary in front of a familiar's swing (E-L1, the owner's ruling of
+ * 2026-10-03). Pact of the Chain's caller chose the target, so the caller
+ * states what the swing does if a ward turns it away, through
+ * `SummonsAttackCommand.ifWarded`. Asked for when it is missing, and lost when
+ * told to. On `CHAINED`, the fixture the idempotency sweep drives this command
+ * through.
+ */
+describe('a familiar’s swing at a warded creature', () => {
+  const WARDED: readonly GameEvent[] = [
+    ...CHAINED,
+    {
+      type: 'passive-defense-granted',
+      id: B,
+      defense: { source: 'Sanctuary#cast:99', defense: { kind: 'ward', ability: 'wis', dc: 99 } },
+    },
+  ];
+
+  it('asks for the fallback, then loses the swing when told to', () => {
+    const state = fold('s', WARDED);
+    const asked = orderSummonsAttack(state, A, { feature: 'test:chain', summons: C, target: B }, supply());
+    expect(isErr(asked) ? asked.code : 'ok').toBe('warded_fallback_required');
+
+    const lost = orderSummonsAttack(
+      state,
+      A,
+      { feature: 'test:chain', summons: C, target: B, ifWarded: 'lose' },
+      supply(),
+    );
+    expect(isErr(lost) ? lost.code : 'ok').toBe('ok');
+    if (isErr(lost)) return;
+    const after = fold('s', [...WARDED, ...lost.value.events]);
+    expect(after.creatures[B]!.vitals.hp).toBe(state.creatures[B]!.vitals.hp);
+    expect(lost.value.events.some((e) => e.type === 'roll-recorded' && e.attackRoll === true)).toBe(false);
+  });
+});

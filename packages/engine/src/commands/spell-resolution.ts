@@ -3322,7 +3322,7 @@ function resolveOnTargets(
         source: context.lostToWard.source,
         label: context.lostToWard.label,
       });
-      return charged(ok({ events, castingId: held.castingId, outcomes: [], unverified: [], warded: true }));
+      return charged(ok({ events, castingId: held.castingId, outcomes: [], unverified, warded: true }));
     }
     return charged(
       resolveEffects(state, casterId, caster, definition, {
@@ -3852,7 +3852,7 @@ function resolveOnTargets(
       source: context.lostToWard.source,
       label: context.lostToWard.label,
     });
-    return ok({ events, castingId, outcomes: [], unverified: [], warded: true });
+    return ok({ events, castingId, outcomes: [], unverified, warded: true });
   }
 
   // **Whether the casting fails for want of its gestures** — SRD Slow's 25

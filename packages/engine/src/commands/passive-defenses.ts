@@ -239,7 +239,7 @@ export function wardAgainst(
     // that stops a second one, so it is said out loud.
     if (current.combat === null) {
       unverified.push(
-        `${attacker} saved against the ward on ${target}, and there are no turns here to hold them to one save — a re-declared swing will be asked again`,
+        `${attacker} rolled a save against the ward on ${target}, and there are no turns here to hold them to one save — a re-declared swing or casting will be asked again`,
       );
     } else {
       mine.push({

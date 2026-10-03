@@ -5466,8 +5466,15 @@ function releaseSpell(
   //
   // **Unless the slot bought "until dispelled"**, read through the same
   // `untilDispelledAt` the ordinary resolution reads — SRD Major Image's level
-  // 4+ slot leaves no deadline for a release to schedule.
-  if (definition.durationSeconds !== undefined && !untilDispelledAt(definition, response.castLevel)) {
+  // 4+ slot leaves no deadline for a release to schedule. **Nor a release a
+  // ward turned away**, which ended under the ward before it took effect: a
+  // clock on a casting that is no longer running is the stale timer
+  // `fold/release.ts` exists to prevent. (E-L1)
+  if (
+    resolved.value.warded !== true &&
+    definition.durationSeconds !== undefined &&
+    !untilDispelledAt(definition, response.castLevel)
+  ) {
     const timer = schedule(
       events.reduce(applyEvent, state),
       { kind: 'casting', castingId: response.castingId },

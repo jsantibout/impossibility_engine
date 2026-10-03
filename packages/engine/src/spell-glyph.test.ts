@@ -440,6 +440,7 @@ describe('SRD Glyph of Warding’s spell glyph', () => {
     const before = fold('seed', warded) as GameState;
     const fired = must(triggerGlyph(before, { castingId, by: BANDIT }, supply('step')), 'trigger');
     expect(fired.outcomes).toEqual([]);
+    expect(fired.warded).toBe(true);
     const after = fold('seed', [...warded, ...fired.events]) as GameState;
     expect(after.creatures[BANDIT]!.vitals.hp).toBe(before.creatures[BANDIT]!.vitals.hp);
     expect(after.ongoing[castingId]).toBeUndefined();

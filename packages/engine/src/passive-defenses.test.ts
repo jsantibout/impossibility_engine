@@ -682,6 +682,25 @@ describe('a spell attack meets the same defences a club does', () => {
     );
   });
 
+  /**
+   * Outside a fight there is no turn to hold the caster to one save, and the
+   * ward says so; a lost casting keeps that line rather than dropping it.
+   */
+  it('keeps the ward’s note on a casting lost outside a fight', () => {
+    const log = warded();
+    const out = unwrap(
+      resolveSpell(
+        fold('seed', log),
+        CLERIC,
+        { spellId: 'fire-bolt', targets: [WIZARD], ifWarded: 'lose' },
+        supply(scripted([1])),
+      ),
+      'bolt',
+    );
+    expect(out.warded).toBe(true);
+    expect(out.unverified.some((line) => line.includes('no turns here to hold them to one save'))).toBe(true);
+  });
+
   it('refuses a new target that is the warded creature itself, or nobody, before the slot', () => {
     const log = IN_COMBAT(warded());
     const at = (target: CharacterId) =>
