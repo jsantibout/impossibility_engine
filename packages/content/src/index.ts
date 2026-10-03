@@ -29,6 +29,7 @@ import { WIZARD, WIZARD_SUBCLASSES } from './classes/wizard.js';
 import { SPELL_STAT_BLOCKS } from './bestiary.js';
 import { SRD_ITEMS } from './items.js';
 import { SRD_OBJECT_MATERIALS, SRD_OBJECT_SIZES } from './objects.js';
+import { SRD_RANGED_LINES } from './ranged-lines.js';
 import {
   ALIGNMENTS,
   BACKGROUNDS,
@@ -46,6 +47,7 @@ export * from './bestiary.js';
 export * from './origins.js';
 export * from './items.js';
 export * from './objects.js';
+export * from './ranged-lines.js';
 export * from './classes/barbarian.js';
 export * from './classes/bard.js';
 export * from './classes/cleric.js';
@@ -113,6 +115,9 @@ export const SRD_CONTENT_INPUT = {
   // numbers out of here and pins them into the arrival.
   objectMaterials: SRD_OBJECT_MATERIALS,
   objectSizes: SRD_OBJECT_SIZES,
+  // The projectile table: what each printed ranged line named after no
+  // catalogue weapon looses, read by SRD Wind Wall. See `ranged-lines.ts`.
+  rangedLines: SRD_RANGED_LINES,
 } as const;
 
 /** The SRD 5.2.1 catalogue, validated. */

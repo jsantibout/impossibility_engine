@@ -40,7 +40,7 @@ import {
   type StrikeStyleInPlay,
 } from '../attack.js';
 import { type Bonus, bonusesFor, flatBonusTotal, type ModeSource } from '../bonuses.js';
-import { type Content } from '../content.js';
+import { lineName, type Content } from '../content.js';
 import {
   canUseFeatureThisTurn,
   spendAttack,
@@ -1885,6 +1885,41 @@ function castWithTheSwing(
 }
 
 /**
+ * What a stat block's printed ranged line looses: the projectile, where it is
+ * an ordinary one a wall of wind turns aside; `'not-ordinary'` where it is
+ * a boulder, fire or force, which no such wall touches; or null where nothing
+ * the caller supplied says. (E-L2)
+ *
+ * Read in two places, both content. A line named after a catalogue weapon
+ * that can be fired or thrown looses that weapon. Any other line is read off
+ * the projectile table (`Content.rangedLines`, the owner's ruling of
+ * 2026-10-03: "a content table, decided once") — a Manticore's Tail Spike is
+ * an ordinary projectile, a Barbed Devil's Hurl Flame is not.
+ *
+ * SRD Wind Wall deflects "arrows, bolts, and other ordinary projectiles" and
+ * lets "boulders hurled by Giants or siege engines, and similar projectiles"
+ * by. The line prints no projectile, but its **name** is the weapon's when it
+ * is one — a Scout's Longbow, an Ogre's Javelin — so it is read off the
+ * catalogue the caller supplied, by the name the line prints and the
+ * parenthetical stripped (SRD Werewolf's "Longbow (Humanoid or Hybrid Form
+ * Only)"), exactly as a catalogue weapon's ranged attack is read: every one of
+ * them is ordinary. The engine names no weapon; the content does.
+ */
+function projectileOfLine(content: Content, line: string): string | 'not-ordinary' | null {
+  const name = lineName(line);
+  const item = content.items.find(
+    (candidate) => candidate.weapon !== null && candidate.name.toLowerCase() === name,
+  );
+  // Fired or thrown: an Ammunition weapon's range, or a Thrown one's.
+  if (item?.weapon != null && (item.weapon.ammunitionRange !== null || item.weapon.thrownRange !== null)) {
+    return item.name.toLowerCase();
+  }
+  const row = content.rangedLineNamed(line);
+  if (row === null) return null;
+  return row.ordinaryProjectile ? name : 'not-ordinary';
+}
+
+/**
  * Swing at somebody, and let the engine work out the numbers.
  *
  * `rollAttack` is pure and always has been: hand it a sheet, a target Armour
@@ -2750,10 +2785,12 @@ export function resolveAttack(
     // target's crosses such an area misses whatever the die shows — the die is
     // thrown and recorded all the same, as it is for an automatic success on a
     // save. A catalogue weapon's ranged attack is an arrow, a bolt or a thrown
-    // dagger, all of them ordinary; a stat block's printed ranged line may be a
-    // Giant's rock, and the line does not say which, so it is reported rather
-    // than ruled on. A spell attack is not a projectile and never reaches
-    // this. The line is read between the centres of the two anchor cubes,
+    // dagger, all of them ordinary; a stat block's printed ranged line is read
+    // as the catalogue weapon it is named after, or else off the projectile
+    // table content holds (`Content.rangedLines`) — a Tail Spike deflected, a
+    // Giant's Boulder or a Hurl Flame let through untouched — and only a line
+    // the table leaves undecided is reported rather than ruled on. A spell
+    // attack is not a projectile and never reaches this. The line is read between the centres of the two anchor cubes,
     // through the one segment test the lattice offers.
     let autoMiss: string | undefined;
     if (state.scene !== null && carry.range !== null) {
@@ -2765,10 +2802,21 @@ export function resolveAttack(
           if (!segmentCrossesRegion(state.scene, region, centre(fromSpace), centre(toSpace))) {
             continue;
           }
-          if (printed !== null) {
+          // **A printed line named after a catalogue weapon looses that
+          // weapon** — a Scout's Longbow, an Ogre's thrown Javelin — so it is
+          // deflected as the weapon is. A line named after nothing the
+          // catalogue holds is read off the projectile table: a Manticore's
+          // Tail Spike is deflected, a Stone Giant's Boulder or a Barbed
+          // Devil's Hurl Flame goes through untouched, and a line the table
+          // leaves out is the table's to say, and is reported. (E-L2)
+          const looses = printed === null ? null : projectileOfLine(supply.content, printed.name);
+          if (looses === 'not-ordinary') continue;
+          if (printed !== null && looses === null) {
             unverified.push(
-              `${attackName} was launched through ${spell}, which deflects arrows, bolts and other ordinary projectiles and not boulders; a stat block's line does not say which it is, so the roll was made without it`,
+              `${attackName} was launched through ${spell}, which deflects arrows, bolts and other ordinary projectiles and not boulders; a stat block's line named after no weapon does not say which it is, so the roll was made without it`,
             );
+          } else if (looses !== null) {
+            autoMiss = `${spell} deflects the ${looses} upward`;
           } else {
             autoMiss = `${spell} deflects ${weapon?.name ?? 'the projectile'} upward`;
           }

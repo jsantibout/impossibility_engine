@@ -2346,8 +2346,10 @@ describe('every spell this batch added is cast for real', () => {
     // And the one whose object W9-S1 built and left nothing behind: SRD
     // Daylight lays its Sphere at a point, and the form cast on an object — an
     // Emanation carried with it, and a bowl or a helm over it — is
-    // `moveCastLight`'s. (Darkness's twin of it still owes a line about a glow
-    // on its own deadline, which the ordinary sweep below reads.)
+    // `moveCastLight`'s. Darkness is its twin and owes nothing either, since
+    // E-L2 put out the glow on a deadline of its own and read the dispel
+    // whichever came first.
+    'darkness',
     'daylight',
     'enthrall',
     'expeditious-retreat',
@@ -2378,6 +2380,10 @@ describe('every spell this batch added is cast for real', () => {
     // that disperses gas or the table's `declare_wind`, read in the fold.
     // What is left is the bank it lays, which is executed. (W9-S2)
     'fog-cloud',
+    // And the sleet, whose one line was the doused flames: a creature burning
+    // in the Cylinder is put out by the fold off the `douses-flames` clause the
+    // casting pins, so nothing is left for the table. (E-L2)
+    'sleet-storm',
   ];
 
   /**

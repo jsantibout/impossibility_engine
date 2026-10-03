@@ -1698,9 +1698,27 @@ describe('a level 5 party plays a session', () => {
         }),
     );
     expect([...debts].sort()).toEqual([...counted].sort());
-    // And the agreement is about something: the session met debts, so the
-    // equality above is not two empty sets agreeing.
-    expect(debts.size).toBeGreaterThan(0);
+    // And the agreement is about something: the session cast spells, every
+    // one of which the ledger was asked about. **It met debts until E-L2**:
+    // SRD Web's flammable webs were the session's last owed clause, and they
+    // are built, so both sides are now empty for a reason — the spells this
+    // session casts owe nothing — rather than because nothing was counted.
+    const castings = t.sent.filter((one) => one.tool === 'cast_spell' && one.outcome.status === 'ok');
+    expect(castings.length).toBeGreaterThan(0);
+    // **And the two readers still see a debt when there is one**, so the
+    // empty agreement above is not a blind census agreeing with a blind count.
+    // A spell in reach that still owes — SRD Wind Wall's objects and the three
+    // printed lines the projectile table leaves undecided (Gust of Wind's
+    // flames, the example here before, were built by E-L2) — reported the way
+    // a casting reports it, read by the census as a debt and counted by the
+    // ledger as the same clause.
+    const wall = SRD_CONTENT.spell('wind-wall')!;
+    const owed = clausesCounted('wind-wall').map((clause) => `${wall.name}: ${clause}`);
+    expect(owed.length).toBeGreaterThan(0);
+    const seen = clausesIn([
+      { tool: 'cast_spell', input: { spellId: 'wind-wall' }, outcome: { status: 'ok', unverified: owed } },
+    ] as never);
+    expect(seen.filter((one) => one.kind === 'debt').map((one) => one.line)).toEqual(owed);
   });
 
   it('replays byte-identically from the same seed', () => {

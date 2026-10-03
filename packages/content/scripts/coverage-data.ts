@@ -313,6 +313,13 @@ export const VERIFIED_SPELLS: readonly string[] = [
   'faerie-fire',
   'false-life',
   'fear',
+  // `falling.test.ts` (engine): a declared fall opens the window, the Reaction
+  // and the slot are spent, the ward takes the landing's damage away and the
+  // spell ends on the one who landed; `feather-fall-sight.test.ts` (engine) is
+  // the trigger's "you or a creature you can see within 60 feet" — refused for
+  // a fall the caster cannot see, asked where nobody has said, and opened by a
+  // seen fall for an unseen faller beside it. (E-L2)
+  'feather-fall',
   // `monster-senses.test.ts` (engine): the rite cast through `resolveSpell`
   // raises an Owl that holds its printed Darkvision 120 with no casting to
   // give it one, the wizard borrows its eyes for a Bonus Action and sees a

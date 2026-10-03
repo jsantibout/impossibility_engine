@@ -27,7 +27,9 @@ import {
 } from '@ie/shared';
 import { resolveDuration, timeView } from '../time.js';
 import { type RepeatSave, timerKey } from '../timers.js';
-import { applyEvent, type GameEvent, type GameState } from '../events.js';
+import { applyEvent, type GameEvent, type GameState, isOn } from '../events.js';
+import { printedFormsOf } from '../forms.js';
+import { withFormSpeeds } from '../monster.js';
 import {
   type ConditionRider,
   type DeferredRiderSet,
@@ -42,7 +44,7 @@ import {
 } from '../spell-definitions.js';
 import { type ActionSlot, canSpendSlot } from '../combat.js';
 import { actionRulesOn } from '../standing.js';
-import { castingSource } from '../spells.js';
+import { castingNumber, castingSource } from '../spells.js';
 import { applySpellEffect, type SpellEffectOptions } from './casting.js';
 import { schedule } from './conditions.js';
 import { lift, shoveAwayFrom } from './spell-effect-movement.js';
@@ -301,6 +303,56 @@ export function conditionLanding(
   if (out.ok) return ok({ events: out.value, landed: true });
   if (out.code === 'immune') return ok({ events: [], landed: false });
   return out;
+}
+
+/**
+ * What puts this creature back in its true form, or nothing where it holds no
+ * shape — SRD Moonbeam's "it reverts to its true form". (E-L2)
+ *
+ * The three ways a creature holds a shape here, each ended through the door
+ * that already ends it:
+ *
+ * - **a Wild Shape it is wearing** — the feature ends, and the fold's
+ *   `settleShapes` puts its own sheet back, as at every other ending;
+ * - **a form its own stat block prints** — it takes the true one, the last its
+ *   line prints, measured from the sheet it had before any form exactly as
+ *   `takePrintedForm` measures one;
+ * - **a running casting on it that shape-shifts its target**
+ *   (`SpellDefinition.shapeShifts`: SRD Gaseous Form, Polymorph) — released on
+ *   that creature, read off the catalogue here and pinned as the ending.
+ */
+function revertedShapes(state: GameState, target: CharacterId, content: Content): GameEvent[] {
+  const creature = state.creatures[target];
+  if (creature === undefined) return [];
+  const events: GameEvent[] = [];
+
+  if (creature.shape !== null && creature.activeFeatures.includes(creature.shape.feature)) {
+    events.push({ type: 'feature-ended', id: target, feature: creature.shape.feature, reason: 'reverted' });
+  }
+
+  if (creature.form !== null) {
+    const printed = printedFormsOf(creature.sheet);
+    const own = printed?.forms[printed.forms.length - 1];
+    if (own !== undefined && own.name !== creature.form.name) {
+      const base = creature.form.original;
+      events.push({
+        type: 'form-assumed',
+        id: target,
+        form: own.name,
+        line: creature.form.line,
+        sheet: withFormSpeeds(base.sheet, own),
+        size: own.sizes[0] ?? base.size,
+      });
+    }
+  }
+
+  for (const castingId of Object.keys(state.ongoing).sort((a, b) => castingNumber(a) - castingNumber(b))) {
+    const record = state.ongoing[castingId]!;
+    if (content.spell(record.spellId)?.shapeShifts !== true) continue;
+    if (!isOn(state, record, target)) continue;
+    events.push({ type: 'spell-ended', castingId, on: target, reason: 'reverted' });
+  }
+  return events;
 }
 
 /**
@@ -763,6 +815,37 @@ export function applyRiders(
       };
       events.push(broken);
       current = applyEvent(current, broken);
+    }
+  }
+
+  // **A shape taken off, and the bar on taking another** — SRD Moonbeam: "if
+  // the creature is shape-shifted …, it reverts to its true form and can't
+  // shape-shift until it leaves the Cylinder." After the grants and the
+  // Concentration, for the reason the Concentration is after the grants: what
+  // goes is something the *target* was holding. A creature in its own skin
+  // reverts nothing and is barred from nothing. The bar is a `forbids` rule
+  // under this casting's own source, so the casting ending lifts it, and
+  // `endShapeBarsLeftBehind` in the fold lifts it the moment the creature is
+  // outside the area. (E-L2)
+  if (riders.revertsShape === true) {
+    const reverted = revertedShapes(current, target, context.content);
+    if (reverted.length > 0) {
+      events.push(...reverted);
+      current = reverted.reduce(applyEvent, current);
+      const bar: GameEvent = {
+        type: 'action-rule-granted',
+        id: target,
+        rule: {
+          source,
+          rule: { kind: 'forbids', shapeShifting: true },
+          label: definition.name,
+          until: `it leaves the area of ${definition.name}`,
+          ...pinnedEffect,
+        },
+      };
+      events.push(bar);
+      current = applyEvent(current, bar);
+      held.add(target);
     }
   }
 

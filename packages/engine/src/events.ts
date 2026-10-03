@@ -82,7 +82,9 @@ import {
 } from './standing.js';
 import {
   type CoverDegree,
+  type LightFlame,
   type LightLevel,
+  type MagicalLight,
   type ObscurementDegree,
   type Placement,
   type SceneExtent,
@@ -2366,6 +2368,40 @@ export type GameEvent =
       readonly command?: CommandStamp;
     }
   /**
+   * A Cube of a casting's area set alight — SRD Web: "Any 5-foot Cube of webs
+   * exposed to fire burns away in 1 round, dealing 2d4 Fire damage to any
+   * creature that starts its turn in the fire." (E-L2)
+   *
+   * The table's word that the Cube met fire, and what the definition prints
+   * of the burning pinned beside it — the deadline it burns until, the dice and
+   * their type — so the fold and the turn boundary read the log and never the
+   * catalogue.
+   */
+  | {
+      readonly type: 'casting-area-burning';
+      readonly castingId: string;
+      readonly space: Point;
+      readonly until: Deadline;
+      readonly dice: string;
+      readonly damageType: string;
+      readonly command?: CommandStamp;
+    }
+  /**
+   * A casting's other templates moved — SRD Dancing Lights' "As a Bonus
+   * Action, you can move the lights up to 60 feet to a space within range",
+   * lights 2 to 4. (E-L2)
+   *
+   * The whole list as it now stands, in the order the caster numbered them, so
+   * folding the log reconstructs every light without arithmetic: the command
+   * has already checked the sixty feet, the Range and the twenty feet that tie
+   * them. Light 1 is the casting's own point and moves by `spell-origin-moved`.
+   */
+  | {
+      readonly type: 'spell-copies-moved';
+      readonly castingId: string;
+      readonly copies: readonly Point[];
+    }
+  /**
    * The point an ongoing spell holds is now somewhere else.
    *
    * SRD Spiritual Weapon: "you can move the force up to 20 feet". Resolved
@@ -2444,6 +2480,22 @@ export type GameEvent =
       readonly castingId: string;
       readonly target: CharacterId;
       readonly moment: AreaMoment;
+      readonly command?: CommandStamp;
+    }
+  /**
+   * A protected flame an area reached, tested — SRD Gust of Wind: "has a 50
+   * percent chance to extinguish them". (E-L2)
+   *
+   * The die is the `roll-recorded` beside it; this says which debt the throw
+   * discharges (the casting, and the patch of light at `flame-reached`) and
+   * whether the flame went out, which takes the patch off the lattice.
+   */
+  | {
+      readonly type: 'flame-tested';
+      readonly castingId: string;
+      /** The patch of light whose flame it was. */
+      readonly patch: string;
+      readonly out: boolean;
       readonly command?: CommandStamp;
     }
   /**
@@ -2612,6 +2664,23 @@ export type GameEvent =
        * before the field existed folds to a timer that has no such key.
        */
       readonly endsEarly?: readonly EffectEndCause[];
+      readonly command?: CommandStamp;
+    }
+  /**
+   * A timed effect put out by a dispel, before its deadline. (E-L2)
+   *
+   * SRD Darkness: "If any of this spell's area overlaps with an area of Bright
+   * Light or Dim Light created by a spell of level 2 or lower, that other spell
+   * is dispelled." SRD Starry Wisp's glow is such an area on a casting that is
+   * over the instant it resolves, so what holds it is not a record in
+   * `state.ongoing` but the `grants` timer its riders run under — and the
+   * spell being dispelled is that timer released early: the glow lapses with
+   * it, and so does the Invisible it denies. `spell-ended` names a running
+   * casting and this names the timer, which is the whole of the difference.
+   */
+  | {
+      readonly type: 'effect-dispelled';
+      readonly effectKey: string;
       readonly command?: CommandStamp;
     }
   /**
@@ -3098,6 +3167,18 @@ export type GameEvent =
       readonly type: 'bones-declared';
       readonly name: string;
       readonly at: { x: number; y: number; z: number } | null;
+      readonly command?: CommandStamp;
+    }
+  /**
+   * Where the table says normal plants grow, or that nothing does — or, with
+   * no region, that it takes the stretch back. SRD Plant Growth reads it. See
+   * `PositionState.plants`. (E-L2)
+   */
+  | {
+      readonly type: 'plants-declared';
+      readonly name: string;
+      readonly region: TerrainRegion | null;
+      readonly growing: boolean;
       readonly command?: CommandStamp;
     }
   | {
@@ -3607,7 +3688,8 @@ export type GameEvent =
       readonly type: 'feature-ended';
       readonly id: CharacterId;
       readonly feature: string;
-      readonly reason: 'dismissed' | 'expired' | 'incapacitated' | 'heavy-armor';
+      /** `reverted`: SRD Moonbeam made the creature take its true form back (E-L2). */
+      readonly reason: 'dismissed' | 'expired' | 'incapacitated' | 'heavy-armor' | 'reverted';
       readonly command?: CommandStamp;
     }
   /**
@@ -3731,7 +3813,8 @@ export type GameEvent =
       readonly patch: string;
       readonly region: TerrainRegion;
       readonly level: LightLevel;
-      readonly magical?: { readonly spellLevel: number };
+      /** The spell's level, and the threshold of its dispel where it prints one — see `MagicalLight`. */
+      readonly magical?: MagicalLight;
       readonly sunlight?: boolean;
       readonly source?: string;
       /** Something opaque is over the thing it shines from — see `LightPatch.covered`. Additive; absent everywhere before it. */
@@ -3740,6 +3823,8 @@ export type GameEvent =
       readonly whileHolding?: string;
       /** The timer it lapses with — see `LatticePatch.lapsesWith`. Additive; absent everywhere before it. */
       readonly lapsesWith?: string;
+      /** The flame it is, where the table said — see `LightPatch.flame`. Additive; absent everywhere before it. (E-L2) */
+      readonly flame?: LightFlame;
       readonly command?: CommandStamp;
     }
   /**

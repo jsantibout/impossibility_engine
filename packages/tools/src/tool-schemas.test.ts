@@ -187,8 +187,10 @@ describe('toolSchemas', () => {
     // word that a printed cause happened. And one on each for W9-S3,
     // `draw_rope`, and one more on the DM's alone, `declare_portal_height`.
     // And one on the DM's alone for E-L3, `declare_bones`.
-    expect(toolSchemas(player())).toHaveLength(100);
-    expect(toolSchemas(dm())).toHaveLength(134);
+    // And one on each for E-L2, `expose_to_fire`.
+    // And one on the DM's alone for E-L2's owner rulings, `declare_plants`.
+    expect(toolSchemas(player())).toHaveLength(101);
+    expect(toolSchemas(dm())).toHaveLength(136);
     // Re-pinned 2026-09-24 for the printed-lines track, which opened one door
     // on the DM's surface alone: `teleport_printed_line` takes the teleport a
     // stat block prints, at the distance the block prints, to a space the DM
@@ -431,10 +433,23 @@ describe('toolSchemas', () => {
     // door), +1,291 and its separator, and `trigger_glyph` saying who sets off
     // a refined glyph, +326. 133 → 134 tools on the DM's door; +3,285 bytes on
     // the player's and +4,903 on the DM's.
-    expect(toolSchemas(player())).toHaveLength(100);
-    expect(toolSchemas(dm())).toHaveLength(134);
-    expect(JSON.stringify(toolSchemas(player())).length).toBe(170838);
-    expect(JSON.stringify(toolSchemas(dm())).length).toBe(232161);
+    // And for E-L2: `cast_spell.alsoAt` (SRD Dancing Lights' lights 2 to 4,
+    // placed where the caster names) and `activate_spell.alsoTo` (the Bonus
+    // Action moving them by number) on both doors. No tool added: +1,532 bytes
+    // on each. And `expose_to_fire` on both doors — the table's word that a
+    // Cube of SRD Web met fire, which the engine then burns for the round the
+    // spell prints. One more tool on each door (100 → 101 on the player's, and
+    // 134 → 135 on the DM's after E-L3); +1,187 bytes on each.
+    // And E-L2's owner rulings (2026-10-03), on both doors: `declare_light.flame`
+    // (a torch or a lantern, which SRD Gust of Wind and Sleet Storm put out),
+    // `cast_spell.exclude` (SRD Plant Growth's areas the caster leaves out) and
+    // `settle_area_effects` naming the lantern's throw it settles, +1,346 bytes
+    // on each. On the DM's alone: `declare_plants` (where normal plants grow,
+    // a new door), 135 → 136 tools and +1,363 more bytes.
+    expect(toolSchemas(player())).toHaveLength(101);
+    expect(toolSchemas(dm())).toHaveLength(136);
+    expect(JSON.stringify(toolSchemas(player())).length).toBe(174903);
+    expect(JSON.stringify(toolSchemas(dm())).length).toBe(237589);
   });
 });
 

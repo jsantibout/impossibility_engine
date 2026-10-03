@@ -143,6 +143,17 @@ export interface PositionState {
    */
   readonly bones?: Readonly<Record<string, Point>>;
   /**
+   * Where the table has said normal plants grow, or that nothing does, by
+   * name — SRD Plant Growth: "All **normal plants** in a 100-foot-radius
+   * Sphere ... become thick and overgrown." Whether a meadow or a flagstone
+   * court lies under the Sphere is a fact about the room only the table can
+   * state (`declarePlants`); the Overgrowth reads it, asks when nobody has
+   * said anything about the Sphere, and pins what it found onto the ground it
+   * lays. Absent is a room nobody has described, which is every scene written
+   * before the field existed. (E-L2, the owner's ruling of 2026-10-03)
+   */
+  readonly plants?: Readonly<Record<string, PlantPatch>>;
+  /**
    * What is lying on the floor, keyed by the copy's own record.
    *
    * The third population in the room, beside the creatures and the landmarks,
@@ -363,6 +374,56 @@ const within = (extent: SceneExtent, p: Point): boolean =>
  * Landmarks are placed by coordinate because laying out a room is map-making,
  * not creature placement. Creatures then anchor to them.
  */
+/** A stretch of the room the table has described for its plants — see {@link PositionState.plants}. (E-L2) */
+export interface PlantPatch {
+  readonly region: TerrainRegion;
+  /** True where normal plants grow there; false where the table said nothing does. */
+  readonly growing: boolean;
+}
+
+/**
+ * Plants laid in the room, or taken out of it — see
+ * {@link PositionState.plants}. A region whose origin cannot be placed in the
+ * scene is refused, as a landmark outside it is; `null` takes the stretch
+ * away, and taking away one nobody described changes nothing. (E-L2)
+ */
+export function declarePlantsAt(
+  state: PositionState,
+  name: string,
+  patch: PlantPatch | null,
+): Result<PositionState> {
+  if (patch === null) {
+    if (state.plants?.[name] === undefined) return ok(state);
+    const { [name]: _gone, ...rest } = state.plants;
+    void _gone;
+    return ok({ ...state, plants: rest });
+  }
+  if (!areaFrame(state, patch.region.origin).ok) {
+    return err('outside_scene', `${name} is measured from somewhere this scene does not hold`);
+  }
+  return ok({ ...state, plants: { ...(state.plants ?? {}), [name]: patch } });
+}
+
+/**
+ * What the table has said grows under a region: the stretches where plants
+ * grow and the stretches it called bare, each that covers any space of the
+ * region — or null where it has said nothing about any of it. (E-L2)
+ */
+export function plantsUnder(
+  state: PositionState,
+  region: TerrainRegion,
+): { readonly growing: readonly TerrainRegion[]; readonly bare: readonly TerrainRegion[] } | null {
+  const growing: TerrainRegion[] = [];
+  const bare: TerrainRegion[] = [];
+  for (const name of Object.keys(state.plants ?? {}).sort()) {
+    const patch = state.plants![name]!;
+    const overlaps = spacesInRegion(state, patch.region).some((space) => spaceInRegion(state, region, space));
+    if (!overlaps) continue;
+    (patch.growing ? growing : bare).push(patch.region);
+  }
+  return growing.length === 0 && bare.length === 0 ? null : { growing, bare };
+}
+
 /**
  * A pile of bones laid in the room, or taken out of it — see
  * {@link PositionState.bones}. The point is snapped to its space, as a
@@ -2295,6 +2356,79 @@ export const ORDINARY_GROUND = 1;
 export interface TerrainRegion {
   readonly origin: AreaOrigin;
   readonly shape: AreaShape;
+  /**
+   * The 5-foot spaces the shape no longer covers — SRD Web's Cubes that have
+   * burned away (`OngoingSpell.burnt`). Read by {@link spaceInRegion} and
+   * {@link moverInRegionAt}, so the ground, the air and the barrier readers all
+   * leave them out without learning why. Absent is the whole shape, which is
+   * every region written before the field existed. (E-L2)
+   */
+  readonly except?: readonly Point[];
+  /**
+   * Where the shape covers a space only if one of these regions covers it too
+   * — SRD Plant Growth's "All normal plants in a 100-foot-radius Sphere", the
+   * Sphere narrowed to where the table said plants grow. Absent is the whole
+   * shape. (E-L2)
+   */
+  readonly within?: readonly TerrainRegion[];
+  /**
+   * Regions the shape no longer covers — SRD Plant Growth's "You can exclude
+   * one or more areas of any size within the spell's area", and the ground the
+   * table said grows nothing. Read as {@link except} is, by
+   * {@link spaceInRegion} and {@link moverInRegionAt}. (E-L2)
+   */
+  readonly excluding?: readonly TerrainRegion[];
+}
+
+/**
+ * Every 5-foot space a region covers, in a fixed order. (E-L2)
+ *
+ * Read off a box around the region's origin as wide as the largest number its
+ * shape prints, clamped to the scene and filtered by {@link spaceInRegion} —
+ * so the answer is the same reading every other question about the region
+ * takes, and only the search is bounded. A region whose origin cannot be
+ * placed covers nothing.
+ */
+export function spacesInRegion(state: PositionState, region: TerrainRegion): readonly Point[] {
+  const frame = areaFrame(state, region.origin);
+  if (!frame.ok) return [];
+  const reach =
+    Math.max(
+      CUBE,
+      ...Object.values(region.shape).filter((value): value is number => typeof value === 'number'),
+    ) + 2 * CUBE;
+  const path = (region.shape as { readonly path?: readonly Point[] }).path ?? [];
+  const xs = [frame.value.anchor.x, ...path.map((p) => p.x)];
+  const ys = [frame.value.anchor.y, ...path.map((p) => p.y)];
+  const zs = [frame.value.anchor.z, ...path.map((p) => p.z)];
+  const lo = (values: readonly number[]) => Math.max(0, snap(Math.min(...values) - reach));
+  const hi = (values: readonly number[], limit: number) => Math.min(limit, Math.max(...values) + reach);
+  const found: Point[] = [];
+  for (let x = lo(xs); x <= hi(xs, state.extent.width); x += CUBE) {
+    for (let y = lo(ys); y <= hi(ys, state.extent.depth); y += CUBE) {
+      for (let z = lo(zs); z <= hi(zs, state.extent.height); z += CUBE) {
+        const space = { x, y, z };
+        if (spaceInRegion(state, region, space)) found.push(space);
+      }
+    }
+  }
+  return found;
+}
+
+/**
+ * The point a region is measured from — a Sphere's centre, a wall's first
+ * corner — or null where its origin cannot be placed. (E-L2)
+ */
+export function regionAnchor(state: PositionState, region: TerrainRegion): Point | null {
+  const frame = areaFrame(state, region.origin);
+  return frame.ok ? frame.value.anchor : null;
+}
+
+/** Whether a space is one a region has had taken out of it — see {@link TerrainRegion.except}. */
+function exceptedFrom(region: TerrainRegion, space: Point): boolean {
+  const out = region.except;
+  if (out === undefined || out.length === 0) return false;
+  return out.some((cut) => cut.x === space.x && cut.y === space.y && cut.z === space.z);
 }
 
 /**
@@ -2490,6 +2624,16 @@ export const LIGHT_LEVELS = ['bright', 'dim', 'darkness'] as const;
 
 export type LightLevel = (typeof LIGHT_LEVELS)[number];
 
+/**
+ * The two kinds of flame a declared light can be, in SRD Gust of Wind's words:
+ * "candles and similar **unprotected** flames" and "**protected** flames, such
+ * as those of lanterns". SRD Sleet Storm's "exposed flames" are the first.
+ * (E-L2, the owner's ruling of 2026-10-03)
+ */
+export const LIGHT_FLAMES = ['unprotected', 'protected'] as const;
+
+export type LightFlame = (typeof LIGHT_FLAMES)[number];
+
 /** The two degrees of obscurement the glossary names, and no third. */
 export const OBSCUREMENT_DEGREES = ['lightly', 'heavily'] as const;
 
@@ -2511,7 +2655,7 @@ export interface LightPatch extends LatticePatch {
    * level, because SRD Darkness and SRD Daylight dispel each other by
    * comparing one — see `dispelledByLight`.
    */
-  readonly magical?: { readonly spellLevel: number };
+  readonly magical?: MagicalLight;
   /**
    * SRD sunlight: Bright Light, with the one flag four stat blocks read.
    *
@@ -2551,6 +2695,35 @@ export interface LightPatch extends LatticePatch {
    * of them is held in a hand.
    */
   readonly whileHolding?: string;
+  /**
+   * The flame this light is, where the table says it is one — a torch or a
+   * candle (`unprotected`), a lantern (`protected`). Absent is light that is
+   * no flame a wind can find: a sconce nobody described, the sun, a spell.
+   *
+   * Read by the one pass that puts flames out (`windOnFlames`): SRD Gust of
+   * Wind "extinguishes candles and similar unprotected flames" and gives a
+   * protected one "a 50 percent chance"; SRD Sleet Storm douses "exposed
+   * flames". The flame is where the patch's origin is — the point it was lit
+   * at, or the creature carrying it. (E-L2)
+   */
+  readonly flame?: LightFlame;
+}
+
+/**
+ * What makes a patch of light a spell's: the level of the spell that made it,
+ * and — where that spell prints SRD Darkness's or Daylight's sentence — the
+ * highest level of opposite light it dispels.
+ *
+ * `dispelsUpTo` is pinned from `AreaLight.dispels` at the casting, so the fold
+ * and every later pinning read the printed threshold off the patch rather than
+ * off a catalogue. Absent is a spell that prints no such sentence — Moonbeam,
+ * Light, Flame Blade — which dispels nothing whatever its level, and every
+ * patch written before the field existed. (E-L2)
+ */
+export interface MagicalLight {
+  readonly spellLevel: number;
+  /** SRD Darkness's "created by a spell of level 2 or lower": the 2. */
+  readonly dispelsUpTo?: number;
 }
 
 /** A patch of the room hard to see through for a reason that is not the light. */
@@ -2573,11 +2746,12 @@ export function declareLightPatch(
   level: LightLevel,
   options: {
     readonly source?: string;
-    readonly magical?: { readonly spellLevel: number };
+    readonly magical?: MagicalLight;
     readonly sunlight?: boolean;
     readonly covered?: true;
     readonly whileHolding?: string;
     readonly lapsesWith?: string;
+    readonly flame?: LightFlame;
   } = {},
 ): Result<PositionState> {
   if (patch.trim().length === 0) {
@@ -2589,11 +2763,23 @@ export function declareLightPatch(
       `${String(level)} is not a level of light; the glossary prints ${LIGHT_LEVELS.join(', ')}`,
     );
   }
-  const { source, magical, sunlight, covered, whileHolding, lapsesWith } = options;
+  const { source, magical, sunlight, covered, whileHolding, lapsesWith, flame } = options;
+  if (flame !== undefined && !LIGHT_FLAMES.includes(flame)) {
+    return err(
+      'bad_flame',
+      `${String(flame)} is not a kind of flame; SRD Gust of Wind names ${LIGHT_FLAMES.join(' and ')} flames`,
+    );
+  }
   if (magical !== undefined && !Number.isInteger(magical.spellLevel)) {
     return err(
       'bad_spell_level',
       'magical light carries the level of the spell that made it, as a whole number',
+    );
+  }
+  if (magical?.dispelsUpTo !== undefined && !Number.isInteger(magical.dispelsUpTo)) {
+    return err(
+      'bad_spell_level',
+      'the level a light dispels up to is a spell level, as a whole number',
     );
   }
   // SRD prints no dark sunlight and no dim sunlight. The flag is Bright
@@ -2620,6 +2806,7 @@ export function declareLightPatch(
         ...(covered === undefined ? {} : { covered }),
         ...(whileHolding === undefined ? {} : { whileHolding }),
         ...(lapsesWith === undefined ? {} : { lapsesWith }),
+        ...(flame === undefined ? {} : { flame }),
       },
     },
   });
@@ -2673,6 +2860,11 @@ export function spaceInRegion(
   if (!frame.ok) return false;
 
   const at = snapPoint(space);
+  if (exceptedFrom(region, at)) return false;
+  if (region.within !== undefined && !region.within.some((inner) => spaceInRegion(state, inner, at))) {
+    return false;
+  }
+  if (region.excluding?.some((out) => spaceInRegion(state, out, at)) === true) return false;
   const box: Box = { min: at, max: { x: at.x + CUBE, y: at.y + CUBE, z: at.z + CUBE } };
   const towards = 'towards' in region.shape ? worldPointOf(region.shape.towards) : null;
 
@@ -2707,12 +2899,26 @@ export function moverInRegionAt(
 
   const space = snapPoint(at);
   const width = footprintOf(state.sizes[who] ?? 'medium');
+  const tall = Math.max(CUBE, snap(heightOf(state, who)));
+  // **A region with spaces taken out of it is asked space by space**, which is
+  // the reading the whole-box test makes of a region that has none: the mover
+  // is in it where any space it fills is. (E-L2)
+  if ((region.except?.length ?? 0) > 0 || region.within !== undefined || (region.excluding?.length ?? 0) > 0) {
+    for (let x = space.x; x < space.x + width; x += CUBE) {
+      for (let y = space.y; y < space.y + width; y += CUBE) {
+        for (let z = space.z; z < space.z + tall; z += CUBE) {
+          if (spaceInRegion(state, region, { x, y, z })) return true;
+        }
+      }
+    }
+    return false;
+  }
   const box: Box = {
     min: space,
     max: {
       x: space.x + width,
       y: space.y + width,
-      z: space.z + Math.max(CUBE, snap(heightOf(state, who))),
+      z: space.z + tall,
     },
   };
   const towards = 'towards' in region.shape ? worldPointOf(region.shape.towards) : null;
@@ -3251,11 +3457,12 @@ function brightnessAt(
  * 3 or lower. Two sentences, one mechanism, and it is the only place in the
  * SRD where two areas of light argue.
  *
- * **The threshold is the incoming casting's own level**, which is what both
- * printed lines happen to say — Darkness is level 2 and dispels light at 2 or
- * lower, Daylight is level 3 and dispels darkness at 3 or lower. A spell that
- * printed a different number would need a field on its definition to say so,
- * and none does.
+ * **The table's door only, since E-L2.** A casting's own light reads the
+ * threshold its spell prints (`AreaLight.dispels`, pinned as
+ * `MagicalLight.dispelsUpTo`) through {@link dispelOnPinning}, both ways and
+ * whichever came first. What is left here is `declareLight`'s: a magical patch
+ * the DM declares at a spell level puts out the opposite castings at or below
+ * it, the threshold being that level.
  *
  * Nonmagical light and nonmagical darkness are untouched at both ends: the
  * sentence is about a spell dispelling a spell, and a patch with no `magical`
@@ -3308,6 +3515,127 @@ export function lightDispelledBy(
     }
   }
   return [...dispelled].sort();
+}
+
+/**
+ * Who loses when a spell's magical light or darkness is pinned over the
+ * opposite kind — SRD Darkness and SRD Daylight's sentence, read whichever
+ * came first. (E-L2)
+ *
+ * SRD Darkness: "If any of this spell's area overlaps with an area of Bright
+ * Light or Dim Light created by a spell of level 2 or lower, that other spell
+ * is dispelled." The sentence is a fact about two areas and holds in both
+ * orders, so a pinning asks two questions:
+ *
+ * - **what it puts out**, where the incoming spell prints the sentence
+ *   (`magical.dispelsUpTo`): every shining opposite patch of a spell at or
+ *   below that level — a casting by its `source`, and a glow on a deadline of
+ *   its own (SRD Starry Wisp's) by the timer it lapses with;
+ * - **whether it is put out itself**: an opposite patch already shining over
+ *   the region whose own spell prints the sentence at or above the incoming
+ *   spell's level. A Flame Blade evoked inside a Darkness is the Flame Blade
+ *   dispelled, not the Darkness.
+ *
+ * **The sentence belongs to the spell that prints it.** A spell that prints
+ * none — Moonbeam, Flame Blade, Light, Faerie Fire — dispels nothing,
+ * whatever its level, and is dispelled where a printing spell's threshold
+ * reaches it. `own` names the incoming patch's casting or timer so a spell's
+ * second patch (Daylight's dim ring) never argues with its first.
+ *
+ * Covered and let-go patches are not shining and so neither dispel nor are
+ * dispelled — {@link shiningPatchesOf}, as for `lightDispelledBy`.
+ */
+export interface LightDispel {
+  /** Other castings this pinning ends. */
+  readonly castings: readonly string[];
+  /** Timers of glows with deadlines of their own that this pinning ends. */
+  readonly glows: readonly string[];
+  /** Whether the incoming patch's own spell is put out by one already shining. */
+  readonly itself: boolean;
+}
+
+export function dispelOnPinning(
+  state: GameState,
+  region: TerrainRegion,
+  level: LightLevel,
+  magical: { readonly spellLevel: number; readonly dispelsUpTo?: number },
+  own: {
+    readonly source?: string;
+    readonly lapsesWith?: string;
+    /**
+     * Every area of light the incoming spell sheds, where that is more than
+     * `region` — SRD Light's Dim Light twenty feet past its Bright. Its own
+     * sentence speaks of **this spell's area**, and a Darkness's speaks of
+     * **an area of Bright Light or Dim Light**, so the first is measured over
+     * `region` and the second over this.
+     */
+    readonly extent?: TerrainRegion;
+  } = {},
+): LightDispel {
+  const none: LightDispel = { castings: [], glows: [], itself: false };
+  const scene = state.scene;
+  if (scene === null) return none;
+
+  const opposite = (patch: LightPatch): boolean =>
+    level === 'darkness' ? patch.level !== 'darkness' : patch.level === 'darkness';
+  const mine = (patch: LightPatch): boolean =>
+    (own.source !== undefined && patch.source === own.source) ||
+    (own.lapsesWith !== undefined && patch.lapsesWith === own.lapsesWith);
+  const endable = (patch: LightPatch): boolean =>
+    patch.source !== undefined || patch.lapsesWith !== undefined;
+
+  const reach = magical.dispelsUpTo;
+  const shining = shiningPatchesOf(state).filter(
+    ([, patch]) => patch.magical !== undefined && opposite(patch) && !mine(patch),
+  );
+  // What this one puts out, and what could put this one out.
+  const victims = reach === undefined
+    ? []
+    : shining.filter(([, patch]) => endable(patch) && patch.magical!.spellLevel <= reach);
+  const dispellers = own.source !== undefined || own.lapsesWith !== undefined
+    ? shining.filter(
+        ([, patch]) =>
+          patch.magical!.dispelsUpTo !== undefined &&
+          patch.magical!.dispelsUpTo >= magical.spellLevel &&
+          !victims.some(([, victim]) => victim === patch),
+      )
+    : [];
+  if (victims.length === 0 && dispellers.length === 0) return none;
+
+  const extent = own.extent ?? region;
+  const overlapping = new Set<LightPatch>();
+  const pending = new Set([...victims, ...dispellers].map(([, patch]) => patch));
+  const victimsOf = new Set(victims.map(([, patch]) => patch));
+  for (let x = 0; x <= scene.extent.width && pending.size > 0; x += CUBE) {
+    for (let y = 0; y <= scene.extent.depth && pending.size > 0; y += CUBE) {
+      for (let z = 0; z <= scene.extent.height && pending.size > 0; z += CUBE) {
+        const space = { x, y, z };
+        const inArea = spaceInRegion(scene, region, space);
+        const lit = extent === region ? inArea : spaceInRegion(scene, extent, space);
+        if (!inArea && !lit) continue;
+        for (const patch of [...pending]) {
+          if (!(victimsOf.has(patch) ? inArea : lit)) continue;
+          if (spaceInRegion(scene, patch.region, space)) {
+            overlapping.add(patch);
+            pending.delete(patch);
+          }
+        }
+      }
+    }
+  }
+
+  const hit = victims.filter(([, patch]) => overlapping.has(patch)).map(([, patch]) => patch);
+  return {
+    castings: [...new Set(hit.flatMap((patch) => (patch.source === undefined ? [] : [patch.source])))].sort(),
+    glows: [
+      ...new Set(
+        hit.flatMap((patch) =>
+          patch.source === undefined && patch.lapsesWith !== undefined ? [patch.lapsesWith] : [],
+        ),
+      ),
+    ].sort(),
+    itself: dispellers.some(([, patch]) => overlapping.has(patch)),
+  };
 }
 
 /** How hard one space is to see into, and why. */

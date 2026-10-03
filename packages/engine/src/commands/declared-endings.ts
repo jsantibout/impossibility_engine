@@ -20,10 +20,13 @@
  */
 import { type CharacterId, err, ok, type Result } from '@ie/shared';
 import { type CommandIdentity, once } from '../idempotency.js';
+import { type Content } from '../content.js';
 import { type GameEvent, type GameState, isOn } from '../events.js';
-import { type TerrainRegion } from '../positioning.js';
+import { type Point, snapToSpace, spaceInRegion, type TerrainRegion } from '../positioning.js';
+import { regionOfCastingArea } from '../spells.js';
+import { forSeconds, resolveDuration, startOfNextTurn, timeView } from '../time.js';
 import { timerKey } from '../timers.js';
-import { creatureOf, unknownCreature } from './command.js';
+import { creatureOf, turnContextFor, unknownCreature } from './command.js';
 import { schedule } from './conditions.js';
 
 export interface WindCommand extends CommandIdentity {
@@ -57,6 +60,85 @@ export function declareWind(state: GameState, command: WindCommand = {}): Result
       },
     ]);
   });
+}
+
+/**
+ * The table's word that a Cube of a running casting's area met fire — SRD
+ * Web: "The webs are flammable. Any 5-foot Cube of webs exposed to fire burns
+ * away in 1 round, dealing 2d4 Fire damage to any creature that starts its turn
+ * in the fire." (E-L2)
+ *
+ * **Whether it met fire is the room's**: a torch dropped, a Fire Bolt through
+ * the strands, a burning goblin blundering in — none of which the engine could
+ * tell apart from fire that missed. What follows is the engine's, read off the
+ * definition's `flammable` and pinned on the event: the Cube burns for the
+ * round the book prints, a creature that starts its turn in it takes the dice
+ * (`burningCubesDue`), and the fold burns it away when the round is out
+ * (`burnAwayCubes`).
+ *
+ * Refused for a casting that is not running (`not_ongoing`), one whose spell
+ * prints no such sentence (`not_flammable`), a space its area does not fill or
+ * no longer fills (`outside_area`), and a Cube already burning
+ * (`already_burning`).
+ */
+export function exposeToFire(
+  state: GameState,
+  content: Content,
+  castingId: string,
+  at: Point,
+  command: CommandIdentity = {},
+): Result<GameEvent[]> {
+  const space = snapToSpace(at);
+  return once(
+    state,
+    `expose-to-fire:${castingId}:${space.x},${space.y},${space.z}`,
+    command,
+    () => [],
+    (stamp) => {
+      const record = state.ongoing[castingId];
+      if (record === undefined) {
+        return err('not_ongoing', `${castingId} is not a spell that is still running`);
+      }
+      const flammable = content.spell(record.spellId)?.flammable;
+      if (flammable === undefined) {
+        return err('not_flammable', `${record.spell} prints nothing that burns`);
+      }
+      const scene = state.scene;
+      const region = regionOfCastingArea(record);
+      if (scene === null || region === null || !spaceInRegion(scene, region, space)) {
+        return err(
+          'outside_area',
+          `${record.spell} does not fill (${space.x}, ${space.y}, ${space.z}), so nothing of it is there to burn`,
+        );
+      }
+      const same = (p: Point): boolean => p.x === space.x && p.y === space.y && p.z === space.z;
+      if ((record.burning ?? []).some((cube) => same(cube.space))) {
+        return err('already_burning', `${record.spell} is already burning at (${space.x}, ${space.y}, ${space.z})`);
+      }
+      // **A round, and in a fight a whole one.** The clock steps only at the
+      // round's wrap, so six seconds set alight on the last turn of a round
+      // would be out before anybody else's turn began; "burns away in 1
+      // round" is read as the order coming back round to whoever's turn it is
+      // now — every other creature starts one turn while it burns. Out of a
+      // fight, the span the definition prints. (E-L2, on review)
+      const holder = state.combat?.order[state.combat.turnIndex]?.id;
+      const lasts = holder === undefined ? forSeconds(flammable.burnsSeconds) : startOfNextTurn(holder);
+      const resolved = resolveDuration(timeView(state), lasts);
+      const until = resolved.ok || holder === undefined ? resolved : turnContextFor(resolved, lasts, holder);
+      if (!until.ok) return until;
+      return ok([
+        {
+          type: 'casting-area-burning',
+          castingId,
+          space,
+          until: until.value,
+          dice: flammable.dice,
+          damageType: flammable.damageType,
+          ...(stamp === null ? {} : { command: stamp }),
+        },
+      ]);
+    },
+  );
 }
 
 export interface DeclaredEnding {

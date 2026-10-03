@@ -102,6 +102,12 @@
     "raiseAreaEntries",
     "raiseAfterMovement",
     "endConditionsLeftBehind",
+    "douseStandingFlames",
+    "windOnFlames",
+    "vanishLightsBeyondRange",
+    "burnAwayCubes",
+    "holdGasOffWalls",
+    "endShapeBarsLeftBehind",
     "conditionsBoundToTheArea",
     "creaturesThatMoved",
     "raiseCarriedArrivals",
@@ -163,7 +169,10 @@
     "pulls",
     "ENDS_A_GRANT",
     "endTimedGrants",
-    "endTriggeredEffects"
+    "endTriggeredEffects",
+    "dispelMovedLight",
+    "dispelCasting",
+    "dispelGlow"
   ],
   "fold/inventory.ts": [
     "INVENTORY_EVENTS",

@@ -220,7 +220,10 @@ export type AreaStanding =
   | AreaDeflectionStanding
   | AreaAttackModeStanding
   | AreaConditionImmunityStanding
-  | AreaDispersalStanding;
+  | AreaDispersalStanding
+  | AreaDousingStanding
+  | AreaFlameStanding
+  | AreaGasBarrierStanding;
 
 /**
  * How much of a creature has to be in the area for a clause to reach it.
@@ -624,6 +627,59 @@ export type AreaConditionImmunityStanding = AreaSide & {
  */
 export interface AreaDispersalStanding {
   readonly kind: 'disperses';
+  readonly what: 'gas';
+}
+
+/**
+ * SRD Sleet Storm: "The area is Heavily Obscured, and **exposed flames in the
+ * area are doused**."
+ *
+ * The flame the engine holds is the glossary's Burning hazard, on a creature,
+ * and SRD Burning prints the consequence: "The fire also goes out if it is
+ * doused". So a creature standing in the area does not burn — whether it was
+ * alight when the sleet began, walked in, was shoved in, or caught fire where
+ * it stood — which `douseStandingFlames` in the fold derives off the pinned
+ * area after every event, the same derived-at-the-read reading every clause
+ * here takes. The fire it puts out stays out: a creature that walks back into
+ * the open is not burning again, because a doused fire is over. (E-L2)
+ */
+export interface AreaDousingStanding {
+  readonly kind: 'douses-flames';
+}
+
+/**
+ * SRD Gust of Wind: "it **extinguishes candles and similar unprotected
+ * flames** in the area. It causes **protected flames**, such as those of
+ * lanterns, to dance wildly and has a **50 percent chance to extinguish
+ * them**." (E-L2, the owner's ruling of 2026-10-03)
+ *
+ * A flame is light the table declared with a kind (`LightPatch.flame`). An
+ * unprotected one this area reaches goes out — derived, as Sleet Storm's
+ * dousing is. A protected one is owed **one** throw against
+ * `protectedChance` when the area first reaches it, and another only if the
+ * area is later moved onto it again: the fold raises the debt
+ * (`windOnFlames`) and `settleAreaEffects` throws the die. Not every round.
+ */
+export interface AreaFlameStanding {
+  readonly kind: 'extinguishes-flames';
+  /** The percentage a protected flame goes out on: SRD Gust of Wind's 50. */
+  readonly protectedChance: number;
+}
+
+/**
+ * SRD Wind Wall: "**The strong wind keeps fog, smoke, and other gases at
+ * bay.**" (E-L2, the owner's ruling of 2026-10-03)
+ *
+ * The wall clears its own strip and gas cannot cross it: a running casting a
+ * strong wind would disperse (`dispersed-by-wind`: SRD Fog Cloud, Stinking
+ * Cloud) is held off this area's spaces and off every space the area stands
+ * between and that casting's centre — and is **not** ended, so the rest of the
+ * cloud stands. Read by the fold (`holdGasOffWalls`), which writes the spaces
+ * onto the cloud's record and its patches. `what` is the one thing the book
+ * keeps at bay that the engine holds.
+ */
+export interface AreaGasBarrierStanding {
+  readonly kind: 'keeps-out';
   readonly what: 'gas';
 }
 
@@ -6243,6 +6299,20 @@ export interface GrantedSpeed {
    */
   readonly hover?: true;
   /**
+   * SRD Gaseous Form: "The target can enter and occupy the space of another
+   * creature." (E-L2)
+   *
+   * A fact about how the creature moves, carried on the grant that makes the
+   * cloud's movement what it is — the sentence follows "the target's only
+   * method of movement is a Fly Speed of 10 feet, and it can hover" — exactly
+   * as {@link hover} is. Read by `resolveMove` through
+   * {@link occupiesOthersOn}: such a creature's own move passes through
+   * anybody's space and may end in one, and the event says it did so the fold
+   * agrees. Lapses with the grant, so the cloud that is a wizard again stands
+   * where it stood and walks round people as everybody does.
+   */
+  readonly occupiesOthers?: true;
+  /**
    * The spell this change is the effect of — see `SameEffect` in
    * `same-effect.ts`. Pinned by the command; absent is its own identity.
    */
@@ -6989,6 +7059,18 @@ export function isGaseousOn(state: GameState, who: CharacterId): boolean {
   if (creature === undefined) return false;
   return creature.speedModifiers.some(
     (granted) => granted.mode === 'fly' && granted.hover === true && granted.change === 'only',
+  );
+}
+
+/**
+ * Whether this creature's own movement may enter and end in another
+ * creature's space — SRD Gaseous Form's "The target can enter and occupy the
+ * space of another creature", read off the grant that carries it
+ * ({@link GrantedSpeed.occupiesOthers}). (E-L2)
+ */
+export function occupiesOthersOn(state: GameState, who: CharacterId): boolean {
+  return (
+    state.creatures[who]?.speedModifiers.some((granted) => granted.occupiesOthers === true) === true
   );
 }
 

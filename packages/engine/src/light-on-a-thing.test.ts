@@ -767,15 +767,19 @@ describe('the recast’s free hand (W9-T)', () => {
   });
 });
 
-describe('what this track leaves owed, pinned so it is paid on purpose', () => {
-
-  /**
-   * SRD Starry Wisp's glow names no running casting — its casting is
-   * Instantaneous — so a Darkness laid over it has nothing to end, and the
-   * magical Dim Light lifts the magical Darkness where they overlap until its
-   * own deadline. Filed on Darkness under the light shape.
-   */
-  it('leaves Starry Wisp’s glow standing under a Darkness', () => {
+/**
+ * SRD Darkness: "If any of this spell's area overlaps with an area of Bright
+ * Light or Dim Light created by a spell of level 2 or lower, **that other spell
+ * is dispelled**." SRD Daylight prints the mirror at level 3. (E-L2)
+ *
+ * The sentence belongs to the spell that prints it and holds whichever came
+ * first: a Darkness laid over a light puts it out, and a light laid into a
+ * Darkness — or carried into one — is put out by it. A spell that prints no
+ * such sentence dispels nothing, whatever its level: Moonbeam and Flame Blade
+ * are level 2 and lose to a Darkness rather than ending it.
+ */
+describe('the dispel belongs to the spell that prints it, whichever came first', () => {
+  const WISP_ROOM = (darkFirst = false): Room => {
     const r = new Room([
       ...caster(DRUID),
       ...caster(ALLY),
@@ -790,25 +794,119 @@ describe('what this track leaves owed, pinned so it is paid on purpose', () => {
       placed(ALLY, at(105, 100)),
       placed(SNEAK, at(100, 130)),
       { type: 'sight-declared', from: DRUID, to: SNEAK, seen: true },
-      {
-        type: 'combat-started',
-        combatants: [
-          { id: DRUID, initiative: 20, speed: 30 },
-          { id: ALLY, initiative: 15, speed: 30 },
-          { id: SNEAK, initiative: 10, speed: 30 },
-        ],
-      },
     ]);
-    r.push(
-      ...unwrap(
-        resolveSpell(r.state, DRUID, { spellId: 'starry-wisp', targets: [SNEAK] }, supply(r.state, 'wisp')),
-        'wisp',
-      ).events,
+    // A Darkness already standing over the sneak, cast before anybody's turn.
+    if (darkFirst) r.cast('darkness', { at: at(100, 130), slotLevel: 2 }, ALLY);
+    return r.push({
+      type: 'combat-started',
+      combatants: [
+        { id: DRUID, initiative: 20, speed: 30 },
+        { id: ALLY, initiative: 15, speed: 30 },
+        { id: SNEAK, initiative: 10, speed: 30 },
+      ],
+    });
+  };
+
+  /** The wisp's own timer — the key its glow lapses with. */
+  const glowTimerOf = (events: readonly GameEvent[]): string => {
+    const glow = events.find((event) => event.type === 'light-declared' && event.lapsesWith !== undefined);
+    return glow?.type === 'light-declared' ? glow.lapsesWith! : '';
+  };
+
+  /**
+   * SRD Starry Wisp's glow is a spell's Dim Light on a deadline of its own —
+   * its casting is Instantaneous and never reaches `state.ongoing` — so the
+   * dispel ends **the timer** it lapses with, which takes the glow and the
+   * Invisible it denies with it: "that other spell is dispelled", whole.
+   */
+  it('puts out Starry Wisp’s glow when a Darkness is laid over it', () => {
+    const r = WISP_ROOM();
+    const out = unwrap(
+      resolveSpell(r.state, DRUID, { spellId: 'starry-wisp', targets: [SNEAK] }, supply(r.state, 'wisp')),
+      'wisp',
     );
+    r.push(...out.events);
+    const timer = glowTimerOf(out.events);
+    expect(r.state.timers[timer]).toBeDefined();
     r.run('the druid’s turn ends', (state) => resolveTurn(state, supply(state, 'turn')));
+
     r.cast('darkness', { at: at(100, 130), slotLevel: 2 }, ALLY);
 
-    expect(r.light(at(100, 130))).toMatchObject({ level: 'dim', magical: true });
+    expect(r.light(at(100, 130))).toMatchObject({ level: 'darkness', magical: true });
+    expect(r.state.timers[timer]).toBeUndefined();
+  });
+
+  it('puts out Starry Wisp’s glow when it lands on a creature standing in a Darkness', () => {
+    const r = WISP_ROOM(true);
+    const darkness = Object.keys(r.state.ongoing)[0]!;
+    const out = unwrap(
+      resolveSpell(r.state, DRUID, { spellId: 'starry-wisp', targets: [SNEAK] }, supply(r.state, 'wisp')),
+      'wisp',
+    );
+    expect(out.outcomes[0]?.attack?.hit).toBe(true);
+    r.push(...out.events);
+
+    expect(r.state.timers[glowTimerOf(out.events)]).toBeUndefined();
+    expect(r.state.ongoing[darkness]).toBeDefined();
+    expect(r.light(at(100, 130)).level).toBe('darkness');
+  });
+
+  /** Flame Blade is level 2 and prints no dispel: it is the one put out. */
+  it('puts out a Flame Blade evoked inside a Darkness, and leaves the Darkness', () => {
+    const r = room(...caster(ALLY).slice(1));
+    const darkness = r.cast('darkness', { at: at(110, 100), slotLevel: 2 }, ALLY);
+    const blade = r.cast('flame-blade', { targets: [DRUID], slotLevel: 2 });
+
+    expect(r.state.ongoing[blade]).toBeUndefined();
+    expect(r.state.ongoing[darkness]).toBeDefined();
+    expect(r.light(at(100, 100)).level).toBe('darkness');
+  });
+
+  it('puts out a Moonbeam cast into a Darkness, and leaves the Darkness', () => {
+    const r = room(...caster(ALLY).slice(1));
+    const darkness = r.cast('darkness', { at: at(150, 100), slotLevel: 2 }, ALLY);
+    const beam = r.cast('moonbeam', { at: at(150, 100), slotLevel: 2 });
+
+    expect(r.state.ongoing[beam]).toBeUndefined();
+    expect(r.state.ongoing[darkness]).toBeDefined();
+    expect(r.light(at(150, 100)).level).toBe('darkness');
+  });
+
+  it('puts out a Light cast on a creature standing in a Darkness', () => {
+    const r = room(...caster(ALLY).slice(1));
+    r.cast('darkness', { at: at(110, 100), slotLevel: 2 }, ALLY);
+    const light = r.cast('light', { targets: [DRUID] });
+
+    expect(r.state.ongoing[light]).toBeUndefined();
+    expect(r.light(at(100, 100)).level).toBe('darkness');
+  });
+
+  /**
+   * A light carried into the Darkness overlaps it the moment its bearer
+   * arrives, and nobody re-lays anything: the patch is the bearer's, so the
+   * move is the moment.
+   */
+  it('puts out a Light whose bearer walks into a Darkness', () => {
+    const r = room(...caster(ALLY).slice(1));
+    const light = r.cast('light', { targets: [DRUID] });
+    const darkness = r.cast('darkness', { at: at(160, 100), slotLevel: 2 }, ALLY);
+    expect(r.state.ongoing[light]).toBeDefined();
+
+    r.push(moved(DRUID, at(150, 100)));
+
+    expect(r.state.ongoing[light]).toBeUndefined();
+    expect(r.state.ongoing[darkness]).toBeDefined();
+    expect(r.light(at(150, 100)).level).toBe('darkness');
+  });
+
+  it('leaves a Light whose bearer walks nowhere near the Darkness', () => {
+    const r = room(...caster(ALLY).slice(1));
+    const light = r.cast('light', { targets: [DRUID] });
+    r.cast('darkness', { at: at(160, 100), slotLevel: 2 }, ALLY);
+
+    r.push(moved(DRUID, at(60, 100)));
+
+    expect(r.state.ongoing[light]).toBeDefined();
   });
 });
 

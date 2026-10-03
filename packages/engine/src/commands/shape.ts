@@ -32,6 +32,8 @@ import { HOUR } from '../time.js';
 import { creatureOf, spendFor, unknownCreature } from './command.js';
 import { schedule } from './conditions.js';
 import { mayAct } from './holds.js';
+import { refuseShapeShifting } from '../combat.js';
+import { actionRulesOn } from '../standing.js';
 
 export interface AssumeShapeCommand extends CommandIdentity {
   /** The feature that takes the form — SRD's `druid:wild-shape`. */
@@ -64,6 +66,11 @@ export function assumeShape(
 
     const creature = creatureOf(state, id);
     if (creature === null) return unknownCreature(id);
+
+    // SRD Moonbeam's "can't shape-shift until it leaves the Cylinder", read by
+    // every door a shape comes through. (E-L2)
+    const barred = refuseShapeShifting(id, actionRulesOn(state, id));
+    if (!barred.ok) return barred;
 
     const definition = (creature.sheet.shapeShifts ?? []).find(
       (shape) => shape.feature === command.feature,

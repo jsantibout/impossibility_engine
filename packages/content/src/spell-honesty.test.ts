@@ -362,7 +362,7 @@ describe('an executed spell may not file a rule the engine owns as fiction', () 
     expect(
       darkness[0]?.areaLight,
       'Darkness sheds no darkness, so there is nothing in its Sphere for Sunburst to dispel',
-    ).toEqual({ level: 'darkness' });
+    ).toEqual({ level: 'darkness', dispels: 2 });
     // And Sunburst's own side of the overlap: a flash that lays no patch, so
     // nothing it does reaches the dispel the geometry would otherwise allow.
     const sunburst = SPELL_DEFINITIONS.find((d) => d.id === 'sunburst');

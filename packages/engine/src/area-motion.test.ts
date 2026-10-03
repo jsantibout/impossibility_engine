@@ -15,7 +15,7 @@ import { createRollIssuer } from './rolls.js';
 import { fold, type GameEvent, type GameState } from './events.js';
 import { declaredCasting } from './spellcasting.js';
 import { lightAt, type Point } from './positioning.js';
-import { areaStampKey, type AreaMoment } from './spells.js';
+import { areaStampKey, type OwedMoment } from './spells.js';
 import { commandOutcome } from './idempotency.js';
 import {
   activateSpell,
@@ -361,7 +361,7 @@ class Game {
     return out.events;
   }
 
-  owed(): readonly { readonly target: string; readonly moment: AreaMoment }[] {
+  owed(): readonly { readonly target: string; readonly moment: OwedMoment }[] {
     return owedAreaEffectsOf(this.state);
   }
 

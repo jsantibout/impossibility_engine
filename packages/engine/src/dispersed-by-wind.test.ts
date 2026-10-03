@@ -184,7 +184,7 @@ describe('the definitions print the wind', () => {
   });
 
   it('makes Gust of Wind’s Line disperse gas', () => {
-    expect(definition('gust-of-wind').areaStanding).toEqual([{ kind: 'disperses', what: 'gas' }]);
+    expect(definition('gust-of-wind').areaStanding).toContainEqual({ kind: 'disperses', what: 'gas' });
     expect(checkSpellDefinitionValue(definition('gust-of-wind'))).toEqual([]);
   });
 

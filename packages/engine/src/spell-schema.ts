@@ -725,6 +725,9 @@ function checkChoiceOption(
  * | `attack-mode` | Magic Circle | Advantage or Disadvantage, and the attacker's types it reaches |
  * | `condition-immunity` | Magic Circle | the SRD's conditions, and the causer's types it holds against |
  * | `disperses` | Gust of Wind | what it disperses, which is gas |
+ * | `douses-flames` | Sleet Storm | nothing: it is a fact with no fields |
+ * | `keeps-out` | Wind Wall | what it keeps at bay, which is gas |
+ * | `extinguishes-flames` | Gust of Wind | the percentage a protected flame goes out on |
  *
  * `statesTypes` is whether the definition prints a choice of types for the
  * casting to fill in: a clause saying `'stated'` on a spell that prints none
@@ -854,6 +857,38 @@ function checkAreaStanding(
       return;
 
     case 'deflects-projectiles':
+      return;
+
+    // SRD Sleet Storm: "exposed flames in the area are doused". A fact with no
+    // fields, read by the fold against whoever is burning there. (E-L2)
+    case 'douses-flames':
+      return;
+
+    // SRD Gust of Wind: "has a 50 percent chance to extinguish them". A
+    // percentage the die is thrown against, so a whole number from 1 to 100.
+    // (E-L2)
+    case 'extinguishes-flames': {
+      const chance = standing['protectedChance'];
+      if (typeof chance !== 'number' || !Number.isInteger(chance) || chance < 1 || chance > 100) {
+        found.push({
+          field: `${path}.protectedChance`,
+          code: 'bad_flame_chance',
+          reason: `the chance a protected flame goes out is a whole percentage from 1 to 100, not ${nameOf(chance)}`,
+        });
+      }
+      return;
+    }
+
+    // SRD Wind Wall: "keeps fog, smoke, and other gases at bay". One thing a
+    // wall of wind holds off that the engine holds, and so one value. (E-L2)
+    case 'keeps-out':
+      if (standing['what'] !== 'gas') {
+        found.push({
+          field: `${path}.what`,
+          code: 'unknown_dispersal',
+          reason: `a wall of wind keeps gas at bay, which is what a cloud's dispersed-by-wind marks; ${nameOf(standing['what'])} is nothing any casting is`,
+        });
+      }
       return;
 
     // SRD Gust of Wind: "The gust disperses gas or vapor." One thing a wind
@@ -1429,12 +1464,17 @@ function checkSpeedMode(
   found: SpellDefinitionProblem[],
   carries: SpeedModes,
 ): void {
-  const { mode, hover } = value as { readonly mode?: unknown; readonly hover?: unknown };
+  const { mode, hover, occupiesOthers } = value as {
+    readonly mode?: unknown;
+    readonly hover?: unknown;
+    readonly occupiesOthers?: unknown;
+  };
 
   if (carries === 'no-modes') {
     for (const [field, present] of [
       ['mode', mode !== undefined],
       ['hover', hover !== undefined],
+      ['occupiesOthers', occupiesOthers !== undefined],
     ] as const) {
       if (!present) continue;
       found.push({
@@ -1529,6 +1569,18 @@ function checkSpeedMode(
       code: 'bad_speed_change',
       reason:
         'hovering is the Fly Speed\'s exception to the fall and means nothing without one; the only value is true, beside a granted Fly Speed',
+    });
+  }
+
+  // SRD Gaseous Form's "can enter and occupy the space of another creature" is
+  // how the movement this grant gives goes, so it stands beside a Speed it
+  // gives and nowhere else. (E-L2)
+  if (occupiesOthers !== undefined && (occupiesOthers !== true || mode === undefined || !gives)) {
+    found.push({
+      field: `${path}.occupiesOthers`,
+      code: 'bad_speed_change',
+      reason:
+        'entering and occupying another creature’s space is a fact about a movement this grant gives; the only value is true, beside a Speed in a mode the grant gives',
     });
   }
 }
@@ -1844,12 +1896,32 @@ function checkAreaTerrain(
     clears,
     damagePerFeet,
     onlyTowards,
+    onlyWhere,
+    casterMayExclude,
   } = terrain as {
     costPerFoot?: unknown;
     clears?: unknown;
     damagePerFeet?: unknown;
     onlyTowards?: unknown;
+    onlyWhere?: unknown;
+    casterMayExclude?: unknown;
   };
+  // SRD Plant Growth's "All normal plants": the one stretch of ground a rate
+  // is narrowed to, and the caster's exclusions beside it. (E-L2)
+  if (onlyWhere !== undefined && onlyWhere !== 'plants-grow') {
+    found.push({
+      field: `${path}.onlyWhere`,
+      code: 'unknown_ground',
+      reason: `ground is narrowed to where plants grow or not at all; the only value is 'plants-grow', not ${String(onlyWhere)}`,
+    });
+  }
+  if (casterMayExclude !== undefined && casterMayExclude !== true) {
+    found.push({
+      field: `${path}.casterMayExclude`,
+      code: 'bad_exclusion',
+      reason: 'a caster may exclude areas or the spell prints nothing of it; the only value is true',
+    });
+  }
   // SRD Gust of Wind's "when moving closer to you" is the one narrowing a rate
   // takes, and the caster is the only creature the sentence can name.
   if (onlyTowards !== undefined && onlyTowards !== 'caster') {
@@ -2451,10 +2523,17 @@ export function checkActionRule(
     if (rule.objects !== undefined && rule.objects !== true) {
       bad('a rule either forbids handling objects or says nothing about it; `objects` is `true` or absent');
     }
+    // **And taking a shape is the fifth** (E-L2): SRD Moonbeam's "can't
+    // shape-shift until it leaves the Cylinder" comes out of a Bonus Action, an
+    // Action or somebody else's casting, so it is no slot and no named action.
+    if (rule.shapeShifting !== undefined && rule.shapeShifting !== true) {
+      bad('a rule either forbids taking a shape or says nothing about it; `shapeShifting` is `true` or absent');
+    }
     if (
       (rule.slots?.length ?? 0) + (rule.actions?.length ?? 0) === 0 &&
       rule.casting !== true &&
-      rule.objects !== true
+      rule.objects !== true &&
+      rule.shapeShifting !== true
     ) {
       bad('a rule that forbids no slot, no action, no casting and no handling forbids nothing; name what the spell takes away');
     }
@@ -3253,7 +3332,7 @@ function checkSuccessRiders(
         'no saving throw in the book rewards a success with damage; a hit a success still takes is the failure branch, or the host\u2019s own onSuccess',
     });
   }
-  for (const slot of ['light', 'drops', 'breaksConcentration', 'at'] as const) {
+  for (const slot of ['light', 'drops', 'breaksConcentration', 'at', 'revertsShape'] as const) {
     if (riders[slot] === undefined) continue;
     found.push({
       field: `${path}.${slot}`,
@@ -3341,6 +3420,7 @@ const RIDER_SLOTS: ReadonlySet<string> = new Set([
   'light',
   'breaksConcentration',
   'drops',
+  'revertsShape',
 ]);
 
 function checkRiders(
@@ -3354,6 +3434,7 @@ function checkRiders(
     readonly breaksConcentration?: true;
     readonly drops?: { readonly all?: unknown; readonly orElse?: readonly ModifierRider[] };
     readonly at?: DeferredMoment;
+    readonly revertsShape?: true;
   },
   level: number,
   path: string,
@@ -3468,6 +3549,15 @@ function checkRiders(
   // The seventh, and the only one with nothing to be wrong about but its own
   // value: a clause the book either prints or does not — see
   // {@link OutcomeRiders.breaksConcentration}.
+  // SRD Moonbeam's revert, which has nothing to be wrong about but its own
+  // value — see {@link OutcomeRiders.revertsShape}. (E-L2)
+  if (riders.revertsShape !== undefined && riders.revertsShape !== true) {
+    found.push({
+      field: `${path}.revertsShape`,
+      code: 'malformed_field',
+      reason: 'a spell either prints "it reverts to its true form" or does not; the only value is true',
+    });
+  }
   if (riders.breaksConcentration !== undefined && riders.breaksConcentration !== true) {
     found.push({
       field: `${path}.breaksConcentration`,
@@ -7580,7 +7670,19 @@ export function checkSpellDefinition(
         found,
       )
     ) {
-      const { level, dimBeyond, sunlight } = definition.areaLight;
+      const { level, dimBeyond, sunlight, dispels } = definition.areaLight;
+      // SRD Darkness's "created by a spell of level 2 or lower": a spell level,
+      // and one a pinned patch can carry. (E-L2)
+      if (
+        dispels !== undefined &&
+        (typeof dispels !== 'number' || !Number.isInteger(dispels) || dispels < 0 || dispels > 9)
+      ) {
+        found.push({
+          field: 'areaLight.dispels',
+          code: 'bad_dispel_level',
+          reason: `a light dispels the opposite light of a spell at some level or lower, and a spell's level runs from 0 to 9; this is ${String(dispels)}`,
+        });
+      }
       // **The pure function's own rules, read off the same constants.** A
       // second spelling here would be a second chance to disagree with
       // `declareLightPatch`, which the fold calls on the event this definition
@@ -7990,6 +8092,111 @@ export function checkSpellDefinition(
       field: 'durationSeconds',
       code: 'bad_duration',
       reason: 'a duration of nothing is Instantaneous, which is the absence of one',
+    });
+  }
+
+  // SRD Dancing Lights' several lights: copies of a point-origin area that
+  // sheds light and does nothing else — see `AreaCopies`. (E-L2)
+  if (definition.areaCopies !== undefined) {
+    const copies = definition.areaCopies as {
+      readonly upTo?: unknown;
+      readonly within?: unknown;
+      readonly keptInRange?: unknown;
+    };
+    const wholeFeet = (value: unknown): boolean =>
+      typeof value === 'number' && Number.isInteger(value) && value > 0;
+    if (typeof copies.upTo !== 'number' || !Number.isInteger(copies.upTo) || copies.upTo < 2) {
+      found.push({
+        field: 'areaCopies.upTo',
+        code: 'bad_area_copies',
+        reason: `several templates are at least two, as a whole number; this is ${String(copies.upTo)}`,
+      });
+    }
+    if (copies.within !== undefined && !wholeFeet(copies.within)) {
+      found.push({
+        field: 'areaCopies.within',
+        code: 'bad_area_copies',
+        reason: `the distance that ties one copy to another is a whole number of feet; this is ${String(copies.within)}`,
+      });
+    }
+    if (copies.keptInRange !== undefined && copies.keptInRange !== true) {
+      found.push({
+        field: 'areaCopies.keptInRange',
+        code: 'bad_area_copies',
+        reason: 'a copy is kept in range or the spell says nothing about it; the only value is true',
+      });
+    }
+    if (
+      definition.area === undefined ||
+      definition.area.origin !== 'point' ||
+      definition.areaLight === undefined
+    ) {
+      found.push({
+        field: 'areaCopies',
+        code: 'copies_without_light',
+        reason: 'several templates are laid as light at points the caster names, so they need a point-origin area that sheds light',
+      });
+    }
+    if (
+      definition.effects.length > 0 ||
+      definition.areaTrigger !== undefined ||
+      definition.areaTerrain !== undefined ||
+      definition.areaObscurement !== undefined ||
+      definition.areaStanding !== undefined
+    ) {
+      found.push({
+        field: 'areaCopies',
+        code: 'copies_do_more_than_light',
+        reason: 'the copies are read by the light and by nothing else; a spell whose copies caught creatures, cost ground or filled the air would need every reader of an area to learn them',
+      });
+    }
+  }
+
+  // SRD Web's flammable webs: dice the engine can throw, a type the book
+  // prints, a span that is a whole number of seconds, and an area that runs —
+  // a Cube burns in a casting that is still there to burn. (E-L2)
+  if (definition.flammable !== undefined) {
+    const { dice, damageType, burnsSeconds } = definition.flammable as {
+      readonly dice?: unknown;
+      readonly damageType?: unknown;
+      readonly burnsSeconds?: unknown;
+    };
+    if (typeof dice !== 'string' || !parseNotation(dice).ok) {
+      found.push({
+        field: 'flammable.dice',
+        code: 'bad_dice',
+        reason: `the fire deals dice the engine throws, and ${String(dice)} is not a notation`,
+      });
+    }
+    if (typeof damageType !== 'string' || !DAMAGE.has(damageType)) {
+      found.push({
+        field: 'flammable.damageType',
+        code: 'unknown_damage_type',
+        reason: `"${String(damageType)}" is not one of the SRD's damage types`,
+      });
+    }
+    if (typeof burnsSeconds !== 'number' || !Number.isInteger(burnsSeconds) || burnsSeconds <= 0) {
+      found.push({
+        field: 'flammable.burnsSeconds',
+        code: 'bad_duration',
+        reason: `a Cube burns for a whole number of seconds, and this is ${String(burnsSeconds)}`,
+      });
+    }
+    if (definition.area === undefined || (definition.durationSeconds === undefined && definition.concentration !== true)) {
+      found.push({
+        field: 'flammable',
+        code: 'nothing_to_burn',
+        reason: 'what burns is a Cube of a running casting’s area, so the spell needs an area and a duration',
+      });
+    }
+  }
+
+  // A spell either prints that its target shape-shifts or it does not. (E-L2)
+  if (definition.shapeShifts !== undefined && definition.shapeShifts !== true) {
+    found.push({
+      field: 'shapeShifts',
+      code: 'malformed_field',
+      reason: 'a spell either shape-shifts the creature it is on or does not; the only value is true',
     });
   }
 

@@ -418,6 +418,19 @@ export type ActionRule =
        * deliberately rather than by omission.
        */
       readonly objects?: true;
+      /**
+       * SRD Moonbeam: "it reverts to its true form and **can't shape-shift
+       * until it leaves the Cylinder**." (E-L2)
+       *
+       * **Not a slot and not one of {@link NAMED_ACTIONS}**, for `casting`'s
+       * reason: a shape is taken by a Bonus Action (SRD Wild Shape, the
+       * werewolf's Shape-Shift), by an Action (the Imp's) or by somebody else's
+       * casting (SRD Gaseous Form: "A willing creature you touch shape-shifts"),
+       * so no one slot names it. Every door a shape is taken through reads it
+       * through {@link refuseShapeShifting} and refuses
+       * `shape_shifting_forbidden`.
+       */
+      readonly shapeShifting?: true;
     }
   /**
    * SRD Wind Walk, Fear, Magic Jar: one slot narrowed to a named few.
@@ -921,6 +934,30 @@ export function refuseObjectHandling(
       return err(
         'cannot_manipulate_objects',
         `${id} cannot handle anything: ${held.label} until ${held.until}`,
+      );
+    }
+  }
+  return ok(true);
+}
+
+/**
+ * Whether a rule standing on this creature forbids it to take a shape — SRD
+ * Moonbeam's "can't shape-shift until it leaves the Cylinder". (E-L2)
+ *
+ * One reader for every door a shape comes through — a Wild Shape, a stat
+ * block's own Shape-Shift, a casting that shape-shifts its target — so the
+ * three cannot disagree about one creature. The first rule that bites wins, and
+ * the refusal names it and says until when.
+ */
+export function refuseShapeShifting(
+  id: CharacterId,
+  rules: readonly GrantedActionRule[],
+): Result<true> {
+  for (const held of rules) {
+    if (held.rule.kind === 'forbids' && held.rule.shapeShifting === true) {
+      return err(
+        'shape_shifting_forbidden',
+        `${id} cannot shape-shift: ${held.label} until ${held.until}`,
       );
     }
   }

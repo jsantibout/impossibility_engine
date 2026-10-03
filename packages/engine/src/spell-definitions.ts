@@ -1684,6 +1684,28 @@ export interface OutcomeRiders {
    */
   readonly breaksConcentration?: true;
   /**
+   * SRD Moonbeam: "On a failed save, a creature takes 2d10 Radiant damage, and
+   * **if the creature is shape-shifted** (as a result of the _Polymorph_ spell,
+   * for example), **it reverts to its true form and can't shape-shift until it
+   * leaves the Cylinder**." (E-L2)
+   *
+   * One clause and two halves, and the second is conditional on the first:
+   * only a creature that *was* shape-shifted is barred. What it is shape-shifted
+   * by is read off the creature at the moment the outcome settles — a Wild
+   * Shape it is wearing (the feature ends), a form its own stat block prints
+   * (it takes the true one, the last its line prints), or a running casting on
+   * it whose definition says it shape-shifts its target
+   * ({@link SpellDefinition.shapeShifts}: SRD Gaseous Form, Polymorph — the
+   * casting is released on it). The bar is a `forbids` action rule under this
+   * casting's source, and the fold lifts it the moment the creature is outside
+   * this casting's area, which is the "until it leaves the Cylinder".
+   *
+   * A creature in its own skin loses nothing and is barred from nothing, which
+   * is the silence `breaksConcentration` keeps for a creature holding no
+   * Concentration. `true` is the only value.
+   */
+  readonly revertsShape?: true;
+  /**
    * **When** the riders land, where the book does not land them at the
    * outcome. (W7-S22)
    *
@@ -3574,6 +3596,12 @@ export type SpellEffect =
        * either, and the pair is what the fall reads.
        */
       readonly hover?: true;
+      /**
+       * SRD Gaseous Form: "The target can enter and occupy the space of
+       * another creature." Beside a Speed in a mode, because it is a fact about
+       * how that movement goes — see `GrantedSpeed.occupiesOthers`. (E-L2)
+       */
+      readonly occupiesOthers?: true;
     }
   /**
    * Light the casting sheds from a thing its target carries — SRD Light: "the
@@ -5005,6 +5033,23 @@ export interface AreaTerrain {
    * beside `costPerFoot`, and never beside {@link clears}.
    */
   readonly onlyTowards?: 'caster';
+  /**
+   * SRD Plant Growth: "All **normal plants** in a 100-foot-radius Sphere ...
+   * become thick and overgrown." The ground thickens only where the table said
+   * plants grow (`PositionState.plants`), and a casting over ground nobody has
+   * described asks. The plants found are pinned onto the patch's region
+   * (`TerrainRegion.within`), so a later word about the plants changes
+   * nothing laid. (E-L2)
+   */
+  readonly onlyWhere?: 'plants-grow';
+  /**
+   * SRD Plant Growth: "You can exclude one or more areas of any size within
+   * the spell's area from being affected." The caster names them on the
+   * request (`CastSpellRequest.exclude`), and they are pinned onto the patch's
+   * region (`TerrainRegion.excluding`). A spell that prints no such sentence
+   * refuses the field. (E-L2)
+   */
+  readonly casterMayExclude?: true;
 }
 
 /**
@@ -5051,6 +5096,52 @@ export interface AreaLight {
    * keeps: sunlight is Bright Light with a flag and not a fourth level.
    */
   readonly sunlight?: boolean;
+  /**
+   * SRD Darkness: "If any of this spell's area overlaps with an area of Bright
+   * Light or Dim Light created by a spell of **level 2 or lower**, that other
+   * spell is dispelled." SRD Daylight prints the mirror at 3.
+   *
+   * The printed level, and only on a spell that prints the sentence: it is
+   * pinned onto the patch (`MagicalLight.dispelsUpTo`) and read whichever came
+   * first — the opposite light of a spell at or below it is put out when this
+   * one is laid over it, and when it is laid, carried or moved into this one.
+   * Absent is a spell that dispels nothing, whatever its own level: Moonbeam's
+   * Dim Light loses to a Darkness and never ends one. (E-L2)
+   */
+  readonly dispels?: number;
+}
+
+/**
+ * Several templates in one casting — SRD Dancing Lights: "You create **up to
+ * four** torch-size lights within range … each light sheds Dim Light in a
+ * 10-foot radius." / "As a Bonus Action, you can move the lights up to 60 feet
+ * to a space within range. **A light must be within 20 feet of another light
+ * created by this spell, and a light vanishes if it exceeds the spell's
+ * range.**" (E-L2)
+ *
+ * The first copy is the area the casting already places (`at`), and the
+ * others are named on the request (`alsoAt`) and pinned on the record
+ * (`OngoingSpell.copies`). Each is held to the Range at the casting, and the
+ * Bonus Action moves each (`to` for the first, `alsoTo` for the others) by the
+ * activation's own allowance.
+ *
+ * **Only the light is laid over the copies**, and the validator says so: a
+ * spell whose copies also caught creatures, made ground expensive or filled
+ * the air would need every one of those readers to learn the second, third and
+ * fourth template, and the one SRD spell that prints this sentence sheds light
+ * and nothing else.
+ */
+export interface AreaCopies {
+  /** "up to four": how many templates, the first counted. At least two. */
+  readonly upTo: number;
+  /** "A light must be within 20 feet of another light": the tether, in feet. */
+  readonly within?: number;
+  /**
+   * "to a space within range … and a light vanishes if it exceeds the spell's
+   * range": a copy is moved only to a space within the Range of its caster,
+   * and one that ends up beyond it — its caster walked off — is gone for good.
+   */
+  readonly keptInRange?: true;
 }
 
 /**
@@ -6054,6 +6145,30 @@ export interface SpellDefinition {
    */
   readonly areaLight?: AreaLight;
   /**
+   * The casting lays its area **several times over**, each copy at a point the
+   * caster names — see {@link AreaCopies}. (E-L2)
+   */
+  readonly areaCopies?: AreaCopies;
+  /**
+   * SRD Web: "**The webs are flammable. Any 5-foot Cube of webs exposed to fire
+   * burns away in 1 round, dealing 2d4 Fire damage to any creature that starts
+   * its turn in the fire.**" (E-L2)
+   *
+   * That a Cube meets fire is the table's to say (`exposeToFire`); what
+   * follows is the engine's, read off this field and pinned on the event: for
+   * `burnsSeconds` the Cube burns, and a creature that starts its turn in it
+   * takes the dice of the type printed; then the Cube is gone from the area —
+   * from its catch, its ground and its air — and the rest stands.
+   */
+  readonly flammable?: {
+    /** "2d4" */
+    readonly dice: string;
+    /** "Fire" */
+    readonly damageType: string;
+    /** "in 1 round": six seconds on the clock. */
+    readonly burnsSeconds: number;
+  };
+  /**
    * What the area does to **seeing through it**, where that is not the light
    * — see {@link AreaObscurement}.
    *
@@ -6152,6 +6267,18 @@ export interface SpellDefinition {
    * item does.
    */
   readonly noVerbalComponent?: true;
+  /**
+   * The spell **shape-shifts the creature it is on**: SRD Gaseous Form's "A
+   * willing creature you touch shape-shifts … into a misty cloud", SRD
+   * Polymorph's "shape-shift into a Beast form". (E-L2)
+   *
+   * Read by the two rules that ask whether a creature is shape-shifted, or is
+   * being made to: SRD Moonbeam's revert releases such a casting on the
+   * creature it caught ({@link OutcomeRiders.revertsShape}), and a creature
+   * barred from shape-shifting is refused as such a casting's target. Absent is
+   * every other spell, which shapes nobody.
+   */
+  readonly shapeShifts?: true;
   /**
    * The damage types this spell prints, where it prints more than one and
    * chooses between them on a fact about the caster.
@@ -9273,6 +9400,10 @@ export function outcomeRidersOf(effect: SpellEffect): OutcomeRiders {
     effect.kind === 'attack' || effect.kind === 'save-damage' || effect.kind === 'save'
       ? effect.drops
       : undefined;
+  // SRD Moonbeam's revert rides the two hosts that carry the riders whole: its
+  // one writer is a `save-damage`. (E-L2)
+  const revertsShape =
+    effect.kind === 'attack' || effect.kind === 'save-damage' ? effect.revertsShape : undefined;
   return {
     ...(conditions.length === 0 ? {} : { conditions }),
     ...(modifiers.length === 0 ? {} : { modifiers }),
@@ -9283,6 +9414,7 @@ export function outcomeRidersOf(effect: SpellEffect): OutcomeRiders {
     ...(breaksConcentration === undefined ? {} : { breaksConcentration }),
     ...(drops === undefined ? {} : { drops }),
     ...(at === undefined ? {} : { at }),
+    ...(revertsShape === undefined ? {} : { revertsShape }),
   };
 }
 
@@ -9304,7 +9436,8 @@ export function hasOutcomeRiders(riders: OutcomeRiders): boolean {
     riders.movement !== undefined ||
     riders.spends !== undefined ||
     riders.light !== undefined ||
-    riders.breaksConcentration !== undefined
+    riders.breaksConcentration !== undefined ||
+    riders.revertsShape !== undefined
   );
 }
 

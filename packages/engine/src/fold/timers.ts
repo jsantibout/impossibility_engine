@@ -28,6 +28,7 @@ import {
 /** The event types this seam owns. Every one of them, and no other seam's. */
 export const TIMERS_EVENTS = [
   'effect-scheduled',
+  'effect-dispelled',
   'effect-check-resolved',
   'damage-scheduled',
   'scheduled-damage-collected',
@@ -66,6 +67,35 @@ export function applyTimers({ state, next }: Applying, event: TimersEvent): Game
           },
         }),
       };
+
+    // SRD Darkness dispelling SRD Starry Wisp's glow: what the deadline would
+    // have released, released now — the same door `expireEffects` opens for
+    // a `grants` timer when its moment arrives. Only a `grants` timer is ever
+    // written here, because a glow on a deadline of its own is the one thing
+    // the dispel ends by its timer; anything else is a log this engine did not
+    // write. (E-L2)
+    case 'effect-dispelled': {
+      const timer = state.timers[event.effectKey];
+      if (timer === undefined) {
+        throw new CorruptLogError(event, `no effect is filed under ${event.effectKey}`);
+      }
+      if (timer.target.kind !== 'grants') {
+        throw new CorruptLogError(event, `${event.effectKey} is not a glow on a deadline of its own`);
+      }
+      const timers = { ...next.timers };
+      delete timers[event.effectKey];
+      const creature = next.creatures[timer.target.on];
+      return creature === undefined
+        ? { ...next, timers }
+        : {
+            ...next,
+            timers,
+            creatures: {
+              ...next.creatures,
+              [timer.target.on]: releaseGrants(creature, timer.target.source),
+            },
+          };
+    }
 
     case 'effect-check-resolved': {
       const timer = state.timers[event.effectKey];

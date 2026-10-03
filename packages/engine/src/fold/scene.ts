@@ -18,6 +18,7 @@ import {
   dismount,
   footprintOf,
   declareBonesAt,
+  declarePlantsAt,
   mount,
   moveCreature,
   placeCreature,
@@ -34,6 +35,7 @@ export const SCENE_EVENTS = [
   'scene-set',
   'landmark-added',
   'bones-declared',
+  'plants-declared',
   'creature-placed',
   'creature-moved',
   'creature-unplaced',
@@ -132,6 +134,19 @@ export function applyScene({ state, next }: Applying, event: SceneEvent): GameSt
     case 'bones-declared':
       return { ...next, scene: must(event, declareBonesAt(sceneOf(state, event), event.name, event.at)) };
 
+    case 'plants-declared':
+      return {
+        ...next,
+        scene: must(
+          event,
+          declarePlantsAt(
+            sceneOf(state, event),
+            event.name,
+            event.region === null ? null : { region: event.region, growing: event.growing },
+          ),
+        ),
+      };
+
     case 'landmark-added':
       return { ...next, scene: must(event, addLandmark(sceneOf(state, event), event.name, event.at)) };
 
@@ -226,6 +241,7 @@ export function applyScene({ state, next }: Applying, event: SceneEvent): GameSt
             ...(event.covered === undefined ? {} : { covered: event.covered }),
             ...(event.whileHolding === undefined ? {} : { whileHolding: event.whileHolding }),
             ...(event.lapsesWith === undefined ? {} : { lapsesWith: event.lapsesWith }),
+            ...(event.flame === undefined ? {} : { flame: event.flame }),
           }),
         ),
       };

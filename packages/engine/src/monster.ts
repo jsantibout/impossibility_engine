@@ -116,6 +116,34 @@ export type ConditionApplicability =
       readonly printed: string;
     };
 
+/**
+ * What a stat block's printed ranged line looses, by the name it prints — one
+ * row of the projectile table. (E-L2, the owner's ruling of 2026-10-03: "a
+ * content table, decided once")
+ *
+ * SRD Wind Wall: "Arrows, bolts, and other **ordinary projectiles** launched at
+ * targets behind the wall are deflected upward and miss automatically.
+ * Boulders hurled by Giants or siege engines, and similar projectiles, are
+ * unaffected." A line named after a catalogue weapon looses that weapon and
+ * needs no row; a line named after nothing the catalogue holds — a Tail Spike,
+ * a Hurl Flame, a Boulder — prints no projectile, so the table says what it
+ * is. Content rather than a field on the attack because it is decided once
+ * per line and reviewed as the catalogue is, and a world whose monsters throw
+ * other things writes its own rows.
+ */
+export interface RangedLine {
+  /** A lower-case hyphenated id, as every content row has. */
+  readonly id: string;
+  /** The line's heading as a stat block prints it, any "(… Form Only)" left off. */
+  readonly name: string;
+  /**
+   * True where the line looses an arrow, a bolt, a spike or a thrown blade —
+   * something a wall of wind turns aside; false where it is a boulder, a
+   * hurled hammer, fire or force, which no such wall touches.
+   */
+  readonly ordinaryProjectile: boolean;
+}
+
 export interface AdaptedMonster {
   readonly id: CharacterId;
   readonly name: string;

@@ -27,6 +27,7 @@ import {
   addCreature,
   addSceneLandmark,
   declareBones,
+  declarePlants,
   advanceTime,
   assumeShape,
   revertShape,
@@ -77,6 +78,7 @@ import {
   declareLight,
   declareObscurement,
   declareEnding,
+  exposeToFire,
   declareWind,
   moveCastLight,
   declineOpportunity,
@@ -3048,6 +3050,23 @@ const GUARDED: readonly Guarded[] = [
       declareEnding(s, 'cast:1', { what: 'the surface or object is moved more than 10 feet' }, { commandId }),
   },
   /**
+   * The table's word that a Cube of SRD Web met fire (E-L2). A retry that got
+   * past the guard would find the Cube already burning and report
+   * `already_burning` for a fire that had in fact been set.
+   */
+  {
+    name: 'exposeToFire',
+    log: webbed(),
+    run: (s, commandId) =>
+      exposeToFire(
+        s,
+        SRD_CONTENT,
+        Object.values(s.ongoing).find((one) => one.spellId === 'web')!.castingId,
+        { x: 120, y: 100, z: 0 },
+        { commandId },
+      ),
+  },
+  /**
    * The interruptible casting pair. Both halves need the guard and for
    * different reasons: a retried declaration would open a second casting with
    * a second action gone, and a retried settlement would spend a second slot
@@ -3241,6 +3260,17 @@ const GUARDED: readonly Guarded[] = [
     log: SETUP,
     run: (s, commandId) =>
       declareBones(s, 'the ossuary', { from: { landmark: 'here' }, feet: 20, bearing: 180 }, { commandId }),
+  },
+  {
+    name: 'declarePlants',
+    log: SETUP,
+    run: (s, commandId) =>
+      declarePlants(
+        s,
+        'the meadow',
+        { origin: { space: { x: 20, y: 20, z: 0 } }, shape: { kind: 'sphere', radius: 10 } },
+        { commandId },
+      ),
   },
   {
     name: 'placeCreatureInScene',
@@ -5108,6 +5138,8 @@ const DECLARED_NOT_ACTED: Readonly<Record<string, string>> = {
     'not an action in the turn economy: laying out the room is map-making, and a bar nobody had mentioned costs its describer nothing',
   declareBones:
     'not an action in the turn economy: a pile of bones on the crypt floor is the room being described — SRD Animate Dead reads it — and saying it lies there costs its describer nothing',
+  declarePlants:
+    'not an action in the turn economy: where normal plants grow is the room being described — SRD Plant Growth reads it — and saying a meadow lies there costs its describer nothing',
   placeCreatureInScene:
     'not an action in the turn economy: a creature walking into the scene is placed rather than moved, and SRD spends movement only on a move from somewhere',
   declareSightBetween:
@@ -5213,6 +5245,14 @@ describe('the DM-declared commands declare facts rather than taking actions', ()
     {
       name: 'declareBones',
       run: (s) => declareBones(s, 'the ossuary', { from: { landmark: 'the slick' }, feet: 20, bearing: 180 }),
+    },
+    {
+      name: 'declarePlants',
+      run: (s) =>
+        declarePlants(s, 'the meadow', {
+          origin: { space: { x: 20, y: 20, z: 0 } },
+          shape: { kind: 'sphere', radius: 10 },
+        }),
     },
     {
       name: 'placeCreatureInScene',

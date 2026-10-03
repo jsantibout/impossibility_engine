@@ -29,8 +29,11 @@ export const ONGOING_EVENTS = [
   'spell-activated',
   'spell-option-changed',
   'area-effect-settled',
+  'flame-tested',
   'casting-save-recorded',
   'spell-origin-moved',
+  'spell-copies-moved',
+  'casting-area-burning',
   'spell-aim-changed',
   'way-in-drawn',
   'way-in-height-declared',
@@ -161,6 +164,28 @@ export function applyOngoing({ state, next, legacy }: Applying, event: OngoingEv
       };
     }
 
+    // **A protected flame tested** — SRD Gust of Wind. The debt goes, and a
+    // flame that went out takes its light with it; a lantern that held burns
+    // on, and the area owes it nothing more until it is moved onto it again.
+    // (E-L2)
+    case 'flame-tested': {
+      const at = state.owedAreaEffects.findIndex(
+        (owed) =>
+          owed.castingId === event.castingId && owed.target === event.patch && owed.moment === 'flame-reached',
+      );
+      if (at < 0) {
+        throw new CorruptLogError(event, `${event.castingId} owes the flame ${event.patch} no throw`);
+      }
+      const owedAreaEffects = [...state.owedAreaEffects.slice(0, at), ...state.owedAreaEffects.slice(at + 1)];
+      const scene = next.scene;
+      if (!event.out || scene === null || scene.light[event.patch] === undefined) {
+        return { ...next, owedAreaEffects };
+      }
+      const { [event.patch]: _gone, ...light } = scene.light;
+      void _gone;
+      return { ...next, owedAreaEffects, scene: { ...scene, light } };
+    }
+
     case 'area-effect-settled': {
       const at = state.owedAreaEffects.findIndex(
         (owed) =>
@@ -208,6 +233,55 @@ export function applyOngoing({ state, next, legacy }: Applying, event: OngoingEv
       return {
         ...next,
         ongoing: { ...next.ongoing, [event.castingId]: { ...record, saves: kept } },
+      };
+    }
+
+    // SRD Web's Cube set alight: added to the record's burning Cubes, which
+    // the turn boundary reads for the fire and the fold's own pass burns away
+    // when the deadline arrives. (E-L2)
+    case 'casting-area-burning': {
+      const record = state.ongoing[event.castingId];
+      if (record === undefined) {
+        throw new CorruptLogError(event, `${event.castingId} is not running`);
+      }
+      const same = (p: { readonly x: number; readonly y: number; readonly z: number }) =>
+        p.x === event.space.x && p.y === event.space.y && p.z === event.space.z;
+      if ((record.burning ?? []).some((cube) => same(cube.space)) || (record.burnt ?? []).some(same)) {
+        throw new CorruptLogError(event, `${event.castingId} is already burning there`);
+      }
+      return {
+        ...next,
+        ongoing: sortedRecord({
+          ...next.ongoing,
+          [event.castingId]: {
+            ...record,
+            burning: [
+              ...(record.burning ?? []),
+              { space: event.space, until: event.until, dice: event.dice, damageType: event.damageType },
+            ],
+          },
+        }),
+      };
+    }
+
+    // SRD Dancing Lights' other lights, moved by the Bonus Action: the list as
+    // it now stands. A casting that never laid copies cannot have moved any,
+    // and a list of another length is a log and a set of rules that disagree.
+    // (E-L2)
+    case 'spell-copies-moved': {
+      const record = state.ongoing[event.castingId];
+      if (record === undefined) {
+        throw new CorruptLogError(event, `${event.castingId} is not running`);
+      }
+      if (record.copies === undefined || record.copies.length !== event.copies.length) {
+        throw new CorruptLogError(event, `${event.castingId} does not hold ${event.copies.length} other templates`);
+      }
+      return {
+        ...next,
+        ongoing: sortedRecord({
+          ...next.ongoing,
+          [event.castingId]: { ...record, copies: event.copies },
+        }),
       };
     }
 

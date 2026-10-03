@@ -214,6 +214,7 @@ const KNOWN_EVENT_TYPES: readonly string[] = [
   'bonus-applied',
   'bonus-removed',
   'budget-compelled',
+  'casting-area-burning',
   'casting-continued',
   'casting-save-recorded',
   'character-advanced',
@@ -266,6 +267,7 @@ const KNOWN_EVENT_TYPES: readonly string[] = [
   'disengage-taken',
   'dismounted',
   'effect-check-resolved',
+  'effect-dispelled',
   'effect-save-resolved',
   'effect-scheduled',
   'exhaustion-set',
@@ -274,6 +276,8 @@ const KNOWN_EVENT_TYPES: readonly string[] = [
   'feature-activated',
   'feature-ended',
   'feature-used',
+  // A protected flame a Gust of Wind's Line reached, tested — E-L2.
+  'flame-tested',
   'form-assumed',
   'free-interaction-used',
   'hazard-caught',
@@ -309,6 +313,8 @@ const KNOWN_EVENT_TYPES: readonly string[] = [
   'obscurement-declared',
   'opportunity-answered',
   'passive-defense-granted',
+  // Where the table says normal plants grow — SRD Plant Growth. E-L2.
+  'plants-declared',
   'printed-curse-laid',
   'printed-line-expended',
   'printed-line-immunity-granted',
@@ -345,6 +351,7 @@ const KNOWN_EVENT_TYPES: readonly string[] = [
   'spell-activated',
   'spell-aim-changed',
   'spell-cast',
+  'spell-copies-moved',
   'spell-declared',
   'spell-ended',
   // W7-S22: a casting made and failed — SRD Slow's gestures.

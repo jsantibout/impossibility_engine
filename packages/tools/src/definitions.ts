@@ -170,6 +170,7 @@ import {
   declareDawn,
   declareDifficultTerrain,
   declareEnding,
+  exposeToFire,
   declareLight,
   declareObscurement,
   declareFalling,
@@ -2178,11 +2179,18 @@ const DECLARE_LIGHT = tool({
       .describe(
         'The castingId of a running spell that made this light, if one did. The patch stops lighting anything the moment that casting stops running.',
       ),
+    flame: z
+      .enum(['unprotected', 'protected'])
+      .optional()
+      .describe(
+        'Where this light is a flame, which kind: unprotected for a torch, a candle or a campfire, protected for a lantern. A Gust of Wind or a Sleet Storm puts an unprotected flame out, and a Gust gives a protected one a chance to go out that the engine rolls. Leave it out for light that is no flame.',
+      ),
   }),
   run: (context, args) =>
     settleEvents(
       context,
       declareLight(context.campaign.state(), args.patch, {
+        ...(args.flame === undefined ? {} : { flame: args.flame }),
         region: {
           origin: areaPointAt(point(args.at)),
           shape: { kind: 'sphere', radius: args.radius },
@@ -2941,6 +2949,29 @@ const CAST_SPELL = tool({
       .describe(
         'The 5-foot spaces a **wall** runs through, in order along the ground — SRD Wind Wall’s "you can shape the wall in any way you choose so long as it makes one continuous path along the ground". The only template the caster draws rather than aims: the engine checks the total length the spell allows, that each space touches the one before it, that the whole path is on one ground and crosses no space twice, and that the first space is in range. Leave `at` out; the wall rises at the first space of its own path.',
       ),
+    alsoAt: z
+      .array(pointSchema)
+      .min(1)
+      .optional()
+      .describe(
+        'Where the casting’s **other** templates go, for a spell that lays several — SRD Dancing Lights’ "up to four torch-size lights within range": the first light at `at` and lights 2, 3 and 4 here, in that order. Each must be in range, and each within the distance the spell ties them by (20 feet for Dancing Lights) of another. Refused on a spell that lays one.',
+      ),
+    exclude: z
+      .array(
+        z.strictObject({
+          at: pointSchema.describe('The middle of the area left out.'),
+          radius: z
+            .number()
+            .finite()
+            .nonnegative()
+            .describe('How far it reaches from there, in feet. 0 is the one space.'),
+        }),
+      )
+      .min(1)
+      .optional()
+      .describe(
+        'The areas the caster leaves out of the spell’s area, for a spell that lets them — SRD Plant Growth’s "You can exclude one or more areas of any size within the spell’s area from being affected". Each is a radius from a point, as `declare_difficult_terrain` takes. Refused on a spell that prints no such sentence.',
+      ),
     towardsCreature: creatureId.optional().describe('Point a Cone, Cube or Line at this creature.'),
     towardsLandmark: z.string().min(1).optional().describe('Point it at this landmark instead.'),
     anchoring: z
@@ -3197,6 +3228,17 @@ const CAST_SPELL = tool({
       // the same arithmetic a move's destination uses. (E-AIM)
       ...spellAtOf(args.at),
       ...(args.path === undefined ? {} : { path: args.path.map(point) }),
+      // The other templates, where the spell lays several. (E-L2)
+      ...(args.alsoAt === undefined ? {} : { alsoAt: args.alsoAt.map(point) }),
+      // The areas the caster leaves out — SRD Plant Growth. (E-L2)
+      ...(args.exclude === undefined
+        ? {}
+        : {
+            exclude: args.exclude.map((one) => ({
+              origin: areaPointAt(point(one.at)),
+              shape: { kind: 'sphere' as const, radius: one.radius },
+            })),
+          }),
       ...(towards.value === undefined ? {} : { towards: towards.value }),
       ...(args.anchoring === undefined ? {} : { anchoring: args.anchoring }),
       ...(args.slotLevel === undefined ? {} : { slotLevel: args.slotLevel }),
@@ -3427,6 +3469,13 @@ const ACTIVATE_SPELL = tool({
     to: pointSchema
       .optional()
       .describe('Where the area ends up. Required when the action’s whole content is moving it, and left out by a spell that only strikes again.'),
+    alsoTo: z
+      .array(z.strictObject({ light: z.int().min(2), to: pointSchema }))
+      .min(1)
+      .optional()
+      .describe(
+        'Where the casting’s **other** templates go, by number — SRD Dancing Lights’ "you can move the lights up to 60 feet to a space within range", lights 2, 3 and 4 (light 1 moves by `to`). Each goes no further than the spell allows and stays in range, and the lights as they then stand must still be within 20 feet of one another. A light left out stays where it is; a light that has vanished is refused.',
+      ),
     via: routeSchema
       .optional()
       .describe(
@@ -3490,6 +3539,10 @@ const ACTIVATE_SPELL = tool({
           targets: args.targets.map(who),
           ...(args.to === undefined ? {} : { to: point(args.to) }),
           ...(args.via === undefined ? {} : { via: args.via.map(point) }),
+          // The other templates, by number. (E-L2)
+          ...(args.alsoTo === undefined
+            ? {}
+            : { alsoTo: args.alsoTo.map((one) => ({ light: one.light, to: point(one.to) })) }),
           ...(args.altitude === undefined ? {} : { altitude: args.altitude }),
           ...(args.option === undefined ? {} : { option: args.option }),
           ...(towards.value === undefined ? {} : { towards: towards.value }),
@@ -3749,6 +3802,40 @@ const DECLARE_ENDING = tool({
         : { ended: args.castingId, ...(args.on === undefined ? {} : { on: args.on }) },
     );
   },
+});
+
+/**
+ * The table's word that a Cube of a running spell's area met fire — SRD Web's
+ * "The webs are flammable. Any 5-foot Cube of webs exposed to fire burns away
+ * in 1 round, dealing 2d4 Fire damage to any creature that starts its turn in
+ * the fire." (E-L2)
+ *
+ * **The fire is the room's**: a torch, a Fire Bolt through the strands, a
+ * burning creature — nothing the engine could tell apart from a fire that
+ * missed. What follows is the engine's: the dice at the turn boundary, and the
+ * Cube gone from the webs when its round is out.
+ */
+const EXPOSE_TO_FIRE = tool({
+  name: 'expose_to_fire',
+  description:
+    'Say that fire has reached one 5-foot Cube of a running spell that burns — SRD Web’s "Any 5-foot Cube of webs exposed to fire burns away in 1 round, dealing 2d4 Fire damage to any creature that starts its turn in the fire." Name the casting and the space. The engine then burns that Cube for the round the spell prints: a creature that starts its turn in it takes the damage the engine rolls, and when the round is out the Cube is gone from the webs — ordinary ground, clear air, and nobody Restrained by webs that are not there — while the rest of the webs stand. Refused for a spell that does not burn, a space it does not fill, and a Cube already burning.',
+  mutates: true,
+  input: z.object({
+    castingId: z.string().min(1).describe('From the cast_spell that started it.'),
+    at: pointSchema.describe('The 5-foot space that caught fire.'),
+  }),
+  run: (context, args) =>
+    settleEvents(
+      context,
+      exposeToFire(
+        context.campaign.state(),
+        context.campaign.content,
+        args.castingId,
+        point(args.at),
+        identity(context),
+      ),
+      { burning: args.castingId },
+    ),
 });
 
 // — what a character holds, and the four ways of spending it ———————————————
@@ -5613,7 +5700,7 @@ const SETTLE_SAVES = tool({
 const SETTLE_AREA_EFFECTS = tool({
   name: 'settle_area_effects',
   description:
-    'Settle what a persistent area — a Grease, a Web — has caught somebody doing. The engine rolls the save, reads the DC off the casting and applies whatever the spell says; you supply nothing but the instruction to do it now. Where the spell lets its caster hold back — Conjure Animals’ "you can force that creature" — name the creatures spared in `spare` and they are let alone, nothing rolled; a spell that says "must" refuses it. A creature its caster cannot see is let alone by a spell that reaches only one its caster can see. Until this is called every other action refuses, including ending the turn, so call it as soon as the state shows any owed.',
+    'Settle what a persistent area — a Grease, a Web — has caught somebody doing, and the chance a Gust of Wind gives a protected flame its Line reaches. The engine rolls the save or the die, reads the DC off the casting and applies whatever the spell says; you supply nothing but the instruction to do it now. Where the spell lets its caster hold back — Conjure Animals’ "you can force that creature" — name the creatures spared in `spare` and they are let alone, nothing rolled; a spell that says "must" refuses it. A creature its caster cannot see is let alone by a spell that reaches only one its caster can see. Until this is called every other action refuses, including ending the turn, so call it as soon as the state shows any owed.',
   mutates: true,
   input: z.object({
     spare: z
@@ -6484,6 +6571,7 @@ export const TOOLS: readonly ToolDefinition[] = [
   END_ONGOING_SPELL,
   DECLARE_WIND,
   DECLARE_ENDING,
+  EXPOSE_TO_FIRE,
   END_SPELL_ON_SELF,
   END_REST,
   END_TURN,

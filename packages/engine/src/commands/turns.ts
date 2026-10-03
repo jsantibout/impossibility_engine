@@ -30,10 +30,11 @@ import { currentCombatant, extraActionsOwedAtTurnStart, spendAction } from '../c
 import { conditionInstanceId, isIncapacitated, type CheckContext } from '../conditions.js';
 // SRD Fire Aura's emanation, measured the way every other reach in the engine
 // is. A type-only edge would not do: the distance is read at the boundary.
-import { distanceBetween } from '../positioning.js';
+import { distanceBetween, footprintOf, heightOf } from '../positioning.js';
 import {
   endOfCurrentTurn,
   forSeconds,
+  hasExpired,
   isDue,
   resolveDuration,
   timeView,
@@ -69,9 +70,10 @@ import { settleStartOfTurnBody } from './turn-start-body.js';
 import { blockDeadlinesDue } from './become-block.js';
 import { needsCasterSheet, statedChoice, statedDamageType } from '../spell-definitions.js';
 import {
-  type AreaMoment,
+  type OwedMoment,
   castingIdOf,
   castingNumber,
+  castingSource,
   type OwedAreaEffect,
   spellOfSource,
 } from '../spells.js';
@@ -81,6 +83,7 @@ import {
   effectiveConditions,
   rollModesFor,
   sheetAsItStands,
+  type AreaFlameStanding,
 } from '../standing.js';
 import { healingRuleOf, isDown, maximisedHealing, rollDeathSave } from '../vitals.js';
 import { type Supply } from './casting.js';
@@ -102,7 +105,8 @@ import { resolveEffects } from './spell-resolution.js';
 import { settleDeferredRiders } from './spell-effect-riders.js';
 import { type SpellTargetOutcome } from './targeting.js';
 import { grapplerOf, grapplesOn, attachmentsOf } from './unarmed.js';
-import { attachedTo } from '../state.js';
+import { attachedTo, type CommandStamp } from '../state.js';
+import { thrownAgainst } from './spell-effect-chance.js';
 import { strandedElsewhere } from '../elsewhere.js';
 import { settleElsewhereAtBoundary, type StatedReturn } from './elsewhere.js';
 import { wakeOfTheStable } from './stable-wake.js';
@@ -530,7 +534,61 @@ function payoutsDue(
     ...payoutsAt(state, ended, 'end-of-turn'),
     ...payoutsAt(state, begun, 'start-of-turn'),
     ...hazardsDue(state, begun),
+    ...burningCubesDue(state, begun),
   ];
+}
+
+/**
+ * What a casting's burning Cubes cost the creature whose turn is beginning in
+ * one — SRD Web: "dealing 2d4 Fire damage to any creature that starts its turn
+ * in the fire". (E-L2)
+ *
+ * **Derived rather than filed**, `hazardsDue`'s reading of a fire on a creature
+ * turned round onto a fire in a place: the boundary reads where the creature
+ * stands against the Cubes the record holds burning, and settles it through the
+ * payout machinery — the dice the event pinned, the type, the creature's own
+ * defences, a Concentration at risk. Once per Cube the creature stands in, and
+ * only while the Cube burns: the fold moves it to ash when its round is out.
+ */
+function burningCubesDue(state: GameState, begun: CharacterId | undefined): readonly DuePayout[] {
+  if (begun === undefined || state.scene === null) return [];
+  const creature = state.creatures[begun];
+  const at = state.scene.positions[begun];
+  if (creature === undefined || creature.vitals.dead || at === undefined) return [];
+  const view = timeView(state);
+  return Object.keys(state.ongoing)
+    .sort((a, b) => castingNumber(a) - castingNumber(b))
+    .flatMap((castingId) => {
+      const record = state.ongoing[castingId]!;
+      return (record.burning ?? []).flatMap((cube): DuePayout[] => {
+        if (hasExpired(view, cube.until)) return [];
+        // In the Cube where any space the creature fills is the Cube.
+        const width = footprintOf(state.scene!.sizes[begun] ?? 'medium');
+        const tall = Math.max(5, heightOf(state.scene!, begun));
+        const here =
+          cube.space.x >= at.x &&
+          cube.space.x < at.x + width &&
+          cube.space.y >= at.y &&
+          cube.space.y < at.y + width &&
+          cube.space.z >= at.z &&
+          cube.space.z < at.z + tall;
+        if (!here) return [];
+        return [
+          {
+            target: begun,
+            holder: begun,
+            payout: {
+              source: castingSource(record.spell, castingId),
+              at: 'start-of-turn' as const,
+              payout: 'damage' as const,
+              dice: cube.dice,
+              flat: 0,
+              damageType: cube.damageType,
+            },
+          },
+        ];
+      });
+    });
 }
 
 /**
@@ -1283,7 +1341,7 @@ export function resolveEffectCheck(
  * `entry` sits between them because it is neither — whatever happened in
  * between — and because no guard lets it stand beside a boundary anyway.
  */
-const MOMENT_ORDER: Readonly<Record<AreaMoment, number>> = {
+const MOMENT_ORDER: Readonly<Record<OwedMoment, number>> = {
   'end-of-turn': 0,
   // Both are things that happened between the boundaries, and the SRD orders
   // neither against the other. The area's own move is the authoritative
@@ -1292,7 +1350,10 @@ const MOMENT_ORDER: Readonly<Record<AreaMoment, number>> = {
   // order is given so that log still folds the same way twice.
   'area-moved': 1,
   entry: 2,
-  'start-of-turn': 3,
+  // A lantern a Gust of Wind's Line reached: like an entry, a thing that
+  // happened between the boundaries, and owed to no creature. (E-L2)
+  'flame-reached': 3,
+  'start-of-turn': 4,
 };
 
 /** What one settlement did. */
@@ -1366,6 +1427,21 @@ export function settleAreaEffects(
     for (let pass = 0; pass < 64; pass += 1) {
       const owed = nextOwed(current);
       if (owed === null) break;
+
+      // **A protected flame the area reached** — SRD Gust of Wind's "50
+      // percent chance to extinguish them", thrown once for the reaching that
+      // raised it. The chance is the record's, pinned at the cast; a flame
+      // gone by now (put out, or its light taken away) is tested by nothing.
+      // (E-L2)
+      if (owed.moment === 'flame-reached') {
+        const tested = testFlame(current, supply, owed, first ? stamp : null);
+        if (!tested.ok) return tested;
+        first = false;
+        events.push(...tested.value);
+        current = tested.value.reduce(applyEvent, current);
+        settled.push(owed);
+        continue;
+      }
 
       const discharge: GameEvent = {
         type: 'area-effect-settled',
@@ -1502,6 +1578,50 @@ export function settleAreaEffects(
 
     return ok({ events, settled, outcomes, unverified });
   });
+}
+
+/**
+ * One protected flame's throw — see {@link AreaFlameStanding}. (E-L2)
+ *
+ * The die is `thrownAgainst`'s, the one comparison that reads a printed
+ * percentage, so a 50 puts the lantern out on a 50 or under. Thrown in the
+ * caster's name, whose spell it is; a flame whose light is gone, or a casting
+ * that no longer prints the clause, discharges the debt with nothing thrown.
+ */
+function testFlame(
+  state: GameState,
+  supply: Supply,
+  owed: OwedAreaEffect,
+  stamp: CommandStamp | null,
+): Result<readonly GameEvent[]> {
+  const record = state.ongoing[owed.castingId];
+  const flame = state.scene?.light[owed.target];
+  const clause = record?.areaStanding?.find(
+    (standing): standing is AreaFlameStanding => standing.kind === 'extinguishes-flames',
+  );
+  const tested = (out: boolean): GameEvent => ({
+    type: 'flame-tested',
+    castingId: owed.castingId,
+    patch: owed.target,
+    out,
+    ...(stamp === null ? {} : { command: stamp }),
+  });
+  if (record === undefined || clause === undefined || flame?.flame !== 'protected') return ok([tested(false)]);
+
+  const issuedBefore = supply.issuer.count;
+  const thrown = thrownAgainst(
+    supply,
+    record.caster as CharacterId,
+    `${record.spell}: ${owed.target} dances wildly`,
+    clause.protectedChance,
+    { failed: 'it goes out', held: 'it burns on' },
+  );
+  if (!thrown.ok) return thrown;
+  return ok([
+    thrown.value.recorded,
+    { type: 'rolls-issued', count: supply.issuer.count - issuedBefore, rng: supply.rng.snapshot() },
+    tested(thrown.value.failed),
+  ]);
 }
 
 /** What a settlement may be told — see {@link settleAreaEffects}. */

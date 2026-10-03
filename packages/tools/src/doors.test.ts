@@ -593,6 +593,7 @@ const DECLARATIONS: Readonly<
    * Animate Dead reads it.
    */
   declareBones: { tool: 'declare_bones', dmOnly: true },
+  declarePlants: { tool: 'declare_plants', dmOnly: true },
   /**
    * **Withheld until this batch, and the reason it gave has stopped being
    * true.** The line here read "the clock and what a morning refills, which is
@@ -1214,6 +1215,9 @@ const KIND_SETTLED_BY: Readonly<Record<string, ContextRequestKind | null>> = {
   // A Skeleton raised where nobody said bones lie stops on it, and asks as a
   // fact about the room: `scene`, as the climb above does.
   declareBones: 'scene',
+  // An Overgrowth over ground nobody has described stops on it, and asks as a
+  // fact about the room: `scene`, as the bones above do. (E-L2)
+  declarePlants: 'scene',
 };
 
 /**

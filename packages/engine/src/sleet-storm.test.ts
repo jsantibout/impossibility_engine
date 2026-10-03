@@ -7,6 +7,7 @@ import { createRollIssuer } from './rolls.js';
 import { fold, type GameEvent, type GameState } from './events.js';
 import { declaredCasting } from './spellcasting.js';
 import { obscurementAt, terrainAt, type Point } from './positioning.js';
+import { hazardsOn } from './hazards.js';
 import { ongoingSpellOf, resolveSpell, resolveTurn } from './commands.js';
 
 /**
@@ -229,5 +230,72 @@ describe('Sleet Storm', () => {
     game.turn('boundary', FAILS);
 
     expect(game.conditions(WIZARD)).toContain('prone');
+  });
+});
+
+/**
+ * SRD Sleet Storm: "The area is Heavily Obscured, and **exposed flames in the
+ * area are doused**."
+ *
+ * The flame the engine holds is the glossary's Burning hazard, which sits on a
+ * creature — and SRD Burning says "The fire also goes out if it is doused". So
+ * a creature on fire standing in the sleet stops burning, whichever way it came
+ * to be there and whenever it caught: derived from where it stands, as the
+ * area's other standing clauses are, rather than written at the moments
+ * somebody remembered to ask.
+ */
+describe('Sleet Storm douses the flames in its area', () => {
+  const alight = (who: CharacterId): GameEvent => ({
+    type: 'hazard-caught',
+    id: who,
+    hazard: { hazard: 'burning', lit: 'the fixture' },
+  });
+  const burning = (game: Game, who: CharacterId): boolean =>
+    hazardsOn(game.state, who).some((one) => one.hazard === 'burning');
+
+  it('puts out a creature already burning in the Cylinder when the sleet falls', () => {
+    const game = new Game([...SETUP, alight(WIZARD), alight(ALLY)]);
+    expect(burning(game, WIZARD)).toBe(true);
+
+    game.cast(DRUID, 'sleet-storm', { at: STORM, slotLevel: 3 }, 'sleet');
+
+    expect(burning(game, WIZARD)).toBe(false);
+    // Clear of the storm, the fire goes on.
+    expect(burning(game, ALLY)).toBe(true);
+  });
+
+  it('puts out a burning creature that walks into it', () => {
+    const game = new Game([...SETUP, alight(ALLY)]);
+    game.cast(DRUID, 'sleet-storm', { at: STORM, slotLevel: 3 }, 'sleet');
+    expect(burning(game, ALLY)).toBe(true);
+
+    game.push([
+      {
+        type: 'creature-moved',
+        id: ALLY,
+        placement: { from: { landmark: 'in the storm' }, feet: 5, bearing: 180 },
+      },
+    ]);
+
+    expect(burning(game, ALLY)).toBe(false);
+  });
+
+  it('will not let a creature standing in it catch fire', () => {
+    const game = new Game();
+    game.cast(DRUID, 'sleet-storm', { at: STORM, slotLevel: 3 }, 'sleet');
+
+    game.push([alight(WIZARD)]);
+
+    expect(burning(game, WIZARD)).toBe(false);
+  });
+
+  it('douses nothing once the storm has ended', () => {
+    const game = new Game();
+    const sleet = game.cast(DRUID, 'sleet-storm', { at: STORM, slotLevel: 3 }, 'sleet');
+    game.push([{ type: 'spell-ended', castingId: sleet, on: null, reason: 'dismissed' }]);
+
+    game.push([alight(WIZARD)]);
+
+    expect(burning(game, WIZARD)).toBe(true);
   });
 });

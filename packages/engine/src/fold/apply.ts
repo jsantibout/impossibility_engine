@@ -34,7 +34,14 @@ import { castingIdOf } from '../spells.js';
 import { featureOfSource } from '../progression.js';
 import { type Applying, unhandledEvent } from './common.js';
 import { releaseCasting, releaseGrants } from './release.js';
-import { dropOrphanedAreaEffects } from './areas.js';
+import {
+  burnAwayCubes,
+  holdGasOffWalls,
+  windOnFlames,
+  dropOrphanedAreaEffects,
+  douseStandingFlames,
+  vanishLightsBeyondRange,
+} from './areas.js';
 import { openTurnStart, reachStartOfTurn } from './turns.js';
 import {
   dropOrphanedSaves,
@@ -49,6 +56,7 @@ import {
   endTriggeredCastings,
   markStrayedTargets,
   endTriggeredEffects,
+  dispelMovedLight,
   isEndingsEvent,
 } from './endings.js';
 
@@ -301,6 +309,31 @@ function applyEventUnder(state: GameState, event: GameEvent, legacy: Content | n
   // right whichever of them fired, rather than right for the ones somebody
   // remembered.
   return settleHitPointMaxima(reachStartOfTurn(
+    // **A fire the sleet puts out**, against the world every pass below has
+    // settled — a storm whose casting just ended douses nothing — and before
+    // the turn's start is reached, so a creature standing in the sleet is not
+    // owed a burn it is no longer suffering. See `douseStandingFlames`. (E-L2)
+    douseStandingFlames(
+    // **A torch the wind or the sleet puts out**, and the throw a lantern the
+    // Line has just reached is owed — SRD Gust of Wind, Sleet Storm. After
+    // every pass that moves a light or an area. See windOnFlames. (E-L2)
+    windOnFlames(
+    // **A light its caster walked too far from**, gone for good — SRD Dancing
+    // Lights. See vanishLightsBeyondRange. (E-L2)
+    vanishLightsBeyondRange(
+    // **Gas a wall of wind keeps at bay**, held off the wall's strip and the
+    // far side of it — SRD Wind Wall. After the burns and the expiries, so a
+    // wall that has just ended holds nothing off. See holdGasOffWalls. (E-L2)
+    holdGasOffWalls(
+    // **A Cube of webs the fire has eaten**, gone from the area when its round
+    // is out — SRD Web. After the expiry passes, which is where the clock is
+    // read. See burnAwayCubes. (E-L2)
+    burnAwayCubes(
+    // **A light carried into a Darkness**, put out where its bearer arrives —
+    // see dispelMovedLight. Against the world before this event, so the pass
+    // knows who moved. (E-L2)
+    dispelMovedLight(
+    state,
     // After every pass that can end a feature — a deadline, a lost condition,
     // an explicit ending — because what this puts back is a sheet a feature
     // was holding up, and it has to see the feature gone first. The size an
@@ -417,6 +450,12 @@ function applyEventUnder(state: GameState, event: GameEvent, legacy: Content | n
     ),
     // The world before this event, so the pass sees an override leave.
     state,
+    ),
+    ),
+    ),
+    ),
+    ),
+    ),
     ),
   ));
 }
