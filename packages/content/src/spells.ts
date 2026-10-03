@@ -13024,17 +13024,21 @@ export const WIND_WALL: SpellDefinition = {
     { kind: 'keeps-out', what: 'gas' },
   ],
   durationSeconds: 60,
-  // **Narrowed by E-L2**: a printed line named after a catalogue weapon — a
-  // Scout's Longbow, an Ogre's thrown Javelin — looses that weapon and is
-  // deflected as the weapon is; any other printed line is decided by the
-  // projectile table (`ranged-lines.ts`, the owner's ruling of 2026-10-03).
-  // What is left is objects, and the three lines that table leaves undecided.
-  unmodelled: [
-    'objects are not in the scene: a Small flying object turned back, and a hurled boulder let through, are the DM’s — and the three printed ranged lines the projectile table leaves undecided (a Frost Giant’s Great Bow, a Solar’s Flying Sword, a Treant’s Hail of Bark) are made and the wall reported beside them rather than deflecting them',
+  // Every ranged attack is decided: a printed line named after a catalogue
+  // weapon — a Scout's Longbow, an Ogre's thrown Javelin — looses that weapon
+  // and is deflected as the weapon is (E-L2), and every other printed line,
+  // a hurled Boulder among them, is read off the projectile table
+  // (`ranged-lines.ts`, the owner's ruling of 2026-10-03, "decided once").
+  //
+  // What goes over is objects in flight and loose material, in the book's
+  // words: the engine holds no thing crossing the air but an attack, and
+  // nothing reads either. The first sentence goes over whole, as Barkskin's
+  // does: its creatures half is the `bars-passage` above, and its objects
+  // half is the table's.
+  dmDecides: [
+    "Small or smaller flying creatures or objects can't pass through the wall.",
+    'Loose, lightweight materials brought into the wall fly upward.',
   ],
-  // The loose material, in the book's words (W8-S26): what flies upward in
-  // the wind is a thing the engine holds none of, and nothing reads it.
-  dmDecides: ['Loose, lightweight materials brought into the wall fly upward.'],
 };
 
 /**

@@ -1,9 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { SRD_CONTENT } from '@ie/content';
+import { SRD_CONTENT, SRD_CONTENT_INPUT } from '@ie/content';
 import { asCharacterId, expect as unwrap, type CharacterId } from '@ie/shared';
 import type { CharacterSheet } from './character.js';
 import { createRng, restoreRng, type Rng } from './dice.js';
 import { createRollIssuer } from './rolls.js';
+import { createContent } from './content.js';
 import { fold, type GameEvent, type GameState } from './events.js';
 import { declaredCasting } from './spellcasting.js';
 import { type Point } from './positioning.js';
@@ -24,8 +25,9 @@ import { addCreature, resolveAttack, resolveSpell } from './commands.js';
  * ruling of 2026-10-03: "a content table, decided once"): a Manticore's Tail
  * Spike is an ordinary projectile and is deflected; a Barbed Devil's Hurl
  * Flame is fire and a Stone Giant's Boulder is a boulder, and neither is
- * touched or reported. A line the table leaves out is still the table's to
- * say, and is still reported.
+ * touched or reported. The SRD's table decides every printed line; a line a
+ * homebrew table leaves out is still the table's to say, and is still
+ * reported.
  */
 
 const id = (s: string) => asCharacterId(s);
@@ -154,8 +156,31 @@ describe('SRD Wind Wall and a stat block’s printed ranged line', () => {
     }
   });
 
-  it('still reports a line the table leaves out, and rolls it', () => {
+  it('deflects a Giant’s arrow: the table calls a Frost Giant’s Great Bow ordinary', () => {
     const shot = shoot(field(), FROST_GIANT, 'Great Bow');
+    expect(shot.attack?.hit).toBe(false);
+    expect(shot.attack?.autoMissed).toContain('Wind Wall');
+    expect(shot.unverified.some((line) => line.includes('Wind Wall'))).toBe(false);
+  });
+
+  it('still reports a line a table leaves out, and rolls it', () => {
+    const state = field();
+    const short = unwrap(
+      createContent({
+        ...SRD_CONTENT_INPUT,
+        rangedLines: SRD_CONTENT_INPUT.rangedLines.filter((row) => row.id !== 'great-bow'),
+      }),
+      'a table without the Great Bow',
+    );
+    const shot = unwrap(
+      resolveAttack(
+        state,
+        FROST_GIANT,
+        { target: FIGHTER, weapon: null, action: 'Great Bow' },
+        { ...supply(state), content: short },
+      ),
+      'Great Bow',
+    );
     expect(shot.attack?.autoMissed ?? null).toBeNull();
     expect(shot.unverified.some((line) => line.includes('Wind Wall'))).toBe(true);
   });

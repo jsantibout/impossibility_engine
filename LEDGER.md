@@ -42,7 +42,7 @@ for exactly this reason.
 
 | Ledger | Size | Waits on an engine shape | Waits on a definition | Waits on none | Read to the end, handed over whole |
 |---|---|---|---|---|---|
-| Spells in reach, not executed | 10 spells | 10 | 0 | 0 | 33 |
+| Spells in reach, not executed | 0 spells | 0 | 0 | 0 | 33 |
 | Features manual, or a pool with nothing to buy | 0 features | 0 | 0 | 0 | 0 |
 | Items a level 1–5 party can buy | 157 items | 0 | 0 | 157 | 0 |
 | Glossary general rules nothing executes | 23 rules | 0 | 0 | 23 | 0 |
@@ -69,54 +69,11 @@ exactly the silently-missing entry this report’s header refuses.
 
 | Shape | Blocks | Finishes |
 |---|---|---|
-| `a-target-rule-the-format-cannot-state` | 4 | 3 |
-| `a-barrier-that-blocks-passage` | 1 | 1 |
-| `a-casting-ended-by-a-trigger` | 1 | 1 |
-| `a-duration-the-chosen-branch-sets` | 1 | 1 |
-| `a-random-outcome-that-is-not-a-d20` | 1 | 1 |
-| `a-spell-that-answers-a-later-attack` | 1 | 1 |
-| `a-spells-effects-applied-to-different-targets` | 1 | 1 |
-| `what-a-creature-is-holding` | 1 | 0 |
 
 **Blocks** is every spell of this population the shape touches;
 **finishes** is what it is the *only* blocker for — the column a tranche
 is planned from. A spell can need more than one shape, so neither column
 sums to the population.
-
-#### `a-target-rule-the-format-cannot-state` — blocks 4, finishes 3
-
-- **Heat Metal** (level 2) — executed-partial — also waits on 1
-- **Suggestion** (level 2) — executed-partial
-- **Counterspell** (level 3) — executed-partial
-- **Dispel Magic** (level 3) — executed-partial
-
-#### `a-barrier-that-blocks-passage` — blocks 1, finishes 1
-
-- **Wind Wall** (level 3) — executed-partial
-
-#### `a-casting-ended-by-a-trigger` — blocks 1, finishes 1
-
-- **Remove Curse** (level 3) — executed-partial
-
-#### `a-duration-the-chosen-branch-sets` — blocks 1, finishes 1
-
-- **Thaumaturgy** (level 0) — executed-partial
-
-#### `a-random-outcome-that-is-not-a-d20` — blocks 1, finishes 1
-
-- **Slow** (level 3) — executed-partial
-
-#### `a-spell-that-answers-a-later-attack` — blocks 1, finishes 1
-
-- **Sanctuary** (level 1) — executed-partial
-
-#### `a-spells-effects-applied-to-different-targets` — blocks 1, finishes 1
-
-- **Enhance Ability** (level 2) — executed-partial
-
-#### `what-a-creature-is-holding` — blocks 1, finishes 0
-
-- **Heat Metal** (level 2) — executed-partial — also waits on 1
 
 #### Waiting on a definition — 0
 

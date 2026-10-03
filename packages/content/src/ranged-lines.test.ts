@@ -9,14 +9,10 @@ import { SRD_RANGED_LINES } from './ranged-lines.js';
  * 2026-10-03: "a content table, decided once")
  *
  * Every printed ranged line in the SRD's stat blocks that is named after no
- * catalogue weapon a creature fires or throws is either decided in
- * `SRD_RANGED_LINES` or named below as left to the table — so a new block's
- * line cannot slip past SRD Wind Wall unreported, and no row decides a line
- * nobody prints.
+ * catalogue weapon a creature fires or throws is decided in
+ * `SRD_RANGED_LINES` — so a new block's line cannot slip past SRD Wind Wall
+ * undecided, and no row decides a line nobody prints.
  */
-
-/** Left out on purpose, and reported at the table: see `ranged-lines.ts`. */
-const LEFT_TO_THE_TABLE = ['great bow', 'flying sword', 'hail of bark'];
 
 const loosedByAWeapon = new Set(
   SRD_CONTENT.items
@@ -43,17 +39,10 @@ const printedRangedLines = (): Map<string, number[]> => {
 };
 
 describe('the projectile table', () => {
-  it('decides every printed ranged line named after no weapon, but the three left to the table', () => {
+  it('decides every printed ranged line named after no weapon', () => {
     const printed = printedRangedLines();
     const undecided = [...printed.keys()].filter((name) => SRD_CONTENT.rangedLineNamed(name) === null).sort();
-    expect(undecided).toEqual([...LEFT_TO_THE_TABLE].sort());
-  });
-
-  it('leaves nothing at CR 5 or lower to the table', () => {
-    const printed = printedRangedLines();
-    for (const name of LEFT_TO_THE_TABLE) {
-      expect(Math.min(...(printed.get(name) ?? [Infinity])), name).toBeGreaterThan(5);
-    }
+    expect(undecided).toEqual([]);
   });
 
   it('decides no line a block does not print', () => {
@@ -68,6 +57,12 @@ describe('the projectile table', () => {
     expect(ordinary('Bone Bow')).toBe(true);
     expect(ordinary('Hurl Flame')).toBe(false);
     expect(ordinary('Boulder')).toBe(false);
+    // The three once left to the table (the owner's ruling of 2026-10-03,
+    // "decided once"): a Giant's arrow is an arrow and a thrown blade that
+    // returns is a thrown blade; a Huge creature's hurled volley of bark is not.
+    expect(ordinary('Great Bow')).toBe(true);
+    expect(ordinary('Flying Sword')).toBe(true);
+    expect(ordinary('Hail of Bark')).toBe(false);
     // Read the way a stat block prints a heading, form note and all.
     expect(SRD_CONTENT.rangedLineNamed('Harpoon (Merrow Form Only)')?.id).toBe('harpoon');
   });

@@ -1223,13 +1223,6 @@ export const ADJUDICATED: Readonly<Record<string, readonly Adjudication[]>> = {
       note: 'SRD: "Reverting takes 1 minute, during which the target has the Stunned condition." The Magic action that begins it is taken by the target rather than by the caster, so the minute of Stunned hangs off an activation belonging to somebody the casting reached rather than to whoever cast it.',
     },
   ],
-  'wind-wall': [
-    {
-      clause: 'a hurled boulder let through',
-      why: 'a-barrier-that-blocks-passage',
-      note: 'W8-S26 read this line for the first time. The barring and the deflection are built as `areaStanding`; what it cannot tell is an arrow from a boulder, because a stat block’s printed line does not say what it looses, so a monster’s ranged shot is made and the wall reported beside it. A creature whose ranged attack should miss automatically is owed that miss. The closest id: what a wall stops crossing it. **E-L2 narrowed it**: a line named after a catalogue weapon that is fired or thrown looses that weapon and is deflected as the weapon is (`projectileOfLine`). The owner ruled on the rest (2026-10-03, "a content table, decided once"): every other printed ranged line is decided in the projectile table (`ranged-lines.ts`) — a Tail Spike deflected, a Boulder or a Hurl Flame untouched. What is left is objects, which are not in the scene, and three lines above CR 5 the table leaves undecided because the book does not settle them (a Frost Giant’s Great Bow, a Solar’s Flying Sword, a Treant’s Hail of Bark).',
-    },
-  ],
 };
 
 // — the tracked population ———————————————————————————————————————————————————

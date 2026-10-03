@@ -1707,16 +1707,16 @@ describe('a level 5 party plays a session', () => {
     expect(castings.length).toBeGreaterThan(0);
     // **And the two readers still see a debt when there is one**, so the
     // empty agreement above is not a blind census agreeing with a blind count.
-    // A spell in reach that still owes — SRD Wind Wall's objects and the three
-    // printed lines the projectile table leaves undecided (Gust of Wind's
-    // flames, the example here before, were built by E-L2) — reported the way
-    // a casting reports it, read by the census as a debt and counted by the
-    // ledger as the same clause.
-    const wall = SRD_CONTENT.spell('wind-wall')!;
-    const owed = clausesCounted('wind-wall').map((clause) => `${wall.name}: ${clause}`);
+    // No spell in reach owes any more — Wind Wall, the example here last, had
+    // its three printed lines decided by the projectile table on 2026-10-03 —
+    // so the debt is one above reach: SRD Cone of Cold's, reported the way a
+    // casting reports it, read by the census as a debt and counted by the
+    // ledger, asked at level 9, as the same clause.
+    const cone = SRD_CONTENT.spell('cone-of-cold')!;
+    const owed = clausesCounted('cone-of-cold', undefined, 9).map((clause) => `${cone.name}: ${clause}`);
     expect(owed.length).toBeGreaterThan(0);
     const seen = clausesIn([
-      { tool: 'cast_spell', input: { spellId: 'wind-wall' }, outcome: { status: 'ok', unverified: owed } },
+      { tool: 'cast_spell', input: { spellId: 'cone-of-cold' }, outcome: { status: 'ok', unverified: owed } },
     ] as never);
     expect(seen.filter((one) => one.kind === 'debt').map((one) => one.line)).toEqual(owed);
   });

@@ -28,13 +28,11 @@ import type { RangedLine } from '@ie/engine';
  *   than a thing (Hurl Flame, Radiant Flame, a Ray, a Bolt, a Burst), which is
  *   not a projectile at all.
  *
- * **Left out, and reported at the table instead**: a Frost Giant's Great Bow
- * (an arrow, from a bow a Giant draws — the book's carve-out is for what a
- * Giant hurls, and whether a Giant's arrow is "ordinary" is not a call the
- * text makes), a Solar's Flying Sword (a blade that flies by magic), and a
- * Treant's Hail of Bark (shards of a tree, neither an arrow nor a boulder).
- * None is CR 5 or lower. `ranged-lines.test.ts` holds this list against the
- * bestiary, so a new block's line is decided here or named there.
+ * The three the text leaves closest — a Frost Giant's Great Bow, a Solar's
+ * Flying Sword and a Treant's Hail of Bark, none CR 5 or lower — were left to
+ * the table until the last level-5 spell closed, and are decided below on the
+ * same rule. `ranged-lines.test.ts` holds the table against the bestiary, so a
+ * new block's line is decided here before it reaches a wall.
  */
 export const SRD_RANGED_LINES: readonly RangedLine[] = [
   // — ordinary projectiles ——————————————————————————————————————————————————
@@ -55,11 +53,17 @@ export const SRD_RANGED_LINES: readonly RangedLine[] = [
   { id: 'flame-spear', name: 'Flame Spear', ordinaryProjectile: true },
   // Ice Devil (CR 14): a thrown spear, 30/120 ft.
   { id: 'ice-spear', name: 'Ice Spear', ordinaryProjectile: true },
+  // Solar (CR 21): "Melee or Ranged", 120 ft.; the sword "magically returns"
+  // after the throw — the Flame Spear's case: a thrown blade on the way out.
+  { id: 'flying-sword', name: 'Flying Sword', ordinaryProjectile: true },
   // Vampire Familiar (CR 3): a thrown dagger, 20/60 ft. — a Dagger's range.
   { id: 'umbral-dagger', name: 'Umbral Dagger', ordinaryProjectile: true },
   // Ape (CR 1/2): a hand-thrown rock, 25/50 ft. — a stone, not a boulder; the
   // book's carve-out is for what Giants and siege engines hurl.
   { id: 'rock', name: 'Rock', ordinaryProjectile: true },
+  // Frost Giant (CR 8): a bow a Giant draws. The carve-out is for what a Giant
+  // hurls; what it draws and looses is an arrow, however large.
+  { id: 'great-bow', name: 'Great Bow', ordinaryProjectile: true },
 
   // — boulders and what a Giant hurls ————————————————————————————————————————
   // Stone Giant (CR 7): the book's own example.
@@ -71,6 +75,9 @@ export const SRD_RANGED_LINES: readonly RangedLine[] = [
   // Earth Elemental (CR 5): rock launched hard enough to knock a Large
   // creature Prone — a boulder's work.
   { id: 'rock-launch', name: 'Rock Launch', ordinaryProjectile: false },
+  // Treant (CR 9): a Huge creature's hurled volley of bark, 180 ft. — the
+  // book's "similar projectiles", neither an arrow nor a bolt.
+  { id: 'hail-of-bark', name: 'Hail of Bark', ordinaryProjectile: false },
 
   // — fire, light, force and energy, which is no projectile ——————————————————
   // Barbed Devil (CR 5), Horned Devil, Efreeti.

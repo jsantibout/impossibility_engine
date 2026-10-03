@@ -517,9 +517,12 @@ export const unsortedInReach = (
  * casting reports every one of these lines as an unmarked `unverified` line,
  * which that file reads as a debt; the two reports agree when the lines a
  * session met and the clauses counted here are the same set.
+ *
+ * `level` asks above the ledger's reach, as `auditLedger` does: once nothing
+ * in reach owes, that is where a test proves the count still finds a debt.
  */
-export function clausesCounted(spellId: string, option?: string): readonly string[] {
-  const one = spellsOwed(LEDGER_LEVEL).find((spell) => spell.id === spellId);
+export function clausesCounted(spellId: string, option?: string, level: number = LEDGER_LEVEL): readonly string[] {
+  const one = spellsOwed(level).find((spell) => spell.id === spellId);
   if (one === undefined || one.wait === 'none') return [];
   const definition = SRD_CONTENT.spell(spellId);
   return [

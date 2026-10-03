@@ -197,7 +197,12 @@ describe('the ledger measures the three populations of the roadmap', () => {
     // every clause of every executed spell in reach was read, and the ones a
     // rule reads afterwards are filed against their blockers, which makes
     // their spells partial again.
-    expect([...states].sort()).toEqual(['executed-partial', 'tracked']);
+    //
+    // **And gone again, by building** (2026-10-03): E-L3, E-L2 and E-L1 built
+    // what those readings filed, and SRD Wind Wall's projectile table decided
+    // its last three lines. Every spell in reach is executed whole or handed
+    // over whole.
+    expect([...states].sort()).toEqual(['tracked']);
     expect(new Set(auditLedger(9).spells.map((one) => one.status))).toContain('executed-partial');
   });
 
@@ -847,10 +852,13 @@ describe('an executed spell with a clause nobody sorted is not executed', () => 
    * census holds itself against this from the other side.
    */
   it('counts every owed clause of a spell it holds, and none of one it does not', () => {
-    // Wind Wall still owes its objects and three undecided printed lines (Web
-    // owed its fire and Gust of Wind its flames until E-L2 built them).
-    expect(clausesCounted('wind-wall')).toEqual(SRD_CONTENT.spell('wind-wall')!.unmodelled);
-    expect(clausesCounted('wind-wall').length).toBeGreaterThan(0);
+    // Nothing in reach owes (Web owed its fire and Gust of Wind its flames
+    // until E-L2 built them; Wind Wall its last three printed lines until the
+    // projectile table decided them), so the count is shown finding a debt
+    // above reach, where Cone of Cold still owes one.
+    expect(clausesCounted('wind-wall')).toEqual([]);
+    expect(clausesCounted('cone-of-cold', undefined, 9)).toEqual(SRD_CONTENT.spell('cone-of-cold')!.unmodelled);
+    expect(clausesCounted('cone-of-cold', undefined, 9).length).toBeGreaterThan(0);
     expect(clausesCounted('web')).toEqual([]);
     expect(clausesCounted('gust-of-wind')).toEqual([]);
     // Spirit Guardians is executed whole and prints no debt.

@@ -28,7 +28,7 @@ than to the table.
 
 | Parsed | Tracked | Executed | of which partial | Verified |
 |---|---|---|---|---|
-| 339 | 143 (42.2%) | 192 (56.6%) | 35 | 165 (48.7%) |
+| 339 | 143 (42.2%) | 192 (56.6%) | 25 | 166 (49.0%) |
 
 A **tracked** spell is not a half-finished executed one. Disguise Self will
 never be executed, because what the caster looks like is not arithmetic;
@@ -78,7 +78,7 @@ a plain statement of what the table decides.
 - **Conjure Woodland Beings** (level 4) — verified, partial — a clause the engine owns is still unbuilt
 - **Contagion** (level 5) — untested, partial — a clause the engine owns is still unbuilt
 - **Continual Flame** (level 2) — verified
-- **Counterspell** (level 3) — verified, partial — a clause the engine owns is still unbuilt
+- **Counterspell** (level 3) — verified
 - **Cure Wounds** (level 1) — verified
 - **Dancing Lights** (cantrip) — verified
 - **Darkness** (level 2) — verified
@@ -87,7 +87,7 @@ a plain statement of what the table decides.
 - **Detect Thoughts** (level 2) — verified
 - **Dimension Door** (level 4) — verified, partial — a clause the engine owns is still unbuilt
 - **Disintegrate** (level 6) — untested, partial — a clause the engine owns is still unbuilt
-- **Dispel Magic** (level 3) — verified, partial — a clause the engine owns is still unbuilt
+- **Dispel Magic** (level 3) — verified
 - **Dissonant Whispers** (level 1) — verified
 - **Divine Favor** (level 1) — verified
 - **Divine Smite** (level 1) — verified
@@ -96,7 +96,7 @@ a plain statement of what the table decides.
 - **Dominate Person** (level 5) — untested, partial — a clause the engine owns is still unbuilt
 - **Dragon's Breath** (level 2) — verified
 - **Eldritch Blast** (cantrip) — verified
-- **Enhance Ability** (level 2) — verified, partial — a clause the engine owns is still unbuilt
+- **Enhance Ability** (level 2) — verified
 - **Enlarge/Reduce** (level 2) — verified
 - **Ensnaring Strike** (level 1) — verified
 - **Entangle** (level 1) — verified
@@ -131,7 +131,7 @@ a plain statement of what the table decides.
 - **Haste** (level 3) — verified
 - **Heal** (level 6) — untested
 - **Healing Word** (level 1) — verified
-- **Heat Metal** (level 2) — verified, partial — a clause the engine owns is still unbuilt
+- **Heat Metal** (level 2) — verified
 - **Hellish Rebuke** (level 1) — untested
 - **Heroism** (level 1) — verified
 - **Hex** (level 1) — verified
@@ -183,12 +183,12 @@ a plain statement of what the table decides.
 - **Ray of Frost** (cantrip) — verified
 - **Ray of Sickness** (level 1) — verified
 - **Regenerate** (level 7) — verified
-- **Remove Curse** (level 3) — verified, partial — a clause the engine owns is still unbuilt
+- **Remove Curse** (level 3) — verified
 - **Resistance** (cantrip) — verified
 - **Revivify** (level 3) — verified
 - **Rope Trick** (level 2) — verified
 - **Sacred Flame** (cantrip) — verified
-- **Sanctuary** (level 1) — untested, partial — a clause the engine owns is still unbuilt
+- **Sanctuary** (level 1) — verified
 - **Scorching Ray** (level 2) — verified
 - **Searing Smite** (level 1) — verified
 - **Sending** (level 3) — verified
@@ -201,7 +201,7 @@ a plain statement of what the table decides.
 - **Silence** (level 2) — verified
 - **Sleep** (level 1) — verified
 - **Sleet Storm** (level 3) — verified
-- **Slow** (level 3) — verified, partial — a clause the engine owns is still unbuilt
+- **Slow** (level 3) — verified
 - **Sorcerous Burst** (cantrip) — verified
 - **Spare the Dying** (cantrip) — verified
 - **Speak with Plants** (level 3) — verified
@@ -212,10 +212,10 @@ a plain statement of what the table decides.
 - **Starry Wisp** (cantrip) — verified
 - **Stinking Cloud** (level 3) — verified
 - **Stoneskin** (level 4) — verified
-- **Suggestion** (level 2) — verified, partial — a clause the engine owns is still unbuilt
+- **Suggestion** (level 2) — verified
 - **Sunbeam** (level 6) — untested, partial — a clause the engine owns is still unbuilt
 - **Sunburst** (level 8) — verified, partial — a clause the engine owns is still unbuilt
-- **Thaumaturgy** (cantrip) — verified, partial — a clause the engine owns is still unbuilt
+- **Thaumaturgy** (cantrip) — verified
 - **Thunderwave** (level 1) — verified
 - **Tiny Hut** (level 3) — verified
 - **True Strike** (cantrip) — verified
@@ -227,7 +227,7 @@ a plain statement of what the table decides.
 - **Web** (level 2) — verified
 - **Weird** (level 9) — untested, partial — a clause the engine owns is still unbuilt
 - **Wind Walk** (level 6) — verified, partial — a clause the engine owns is still unbuilt
-- **Wind Wall** (level 3) — verified, partial — a clause the engine owns is still unbuilt
+- **Wind Wall** (level 3) — verified
 - **Zone of Truth** (level 2) — untested
 
 ### Tracked today
@@ -432,24 +432,23 @@ of *Tracked* and is never added to it.
 
 | Shape | Blocks | Finishes (read) | Finishes (unread) | Executed | Tracked | of which unseen | Undefined |
 |---|---|---|---|---|---|---|---|
-| `a-casting-ended-by-a-trigger` | 10 | 1 | 0 | 1 | 7 | 0 | 2 |
-| `a-random-outcome-that-is-not-a-d20` | 13 | 0 | 0 | 1 | 11 | 0 | 1 |
+| `a-casting-ended-by-a-trigger` | 9 | 1 | 0 | 0 | 7 | 0 | 2 |
+| `a-random-outcome-that-is-not-a-d20` | 12 | 0 | 0 | 0 | 11 | 0 | 1 |
 | `a-second-place-to-put-a-creature` | 10 | 0 | 0 | 2 | 7 | 0 | 1 |
 | `a-stat-block-created-mid-fight` | 10 | 0 | 0 | 1 | 9 | 0 | 0 |
 | `a-choice-made-at-the-casting` | 9 | 0 | 0 | 1 | 8 | 2 | 0 |
 | `a-wall-or-several-templates-in-one-area` | 9 | 0 | 0 | 0 | 9 | 0 | 0 |
-| `a-spells-effects-applied-to-different-targets` | 8 | 0 | 0 | 3 | 5 | 0 | 0 |
 | `an-effect-that-suppresses-other-magic` | 8 | 0 | 0 | 0 | 8 | 0 | 0 |
 | `a-repeat-save-raised-by-a-trigger` | 7 | 0 | 0 | 5 | 2 | 0 | 0 |
-| `a-target-rule-the-format-cannot-state` | 7 | 0 | 0 | 4 | 3 | 0 | 0 |
+| `a-spells-effects-applied-to-different-targets` | 7 | 0 | 0 | 2 | 5 | 0 | 0 |
 | `an-action-a-spell-compels-or-forbids` | 6 | 0 | 0 | 2 | 4 | 0 | 0 |
 | `a-creature-somebody-else-is-playing` | 5 | 0 | 0 | 4 | 1 | 0 | 0 |
 | `difficult-terrain-an-area-creates` | 5 | 0 | 0 | 3 | 2 | 1 | 0 |
-| `a-barrier-that-blocks-passage` | 4 | 0 | 0 | 1 | 3 | 0 | 0 |
 | `a-hit-point-maximum-a-spell-moves` | 4 | 0 | 0 | 1 | 3 | 0 | 0 |
 | `an-area-trigger-on-the-casters-turn` | 4 | 0 | 0 | 0 | 4 | 0 | 0 |
 | `an-outcome-that-reads-the-targets-hit-points` | 4 | 0 | 0 | 0 | 4 | 0 | 0 |
 | `damage-with-neither-an-attack-roll-nor-a-save` | 4 | 0 | 0 | 1 | 3 | 0 | 0 |
+| `a-barrier-that-blocks-passage` | 3 | 0 | 0 | 0 | 3 | 0 | 0 |
 | `a-casting-dismissed-early` | 3 | 0 | 0 | 1 | 2 | 1 | 0 |
 | `a-creature-fact-an-effect-overrides` | 3 | 0 | 0 | 0 | 3 | 0 | 0 |
 | `a-creature-type-predicate-an-area-reads` | 3 | 0 | 0 | 0 | 3 | 0 | 0 |
@@ -457,6 +456,7 @@ of *Tracked* and is never added to it.
 | `a-repeat-save-counted-to-a-tally` | 3 | 0 | 0 | 1 | 2 | 0 | 0 |
 | `a-repeat-save-that-does-something-on-a-failure` | 3 | 0 | 0 | 2 | 1 | 0 | 0 |
 | `a-standing-effect-derived-from-where-a-creature-stands` | 3 | 0 | 0 | 0 | 3 | 0 | 0 |
+| `a-target-rule-the-format-cannot-state` | 3 | 0 | 0 | 0 | 3 | 0 | 0 |
 | `an-activation-that-forces-a-saving-throw` | 3 | 0 | 0 | 0 | 3 | 0 | 0 |
 | `an-area-that-moves-by-itself` | 3 | 0 | 0 | 2 | 1 | 0 | 0 |
 | `healing-that-raises-the-dead` | 3 | 0 | 0 | 0 | 3 | 0 | 0 |
@@ -465,7 +465,6 @@ of *Tracked* and is never added to it.
 | `a-flat-amount-with-no-dice` | 2 | 0 | 0 | 0 | 1 | 0 | 1 |
 | `a-roll-result-an-effect-replaces` | 2 | 0 | 0 | 0 | 1 | 0 | 1 |
 | `a-selector-for-every-d20-test` | 2 | 0 | 0 | 0 | 2 | 0 | 0 |
-| `a-spell-that-answers-a-later-attack` | 2 | 0 | 0 | 1 | 1 | 0 | 0 |
 | `a-success-branch-that-does-something` | 2 | 0 | 0 | 0 | 2 | 0 | 0 |
 | `a-world-fact-nothing-can-represent` | 2 | 0 | 0 | 0 | 2 | 0 | 0 |
 | `an-ability-score-a-spell-changes` | 2 | 0 | 0 | 1 | 0 | 0 | 1 |
@@ -473,16 +472,15 @@ of *Tracked* and is never added to it.
 | `an-activation-that-resolves-an-area` | 2 | 0 | 0 | 1 | 1 | 0 | 0 |
 | `an-effect-that-fires-when-the-casting-ends` | 2 | 0 | 0 | 0 | 2 | 0 | 0 |
 | `movement-modes` | 2 | 0 | 0 | 1 | 1 | 0 | 0 |
-| `what-a-creature-is-holding` | 2 | 0 | 0 | 2 | 0 | 0 | 0 |
 | `a-cap-on-how-many-castings-run-at-once` | 1 | 0 | 0 | 0 | 1 | 1 | 0 |
 | `a-casting-that-casts-another-spell` | 1 | 0 | 0 | 0 | 0 | 0 | 1 |
-| `a-duration-the-chosen-branch-sets` | 1 | 0 | 0 | 1 | 0 | 0 | 0 |
 | `a-duration-the-slot-changes` | 1 | 0 | 0 | 0 | 1 | 0 | 0 |
 | `a-fact-only-the-table-can-declare` | 1 | 0 | 0 | 0 | 1 | 0 | 0 |
 | `a-filter-on-the-attackers-creature-type` | 1 | 0 | 0 | 0 | 1 | 0 | 0 |
 | `a-repeat-save-on-the-clock` | 1 | 0 | 0 | 1 | 0 | 0 | 0 |
 | `a-rest-an-effect-gives-or-denies` | 1 | 0 | 0 | 0 | 1 | 0 | 0 |
 | `a-rider-on-a-later-weapon-attack` | 1 | 0 | 0 | 0 | 1 | 0 | 0 |
+| `a-spell-that-answers-a-later-attack` | 1 | 0 | 0 | 0 | 1 | 0 | 0 |
 | `a-turn-a-spell-inserts-into-the-order` | 1 | 0 | 0 | 0 | 1 | 0 | 0 |
 | `an-area-moved-by-the-casters-own-movement` | 1 | 0 | 0 | 0 | 1 | 0 | 0 |
 | `an-area-that-filters-its-catch` | 1 | 0 | 0 | 0 | 1 | 0 | 0 |
@@ -498,6 +496,7 @@ of *Tracked* and is never added to it.
 | `light-and-obscurement-the-scene-holds` | 1 | 0 | 0 | 1 | 0 | 0 | 0 |
 | `senses-beyond-declared-sight` | 1 | 0 | 0 | 0 | 1 | 1 | 0 |
 | `targeting-rules-that-differ-within-one-casting` | 1 | 0 | 0 | 1 | 0 | 0 | 0 |
+| `what-a-creature-is-holding` | 1 | 0 | 0 | 1 | 0 | 0 | 0 |
 
 A spell can need more than one shape, so the columns do not sum to the
 population. A spell blocked on **nothing** — genuinely the table’s, and the
