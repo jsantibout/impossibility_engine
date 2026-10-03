@@ -54,6 +54,13 @@ export interface TriggerGlyphCommand extends CommandIdentity {
    * anybody did is. Required for a spell glyph (`triggerer_required`) and
    * refused for a rune that stores nothing (`nothing_stored`), where the
    * Sphere says who is caught. (W7-S21)
+   *
+   * **And required for a glyph refined to creatures of certain types** (E-L3),
+   * rune or spell glyph alike — SRD: "You can refine the trigger so that only
+   * creatures of certain types activate it." The refinement reads who set it
+   * off, as spells see it, and refuses one of another type
+   * (`type_does_not_activate`); a refined rune still catches whoever stands in
+   * the Sphere.
    */
   readonly by?: CharacterId;
 }

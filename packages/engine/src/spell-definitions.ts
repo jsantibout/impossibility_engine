@@ -6752,9 +6752,13 @@ export interface SpellDefinition {
    * is the one thing that makes a casting findable by Dispel Magic, or by
    * anything else that asks what is running.
    *
-   * It schedules no timer. Inventing a big number of seconds would be the
-   * engine answering a question the book declined to ask, which is the whole
-   * reason this is a flag rather than a `durationSeconds`.
+   * It schedules no deadline that arrives. Inventing a big number of seconds
+   * would be the engine answering a question the book declined to ask, which
+   * is the whole reason this is a flag rather than a `durationSeconds`. **The
+   * one timer such a casting may hold is `indefinite`** (E-L3): where it
+   * offers a {@link check} — SRD Glyph of Warding's "nearly imperceptible"
+   * glyph — the check rides on a casting's timer, so the casting is given the
+   * deadline that never arrives for it to ride on.
    */
   readonly untilDispelled?: true;
   /**
