@@ -217,8 +217,13 @@ export const MISSING_SHAPES = {
     '**Built, and the id is empty.** `replacesPriorCasting` in spell-definitions.ts is the cap the SRD writes twice — "The hand vanishes ... if you cast this spell again" — and it is a cap of **one**, applied by ending the prior casting. `maxRunning` is the same field with a number in it and `replacedCastings` is one arithmetic for both sentences: the oldest castings by this caster of this spell end until the new one is the last that fits. SRD Prestidigitation’s three is the only spell in the book that writes it and is executed off it. Kept rather than deleted because an id is a key two branches append to, and because the reading it records — ending the oldest rather than refusing the fourth — is the one a later homebrew spell will meet.',
   'a-duration-the-slot-changes':
     'PROGRESS.md, on Major Image: "Concentration and duration that **change with the slot level** ... which `SpellDefinition` cannot express". **IE-035 built the half that is a longer span**: `durationAtSlot` is a per-definition table of slot level to seconds, read where the deadline is scheduled, and the six spells printing the SRD’s "Your Concentration can last longer with a spell slot of…" — Hex, Hunter’s Mark, the three Dominates — and SRD Mass Suggestion’s "The duration is longer with…" all read their own table. **And the Concentration half is built too**: `concentrationEndsAtSlot` is the slot from which a spell stops requiring Concentration, which SRD Bestow Curse prints at level 5 and SRD Major Image prints at level 4, beside its other clause. **And the ending half is built now too**: `untilDispelledAtSlot` is the slot from which a casting stops having a deadline at all, which SRD Major Image prints at level 4 beside its Concentration clause — so that spell is executed and the field it wanted is the third of the family, read by `untilDispelledAt` where the deadline would have been scheduled. SRD Bestow Curse’s level 9 slot prints the same "lasts until dispelled" and reads the same field. What is left under this id is an ending that is **not** the absence of one: SRD Geas’s level 9 slot makes the spell last "until it is ended by one of the spells mentioned above" — one spell naming another as its ending, which no field here says and a table of seconds could not.',
-  'a-duration-the-chosen-branch-sets':
-    'a duration a casting’s chosen branch sets rather than the spell. `SpellOption` in spell-definitions.ts carries a branch’s effects, its area clauses and its own handovers, and no duration: the deadline is the definition’s, scheduled once whichever branch ran. SRD Thaumaturgy prints six wonders under one minute and calls two of them instantaneous, so every casting leaves a record the cap of three counts, and a door flung open counts against Booming Voice. W8-S26 filed it under `a-duration-the-slot-changes` as the closest id; the duration is the branch’s, not the slot’s. W9-S2 minted this one as filing only.',
+  // **`a-duration-the-chosen-branch-sets` was here and is retired** (E-L1).
+  // Its one claimant was SRD Thaumaturgy, whose six wonders run a minute and
+  // two of which the book calls instantaneous. `SpellOption.instantaneous` is
+  // the branch's own Duration, read through `persists` with the word the
+  // casting spoke: such a branch leaves no record, schedules no deadline, and
+  // counts against no cap, so a door flung open no longer ends a Booming Voice.
+  // A shape nothing is blocked on is one the guard deletes.
   'a-duration-earlier-castings-lengthen':
     'a duration that earlier castings of the same spell lengthen. SRD Arcanist’s Magic Aura, cast on the same target every day for thirty days, lasts until dispelled. `durationAtSlot` and `untilDispelledAtSlot` in spell-definitions.ts read the slot in hand, and nothing in the vocabulary counts the castings of a spell a creature has had before — the log holds every one and no field asks. W8-S26 filed it under `a-duration-the-slot-changes` as the closest id; W9-S2 minted this one as filing only.',
   'a-deadline-anchored-to-a-rest':
@@ -1331,17 +1336,10 @@ export const ADJUDICATED: Readonly<Record<string, readonly Adjudication[]>> = {
       note: 'the clause this shape’s own test was built to hand back. It was filed `table` on the strength of one field — "the definition is tracked and carries no `SpellArea`, because a template no effect resolves over is a radius with no place attached" — and `spell-honesty.test.ts` pinned both halves so that the day Darkness grew an area the reading would fail rather than go quietly on calling a rule fiction. That day is P3-S: Darkness holds a Sphere, the Sphere holds magical darkness, and Sunburst’s own 60-foot Sphere overlaps it perfectly well. What is missing is the **trigger**, and `docs/design/light-and-sight.md` says exactly where its edge is: the mutual dispel runs "on pinning a patch", and Sunburst pins none — it is a flash, Instantaneous, leaving no light behind. So `lightDispelledBy` is built and reachable from every casting that lays light, and a casting that lays none has no way to call it.',
     },
   ],
-  thaumaturgy: [
-    {
-      clause: 'the cap counts every casting',
-      why: 'a-duration-the-chosen-branch-sets',
-      note: 'W8-S26 read this line for the first time. The cap of three is `maxRunning` and is built; what the definition cannot say is that two of its six branches are instantaneous inside a spell that lasts a minute, so every casting leaves a record the cap counts — and Booming Voice’s Advantage is a mode a fourth casting can end early when a door flung open counted against the three. A duration the chosen branch sets, which is this id: W8-S26 filed it under the slot’s id as the closest, and W9-S2 minted its own.',
-    },
-  ],
-  // **Executed by `maxRunning` and by the branches**, and the entry that
-  // outlived both is the one clause of the six wonders that is not narration.
-  // The other five were always fiction; this one is an ordinary roll modifier
-  // with nowhere to stand.
+  // **Thaumaturgy has left the map** (E-L1): the cap counted every casting
+  // because two of its six branches are instantaneous inside a spell that
+  // lasts a minute, and `SpellOption.instantaneous` is the branch's own
+  // Duration — a door flung open leaves no record for the cap to count.
   web: [
     {
       clause: 'the webs being flammable',

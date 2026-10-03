@@ -11935,6 +11935,13 @@ export const MASS_HEAL: SpellDefinition = {
  * which the field does not fix. Enlarge/Reduce and Glyph of Warding print the
  * same shape, which is what makes it a shape rather than this cantrip's
  * problem.
+ *
+ * **And the cap is of "its 1-minute effects"**, which two of the six are not:
+ * _Invisible Hand_ and _Phantom Sound_ are instantaneous inside a spell whose
+ * Duration line says a minute. `SpellOption.instantaneous` is the branch
+ * setting its own Duration, so those two leave no record, schedule no deadline
+ * and neither count against the three nor end one of them to make room.
+ * (E-L1)
  */
 export const THAUMATURGY: SpellDefinition = {
   id: 'thaumaturgy',
@@ -11989,12 +11996,18 @@ export const THAUMATURGY: SpellDefinition = {
     },
     'invisible-hand': {
       label: 'Invisible Hand',
+      // "You **instantaneously** cause…" — over before the minute starts, so
+      // this wonder leaves nothing running for the cap of three to count.
+      instantaneous: true,
       handsOver: [
         'Invisible Hand. You instantaneously cause an unlocked door or window to fly open or slam shut.',
       ],
     },
     'phantom-sound': {
       label: 'Phantom Sound',
+      // "You create an **instantaneous** sound" — the same, and for the same
+      // reason.
+      instantaneous: true,
       handsOver: [
         'Phantom Sound. You create an instantaneous sound that originates from a point of your choice within range, such as a rumble of thunder, the cry of a raven, or ominous whispers.',
       ],
@@ -12007,11 +12020,10 @@ export const THAUMATURGY: SpellDefinition = {
   durationSeconds: 60,
   // "If you cast this spell multiple times, you can have up to three of its
   // 1-minute effects active at a time" — Prestidigitation's sentence with a
-  // different word for the same number, and the same field answers it.
+  // different word for the same number, and the same field answers it. The
+  // two wonders the book calls instantaneous leave no record, so they count
+  // against nothing and end nothing to make room.
   maxRunning: 3,
-  unmodelled: [
-    'the cap counts every casting rather than only the four wonders that last a minute: the two the book calls instantaneous leave a record here as the other four do, so a door flung open counts against the three',
-  ],
 };
 
 /**

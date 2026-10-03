@@ -5667,6 +5667,27 @@ export interface SpellOption {
   /** The span a `long` {@link castingTime} on this branch takes — Plant Growth's eight hours. */
   readonly castingSeconds?: number;
   /**
+   * This branch is over in an instant, whatever Duration the spell prints.
+   *
+   * SRD Thaumaturgy: "you can have up to three of its **1-minute effects**
+   * active at a time" — and two of its six wonders are not 1-minute effects:
+   * _Invisible Hand_ "**instantaneously** cause[s] an unlocked door or window
+   * to fly open or slam shut", and _Phantom Sound_ is "an **instantaneous**
+   * sound". So the duration is the branch's to set, and a branch that sets none
+   * leaves nothing running: no ongoing record, no deadline, nothing for
+   * {@link SpellDefinition.maxRunning} to count and nothing it ends to make
+   * room. `persists` is the one reader, asked with the branch the casting ran.
+   *
+   * **One member, because the book prints one**: a branch that ran for a
+   * different span of its own would be a second number with no writer.
+   *
+   * Refused on a branch that hangs effects — a grant under no record would
+   * outlive the casting, because nothing would ever end it — and on a spell
+   * that leaves nothing running anyway or that holds Concentration, where an
+   * instant would contradict the spell's own line.
+   */
+  readonly instantaneous?: true;
+  /**
    * Printed text this branch hands to whoever is running the table — see
    * {@link SpellDefinition.dmDecides}, which is the same field one level up
    * and travels the same way.
@@ -7338,8 +7359,14 @@ export function onCaster(definition: SpellDefinition): boolean {
  * Arcane Lock and Continual Flame left no record at all — running, by the
  * book, and invisible to everything that asks what is running. The record they
  * get carries no timer, because there is no moment to schedule.
+ *
+ * **And the branch a casting ran may be over in an instant** — SRD
+ * Thaumaturgy's door flung open — whatever the spell's own line prints; see
+ * {@link SpellOption.instantaneous}. Asked with the word the casting spoke, and
+ * answered as before for a spell that prints no branches.
  */
-export function persists(definition: SpellDefinition): boolean {
+export function persists(definition: SpellDefinition, option?: string): boolean {
+  if (option !== undefined && definition.options?.[option]?.instantaneous === true) return false;
   return (
     definition.concentration ||
     definition.durationSeconds !== undefined ||

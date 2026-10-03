@@ -9286,6 +9286,46 @@ function checkOptions(
       });
     }
 
+    // SRD Thaumaturgy's door flung open and its sound: a branch over in an
+    // instant whatever the spell's Duration says — see
+    // `SpellOption.instantaneous`. It overrides a duration, so it needs one to
+    // override; it leaves no record, so it may hang nothing a record would end.
+    const instant = (branch as { readonly instantaneous?: unknown }).instantaneous;
+    if (instant !== undefined) {
+      if (instant !== true) {
+        found.push({
+          field: `options.${key}.instantaneous`,
+          code: 'malformed_field',
+          reason: 'a branch is either over in an instant or takes the spell’s own Duration; the only value is true',
+        });
+      } else if (definition.concentration === true) {
+        found.push({
+          field: `options.${key}.instantaneous`,
+          code: 'instant_branch_of_a_concentration_spell',
+          reason:
+            'a Concentration spell runs for as long as it is held, and a branch of it cannot be over in an instant',
+        });
+      } else if (!castingPersists(definition)) {
+        found.push({
+          field: `options.${key}.instantaneous`,
+          code: 'instant_branch_of_an_instant_spell',
+          reason:
+            'this spell leaves nothing running whichever branch is cast, so a branch has no Duration to be over before',
+        });
+      } else if (
+        effects.length > 0 ||
+        standing.length > 0 ||
+        branch.areaTerrain !== undefined
+      ) {
+        found.push({
+          field: `options.${key}.instantaneous`,
+          code: 'instant_branch_hangs_effects',
+          reason:
+            'a branch over in an instant leaves no running record, so anything it hung would have nothing to end it; it may only hand its sentence over',
+        });
+      }
+    }
+
     if (
       effects.length === 0 &&
       handsOver.length === 0 &&

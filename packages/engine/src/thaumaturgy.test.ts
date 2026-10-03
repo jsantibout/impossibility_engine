@@ -162,3 +162,92 @@ describe('SRD Thaumaturgy: the caster and nobody else', () => {
     expect(modesOn(later, CLERIC, 'cha', 'intimidation')).toEqual([]);
   });
 });
+
+/**
+ * SRD Thaumaturgy's last sentence: "If you cast this spell multiple times, you
+ * can have up to three of its **1-minute effects** active at a time."
+ *
+ * Two of the six wonders are not 1-minute effects at all — _Invisible Hand_
+ * "instantaneously" flings a door open and _Phantom Sound_ is "an instantaneous
+ * sound" — so the duration is the branch's to set and not the spell's. A branch
+ * that is over in an instant leaves nothing running: no record for the cap to
+ * count, no deadline, and so no Booming Voice ended early because a door was
+ * flung open. (`SpellOption.instantaneous`)
+ */
+describe('SRD Thaumaturgy: the wonders that are over in an instant', () => {
+  const work = (log: readonly GameEvent[], option: string) =>
+    unwrap(
+      resolveSpell(
+        fold('seed', log),
+        CLERIC,
+        { spellId: 'thaumaturgy', targets: [CLERIC], option } as never,
+        supply(fold('seed', log)),
+      ),
+      option,
+    );
+
+  it('leaves no running record for a door flung open or a sound made', () => {
+    for (const option of ['invisible-hand', 'phantom-sound']) {
+      const cast = work(SETUP, option);
+      const state = fold('seed', [...SETUP, ...cast.events]);
+      expect(state.ongoing).toEqual({});
+      expect(cast.events.some((event) => event.type === 'spell-ongoing')).toBe(false);
+      // And no deadline is scheduled for a casting that has nothing to end.
+      expect(state.timers).toEqual(fold('seed', SETUP).timers);
+    }
+  });
+
+  it('still leaves a minute running for a wonder the book gives a minute', () => {
+    const cast = work(SETUP, 'tremors');
+    expect(Object.keys(fold('seed', [...SETUP, ...cast.events]).ongoing)).toHaveLength(1);
+  });
+
+  it('does not count an instant wonder against the three, nor end one of them to make room', () => {
+    let log = SETUP;
+    for (const option of ['booming-voice', 'fire-play', 'tremors']) {
+      log = [...log, ...work(log, option).events];
+    }
+    for (const option of ['invisible-hand', 'phantom-sound', 'invisible-hand']) {
+      log = [...log, ...work(log, option).events];
+    }
+    const running = Object.values(fold('seed', log).ongoing);
+    expect(running.map((one) => one.option).sort()).toEqual(['booming-voice', 'fire-play', 'tremors']);
+    expect(modesOn(fold('seed', log), CLERIC, 'cha', 'intimidation')).toEqual([
+      { source: 'Thaumaturgy#cast:1', mode: 'advantage' },
+    ]);
+  });
+
+  it('holds the field to what it can mean', () => {
+    const cantrip = SRD_CONTENT.spell('thaumaturgy')!;
+    const sound = cantrip.options!['phantom-sound']!;
+    const withBranch = (branch: unknown, over: Partial<SpellDefinition> = {}): SpellDefinition =>
+      ({
+        ...cantrip,
+        ...over,
+        options: { ...cantrip.options, 'phantom-sound': branch },
+      }) as SpellDefinition;
+    const codes = (branch: unknown, over: Partial<SpellDefinition> = {}): readonly string[] =>
+      checkSpellDefinition(withBranch(branch, over)).map((one) => one.code);
+
+    expect(sound.instantaneous).toBe(true);
+    expect(codes(sound)).toEqual([]);
+    expect(codes({ ...sound, instantaneous: 'yes' })).toContain('malformed_field');
+    // A branch over in an instant hangs nothing: a grant with no record under it
+    // would outlive the casting for ever, because nothing would ever end it.
+    expect(
+      codes({ ...sound, effects: cantrip.options!['booming-voice']!.effects }),
+    ).toContain('instant_branch_hangs_effects');
+    // And it overrides a duration, so a spell that prints none has nothing to
+    // override; nor may a Concentration spell be over in an instant.
+    const { durationSeconds: _dropped, maxRunning: _cap, ...instant } = cantrip;
+    void _dropped;
+    void _cap;
+    expect(
+      checkSpellDefinition({
+        ...instant,
+        options: { ...cantrip.options, 'phantom-sound': sound },
+      } as SpellDefinition).map((one) => one.code),
+    ).toContain('instant_branch_of_an_instant_spell');
+    expect(codes(sound, { concentration: true })).toContain('instant_branch_of_a_concentration_spell');
+  });
+});

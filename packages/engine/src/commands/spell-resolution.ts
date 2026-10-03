@@ -672,7 +672,7 @@ export function resolveDeclaredCast(
       // And the bones, read back the same way: a rite of a minute stated where
       // they lie before there was a casting to raise anything at.
       ...(pending.bonesAt === undefined ? {} : { bonesAt: pending.bonesAt }),
-      ...(persists(definition)
+      ...(persists(definition, pending.option)
         ? {
             becomesOngoing: {
               spellId: definition.id,
@@ -2981,7 +2981,7 @@ function resolveOnTargets(
         // This was the one resolution path of three that wrote no record, so a
         // readied Bless was running, concentrated on, and invisible to Dispel
         // Magic.
-        ...(persists(definition) ? { becomesOngoing: ongoingWith() } : {}),
+        ...(persists(definition, request.option) ? { becomesOngoing: ongoingWith() } : {}),
         ...(request.option === undefined ? {} : { option: request.option }),
         ...(terrainRegion === null ? {} : { terrainRegion }),
       }),
@@ -3314,7 +3314,11 @@ function resolveOnTargets(
       // casting writes no duration at all and `schedule` is never reached.
       // Read through `untilDispelledAt`, beside the `concentrationAt` five
       // lines above that reads the other half of the same sentence.
-      ...(untilDispelledAt(definition, castLevel)
+      //
+      // **Nor does a branch that is over in an instant** — SRD Thaumaturgy's
+      // door flung open, whatever the spell's minute says. See
+      // `SpellOption.instantaneous`, read through `persists` with the word.
+      ...(untilDispelledAt(definition, castLevel) || !persists(definition, request.option)
         ? {}
         : definition.durationSeconds !== undefined
         ? {
@@ -3420,7 +3424,7 @@ function resolveOnTargets(
   // casting its own first run created — the same trap the trigger guard and
   // the pending-casting guard both sprang before it, and the third instance
   // of the rule that a retry must never look at the world it made.
-  events.push(...replacedCastings(state, casterId, definition, targets));
+  events.push(...replacedCastings(state, casterId, definition, targets, request.option));
   events.push(...cast.value);
 
   // **Whether the casting fails for want of its gestures** — SRD Slow's 25
@@ -3528,7 +3532,7 @@ function resolveOnTargets(
       // have been folded into, so it settles exactly the casting the trigger
       // accepted and reads it as it now stands.
       ...(context.answers === undefined ? {} : { answers: context.answers }),
-      ...(persists(definition) ? { becomesOngoing: ongoingWith() } : {}),
+      ...(persists(definition, request.option) ? { becomesOngoing: ongoingWith() } : {}),
       ...(request.option === undefined ? {} : { option: request.option }),
       ...(terrainRegion === null ? {} : { terrainRegion }),
     }),
