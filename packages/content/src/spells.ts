@@ -14972,9 +14972,12 @@ export const CALL_LIGHTNING: SpellDefinition = {
  * > 3d10 Slashing damage."
  *
  * **No 2024 Conjure spell prints a stat block** and this one proves what they
- * print instead: a pack that is a place rather than a creature. What blocks it
- * is that the place moves when the caster does, and that standing beside it
- * grants a benefit derived from where you are.
+ * print instead: a pack that is a place rather than a creature. The place
+ * moves when the caster does, standing beside it grants a benefit derived from
+ * where you are, and its bite is gated twice: on the caster's sight of the
+ * creature (`onlyWhomCasterSees`, read where the save is forced) and on the
+ * caster's word — "you **can** force" (`casterMayDecline`, the settlement's
+ * `spare`).
  */
 export const CONJURE_ANIMALS: SpellDefinition = {
   id: 'conjure-animals',
@@ -15009,6 +15012,12 @@ export const CONJURE_ANIMALS: SpellDefinition = {
     onAreaEntry: true,
     within: 10,
     oncePerTurn: true,
+    // "a creature you can see", in all three clauses: the caster's own line
+    // to the creature, read where the save is forced.
+    onlyWhomCasterSees: true,
+    // "you **can** force that creature": the caster may hold the pack back
+    // (`settleAreaEffects`'s `spare`).
+    casterMayDecline: true,
     label: 'Conjure Animals (the pack)',
     effects: [
       {
@@ -15026,10 +15035,6 @@ export const CONJURE_ANIMALS: SpellDefinition = {
   dmDecides: [
     "You conjure nature spirits that appear as a Large pack of spectral, intangible animals in an unoccupied space you can see within range.",
     "The pack lasts for the duration, and you choose the spirits' animal form, such as wolves, serpents, or birds.",
-  ],
-  unmodelled: [
-    'the caster’s sight of whoever the pack reaches is not read at the boundary: "a creature you can see" gates each of the three clauses, and an area trigger catches whoever the geometry catches',
-    'and "you **can** force that creature to make a Dexterity saving throw" is read as a save the pack forces: a trigger the caster may decline has no word, so the save is rolled and the 3d10 dealt where the caster would have held the pack back',
   ],
 };
 

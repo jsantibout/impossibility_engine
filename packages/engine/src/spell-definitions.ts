@@ -5153,6 +5153,30 @@ export interface AreaTrigger {
    */
   readonly onPointEntry?: true;
   /**
+   * SRD Conjure Animals: "Whenever the pack moves within 10 feet of **a
+   * creature you can see** and whenever **a creature you can see** enters a
+   * space within 10 feet of the pack or ends its turn there".
+   *
+   * The caster's sight of the creature caught, read where the debt is settled
+   * (`settleAreaEffects`) off the pairwise line `canSee` answers everywhere
+   * else: a creature the caster cannot see is owed nothing and the debt is
+   * discharged unrolled; one nobody has said anything about is caught and the
+   * question is named beside the outcome — the ruling Faerie Fire's "if the
+   * attacker can see it" and Hypnotic Pattern's gate already take. Absent is a
+   * trigger that catches whoever the geometry catches.
+   */
+  readonly onlyWhomCasterSees?: true;
+  /**
+   * SRD Conjure Animals: "you **can** force that creature to make a Dexterity
+   * saving throw" — a permission, which the caster may decline.
+   *
+   * The caster's word is `SettleAreaEffectsCommand.spare`: a debt from a
+   * trigger printing this, named there, is discharged with no save rolled and
+   * nothing dealt. A trigger without it refuses the word (`must_be_forced`),
+   * because the book's "must" is not the caster's to waive.
+   */
+  readonly casterMayDecline?: true;
+  /**
    * How far from the casting's **point** this trigger reaches, in feet.
    *
    * SRD Flaming Sphere: "Any creature that **ends its turn within 5 feet of

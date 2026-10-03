@@ -9780,6 +9780,19 @@ function checkPointMeasuredTrigger(
   area: SpellArea | undefined,
   found: SpellDefinitionProblem[],
 ): void {
+  // SRD Conjure Animals' "a creature you can see" and "you can force": two
+  // words the book prints or does not.
+  for (const field of ['onlyWhomCasterSees', 'casterMayDecline'] as const) {
+    const said = (trigger as unknown as Readonly<Record<string, unknown>>)[field];
+    if (said !== undefined && said !== true) {
+      found.push({
+        field: `areaTrigger.${field}`,
+        code: 'malformed_field',
+        reason: 'a trigger either prints this word or does not; the only value is true',
+      });
+    }
+  }
+
   const onPoint = (trigger as { readonly onPointEntry?: unknown }).onPointEntry;
   if (onPoint !== undefined) {
     if (onPoint !== true) {

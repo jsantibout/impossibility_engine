@@ -341,6 +341,7 @@ export type {
   EffectCheckCommand,
   EffectCheckResolution,
   ResolvedRepeatSave,
+  SettleAreaEffectsCommand,
   TurnResolution,
 } from './commands/turns.js';
 export { activateSpell } from './commands/activation.js';
