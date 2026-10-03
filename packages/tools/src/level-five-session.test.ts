@@ -1698,9 +1698,13 @@ describe('a level 5 party plays a session', () => {
         }),
     );
     expect([...debts].sort()).toEqual([...counted].sort());
-    // And the agreement is about something: the session met debts, so the
-    // equality above is not two empty sets agreeing.
-    expect(debts.size).toBeGreaterThan(0);
+    // And the agreement is about something: the session cast spells, every
+    // one of which the ledger was asked about. **It met debts until E-L2**:
+    // SRD Web's flammable webs were the session's last owed clause, and they
+    // are built, so both sides are now empty for a reason — the spells this
+    // session casts owe nothing — rather than because nothing was counted.
+    const castings = t.sent.filter((one) => one.tool === 'cast_spell' && one.outcome.status === 'ok');
+    expect(castings.length).toBeGreaterThan(0);
   });
 
   it('replays byte-identically from the same seed', () => {

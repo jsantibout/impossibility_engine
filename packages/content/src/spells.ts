@@ -4160,13 +4160,13 @@ export const WEB: SpellDefinition = {
       at: 'start-of-casters-next-turn',
     },
   ],
-  // **One debt left, and it is not a cause** (W8-S26, W9-S2). Whether a Cube
-  // of web meets fire is the table's to say, and what follows is a 5-foot Cube
-  // of the area burning away with 2d4 Fire the engine must throw at the start
-  // of a turn in it: ending **part** of a casting, which neither scope an
-  // ending has can say. The engine's fire is the Burning hazard, which it
-  // holds on a creature; a web is not one.
-  unmodelled: ['the webs being flammable, and the 2d4 Fire damage a burning cube deals'],
+  // "The webs are flammable. Any 5-foot Cube of webs exposed to fire burns
+  // away in 1 round, dealing 2d4 Fire damage to any creature that starts its
+  // turn in the fire." (E-L2) Whether a Cube meets fire is the table's to say
+  // (`expose_to_fire`); for the round it burns a creature that starts its turn
+  // in it takes the 2d4 the engine throws, and then the Cube is gone from the
+  // webs — their catch, their ground and their air — and the rest stand.
+  flammable: { dice: '2d4', damageType: 'fire', burnsSeconds: 6 },
 };
 
 /**
@@ -10888,7 +10888,10 @@ export const SLEET_STORM: SpellDefinition = {
   // built it). The flame the engine holds is the Burning hazard on a creature,
   // and SRD Burning says "The fire also goes out if it is doused": a creature
   // standing in the Cylinder does not burn, however it came to be there, and
-  // the fold derives it off this pinned clause after every event.
+  // the fold derives it off this pinned clause after every event. The torches
+  // and campfires in the area are light the table declares and takes away,
+  // the W8-S26 reading this keeps: a declared patch of light holds no kind
+  // that says it is a flame — see Gust of Wind's flames, which wait on one.
   areaStanding: [{ kind: 'douses-flames' }],
 };
 

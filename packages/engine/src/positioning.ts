@@ -2247,6 +2247,21 @@ export const ORDINARY_GROUND = 1;
 export interface TerrainRegion {
   readonly origin: AreaOrigin;
   readonly shape: AreaShape;
+  /**
+   * The 5-foot spaces the shape no longer covers — SRD Web's Cubes that have
+   * burned away (`OngoingSpell.burnt`). Read by {@link spaceInRegion} and
+   * {@link moverInRegionAt}, so the ground, the air and the barrier readers all
+   * leave them out without learning why. Absent is the whole shape, which is
+   * every region written before the field existed. (E-L2)
+   */
+  readonly except?: readonly Point[];
+}
+
+/** Whether a space is one a region has had taken out of it — see {@link TerrainRegion.except}. */
+function exceptedFrom(region: TerrainRegion, space: Point): boolean {
+  const out = region.except;
+  if (out === undefined || out.length === 0) return false;
+  return out.some((cut) => cut.x === space.x && cut.y === space.y && cut.z === space.z);
 }
 
 /**
@@ -2648,6 +2663,7 @@ export function spaceInRegion(
   if (!frame.ok) return false;
 
   const at = snapPoint(space);
+  if (exceptedFrom(region, at)) return false;
   const box: Box = { min: at, max: { x: at.x + CUBE, y: at.y + CUBE, z: at.z + CUBE } };
   const towards = 'towards' in region.shape ? worldPointOf(region.shape.towards) : null;
 
@@ -2682,12 +2698,26 @@ export function moverInRegionAt(
 
   const space = snapPoint(at);
   const width = footprintOf(state.sizes[who] ?? 'medium');
+  const tall = Math.max(CUBE, snap(heightOf(state, who)));
+  // **A region with spaces taken out of it is asked space by space**, which is
+  // the reading the whole-box test makes of a region that has none: the mover
+  // is in it where any space it fills is. (E-L2)
+  if ((region.except?.length ?? 0) > 0) {
+    for (let x = space.x; x < space.x + width; x += CUBE) {
+      for (let y = space.y; y < space.y + width; y += CUBE) {
+        for (let z = space.z; z < space.z + tall; z += CUBE) {
+          if (spaceInRegion(state, region, { x, y, z })) return true;
+        }
+      }
+    }
+    return false;
+  }
   const box: Box = {
     min: space,
     max: {
       x: space.x + width,
       y: space.y + width,
-      z: space.z + Math.max(CUBE, snap(heightOf(state, who))),
+      z: space.z + tall,
     },
   };
   const towards = 'towards' in region.shape ? worldPointOf(region.shape.towards) : null;
@@ -3226,11 +3256,12 @@ function brightnessAt(
  * 3 or lower. Two sentences, one mechanism, and it is the only place in the
  * SRD where two areas of light argue.
  *
- * **The threshold is the incoming casting's own level**, which is what both
- * printed lines happen to say — Darkness is level 2 and dispels light at 2 or
- * lower, Daylight is level 3 and dispels darkness at 3 or lower. A spell that
- * printed a different number would need a field on its definition to say so,
- * and none does.
+ * **The table's door only, since E-L2.** A casting's own light reads the
+ * threshold its spell prints (`AreaLight.dispels`, pinned as
+ * `MagicalLight.dispelsUpTo`) through {@link dispelOnPinning}, both ways and
+ * whichever came first. What is left here is `declareLight`'s: a magical patch
+ * the DM declares at a spell level puts out the opposite castings at or below
+ * it, the threshold being that level.
  *
  * Nonmagical light and nonmagical darkness are untouched at both ends: the
  * sentence is about a spell dispelling a spell, and a patch with no `magical`

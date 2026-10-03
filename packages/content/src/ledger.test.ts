@@ -847,8 +847,10 @@ describe('an executed spell with a clause nobody sorted is not executed', () => 
    * census holds itself against this from the other side.
    */
   it('counts every owed clause of a spell it holds, and none of one it does not', () => {
-    expect(clausesCounted('web')).toEqual(SRD_CONTENT.spell('web')!.unmodelled);
-    expect(clausesCounted('web').length).toBeGreaterThan(0);
+    // Gust of Wind still owes its flames (Web owed its fire until E-L2 built it).
+    expect(clausesCounted('gust-of-wind')).toEqual(SRD_CONTENT.spell('gust-of-wind')!.unmodelled);
+    expect(clausesCounted('gust-of-wind').length).toBeGreaterThan(0);
+    expect(clausesCounted('web')).toEqual([]);
     // Spirit Guardians is executed whole and prints no debt.
     expect(clausesCounted('spirit-guardians')).toEqual([]);
     // Nor does a spell out of reach reach this count, whatever it prints.

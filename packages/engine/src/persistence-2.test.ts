@@ -541,6 +541,12 @@ const UNCOVERED_EVENT_TYPES: readonly string[] = [
   // the slot has already gone, the rule that had forbidden the slot winning,
   // the fight nobody is in, and the fact that nothing moves anybody.
   'budget-compelled',
+  // A Cube of SRD Web set alight (E-L2). Neither log was written when a spell
+  // could burn, so both fold to exactly the states they always folded to.
+  // `web-fire.test.ts` folds it and drives it end to end: the 2d4 at a turn
+  // start in the fire, the Cube still web while it burns, and gone — ground,
+  // air and Restrained — when its round is out.
+  'casting-area-burning',
   'casting-continued',
   // What a running casting's saving throw came to, per creature it asked.
   // Neither log was written when a save could record anything but what it

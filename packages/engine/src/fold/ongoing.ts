@@ -32,6 +32,7 @@ export const ONGOING_EVENTS = [
   'casting-save-recorded',
   'spell-origin-moved',
   'spell-copies-moved',
+  'casting-area-burning',
   'spell-aim-changed',
   'way-in-drawn',
   'way-in-height-declared',
@@ -216,6 +217,34 @@ export function applyOngoing({ state, next, legacy }: Applying, event: OngoingEv
     // it now stands. A casting that never laid copies cannot have moved any,
     // and a list of another length is a log and a set of rules that disagree.
     // (E-L2)
+    // SRD Web's Cube set alight: added to the record's burning Cubes, which
+    // the turn boundary reads for the fire and the fold's own pass burns away
+    // when the deadline arrives. (E-L2)
+    case 'casting-area-burning': {
+      const record = state.ongoing[event.castingId];
+      if (record === undefined) {
+        throw new CorruptLogError(event, `${event.castingId} is not running`);
+      }
+      const same = (p: { readonly x: number; readonly y: number; readonly z: number }) =>
+        p.x === event.space.x && p.y === event.space.y && p.z === event.space.z;
+      if ((record.burning ?? []).some((cube) => same(cube.space)) || (record.burnt ?? []).some(same)) {
+        throw new CorruptLogError(event, `${event.castingId} is already burning there`);
+      }
+      return {
+        ...next,
+        ongoing: sortedRecord({
+          ...next.ongoing,
+          [event.castingId]: {
+            ...record,
+            burning: [
+              ...(record.burning ?? []),
+              { space: event.space, until: event.until, dice: event.dice, damageType: event.damageType },
+            ],
+          },
+        }),
+      };
+    }
+
     case 'spell-copies-moved': {
       const record = state.ongoing[event.castingId];
       if (record === undefined) {

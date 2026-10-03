@@ -170,6 +170,7 @@ import {
   declareDawn,
   declareDifficultTerrain,
   declareEnding,
+  exposeToFire,
   declareLight,
   declareObscurement,
   declareFalling,
@@ -3731,6 +3732,40 @@ const DECLARE_ENDING = tool({
   },
 });
 
+/**
+ * The table's word that a Cube of a running spell's area met fire — SRD Web's
+ * "The webs are flammable. Any 5-foot Cube of webs exposed to fire burns away
+ * in 1 round, dealing 2d4 Fire damage to any creature that starts its turn in
+ * the fire." (E-L2)
+ *
+ * **The fire is the room's**: a torch, a Fire Bolt through the strands, a
+ * burning creature — nothing the engine could tell apart from a fire that
+ * missed. What follows is the engine's: the dice at the turn boundary, and the
+ * Cube gone from the webs when its round is out.
+ */
+const EXPOSE_TO_FIRE = tool({
+  name: 'expose_to_fire',
+  description:
+    'Say that fire has reached one 5-foot Cube of a running spell that burns — SRD Web’s "Any 5-foot Cube of webs exposed to fire burns away in 1 round, dealing 2d4 Fire damage to any creature that starts its turn in the fire." Name the casting and the space. The engine then burns that Cube for the round the spell prints: a creature that starts its turn in it takes the damage the engine rolls, and when the round is out the Cube is gone from the webs — ordinary ground, clear air, and nobody Restrained by webs that are not there — while the rest of the webs stand. Refused for a spell that does not burn, a space it does not fill, and a Cube already burning.',
+  mutates: true,
+  input: z.object({
+    castingId: z.string().min(1).describe('From the cast_spell that started it.'),
+    at: pointSchema.describe('The 5-foot space that caught fire.'),
+  }),
+  run: (context, args) =>
+    settleEvents(
+      context,
+      exposeToFire(
+        context.campaign.state(),
+        context.campaign.content,
+        args.castingId,
+        point(args.at),
+        identity(context),
+      ),
+      { burning: args.castingId },
+    ),
+});
+
 // — what a character holds, and the four ways of spending it ———————————————
 
 /**
@@ -6447,6 +6482,7 @@ export const TOOLS: readonly ToolDefinition[] = [
   END_ONGOING_SPELL,
   DECLARE_WIND,
   DECLARE_ENDING,
+  EXPOSE_TO_FIRE,
   END_SPELL_ON_SELF,
   END_REST,
   END_TURN,

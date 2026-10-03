@@ -76,6 +76,7 @@ import {
   declareLight,
   declareObscurement,
   declareEnding,
+  exposeToFire,
   declareWind,
   moveCastLight,
   declineOpportunity,
@@ -3045,6 +3046,23 @@ const GUARDED: readonly Guarded[] = [
     log: glyphed(),
     run: (s, commandId) =>
       declareEnding(s, 'cast:1', { what: 'the surface or object is moved more than 10 feet' }, { commandId }),
+  },
+  /**
+   * The table's word that a Cube of SRD Web met fire (E-L2). A retry that got
+   * past the guard would find the Cube already burning and report
+   * `already_burning` for a fire that had in fact been set.
+   */
+  {
+    name: 'exposeToFire',
+    log: webbed(),
+    run: (s, commandId) =>
+      exposeToFire(
+        s,
+        SRD_CONTENT,
+        Object.values(s.ongoing).find((one) => one.spellId === 'web')!.castingId,
+        { x: 120, y: 100, z: 0 },
+        { commandId },
+      ),
   },
   /**
    * The interruptible casting pair. Both halves need the guard and for

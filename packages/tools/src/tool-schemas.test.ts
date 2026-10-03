@@ -186,8 +186,9 @@ describe('toolSchemas', () => {
     // `declare_wind` and `declare_ending`, the room's weather and the table's
     // word that a printed cause happened. And one on each for W9-S3,
     // `draw_rope`, and one more on the DM's alone, `declare_portal_height`.
-    expect(toolSchemas(player())).toHaveLength(100);
-    expect(toolSchemas(dm())).toHaveLength(133);
+    // And one on each for E-L2, `expose_to_fire`.
+    expect(toolSchemas(player())).toHaveLength(101);
+    expect(toolSchemas(dm())).toHaveLength(134);
     // Re-pinned 2026-09-24 for the printed-lines track, which opened one door
     // on the DM's surface alone: `teleport_printed_line` takes the teleport a
     // stat block prints, at the distance the block prints, to a space the DM
@@ -422,11 +423,14 @@ describe('toolSchemas', () => {
     // And for E-L2: `cast_spell.alsoAt` (SRD Dancing Lights' lights 2 to 4,
     // placed where the caster names) and `activate_spell.alsoTo` (the Bonus
     // Action moving them by number) on both doors. No tool added: +1,532 bytes
-    // on each.
-    expect(toolSchemas(player())).toHaveLength(100);
-    expect(toolSchemas(dm())).toHaveLength(133);
-    expect(JSON.stringify(toolSchemas(player())).length).toBe(169085);
-    expect(JSON.stringify(toolSchemas(dm())).length).toBe(228790);
+    // on each. And `expose_to_fire` on both doors — the table's word that a
+    // Cube of SRD Web met fire, which the engine then burns for the round the
+    // spell prints. 100 → 101 tools on the player's door and 133 → 134 on the
+    // DM's; +1,187 bytes on each.
+    expect(toolSchemas(player())).toHaveLength(101);
+    expect(toolSchemas(dm())).toHaveLength(134);
+    expect(JSON.stringify(toolSchemas(player())).length).toBe(170272);
+    expect(JSON.stringify(toolSchemas(dm())).length).toBe(229977);
   });
 });
 

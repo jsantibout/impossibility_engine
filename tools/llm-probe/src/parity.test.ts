@@ -132,6 +132,9 @@ const AUDIT: readonly {
       // length, the continuity and the Range, and refuses rather than
       // straightening.
       path: expose('path'),
+      alsoAt: because(
+        'where SRD Dancing Lights’ lights 2 to 4 go — the one spell that lays several templates, a cantrip no benchmark character knows. `packages/tools` publishes it as `cast_spell.alsoAt` (E-L2)',
+      ),
       anchoring: because(
         'whether an area is centred on a space or on the intersection between four of them, which decides whether its footprint comes out odd or even. A real tactical choice and not a number that decides an outcome — but which of the two a given spell wants is a property of the spell (a 20-foot radius wants an intersection, a 5-foot-wide Line wants a space), so it belongs to the definition rather than to a per-cast decision the DM makes afresh each time. Publish it if and when a definition cannot say',
       ),

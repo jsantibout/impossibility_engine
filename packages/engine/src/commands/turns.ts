@@ -30,10 +30,11 @@ import { currentCombatant, extraActionsOwedAtTurnStart, spendAction } from '../c
 import { conditionInstanceId, isIncapacitated, type CheckContext } from '../conditions.js';
 // SRD Fire Aura's emanation, measured the way every other reach in the engine
 // is. A type-only edge would not do: the distance is read at the boundary.
-import { distanceBetween } from '../positioning.js';
+import { distanceBetween, footprintOf, heightOf } from '../positioning.js';
 import {
   endOfCurrentTurn,
   forSeconds,
+  hasExpired,
   isDue,
   resolveDuration,
   timeView,
@@ -72,6 +73,7 @@ import {
   type AreaMoment,
   castingIdOf,
   castingNumber,
+  castingSource,
   type OwedAreaEffect,
   spellOfSource,
 } from '../spells.js';
@@ -530,7 +532,61 @@ function payoutsDue(
     ...payoutsAt(state, ended, 'end-of-turn'),
     ...payoutsAt(state, begun, 'start-of-turn'),
     ...hazardsDue(state, begun),
+    ...burningCubesDue(state, begun),
   ];
+}
+
+/**
+ * What a casting's burning Cubes cost the creature whose turn is beginning in
+ * one — SRD Web: "dealing 2d4 Fire damage to any creature that starts its turn
+ * in the fire". (E-L2)
+ *
+ * **Derived rather than filed**, `hazardsDue`'s reading of a fire on a creature
+ * turned round onto a fire in a place: the boundary reads where the creature
+ * stands against the Cubes the record holds burning, and settles it through the
+ * payout machinery — the dice the event pinned, the type, the creature's own
+ * defences, a Concentration at risk. Once per Cube the creature stands in, and
+ * only while the Cube burns: the fold moves it to ash when its round is out.
+ */
+function burningCubesDue(state: GameState, begun: CharacterId | undefined): readonly DuePayout[] {
+  if (begun === undefined || state.scene === null) return [];
+  const creature = state.creatures[begun];
+  const at = state.scene.positions[begun];
+  if (creature === undefined || creature.vitals.dead || at === undefined) return [];
+  const view = timeView(state);
+  return Object.keys(state.ongoing)
+    .sort((a, b) => castingNumber(a) - castingNumber(b))
+    .flatMap((castingId) => {
+      const record = state.ongoing[castingId]!;
+      return (record.burning ?? []).flatMap((cube): DuePayout[] => {
+        if (hasExpired(view, cube.until)) return [];
+        // In the Cube where any space the creature fills is the Cube.
+        const width = footprintOf(state.scene!.sizes[begun] ?? 'medium');
+        const tall = Math.max(5, heightOf(state.scene!, begun));
+        const here =
+          cube.space.x >= at.x &&
+          cube.space.x < at.x + width &&
+          cube.space.y >= at.y &&
+          cube.space.y < at.y + width &&
+          cube.space.z >= at.z &&
+          cube.space.z < at.z + tall;
+        if (!here) return [];
+        return [
+          {
+            target: begun,
+            holder: begun,
+            payout: {
+              source: castingSource(record.spell, castingId),
+              at: 'start-of-turn' as const,
+              payout: 'damage' as const,
+              dice: cube.dice,
+              flat: 0,
+              damageType: cube.damageType,
+            },
+          },
+        ];
+      });
+    });
 }
 
 /**

@@ -8004,6 +8004,45 @@ export function checkSpellDefinition(
     }
   }
 
+  // SRD Web's flammable webs: dice the engine can throw, a type the book
+  // prints, a span that is a whole number of seconds, and an area that runs —
+  // a Cube burns in a casting that is still there to burn. (E-L2)
+  if (definition.flammable !== undefined) {
+    const { dice, damageType, burnsSeconds } = definition.flammable as {
+      readonly dice?: unknown;
+      readonly damageType?: unknown;
+      readonly burnsSeconds?: unknown;
+    };
+    if (typeof dice !== 'string' || !parseNotation(dice).ok) {
+      found.push({
+        field: 'flammable.dice',
+        code: 'bad_dice',
+        reason: `the fire deals dice the engine throws, and ${String(dice)} is not a notation`,
+      });
+    }
+    if (typeof damageType !== 'string' || !DAMAGE.has(damageType)) {
+      found.push({
+        field: 'flammable.damageType',
+        code: 'unknown_damage_type',
+        reason: `"${String(damageType)}" is not one of the SRD's damage types`,
+      });
+    }
+    if (typeof burnsSeconds !== 'number' || !Number.isInteger(burnsSeconds) || burnsSeconds <= 0) {
+      found.push({
+        field: 'flammable.burnsSeconds',
+        code: 'bad_duration',
+        reason: `a Cube burns for a whole number of seconds, and this is ${String(burnsSeconds)}`,
+      });
+    }
+    if (definition.area === undefined || (definition.durationSeconds === undefined && definition.concentration !== true)) {
+      found.push({
+        field: 'flammable',
+        code: 'nothing_to_burn',
+        reason: 'what burns is a Cube of a running casting’s area, so the spell needs an area and a duration',
+      });
+    }
+  }
+
   // A spell either prints that its target shape-shifts or it does not. (E-L2)
   if (definition.shapeShifts !== undefined && definition.shapeShifts !== true) {
     found.push({

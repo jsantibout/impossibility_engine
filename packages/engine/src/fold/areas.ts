@@ -25,7 +25,13 @@ import {
   type AreaMoment,
   type OngoingSpell,
 } from '../spells.js';
-import { distanceToPoint, type PositionState, type Point } from '../positioning.js';
+import {
+  distanceToPoint,
+  type PositionState,
+  type Point,
+  type TerrainRegion,
+} from '../positioning.js';
+import { hasExpired, timeView } from '../time.js';
 // **Type-only for the shapes, deliberately.** The fold does not open the spell
 // catalogue: a casting's area and its clauses are pinned on the ongoing record
 // at the cast, so a replay answers out of the log rather than out of this
@@ -390,6 +396,74 @@ export function endConditionsLeftBehind(state: GameState): GameState {
     }
   }
   return endShapeBarsLeftBehind(current);
+}
+
+/**
+ * SRD Web: "Any 5-foot Cube of webs exposed to fire **burns away in 1 round**."
+ * (E-L2)
+ *
+ * Derived, for the reason every pass here is: nobody decides that the fire has
+ * done its work. A burning Cube whose deadline has arrived moves to the
+ * record's `burnt`, which takes it out of the casting's catch; the patches the
+ * casting laid — its ground, its air, any light — have it taken out of their
+ * regions, so every reader of them leaves it out; and a creature Restrained
+ * "while in the webs" whose only space it was is free, through the same pass
+ * that frees one who walks out. A deadline is read with `hasExpired`, the
+ * reading the expiry pass takes: a fight that ends while the Cube burns lets
+ * it burn out rather than keeping it alight for ever.
+ */
+export function burnAwayCubes(state: GameState): GameState {
+  const burningIds = Object.keys(state.ongoing)
+    .sort()
+    .filter((castingId) => (state.ongoing[castingId]!.burning?.length ?? 0) > 0);
+  if (burningIds.length === 0) return state;
+
+  const view = timeView(state);
+  let current = state;
+  let burned = false;
+  for (const castingId of burningIds) {
+    const record = current.ongoing[castingId]!;
+    const done = record.burning!.filter((cube) => hasExpired(view, cube.until));
+    if (done.length === 0) continue;
+    burned = true;
+    const spaces = done.map((cube) => cube.space);
+    const burnt = [...(record.burnt ?? []), ...spaces];
+    current = {
+      ...current,
+      ongoing: sortedRecord({
+        ...current.ongoing,
+        [castingId]: {
+          ...record,
+          burning: record.burning!.filter((cube) => !done.includes(cube)),
+          burnt,
+        },
+      }),
+    };
+    const scene = current.scene;
+    if (scene !== null) {
+      const cut = <T extends { readonly region: TerrainRegion; readonly source?: string }>(
+        patches: Readonly<Record<string, T>>,
+      ): Readonly<Record<string, T>> =>
+        Object.fromEntries(
+          Object.entries(patches).map(([name, patch]) => [
+            name,
+            patch.source === castingId
+              ? { ...patch, region: { ...patch.region, except: [...(patch.region.except ?? []), ...spaces] } }
+              : patch,
+          ]),
+        );
+      current = {
+        ...current,
+        scene: {
+          ...scene,
+          terrain: cut(scene.terrain),
+          obscurement: cut(scene.obscurement),
+          light: cut(scene.light),
+        },
+      };
+    }
+  }
+  return burned ? endConditionsLeftBehind(current) : current;
 }
 
 /**

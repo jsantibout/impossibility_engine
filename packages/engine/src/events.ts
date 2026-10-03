@@ -2361,6 +2361,25 @@ export type GameEvent =
    * has already checked the sixty feet, the Range and the twenty feet that tie
    * them. Light 1 is the casting's own point and moves by `spell-origin-moved`.
    */
+  /**
+   * A Cube of a casting's area set alight — SRD Web: "Any 5-foot Cube of webs
+   * exposed to fire burns away in 1 round, dealing 2d4 Fire damage to any
+   * creature that starts its turn in the fire." (E-L2)
+   *
+   * The table's word that the Cube met fire, and what the definition prints
+   * of the burning pinned beside it — the deadline it burns until, the dice and
+   * their type — so the fold and the turn boundary read the log and never the
+   * catalogue.
+   */
+  | {
+      readonly type: 'casting-area-burning';
+      readonly castingId: string;
+      readonly space: Point;
+      readonly until: Deadline;
+      readonly dice: string;
+      readonly damageType: string;
+      readonly command?: CommandStamp;
+    }
   | {
       readonly type: 'spell-copies-moved';
       readonly castingId: string;

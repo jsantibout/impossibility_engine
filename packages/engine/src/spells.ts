@@ -1,8 +1,9 @@
 import { err, ok, type Ability, type CharacterId, type Result, type Skill } from '@ie/shared';
-import type { TurnMoment } from './time.js';
+import type { Deadline, TurnMoment } from './time.js';
 import {
   areaPointAt,
   creaturesInArea,
+  moverInRegionAt,
   type AreaOrigin,
   type AreaShape,
   type Point,
@@ -207,6 +208,20 @@ export interface CastingSaveOutcome {
  * they were named, anything a narrator would like. Those are history, the log
  * has them, and duplicating them here would make two answers to one question.
  */
+/**
+ * One Cube of a casting's area on fire — SRD Web's "Any 5-foot Cube of webs
+ * exposed to fire burns away in 1 round, dealing 2d4 Fire damage to any
+ * creature that starts its turn in the fire". (E-L2)
+ */
+export interface BurningCube {
+  /** The 5-foot space, snapped. */
+  readonly space: Point;
+  /** When it has burned away. */
+  readonly until: Deadline;
+  readonly dice: string;
+  readonly damageType: string;
+}
+
 export interface OngoingSpell {
   /** The casting that created it — the same id every effect already carries. */
   readonly castingId: string;
@@ -659,6 +674,19 @@ export interface OngoingSpell {
    */
   readonly keptWithin?: number;
   /**
+   * The Cubes of this casting's area that are on fire, each until its deadline
+   * — SRD Web's "burns away in 1 round" — with the dice a creature starting its
+   * turn in one takes, pinned off the definition when the table set it alight.
+   * See `SpellDefinition.flammable`. (E-L2)
+   */
+  readonly burning?: readonly BurningCube[];
+  /**
+   * The Cubes of this casting's area that have burned away, which its catch,
+   * its ground and its air no longer cover. Written by the fold when a
+   * burning Cube's deadline arrives, and never taken back. (E-L2)
+   */
+  readonly burnt?: readonly Point[];
+  /**
    * The creature types the caster stated, where the spell prints a choice of
    * several — SRD Magic Circle's "Choose one or more of the following types".
    *
@@ -948,6 +976,21 @@ export function creaturesStandingInCastingArea(
       (spared === undefined || !spared.includes(id)) &&
       (chosen === undefined || chosen.includes(id)),
   );
+  // **And not where the area has burned away** — SRD Web's Cubes gone to fire
+  // (`OngoingSpell.burnt`): a creature every one of whose spaces is ash is
+  // out of the webs. Asked of the same region the ground and the air are read
+  // off, so the three cannot disagree. (E-L2)
+  if ((record.burnt?.length ?? 0) > 0) {
+    const region = regionOfCastingArea(record);
+    return new Set(
+      region === null
+        ? reached
+        : reached.filter((id) => {
+            const at = scene.positions[id];
+            return at !== undefined && moverInRegionAt(scene, region, id, at);
+          }),
+    );
+  }
   return new Set(reached);
 }
 
@@ -993,7 +1036,7 @@ export function originOfArea(
  */
 export function regionOfCastingArea(record: OngoingSpell): TerrainRegion | null {
   if (record.area === undefined) return null;
-  return regionOfArea(
+  const region = regionOfArea(
     record.area,
     record.caster as CharacterId,
     record.origin,
@@ -1001,6 +1044,10 @@ export function regionOfCastingArea(record: OngoingSpell): TerrainRegion | null 
     record.anchoring ?? 'space',
     record.path,
   );
+  // The Cubes that have burned away are not the area's any more. (E-L2)
+  return region === null || (record.burnt?.length ?? 0) === 0
+    ? region
+    : { ...region, except: record.burnt! };
 }
 
 /**

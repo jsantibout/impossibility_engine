@@ -6002,6 +6002,25 @@ export interface SpellDefinition {
    */
   readonly areaCopies?: AreaCopies;
   /**
+   * SRD Web: "**The webs are flammable. Any 5-foot Cube of webs exposed to fire
+   * burns away in 1 round, dealing 2d4 Fire damage to any creature that starts
+   * its turn in the fire.**" (E-L2)
+   *
+   * That a Cube meets fire is the table's to say (`exposeToFire`); what
+   * follows is the engine's, read off this field and pinned on the event: for
+   * `burnsSeconds` the Cube burns, and a creature that starts its turn in it
+   * takes the dice of the type printed; then the Cube is gone from the area —
+   * from its catch, its ground and its air — and the rest stands.
+   */
+  readonly flammable?: {
+    /** "2d4" */
+    readonly dice: string;
+    /** "Fire" */
+    readonly damageType: string;
+    /** "in 1 round": six seconds on the clock. */
+    readonly burnsSeconds: number;
+  };
+  /**
    * What the area does to **seeing through it**, where that is not the light
    * — see {@link AreaObscurement}.
    *
