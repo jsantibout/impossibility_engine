@@ -42,7 +42,7 @@ for exactly this reason.
 
 | Ledger | Size | Waits on an engine shape | Waits on a definition | Waits on none | Read to the end, handed over whole |
 |---|---|---|---|---|---|
-| Spells in reach, not executed | 19 spells | 19 | 0 | 0 | 33 |
+| Spells in reach, not executed | 10 spells | 10 | 0 | 0 | 33 |
 | Features manual, or a pool with nothing to buy | 0 features | 0 | 0 | 0 | 0 |
 | Items a level 1–5 party can buy | 157 items | 0 | 0 | 157 | 0 |
 | Glossary general rules nothing executes | 23 rules | 0 | 0 | 23 | 0 |
@@ -70,19 +70,12 @@ exactly the silently-missing entry this report’s header refuses.
 | Shape | Blocks | Finishes |
 |---|---|---|
 | `a-target-rule-the-format-cannot-state` | 4 | 3 |
-| `a-casting-ended-by-a-trigger` | 2 | 2 |
-| `a-standing-effect-derived-from-where-a-creature-stands` | 2 | 2 |
-| `light-and-obscurement-the-scene-holds` | 2 | 2 |
-| `a-wall-or-several-templates-in-one-area` | 2 | 1 |
-| `a-creature-fact-an-effect-overrides` | 1 | 1 |
+| `a-barrier-that-blocks-passage` | 1 | 1 |
+| `a-casting-ended-by-a-trigger` | 1 | 1 |
 | `a-duration-the-chosen-branch-sets` | 1 | 1 |
 | `a-random-outcome-that-is-not-a-d20` | 1 | 1 |
 | `a-spell-that-answers-a-later-attack` | 1 | 1 |
 | `a-spells-effects-applied-to-different-targets` | 1 | 1 |
-| `falling` | 1 | 1 |
-| `a-barrier-that-blocks-passage` | 1 | 0 |
-| `a-fact-only-the-table-can-declare` | 1 | 0 |
-| `an-effect-that-suppresses-other-magic` | 1 | 0 |
 | `what-a-creature-is-holding` | 1 | 0 |
 
 **Blocks** is every spell of this population the shape touches;
@@ -97,29 +90,13 @@ sums to the population.
 - **Counterspell** (level 3) — executed-partial
 - **Dispel Magic** (level 3) — executed-partial
 
-#### `a-casting-ended-by-a-trigger` — blocks 2, finishes 2
+#### `a-barrier-that-blocks-passage` — blocks 1, finishes 1
 
-- **Web** (level 2) — executed-partial
+- **Wind Wall** (level 3) — executed-partial
+
+#### `a-casting-ended-by-a-trigger` — blocks 1, finishes 1
+
 - **Remove Curse** (level 3) — executed-partial
-
-#### `a-standing-effect-derived-from-where-a-creature-stands` — blocks 2, finishes 2
-
-- **Moonbeam** (level 2) — executed-partial
-- **Sleet Storm** (level 3) — executed-partial
-
-#### `light-and-obscurement-the-scene-holds` — blocks 2, finishes 2
-
-- **Darkness** (level 2) — executed-partial
-- **Gust of Wind** (level 2) — executed-partial
-
-#### `a-wall-or-several-templates-in-one-area` — blocks 2, finishes 1
-
-- **Dancing Lights** (level 0) — executed-partial
-- **Plant Growth** (level 3) — executed-partial — also waits on 1
-
-#### `a-creature-fact-an-effect-overrides` — blocks 1, finishes 1
-
-- **Gaseous Form** (level 3) — executed-partial
 
 #### `a-duration-the-chosen-branch-sets` — blocks 1, finishes 1
 
@@ -136,22 +113,6 @@ sums to the population.
 #### `a-spells-effects-applied-to-different-targets` — blocks 1, finishes 1
 
 - **Enhance Ability** (level 2) — executed-partial
-
-#### `falling` — blocks 1, finishes 1
-
-- **Feather Fall** (level 1) — executed-partial
-
-#### `a-barrier-that-blocks-passage` — blocks 1, finishes 0
-
-- **Wind Wall** (level 3) — executed-partial — also waits on 1
-
-#### `a-fact-only-the-table-can-declare` — blocks 1, finishes 0
-
-- **Plant Growth** (level 3) — executed-partial — also waits on 1
-
-#### `an-effect-that-suppresses-other-magic` — blocks 1, finishes 0
-
-- **Wind Wall** (level 3) — executed-partial — also waits on 1
 
 #### `what-a-creature-is-holding` — blocks 1, finishes 0
 
