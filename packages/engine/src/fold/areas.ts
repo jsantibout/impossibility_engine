@@ -22,11 +22,17 @@ import {
   castingIdOf,
   castingSource,
   creaturesStandingInCastingArea,
+  regionOfCastingArea,
+  removedFromArea,
   type AreaMoment,
   type OngoingSpell,
 } from '../spells.js';
 import {
   distanceToPoint,
+  regionAnchor,
+  segmentCrossesRegion,
+  spaceInRegion,
+  spacesInRegion,
   type PositionState,
   type Point,
   type TerrainRegion,
@@ -464,6 +470,111 @@ export function burnAwayCubes(state: GameState): GameState {
     }
   }
   return burned ? endConditionsLeftBehind(current) : current;
+}
+
+/**
+ * SRD Wind Wall: "**The strong wind keeps fog, smoke, and other gases at
+ * bay.**" (E-L2, the owner's ruling of 2026-10-03: the wall clears its own
+ * strip, and gas cannot cross it.)
+ *
+ * Derived, for the reason every pass here is: nobody decides where the fog
+ * stops. A gas is a running casting a strong wind would disperse
+ * (`dispersed-by-wind`); a wall is one whose area keeps gas out
+ * (`keeps-out`). Each space of the gas's area, or of a patch it laid, that
+ * lies in a wall or that a wall stands between and the gas's centre is held
+ * off: written onto the record's `heldOff`, which takes it out of the
+ * casting's catch, and out of the regions of the patches it laid. The cloud is
+ * **not** ended and the rest of it stands; when the last wall goes, it is
+ * whole again. Worked out again only when a wall rises or falls or an area
+ * moves (`heldOffAgainst`), and returns at once where no wall runs beside no
+ * gas, which is nearly always.
+ */
+export function holdGasOffWalls(state: GameState): GameState {
+  const scene = state.scene;
+  if (scene === null) return state;
+  const ids = Object.keys(state.ongoing).sort();
+  const gases = ids.filter(
+    (castingId) =>
+      (state.ongoing[castingId]!.endsEarly ?? []).some((ending) => ending.on === 'dispersed-by-wind') ||
+      state.ongoing[castingId]!.heldOff !== undefined,
+  );
+  if (gases.length === 0) return state;
+  const walls = ids
+    .filter((castingId) =>
+      (state.ongoing[castingId]!.areaStanding ?? []).some(
+        (standing) => standing.kind === 'keeps-out' && standing.what === 'gas',
+      ),
+    )
+    .flatMap((castingId) => {
+      const region = regionOfCastingArea(state.ongoing[castingId]!);
+      return region === null ? [] : [{ castingId, region }];
+    });
+
+  let current = state;
+  let moved = false;
+  for (const castingId of gases) {
+    const record = current.ongoing[castingId]!;
+    const { heldOff: _was, heldOffAgainst: _then, ...bare } = record;
+    void _was;
+    void _then;
+    if (walls.length === 0 && record.heldOff === undefined) continue;
+    const whole = regionOfCastingArea(bare);
+    // The patches this casting laid, whole: a cloud's air can be laid by an
+    // event after the one that set the record running.
+    const laid = (Object.values(scene.terrain) as readonly { readonly region: TerrainRegion; readonly source?: string }[])
+      .concat(Object.values(scene.obscurement), Object.values(scene.light))
+      .filter((patch) => patch.source === castingId)
+      .map(({ region: { except: _e, ...region } }) => region);
+    const against = JSON.stringify({ walls, whole, laid });
+    if (record.heldOffAgainst === against) continue;
+
+    const centre = whole === null ? null : regionAnchor(scene, whole);
+    const heldOff: Point[] = [];
+    if (centre !== null && walls.length > 0) {
+      const seen = new Set<string>();
+      const regions = [whole!, ...laid];
+      for (const space of regions.flatMap((region) => spacesInRegion(scene, region))) {
+        const key = `${space.x},${space.y},${space.z}`;
+        if (seen.has(key)) continue;
+        seen.add(key);
+        const middle = { x: space.x + 2.5, y: space.y + 2.5, z: space.z + 2.5 };
+        if (
+          walls.some(
+            ({ region }) => spaceInRegion(scene, region, space) || segmentCrossesRegion(scene, region, centre, middle),
+          )
+        ) {
+          heldOff.push(space);
+        }
+      }
+    }
+
+    const written: OngoingSpell = walls.length === 0 ? bare : { ...bare, heldOff, heldOffAgainst: against };
+    moved = true;
+    const out = removedFromArea(written);
+    const cut = <T extends { readonly region: TerrainRegion; readonly source?: string }>(
+      patches: Readonly<Record<string, T>>,
+    ): Readonly<Record<string, T>> =>
+      Object.fromEntries(
+        Object.entries(patches).map(([name, patch]) => {
+          if (patch.source !== castingId) return [name, patch];
+          const { except: _e, ...region } = patch.region;
+          void _e;
+          return [name, { ...patch, region: out.length === 0 ? region : { ...region, except: out } }];
+        }),
+      );
+    const sceneNow = current.scene!;
+    current = {
+      ...current,
+      ongoing: sortedRecord({ ...current.ongoing, [castingId]: written }),
+      scene: {
+        ...sceneNow,
+        terrain: cut(sceneNow.terrain),
+        obscurement: cut(sceneNow.obscurement),
+        light: cut(sceneNow.light),
+      },
+    };
+  }
+  return moved ? endConditionsLeftBehind(current) : current;
 }
 
 /**

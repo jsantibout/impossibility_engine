@@ -12955,6 +12955,11 @@ export const WIND_WALL: SpellDefinition = {
     { kind: 'deflects-projectiles' },
     // "Creatures in gaseous form can't pass through it."
     { kind: 'bars-passage', to: 'gaseous', crossing: 'in' },
+    // "The strong wind keeps fog, smoke, and other gases at bay." The owner's
+    // ruling of 2026-10-03: the wall clears its own strip and gas cannot cross
+    // it; a Fog Cloud or Stinking Cloud it touches is not ended, and the rest
+    // of the cloud stands.
+    { kind: 'keeps-out', what: 'gas' },
   ],
   durationSeconds: 60,
   // **Narrowed by E-L2**: a printed line named after a catalogue weapon — a
@@ -12963,7 +12968,6 @@ export const WIND_WALL: SpellDefinition = {
   // catalogue holds.
   unmodelled: [
     'objects are not in the scene: a Small flying object turned back, and a hurled boulder let through, are the DM’s — and a stat block’s printed ranged line named after no catalogue weapon (a Manticore’s Tail Spike, a Rock) does not say whether it looses an arrow or a boulder, so that shot is made and the wall reported beside it rather than deflecting it',
-    'fog, smoke and other gases are not kept at bay: a Fog Cloud or a Stinking Cloud laid across the wall goes on obscuring and poisoning in its spaces, because nothing lets one area suspend another',
   ],
   // The loose material, in the book's words (W8-S26): what flies upward in
   // the wind is a thing the engine holds none of, and nothing reads it.

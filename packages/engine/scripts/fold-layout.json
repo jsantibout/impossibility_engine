@@ -105,6 +105,7 @@
     "douseStandingFlames",
     "vanishLightsBeyondRange",
     "burnAwayCubes",
+    "holdGasOffWalls",
     "endShapeBarsLeftBehind",
     "conditionsBoundToTheArea",
     "creaturesThatMoved",

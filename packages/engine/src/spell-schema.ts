@@ -726,6 +726,7 @@ function checkChoiceOption(
  * | `condition-immunity` | Magic Circle | the SRD's conditions, and the causer's types it holds against |
  * | `disperses` | Gust of Wind | what it disperses, which is gas |
  * | `douses-flames` | Sleet Storm | nothing: it is a fact with no fields |
+ * | `keeps-out` | Wind Wall | what it keeps at bay, which is gas |
  *
  * `statesTypes` is whether the definition prints a choice of types for the
  * casting to fill in: a clause saying `'stated'` on a spell that prints none
@@ -860,6 +861,18 @@ function checkAreaStanding(
     // SRD Sleet Storm: "exposed flames in the area are doused". A fact with no
     // fields, read by the fold against whoever is burning there. (E-L2)
     case 'douses-flames':
+      return;
+
+    // SRD Wind Wall: "keeps fog, smoke, and other gases at bay". One thing a
+    // wall of wind holds off that the engine holds, and so one value. (E-L2)
+    case 'keeps-out':
+      if (standing['what'] !== 'gas') {
+        found.push({
+          field: `${path}.what`,
+          code: 'unknown_dispersal',
+          reason: `a wall of wind keeps gas at bay, which is what a cloud's dispersed-by-wind marks; ${nameOf(standing['what'])} is nothing any casting is`,
+        });
+      }
       return;
 
     // SRD Gust of Wind: "The gust disperses gas or vapor." One thing a wind

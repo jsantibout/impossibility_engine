@@ -221,7 +221,8 @@ export type AreaStanding =
   | AreaAttackModeStanding
   | AreaConditionImmunityStanding
   | AreaDispersalStanding
-  | AreaDousingStanding;
+  | AreaDousingStanding
+  | AreaGasBarrierStanding;
 
 /**
  * How much of a creature has to be in the area for a clause to reach it.
@@ -643,6 +644,23 @@ export interface AreaDispersalStanding {
  */
 export interface AreaDousingStanding {
   readonly kind: 'douses-flames';
+}
+
+/**
+ * SRD Wind Wall: "**The strong wind keeps fog, smoke, and other gases at
+ * bay.**" (E-L2, the owner's ruling of 2026-10-03)
+ *
+ * The wall clears its own strip and gas cannot cross it: a running casting a
+ * strong wind would disperse (`dispersed-by-wind`: SRD Fog Cloud, Stinking
+ * Cloud) is held off this area's spaces and off every space the area stands
+ * between and that casting's centre — and is **not** ended, so the rest of the
+ * cloud stands. Read by the fold (`holdGasOffWalls`), which writes the spaces
+ * onto the cloud's record and its patches. `what` is the one thing the book
+ * keeps at bay that the engine holds.
+ */
+export interface AreaGasBarrierStanding {
+  readonly kind: 'keeps-out';
+  readonly what: 'gas';
 }
 
 /**

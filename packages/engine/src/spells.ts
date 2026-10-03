@@ -706,6 +706,22 @@ export interface OngoingSpell {
    */
   readonly burnt?: readonly Point[];
   /**
+   * The spaces of this casting's gas a wall of wind holds off — SRD Wind Wall:
+   * "The strong wind keeps fog, smoke, and other gases at bay" — the wall's own
+   * strip and every space it stands between and the cloud's centre. Derived by
+   * the fold from the walls running (`holdGasOffWalls`) and written with
+   * what it was worked out against (`heldOffAgainst`), so it is worked out again
+   * when one rises or falls and the cloud is whole once none stands. (E-L2,
+   * the owner's ruling of 2026-10-03)
+   */
+  readonly heldOff?: readonly Point[];
+  /**
+   * What {@link heldOff} was worked out against — the walls running, by
+   * casting id and region, and this casting's own region — so the fold works
+   * it out again only when one of them changes.
+   */
+  readonly heldOffAgainst?: string;
+  /**
    * The creature types the caster stated, where the spell prints a choice of
    * several — SRD Magic Circle's "Choose one or more of the following types".
    *
@@ -999,7 +1015,7 @@ export function creaturesStandingInCastingArea(
   // (`OngoingSpell.burnt`): a creature every one of whose spaces is ash is
   // out of the webs. Asked of the same region the ground and the air are read
   // off, so the three cannot disagree. (E-L2)
-  if ((record.burnt?.length ?? 0) > 0) {
+  if ((record.burnt?.length ?? 0) > 0 || (record.heldOff?.length ?? 0) > 0) {
     const region = regionOfCastingArea(record);
     return new Set(
       region === null
@@ -1053,6 +1069,10 @@ export function originOfArea(
  * `standing.ts` get their shape from, so a wall's path and a stationary
  * Emanation's point are read off the record in one way.
  */
+export function removedFromArea(record: OngoingSpell): readonly Point[] {
+  return [...(record.burnt ?? []), ...(record.heldOff ?? [])];
+}
+
 export function regionOfCastingArea(record: OngoingSpell): TerrainRegion | null {
   if (record.area === undefined) return null;
   const region = regionOfArea(
@@ -1063,10 +1083,10 @@ export function regionOfCastingArea(record: OngoingSpell): TerrainRegion | null 
     record.anchoring ?? 'space',
     record.path,
   );
-  // The Cubes that have burned away are not the area's any more. (E-L2)
-  return region === null || (record.burnt?.length ?? 0) === 0
-    ? region
-    : { ...region, except: record.burnt! };
+  // The Cubes that have burned away, and the gas a wall of wind holds off,
+  // are not the area's any more. (E-L2)
+  const out = removedFromArea(record);
+  return region === null || out.length === 0 ? region : { ...region, except: out };
 }
 
 /**

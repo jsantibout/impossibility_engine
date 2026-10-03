@@ -36,6 +36,7 @@ import { type Applying, unhandledEvent } from './common.js';
 import { releaseCasting, releaseGrants } from './release.js';
 import {
   burnAwayCubes,
+  holdGasOffWalls,
   dropOrphanedAreaEffects,
   douseStandingFlames,
   vanishLightsBeyondRange,
@@ -315,6 +316,10 @@ function applyEventUnder(state: GameState, event: GameEvent, legacy: Content | n
     // **A light its caster walked too far from**, gone for good — SRD Dancing
     // Lights. See vanishLightsBeyondRange. (E-L2)
     vanishLightsBeyondRange(
+    // **Gas a wall of wind keeps at bay**, held off the wall's strip and the
+    // far side of it — SRD Wind Wall. After the burns and the expiries, so a
+    // wall that has just ended holds nothing off. See holdGasOffWalls. (E-L2)
+    holdGasOffWalls(
     // **A Cube of webs the fire has eaten**, gone from the area when its round
     // is out — SRD Web. After the expiry passes, which is where the clock is
     // read. See burnAwayCubes. (E-L2)
@@ -440,6 +445,7 @@ function applyEventUnder(state: GameState, event: GameEvent, legacy: Content | n
     ),
     // The world before this event, so the pass sees an override leave.
     state,
+    ),
     ),
     ),
     ),

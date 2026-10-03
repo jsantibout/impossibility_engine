@@ -2305,6 +2305,50 @@ export interface TerrainRegion {
   readonly except?: readonly Point[];
 }
 
+/**
+ * Every 5-foot space a region covers, in a fixed order. (E-L2)
+ *
+ * Read off a box around the region's origin as wide as the largest number its
+ * shape prints, clamped to the scene and filtered by {@link spaceInRegion} —
+ * so the answer is the same reading every other question about the region
+ * takes, and only the search is bounded. A region whose origin cannot be
+ * placed covers nothing.
+ */
+export function spacesInRegion(state: PositionState, region: TerrainRegion): readonly Point[] {
+  const frame = areaFrame(state, region.origin);
+  if (!frame.ok) return [];
+  const reach =
+    Math.max(
+      CUBE,
+      ...Object.values(region.shape).filter((value): value is number => typeof value === 'number'),
+    ) + 2 * CUBE;
+  const path = (region.shape as { readonly path?: readonly Point[] }).path ?? [];
+  const xs = [frame.value.anchor.x, ...path.map((p) => p.x)];
+  const ys = [frame.value.anchor.y, ...path.map((p) => p.y)];
+  const zs = [frame.value.anchor.z, ...path.map((p) => p.z)];
+  const lo = (values: readonly number[]) => Math.max(0, snap(Math.min(...values) - reach));
+  const hi = (values: readonly number[], limit: number) => Math.min(limit, Math.max(...values) + reach);
+  const found: Point[] = [];
+  for (let x = lo(xs); x <= hi(xs, state.extent.width); x += CUBE) {
+    for (let y = lo(ys); y <= hi(ys, state.extent.depth); y += CUBE) {
+      for (let z = lo(zs); z <= hi(zs, state.extent.height); z += CUBE) {
+        const space = { x, y, z };
+        if (spaceInRegion(state, region, space)) found.push(space);
+      }
+    }
+  }
+  return found;
+}
+
+/**
+ * The point a region is measured from — a Sphere's centre, a wall's first
+ * corner — or null where its origin cannot be placed. (E-L2)
+ */
+export function regionAnchor(state: PositionState, region: TerrainRegion): Point | null {
+  const frame = areaFrame(state, region.origin);
+  return frame.ok ? frame.value.anchor : null;
+}
+
 /** Whether a space is one a region has had taken out of it — see {@link TerrainRegion.except}. */
 function exceptedFrom(region: TerrainRegion, space: Point): boolean {
   const out = region.except;
