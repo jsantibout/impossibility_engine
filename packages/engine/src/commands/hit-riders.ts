@@ -68,6 +68,7 @@ import { rollRecorded } from '../rolls.js';
 import { recordD20Test, savingSupport } from './rolls.js';
 import { escapeCheck, grappleSource } from './unarmed.js';
 import { type SpellTargetOutcome } from './targeting.js';
+import { wakeOfTheStable } from './stable-wake.js';
 
 /** What a swing says it is buying: one option of one feature. */
 export interface HitRiderRequest {
@@ -1171,8 +1172,24 @@ function onDroppingToZero(
     current = made.reduce(applyEvent, current);
   };
 
-  if (leaves.stable === true && current.creatures[hit.target]?.vitals.stable !== true) {
-    land([{ type: 'stabilised', id: hit.target }]);
+  // **Not a corpse.** A blow that "reduces the target to 0" may also kill it
+  // outright — Massive Damage, a remainder the size of its maximum — and SRD's
+  // Stable is "a creature [that] has 0 Hit Points but isn't required to make
+  // Death Saving Throws", which a dead one is not. (E-STABLE: this used to
+  // write `stabilised` on the dead, and would now throw a wake for one.)
+  const lying = current.creatures[hit.target]?.vitals;
+  if (leaves.stable === true && lying !== undefined && !lying.dead && !lying.stable) {
+    // And the wake a Stable creature is owed — SRD "regains 1 Hit Point after
+    // 1d4 hours" — thrown now and pinned, in its own bracket as every other
+    // die this module throws. See `wakeOfTheStable`.
+    const issuedBefore = supply.issuer.count;
+    const wake = wakeOfTheStable(current, hit.target, supply);
+    if (!wake.ok) return wake;
+    land([
+      { type: 'stabilised', id: hit.target },
+      ...wake.value,
+      { type: 'rolls-issued', count: supply.issuer.count - issuedBefore, rng: supply.rng.snapshot() },
+    ]);
   }
 
   // **Sourced per use**, the reading the lowered maximum one function up

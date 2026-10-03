@@ -77,6 +77,7 @@ import { type PoolDeclaration } from '../resources.js';
 import { type Supply } from './casting.js';
 import { creatureOf, unknownCreature } from './command.js';
 import { copyNamed, issueItemCopies, quantityOf } from './inventory.js';
+import { wakeOfTheStable } from './stable-wake.js';
 
 /**
  * Say which side of the fight a creature is on.
@@ -285,11 +286,23 @@ export function swapInitiativeBetween(
  * nothing to be stabilised from — SRD names the state, not a creature. And a
  * corpse is Raise Dead's business, which is the rule `healCreature` already
  * takes for hit points.
+ *
+ * **And it throws a die, which is why it takes a `Supply`** — E-STABLE. SRD:
+ * "A Stable creature that isn't healed regains 1 Hit Point after 1d4 hours."
+ * The d4 is thrown here and its hours pinned on the deadline beside the
+ * `stabilised` (`wakeOfTheStable`); without a generator the command refuses
+ * (`wake_die_owed`) rather than writing a Stable nothing would ever wake.
+ *
+ * **A creature already Stable is not stabilised again**, which is decision 3
+ * above — a fact already true is not restated — and here it is also the rule
+ * that keeps the die honest: a second declaration re-throwing the d4 would be
+ * a way to fish for a shorter wake.
  */
 export function stabiliseCreature(
   state: GameState,
   id: CharacterId,
   command: CommandIdentity = {},
+  supply?: Supply,
 ): Result<GameEvent[]> {
   return once(state, `stabilise:${id}`, command, () => [], (stamp) => {
     const creature = creatureOf(state, id);
@@ -304,8 +317,23 @@ export function stabiliseCreature(
         `stabilising is for a creature with 0 Hit Points, and ${id} has ${creature.vitals.hp}`,
       );
     }
+    if (creature.vitals.stable) return ok([]);
+    if (supply === undefined) {
+      return err(
+        'wake_die_owed',
+        `a Stable creature regains 1 Hit Point after 1d4 hours, and stabilising ${id} needs a generator to throw the d4`,
+      );
+    }
 
-    return ok([{ type: 'stabilised', id, ...(stamp === null ? {} : { command: stamp }) }]);
+    const steadied: GameEvent = { type: 'stabilised', id, ...(stamp === null ? {} : { command: stamp }) };
+    const issuedBefore = supply.issuer.count;
+    const wake = wakeOfTheStable(state, id, supply);
+    if (!wake.ok) return wake;
+    return ok([
+      steadied,
+      ...wake.value,
+      { type: 'rolls-issued', count: supply.issuer.count - issuedBefore, rng: supply.rng.snapshot() },
+    ]);
   });
 }
 

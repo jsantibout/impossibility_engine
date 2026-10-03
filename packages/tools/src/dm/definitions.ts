@@ -107,6 +107,7 @@ import {
   takeDamageResponse,
   takeRestForm,
   resolveFall,
+  resolveMove,
   resolveTest,
   rollImprovisedDamage,
   settleTest,
@@ -2500,6 +2501,63 @@ const placementFrom = (input: PlacementInput): Omit<Placement, 'size'> => ({
 });
 
 /**
+ * Move a creature that is not moving itself — E-STABLE.
+ *
+ * SRD makes an Opportunity Attack available only when a creature leaves your
+ * reach "using its action, its Bonus Action, its Reaction, or one of its
+ * speeds", and a shove, a gust, a current or a body carried off the field is
+ * none of those. So a forced move spends no Speed, provokes nobody, may end in
+ * a space somebody is standing in, and asks nothing of the body it moves — a
+ * corpse, an Unconscious creature, one Grappled to the floor. It still waits,
+ * like every other door, for what the world is owed (`owedRefusal`).
+ *
+ * **Here, and not on the player's door**, where it lived as `move.forced` and
+ * let a caller call a creature's own walk forced. Forced movement is imposed on
+ * a creature by an effect or by somebody else; when no command the engine has
+ * moves it — the spells and the printed lines that push do so themselves —
+ * saying that it happened is a decision about the world, which is the DM's the
+ * way a fall's height is. `boundary.test.ts` one directory up proves the
+ * player's door cannot send it.
+ *
+ * `route` is the one thing a forced move may be asked for, and it is answered
+ * by re-sending this call: ground that deals damage for every five feet is
+ * charged only for a route stated, and the engine reports that it threw no
+ * dice for one that was not.
+ */
+const FORCE_MOVE = tool({
+  name: 'force_move',
+  description:
+    'Move a creature that is not moving itself — shoved by something the engine does not roll, swept off by a current, a body dragged from the field. It spends none of the creature’s Speed, offers nobody an Opportunity Attack and asks nothing of the creature, so a corpse or an Unconscious creature can be moved; it may end in a space somebody is standing in. Say where it ends, measured from a landmark or a creature, never a coordinate. A spell or a printed line that pushes moves its targets itself; this is for the rest. Send `route` when the move came back `route_required`, or to have ground that hurts by the five feet charged for the way it went.',
+  mutates: true,
+  selfAnswers: ['route'],
+  input: z.strictObject({
+    who: creatureId.describe('The creature being moved.'),
+    to: placementSchema.describe('Where it ends up.'),
+    route: routeSchema
+      .optional()
+      .describe('The 5-foot spaces it was carried through, in order, ending where it ends.'),
+  }),
+  run: (context, args) =>
+    settle(
+      context,
+      resolveMove(
+        context.campaign.state(),
+        who(args.who),
+        {
+          placement: placementFrom(args.to),
+          forced: true,
+          ...(args.route === undefined ? {} : { route: args.route.map(aPoint) }),
+          ...identity(context),
+        },
+        context.campaign.supply(),
+      ),
+      (value) => value.events,
+      (value) => ({ moved: args.who, feetMoved: value.feet, duplicate: value.duplicate }),
+      (value) => value.unverified,
+    ),
+});
+
+/**
  * Take the form a creature's own stat block offers at the end of a Long Rest —
  * W7-B12.
  *
@@ -2657,6 +2715,7 @@ export const DM_ONLY_TOOLS: readonly ToolDefinition[] = [
   DECLARE_OBJECT,
   DECLARE_PORTAL_HEIGHT,
   END_CONDITION,
+  FORCE_MOVE,
   FORCE_PRINTED_SAVE,
   PRINTED_LINE_CATCH,
   IMPROVISED_DAMAGE,

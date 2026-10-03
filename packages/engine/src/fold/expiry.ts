@@ -23,7 +23,39 @@ import {
   releaseGrants,
   releaseInstanceGrants,
 } from './release.js';
-import { clearTemporaryHp } from './vitals.js';
+import { clearTemporaryHp, wakeTheStable } from './vitals.js';
+import { isLyingStable } from '../vitals.js';
+
+/**
+ * Drop a Stable creature's wake once it is no longer lying Stable — E-STABLE.
+ *
+ * SRD: "A Stable creature **that isn't healed** regains 1 Hit Point after 1d4
+ * hours"; "If the creature takes damage, it stops being Stable and starts
+ * making Death Saving Throws again." A heal, a blow, a death, a natural 20, a
+ * revival — each ends the Stable the deadline was hung on, and a creature
+ * Stable again later is thrown a new die, measured from then.
+ *
+ * **Read off the world rather than off the events**, which is the reading
+ * `dropOrphanedSaves` takes of its own debt: the list of events that can end a
+ * Stable is not a list anybody could keep correct, and "alive, at 0, and
+ * Stable" is one question. Run at the head of `expireEffects`, after every
+ * event, so a deadline over a creature that is already up is gone before the
+ * clock is asked about it.
+ *
+ * Insertion order is preserved, so a filtered record is still the sorted one
+ * `sortedTimers` built and a fold stays byte-identical.
+ */
+function dropBrokenWakes(state: GameState): GameState {
+  let timers: Record<string, TimedEffect> | null = null;
+  for (const [key, timer] of Object.entries(state.timers)) {
+    if (timer.target.kind !== 'stable') continue;
+    const creature = state.creatures[timer.target.on];
+    if (creature !== undefined && isLyingStable(creature.vitals)) continue;
+    timers ??= { ...state.timers };
+    delete timers[key];
+  }
+  return timers === null ? state : { ...state, timers };
+}
 
 /**
  * Every timer except the ones that end something on a creature who has left.
@@ -155,7 +187,10 @@ const viewOf = (state: GameState): TimeView => ({
  * bring a deadline forward. The loop is what keeps that true if one ever can.
  */
 export function expireEffects(state: GameState): GameState {
-  let current = state;
+  // A wake is a deadline only while its creature lies Stable; one whose
+  // creature has been healed, hurt or has died is dropped before the clock is
+  // read, so it can never arrive. See {@link dropBrokenWakes}.
+  let current = dropBrokenWakes(state);
 
   for (;;) {
     const view = viewOf(current);
@@ -228,6 +263,11 @@ export function expireEffects(state: GameState): GameState {
       // helping of damage, so no hit point moves, no death save is reset and
       // a creature already dead stays exactly as it was.
       current = clearTemporaryHp(current, target.on);
+    } else if (target.kind === 'stable') {
+      // SRD: "A Stable creature that isn't healed regains 1 Hit Point after
+      // 1d4 hours." The hours were thrown and pinned when it became Stable;
+      // this is the clock arriving at them. See `wakeTheStable`.
+      current = wakeTheStable(current, target.on);
     } else if (target.kind === 'casting') {
       // Ending the casting takes its Concentration and every effect it created.
       const castingId = target.castingId;

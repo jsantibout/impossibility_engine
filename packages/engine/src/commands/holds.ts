@@ -33,7 +33,7 @@ import {
 } from '../events.js';
 import { isIncapacitated, speedPinnedByCondition } from '../conditions.js';
 import { moveCreature } from '../positioning.js';
-import { effectiveConditions, speedForMoveIn } from '../standing.js';
+import { effectiveConditions, speedForMoveIn, speedZeroedByEffect } from '../standing.js';
 import { type OwedAreaEffect } from '../spells.js';
 
 /**
@@ -358,9 +358,11 @@ export function unsettledRefusal(state: GameState, who: CharacterId): Err | null
  * - `{ move, paidBy: 'allowance' }` — the creature's own movement, paid out
  *   of feet something else handed it: a readied move's Reaction, the fifteen
  *   feet an Unseen Servant is commanded. The Speed is not what pays, so it is
- *   not asked — an Unseen Servant has none of its own to be 0 — but a
- *   condition that holds the creature at a Speed of 0 still holds it
- *   (`speedPinnedByCondition`): a netted servant goes nowhere.
+ *   not asked — an Unseen Servant has none of its own to be 0 — but what
+ *   holds the creature at a Speed of 0 still holds it: a condition
+ *   (`speedPinnedByCondition`) — a netted servant goes nowhere — or an effect
+ *   that is none (`speedZeroedByEffect`) — nor does an entranced one, under
+ *   SRD Hypnotic Pattern's "and a Speed of 0".
  * - `'alive'` — refused dead, and nothing else. For a choice that costs no
  *   action at all (letting a Concentration go, dismissing a spell), and for a
  *   door that measures the move against a rule of its own rather than the
@@ -428,9 +430,13 @@ export function actorRefusal(state: GameState, who: CharacterId, doing: Doing): 
   if (typeof doing === 'object') {
     // A mode with no Speed at all (null) is the move's own `no_such_speed`.
     const speed = doing.paidBy === 'allowance' ? null : speedForMoveIn(state, who, doing.move);
+    // An allowance's feet are not the creature's Speed, so the Speed is not
+    // asked — but whatever holds that Speed at 0 still holds the creature: a
+    // pinning condition, or an effect that is none (SRD Hypnotic Pattern's
+    // "and a Speed of 0", E-STABLE), which is `combineSpeed`'s own zero.
     const stopped =
       doing.paidBy === 'allowance'
-        ? speedPinnedByCondition(effectiveConditions(state, who))
+        ? speedPinnedByCondition(effectiveConditions(state, who)) || speedZeroedByEffect(state, who)
         : speed !== null && speed <= 0;
     if (stopped) {
       return err('no_speed', `${who}'s Speed is 0, so ${who} cannot move of their own accord`);

@@ -29,6 +29,7 @@ import {
   createSurface,
   TOOL_NAMES,
   TOOLS,
+  toolSchemas,
   type ToolOutcome,
 } from '@ie/tools';
 
@@ -849,6 +850,62 @@ describe('nothing reaches the log except through an engine command', () => {
       if (file === 'definitions.ts' || file === 'campaign.ts') continue;
       expect(text).not.toContain('.append(');
     }
+  });
+});
+
+/**
+ * **A move somebody else imposes is not the player's to call** — E-STABLE.
+ *
+ * `move.forced` said "somebody is moving them rather than them walking": no
+ * Speed spent, no Opportunity Attack offered, and — since E-DOWN — nothing
+ * asked of the mover's own body. On the player's door that was a creature
+ * calling its own walk forced, and a corpse walking. Forced movement is
+ * imposed by an effect or by somebody else, which is the DM's `force_move`;
+ * here it is proved unreachable, by what the surface publishes and by what a
+ * call carrying the word does.
+ */
+describe('the player’s door cannot force a move', () => {
+  /** Every property name anywhere in a JSON Schema, however deep. */
+  const propertyNames = (schema: unknown): string[] => {
+    if (schema === null || typeof schema !== 'object') return [];
+    const own =
+      'properties' in schema && schema.properties !== null && typeof schema.properties === 'object'
+        ? Object.keys(schema.properties)
+        : [];
+    return [...own, ...Object.values(schema).flatMap(propertyNames)];
+  };
+
+  it('publishes no tool that carries `forced`', () => {
+    const surface = createSurface(createCampaign({ content: SRD_CONTENT, seed: 'boundary' }));
+    const carrying = toolSchemas(surface)
+      .filter((schema) => propertyNames(schema.parameters).includes('forced'))
+      .map((schema) => schema.name);
+    expect(carrying).toEqual([]);
+    // Non-vacuous: the walk does read properties, and `move` has plenty.
+    const move = toolSchemas(surface).find((schema) => schema.name === 'move');
+    expect(propertyNames(move?.parameters)).toContain('who');
+  });
+
+  it('moves nobody by force when a call sends the word anyway', () => {
+    const campaign = createCampaign({ content: SRD_CONTENT, seed: 'boundary' });
+    const surface = createSurface(campaign);
+    let n = 0;
+    const call = (tool: string, input: unknown): ToolOutcome =>
+      surface.call({ tool, input, commandId: `toolu_${(n += 1)}` });
+    expect(call('add_creature', { id: 'grish', monsterId: 'goblin-warrior' }).status).toBe('ok');
+    expect(call('set_scene', { width: 100, depth: 100, height: 20 }).status).toBe('ok');
+    expect(call('add_landmark', { name: 'the gate', at: { x: 50, y: 50 } }).status).toBe('ok');
+    expect(call('place_creature', { who: 'grish', fromLandmark: 'the gate', feet: 0 }).status).toBe('ok');
+    // Unconscious, so its Speed is 0: a forced move would carry it and its
+    // own move may not.
+    expect(
+      call('apply_condition', { who: 'grish', condition: 'unconscious', ruling: 'a blow to the head' }).status,
+    ).toBe('ok');
+
+    const out = call('move', { who: 'grish', fromLandmark: 'the gate', feet: 10, bearing: 90, forced: true });
+    // Not a forced move: the goblin is asked whether it can walk, and cannot.
+    expect(out.status === 'refused' ? out.code : out.status).toBe('no_speed');
+    expect(campaign.log().some((event) => event.type === 'creature-moved')).toBe(false);
   });
 });
 

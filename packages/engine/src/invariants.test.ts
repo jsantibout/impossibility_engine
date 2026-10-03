@@ -3451,7 +3451,7 @@ const GUARDED: readonly Guarded[] = [
   {
     name: 'stabiliseCreature',
     log: DYING,
-    run: (s, commandId) => stabiliseCreature(s, B, { commandId }),
+    run: (s, commandId) => stabiliseCreature(s, B, { commandId }, supply()),
   },
   {
     name: 'declareCreatureDead',
@@ -5226,7 +5226,7 @@ describe('the DM-declared commands declare facts rather than taking actions', ()
     { name: 'declareCreatureSide', run: (s) => declareCreatureSide(s, C, 'the watch') },
     { name: 'declareCreatureHeads', run: (s) => declareCreatureHeads(s, C, 3) },
     { name: 'swapInitiativeBetween', run: (s) => swapInitiativeBetween(s, A, B, { willing: true }) },
-    { name: 'stabiliseCreature', run: (s) => stabiliseCreature(s, C) },
+    { name: 'stabiliseCreature', run: (s) => stabiliseCreature(s, C, {}, supply()) },
     { name: 'declareCreatureDead', run: (s) => declareCreatureDead(s, C, 'off-screen') },
     {
       name: 'loseItems',

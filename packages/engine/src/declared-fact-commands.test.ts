@@ -20,6 +20,11 @@ import {
 import { armorClass, type CharacterSheet } from './character.js';
 import { mountingCost, mountOf, positionOf } from './positioning.js';
 import { movementLeftFor } from './standing.js';
+import { createRng } from './dice.js';
+import { createRollIssuer } from './rolls.js';
+
+/** The d4 a stabilising throws for the wake it is owed (E-STABLE). */
+const kit = () => ({ issuer: createRollIssuer('r'), rng: createRng('the kit'), content: SRD_CONTENT });
 
 /**
  * The other nine facts a DM declares.
@@ -457,15 +462,15 @@ describe('a dying creature can be stabilised', () => {
   it('records it and the fold reads it back', () => {
     const table = dying();
     expect(table.state.creatures[SQUIRE]?.vitals.stable).toBe(false);
-    table.do('the kit', (s) => stabiliseCreature(s, SQUIRE));
+    table.do('the kit', (s) => stabiliseCreature(s, SQUIRE, {}, kit()));
     expect(table.state.creatures[SQUIRE]?.vitals.stable).toBe(true);
   });
 
   it('tells a retry under one id that its command landed', () => {
     const table = dying();
-    table.do('the kit', (s) => stabiliseCreature(s, SQUIRE, { commandId: 'the-kit' }));
+    table.do('the kit', (s) => stabiliseCreature(s, SQUIRE, { commandId: 'the-kit' }, kit()));
     expect(
-      unwrap(stabiliseCreature(table.state, SQUIRE, { commandId: 'the-kit' }), 'retry'),
+      unwrap(stabiliseCreature(table.state, SQUIRE, { commandId: 'the-kit' }, kit()), 'retry'),
     ).toEqual([]);
   });
 

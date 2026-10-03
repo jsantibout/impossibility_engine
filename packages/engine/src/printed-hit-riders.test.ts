@@ -1176,11 +1176,17 @@ describe('a hit that drops the target to 0', () => {
     // Outside a fight, because the hour has to be able to pass: inside one the
     // clock is the turn order's, and `advanceTime` says so in as many words.
     const table = bleeding('phase-spider', 10, false);
-    const out = swing(table, 'Bite');
+    // A bite Bren lives through. Most of them kill him outright — a 1d10 + 3
+    // and 2d8 on a creature with one hit point left and a maximum of 13 is
+    // Massive Damage more often than not — and a corpse is not Stable, which
+    // the default seed's bite showed this test until E-STABLE (it was
+    // asserting `stable` on the dead).
+    const out = swing(table, 'Bite', { seed: 'lives' });
 
     expect(out.attack?.hit).toBe(true);
     const vitals = out.state.creatures[BREN]?.vitals;
     expect(vitals?.hp).toBe(0);
+    expect(vitals?.dead).toBe(false);
     expect(vitals?.stable).toBe(true);
     expect(conditionsOn(out.state, BREN)).toContain('poisoned');
     // The Paralyzed is implied by the Poisoned, so it lifts with it rather
@@ -1193,6 +1199,31 @@ describe('a hit that drops the target to 0', () => {
     const hour = table.do('an hour', (s) => advanceTime(s, 3600, 'an hour in the dark'));
     expect(conditionsOn(hour, BREN)).not.toContain('poisoned');
     expect(conditionsOn(hour, BREN)).not.toContain('paralyzed');
+
+    // E-STABLE: and the Stable the bite left wakes after the 1d4 hours the
+    // bite threw for it — read off the deadline it pinned, not assumed.
+    const wake = out.events.find(
+      (e) => e.type === 'effect-scheduled' && e.target.kind === 'stable' && e.target.on === BREN,
+    );
+    expect(wake?.type === 'effect-scheduled' && wake.deadline.kind).toBe('elapsed');
+    const at = wake?.type === 'effect-scheduled' && wake.deadline.kind === 'elapsed' ? wake.deadline.at : 0;
+    const woken = table.do('until the wake', (s) => advanceTime(s, at - s.elapsed, 'the rest of the dark'));
+    expect(woken.creatures[BREN]?.vitals.hp).toBe(1);
+    expect(conditionsOn(woken, BREN)).not.toContain('unconscious');
+  });
+
+  /**
+   * E-STABLE: a bite that kills outright leaves a corpse, not a Stable
+   * creature — SRD Stable is "0 Hit Points but isn't required to make Death
+   * Saving Throws" — so it writes no `stabilised` and throws no wake.
+   */
+  it('stabilises nobody it killed outright, and throws no wake for them', () => {
+    const table = bleeding('phase-spider', 10, false);
+    const out = swing(table, 'Bite');
+    expect(out.state.creatures[BREN]?.vitals.dead).toBe(true);
+    expect(out.state.creatures[BREN]?.vitals.stable).toBe(false);
+    expect(out.events.some((e) => e.type === 'stabilised')).toBe(false);
+    expect(out.events.some((e) => e.type === 'effect-scheduled' && e.target.kind === 'stable')).toBe(false);
   });
 
   /**

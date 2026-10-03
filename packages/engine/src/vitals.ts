@@ -224,6 +224,33 @@ export function settleHitPointMaximum(v: Vitals, adjustment: number): Vitals {
   return { ...v, hpMax, hpMaxAdjustment: adjustment, hp };
 }
 
+/**
+ * The source recorded for unconsciousness that comes from having no hit points
+ * left, as opposed to a spell.
+ *
+ * It is a named constant because healing has to lift *this* cause and leave
+ * every other one standing: a character knocked out by Sleep and then dropped
+ * to 0 wakes from the hit points, not from the spell.
+ */
+export const ZERO_HIT_POINTS = 'zero hit points';
+
+/**
+ * SRD, "Stabilizing a Character": "A Stable creature that isn't healed regains
+ * 1 Hit Point after **1d4 hours**."
+ *
+ * A rule of the game rather than content — it is in the chapter every creature
+ * dies by — so it is written here with the rest of dying. The die is thrown by
+ * whichever command makes a creature Stable (`commands/stable-wake.ts`), and
+ * the hours it shows are pinned onto the deadline it sets.
+ */
+export const STABLE_WAKE = { dice: '1d4', secondsPerFace: 3600, regains: 1 } as const;
+
+/**
+ * Whether a creature is lying Stable: alive, at 0, and making no death saves.
+ * The one fact a wake stands on — see the `stable` member of `EffectTarget`.
+ */
+export const isLyingStable = (v: Vitals): boolean => isDown(v) && v.stable;
+
 /** At 0 hit points and still in the fight — Unconscious, not dead. */
 export function isDown(v: Vitals): boolean {
   return !v.dead && v.hp === 0;

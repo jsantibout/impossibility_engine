@@ -191,3 +191,31 @@ describe('stabilising is for a creature that is dying, and only that', () => {
     expect(out.establish[0]!.tools).toContain('create_character');
   });
 });
+
+/**
+ * E-STABLE: a Stable creature wakes after the 1d4 hours the engine threw, and
+ * time does not pass over one still dying outside a fight. SRD gives death
+ * saves at "the start of your turn" and no rate outside combat, so the clock
+ * asks — naming the door that would make the turns — rather than inventing six
+ * seconds or letting the dying go on for ever.
+ */
+describe('time passing over the dying', () => {
+  it('asks rather than passing time over a creature still dying, and names the door', () => {
+    const t = bleeding('dying-clock');
+    const out = t.call('advance_time', { minutes: 10, because: 'they search the room' });
+    expect(out.status).toBe('needs-context');
+    if (out.status !== 'needs-context') return;
+    expect(out.code).toBe('dying_outside_a_fight');
+    expect(out.establish[0]!.kind).toBe('turn-order');
+    expect(out.establish[0]!.tools).toContain('roll_initiative');
+  });
+
+  it('wakes a stabilised creature at 1 Hit Point once the hours have passed', () => {
+    const t = bleeding('dying-wake');
+    expectOk(t.call('stabilise_creature', { who: 'bram' }));
+    // The die is the engine's; the longest it can show is four hours.
+    expectOk(t.call('advance_time', { hours: 4, because: 'they wait by him' }));
+    expect(seen(t, 'bram').hp).toBe(1);
+    expect(seen(t, 'bram').stable).toBe(false);
+  });
+});

@@ -21,6 +21,7 @@ import {
   resolveDamage,
   resolveDeclaredCast,
   resolveSpell,
+  stabiliseCreature,
 } from '@ie/engine';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
@@ -507,22 +508,34 @@ const timingOf = (spellId: string) => {
   );
 };
 
+/**
+ * The fixture's creature on the floor, steadied before a rite's minutes pass:
+ * the clock does not run on over a creature still dying outside a fight
+ * (E-STABLE, `dying_outside_a_fight`), and nothing a rite does is about it.
+ */
+const steadiedIn = (state: GameState): readonly GameEvent[] =>
+  state.creatures[DYING]?.vitals.stable === false
+    ? unwrap(stabiliseCreature(state, DYING, {}, supply()), 'the fixture’s dying creature is steadied')
+    : [];
+
 const driven = (spellId: string, log: readonly GameEvent[] = logFor(spellId)) => {
   const timing = timingOf(spellId);
   const first = resolved(spellId, {}, log);
   if (timing.castingTime !== 'long') return first;
 
-  const open = fold('seed', [...log, ...first.events]);
-  const castingId = pendingCastingsOf(open)[0]!.castingId;
+  const declared = fold('seed', [...log, ...first.events]);
+  const castingId = pendingCastingsOf(declared)[0]!.castingId;
+  const steadied = steadiedIn(declared);
+  const open = fold('seed', [...log, ...first.events, ...steadied]);
   const tick = unwrap(advanceTime(open, timing.castingSeconds!, 'the rite'), `tick ${spellId}`);
-  const ticked = [...log, ...first.events, ...tick];
+  const ticked = [...log, ...first.events, ...steadied, ...tick];
   const settled = unwrap(
     resolveDeclaredCast(fold('seed', ticked), castingId, supply()),
     `settle ${spellId}`,
   );
   return {
     ...settled,
-    events: [...first.events, ...tick, ...settled.events],
+    events: [...first.events, ...steadied, ...tick, ...settled.events],
     unverified: [...first.unverified, ...settled.unverified],
   };
 };
@@ -2516,8 +2529,12 @@ describe('every spell this batch added is cast for real', () => {
     const castingId = pendingCastingsOf(open)[0]!.castingId;
     expect(isErr(resolveDeclaredCast(open, castingId, supply()))).toBe(true);
 
-    const tick = unwrap(advanceTime(open, 86_400, 'the rite'), 'a day passes');
-    const ticked = [...SETUP, ...declaration.events, ...tick];
+    const steadied = steadiedIn(open);
+    const tick = unwrap(
+      advanceTime(fold('seed', [...SETUP, ...declaration.events, ...steadied]), 86_400, 'the rite'),
+      'a day passes',
+    );
+    const ticked = [...SETUP, ...declaration.events, ...steadied, ...tick];
     const settled = unwrap(
       resolveDeclaredCast(fold('seed', ticked), castingId, supply()),
       'the rite finishes',
