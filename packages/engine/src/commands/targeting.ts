@@ -347,6 +347,15 @@ export interface CastSpellRequest extends CommandIdentity {
    */
   readonly path?: readonly Point[];
   /**
+   * Where the casting's **other** templates go, for a spell that lays several
+   * — SRD Dancing Lights' "up to four torch-size lights within range", the
+   * first at {@link at} and the rest here, in the order they are numbered
+   * (light 2, light 3, light 4). Each is held to the Range, and the whole set
+   * to the distance that ties one to another. Refused on a spell that lays one.
+   * See `AreaCopies`. (E-L2)
+   */
+  readonly alsoAt?: readonly Point[];
+  /**
    * Whether `at` and `towards` name a space or a grid intersection —
    * the vertical edge four spaces share. Defaults to `space`.
    *

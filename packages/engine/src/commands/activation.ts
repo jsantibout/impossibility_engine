@@ -26,6 +26,9 @@ import { castingIdOf, type OngoingSpell, regionOfArea, regionOfCastingArea } fro
 import { creatureOf, unknownCreature } from './command.js';
 import { unsettledRefusal } from './holds.js';
 import {
+  copiesTied,
+  copyRegions,
+  movedCopies,
   reachFromCaster,
   reachFromOrigin,
   relocateOrigin,
@@ -88,6 +91,15 @@ export interface ActivateSpellCommand extends CommandIdentity {
    * caller who supplies none gets the honest gap instead.
    */
   readonly via?: readonly Point[];
+  /**
+   * Where the casting's **other** templates go — SRD Dancing Lights' "you can
+   * move the lights up to 60 feet to a space within range", light 2, 3 or 4
+   * by its number, beside {@link to} for light 1. Each goes no further than the
+   * activation's own allowance, to a space within the Range where the spell
+   * keeps its copies there, and the lights as they then stand must still be
+   * tied to one another. A light left out stays where it is. (E-L2)
+   */
+  readonly alsoTo?: readonly { readonly light: number; readonly to: Point }[];
   /**
    * The branch to run in place of the one running — SRD Alter Self's "replace
    * the option you chose with a different one".
@@ -649,6 +661,29 @@ export function activateSpell(
     const legs = moved.value;
     const origin = legs[legs.length - 1] ?? record.origin ?? null;
 
+    // — the other lights, where the spell made several (E-L2) ———————————————
+    //
+    // SRD Dancing Lights: "you can move the lights up to 60 feet to a space
+    // within range. A light must be within 20 feet of another light created by
+    // this spell". Each named light is held to the allowance and the Range by
+    // `movedCopies`, and the lights as they will then stand — light 1 where
+    // `to` sends it, the rest where they are sent or already were — to the
+    // tie. Before anything is spent.
+    const copiesMoved = movedCopies(state, record, definition, command);
+    if (!copiesMoved.ok) return copiesMoved;
+    if (definition.areaCopies !== undefined && record.copies !== undefined && origin !== null) {
+      const gone = record.vanished ?? [];
+      const standing = [origin, ...(copiesMoved.value ?? record.copies)].filter(
+        (_, i) => !gone.includes(i + 1),
+      );
+      if (!copiesTied(standing, definition.areaCopies.within)) {
+        return err(
+          'copies_apart',
+          `${record.spell} keeps each light within ${definition.areaCopies.within} feet of another, and this move leaves one further than that from all the rest`,
+        );
+      }
+    }
+
     // Checked afresh: the creature that was in reach a minute ago may not be.
     if (target !== null) {
       const checked =
@@ -916,6 +951,27 @@ export function activateSpell(
           `${record.spell} was rolled into an occupied space and stopped there; the rest of the route was not travelled`,
         );
         break;
+      }
+    }
+
+    // — and the other lights, laid again where they land (E-L2) ——————————————
+    //
+    // SRD Dancing Lights' lights 2 to 4, after light 1 has gone where `to` sent
+    // it. The list as it now stands is one event, and each light still lit is
+    // laid again under its own name, which the fold overwrites — a light that
+    // has vanished is laid nowhere.
+    if (copiesMoved.value !== null && current.ongoing[record.castingId] !== undefined) {
+      happened({ type: 'spell-copies-moved', castingId: record.castingId, copies: copiesMoved.value });
+      for (const patch of lightPatchesOf(
+        current,
+        definition,
+        record.castingId,
+        null,
+        true,
+        record.level,
+        copyRegions(definition, casterId, copiesMoved.value, record.vanished),
+      )) {
+        happened(patch);
       }
     }
 

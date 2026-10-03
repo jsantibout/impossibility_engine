@@ -25,7 +25,7 @@ import {
   type AreaMoment,
   type OngoingSpell,
 } from '../spells.js';
-import type { PositionState, Point } from '../positioning.js';
+import { distanceToPoint, type PositionState, type Point } from '../positioning.js';
 // **Type-only for the shapes, deliberately.** The fold does not open the spell
 // catalogue: a casting's area and its clauses are pinned on the ongoing record
 // at the cast, so a replay answers out of the log rather than out of this
@@ -390,6 +390,60 @@ export function endConditionsLeftBehind(state: GameState): GameState {
     }
   }
   return endShapeBarsLeftBehind(current);
+}
+
+/**
+ * SRD Dancing Lights: "**a light vanishes if it exceeds the spell's range**."
+ * (E-L2)
+ *
+ * Derived after every event, for the reason every pass here is: nobody decides
+ * that a light the caster walked away from goes out. A light is light 1 at the
+ * casting's point or light 2, 3 or 4 at its copies, and one further than the
+ * Range the record pinned (`keptWithin`) from where its caster now stands is
+ * written onto the record as vanished and its patches taken off the lattice —
+ * for good, so a caster who walks back finds it gone. A caster nobody has
+ * placed measures nothing, and nothing vanishes. Returns at once where no
+ * running casting keeps its lights in range, which is nearly always.
+ */
+export function vanishLightsBeyondRange(state: GameState): GameState {
+  const scene = state.scene;
+  if (scene === null) return state;
+  const keeping = Object.keys(state.ongoing)
+    .sort()
+    .filter((castingId) => state.ongoing[castingId]!.keptWithin !== undefined);
+  if (keeping.length === 0) return state;
+
+  let current = state;
+  for (const castingId of keeping) {
+    const record = current.ongoing[castingId]!;
+    const within = record.keptWithin!;
+    const lights: readonly (Point | undefined)[] = [record.origin, ...(record.copies ?? [])];
+    const gone = new Set(record.vanished ?? []);
+    const newly: number[] = [];
+    lights.forEach((point, i) => {
+      const n = i + 1;
+      if (point === undefined || gone.has(n)) return;
+      const away = distanceToPoint(scene, record.caster as CharacterId, point);
+      if (away.ok && away.value > within) newly.push(n);
+    });
+    if (newly.length === 0) continue;
+
+    const light = { ...current.scene!.light };
+    for (const n of newly) {
+      const suffix = n === 1 ? '' : ` ${n}`;
+      delete light[`${record.spell} light${suffix} (${castingId})`];
+      delete light[`${record.spell} dim light${suffix} (${castingId})`];
+    }
+    current = {
+      ...current,
+      scene: { ...current.scene!, light },
+      ongoing: sortedRecord({
+        ...current.ongoing,
+        [castingId]: { ...record, vanished: [...gone, ...newly].sort((a, b) => a - b) },
+      }),
+    };
+  }
+  return current;
 }
 
 /**

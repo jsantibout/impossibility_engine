@@ -1688,10 +1688,17 @@ export function lightPatchesOf(
   region: TerrainRegion | null,
   lastsWithTheCasting: boolean,
   castLevel: number,
+  /**
+   * The casting's other templates, each laid as the first is under its own
+   * number — SRD Dancing Lights' lights 2 to 4. See `AreaCopies`. (E-L2)
+   */
+  copies: readonly { readonly n: number; readonly region: TerrainRegion }[] = [],
 ): readonly GameEvent[] {
   const light = definition.areaLight;
   const fog = definition.areaObscurement;
-  if ((light === undefined && fog === undefined) || region === null) return [];
+  if ((light === undefined && fog === undefined) || (region === null && copies.length === 0)) {
+    return [];
+  }
 
   const source = lastsWithTheCasting ? { source: castingId } : {};
   // The level the book's dispel compares, and — on a spell that prints the
@@ -1704,42 +1711,59 @@ export function lightPatchesOf(
     },
   };
   const named = (what: string): string => `${definition.name} ${what} (${castingId})`;
-  const widened = (by: number): TerrainRegion =>
-    region.shape.kind === 'sphere'
-      ? { ...region, shape: { ...region.shape, radius: region.shape.radius + by } }
-      : region;
+  const widenedFrom =
+    (from: TerrainRegion) =>
+    (by: number): TerrainRegion =>
+      from.shape.kind === 'sphere'
+        ? { ...from, shape: { ...from.shape, radius: from.shape.radius + by } }
+        : from;
+  // The first template — absent where only the others are being laid again,
+  // SRD Dancing Lights' Bonus Action moving lights 2 to 4 — and any others,
+  // each with the name its patches carry.
+  const templates = [
+    ...(region === null ? [] : [{ label: 'light', dimLabel: 'dim light', region }]),
+    ...copies.map((copy) => ({
+      label: `light ${copy.n}`,
+      dimLabel: `dim light ${copy.n}`,
+      region: copy.region,
+    })),
+  ];
 
   const events: GameEvent[] = [];
 
   if (light !== undefined) {
-    events.push({
-      type: 'light-declared',
-      patch: named('light'),
-      region,
-      level: light.level,
-      ...magical,
-      ...(light.sunlight === undefined ? {} : { sunlight: light.sunlight }),
-      ...source,
-    });
-    if (light.dimBeyond !== undefined) {
+    for (const template of templates) {
       events.push({
         type: 'light-declared',
-        patch: named('dim light'),
-        region: widened(light.dimBeyond),
-        level: 'dim',
+        patch: named(template.label),
+        region: template.region,
+        level: light.level,
         ...magical,
+        ...(light.sunlight === undefined ? {} : { sunlight: light.sunlight }),
         ...source,
       });
+      if (light.dimBeyond !== undefined) {
+        events.push({
+          type: 'light-declared',
+          patch: named(template.dimLabel),
+          region: widenedFrom(template.region)(light.dimBeyond),
+          level: 'dim',
+          ...magical,
+          ...source,
+        });
+      }
     }
   }
 
-  if (fog !== undefined) {
+  if (fog !== undefined && region !== null) {
     const grown = fog.radiusPerSlotLevelAbove;
     events.push({
       type: 'obscurement-declared',
       patch: named('fog'),
       region:
-        grown === undefined ? region : widened(grown * Math.max(0, castLevel - definition.level)),
+        grown === undefined
+          ? region
+          : widenedFrom(region)(grown * Math.max(0, castLevel - definition.level)),
       degree: fog.degree,
       ...source,
     });
@@ -1749,17 +1773,28 @@ export function lightPatchesOf(
   // names in its own sentence — the opposite light of a spell at or below
   // `dispels`, measured over its area — and what puts *it* out is a printing
   // spell already shining over any of the light it sheds. Last in the batch,
-  // after the patches it is about. See `dispelOnPinning`. (E-L2)
+  // after the patches it is about, and asked of every template it laid. See
+  // `dispelOnPinning`. (E-L2)
   if (light !== undefined) {
-    const verdict = dispelOnPinning(state, region, light.level, magical.magical, {
-      ...source,
-      ...(light.dimBeyond === undefined ? {} : { extent: widened(light.dimBeyond) }),
-    });
-    for (const dispelled of verdict.castings) {
+    const castings = new Set<string>();
+    const glows = new Set<string>();
+    let itself = false;
+    for (const template of templates) {
+      const verdict = dispelOnPinning(state, template.region, light.level, magical.magical, {
+        ...source,
+        ...(light.dimBeyond === undefined
+          ? {}
+          : { extent: widenedFrom(template.region)(light.dimBeyond) }),
+      });
+      for (const dispelled of verdict.castings) castings.add(dispelled);
+      for (const glow of verdict.glows) glows.add(glow);
+      itself ||= verdict.itself;
+    }
+    for (const dispelled of [...castings].sort()) {
       events.push({ type: 'spell-ended', castingId: dispelled, on: null, reason: 'dispelled' });
     }
-    for (const effectKey of verdict.glows) events.push({ type: 'effect-dispelled', effectKey });
-    if (verdict.itself && lastsWithTheCasting) {
+    for (const effectKey of [...glows].sort()) events.push({ type: 'effect-dispelled', effectKey });
+    if (itself && lastsWithTheCasting) {
       events.push({ type: 'spell-ended', castingId, on: null, reason: 'dispelled' });
     }
   }

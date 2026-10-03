@@ -419,10 +419,14 @@ describe('toolSchemas', () => {
     // the catch can be read before the cast with the arguments the cast will
     // carry, +1,253 each; and `ability_check.tool` on the DM's alone, +509. No
     // tool added: +2,182 on the player's door and +2,691 on the DM's.
+    // And for E-L2: `cast_spell.alsoAt` (SRD Dancing Lights' lights 2 to 4,
+    // placed where the caster names) and `activate_spell.alsoTo` (the Bonus
+    // Action moving them by number) on both doors. No tool added: +1,532 bytes
+    // on each.
     expect(toolSchemas(player())).toHaveLength(100);
     expect(toolSchemas(dm())).toHaveLength(133);
-    expect(JSON.stringify(toolSchemas(player())).length).toBe(167553);
-    expect(JSON.stringify(toolSchemas(dm())).length).toBe(227258);
+    expect(JSON.stringify(toolSchemas(player())).length).toBe(169085);
+    expect(JSON.stringify(toolSchemas(dm())).length).toBe(228790);
   });
 });
 

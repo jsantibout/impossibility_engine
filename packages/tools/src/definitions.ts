@@ -2926,6 +2926,13 @@ const CAST_SPELL = tool({
       .describe(
         'The 5-foot spaces a **wall** runs through, in order along the ground — SRD Wind Wall’s "you can shape the wall in any way you choose so long as it makes one continuous path along the ground". The only template the caster draws rather than aims: the engine checks the total length the spell allows, that each space touches the one before it, that the whole path is on one ground and crosses no space twice, and that the first space is in range. Leave `at` out; the wall rises at the first space of its own path.',
       ),
+    alsoAt: z
+      .array(pointSchema)
+      .min(1)
+      .optional()
+      .describe(
+        'Where the casting’s **other** templates go, for a spell that lays several — SRD Dancing Lights’ "up to four torch-size lights within range": the first light at `at` and lights 2, 3 and 4 here, in that order. Each must be in range, and each within the distance the spell ties them by (20 feet for Dancing Lights) of another. Refused on a spell that lays one.',
+      ),
     towardsCreature: creatureId.optional().describe('Point a Cone, Cube or Line at this creature.'),
     towardsLandmark: z.string().min(1).optional().describe('Point it at this landmark instead.'),
     anchoring: z
@@ -3163,6 +3170,8 @@ const CAST_SPELL = tool({
       // the same arithmetic a move's destination uses. (E-AIM)
       ...spellAtOf(args.at),
       ...(args.path === undefined ? {} : { path: args.path.map(point) }),
+      // The other templates, where the spell lays several. (E-L2)
+      ...(args.alsoAt === undefined ? {} : { alsoAt: args.alsoAt.map(point) }),
       ...(towards.value === undefined ? {} : { towards: towards.value }),
       ...(args.anchoring === undefined ? {} : { anchoring: args.anchoring }),
       ...(args.slotLevel === undefined ? {} : { slotLevel: args.slotLevel }),
@@ -3387,6 +3396,13 @@ const ACTIVATE_SPELL = tool({
     to: pointSchema
       .optional()
       .describe('Where the area ends up. Required when the action’s whole content is moving it, and left out by a spell that only strikes again.'),
+    alsoTo: z
+      .array(z.strictObject({ light: z.int().min(2), to: pointSchema }))
+      .min(1)
+      .optional()
+      .describe(
+        'Where the casting’s **other** templates go, by number — SRD Dancing Lights’ "you can move the lights up to 60 feet to a space within range", lights 2, 3 and 4 (light 1 moves by `to`). Each goes no further than the spell allows and stays in range, and the lights as they then stand must still be within 20 feet of one another. A light left out stays where it is; a light that has vanished is refused.',
+      ),
     via: routeSchema
       .optional()
       .describe(
@@ -3450,6 +3466,10 @@ const ACTIVATE_SPELL = tool({
           targets: args.targets.map(who),
           ...(args.to === undefined ? {} : { to: point(args.to) }),
           ...(args.via === undefined ? {} : { via: args.via.map(point) }),
+          // The other templates, by number. (E-L2)
+          ...(args.alsoTo === undefined
+            ? {}
+            : { alsoTo: args.alsoTo.map((one) => ({ light: one.light, to: point(one.to) })) }),
           ...(args.altitude === undefined ? {} : { altitude: args.altitude }),
           ...(args.option === undefined ? {} : { option: args.option }),
           ...(towards.value === undefined ? {} : { towards: towards.value }),

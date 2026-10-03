@@ -8344,10 +8344,11 @@ export const RESURRECTION: SpellDefinition = {
  * > within range. A light must be within 20 feet of another light created by
  * > this spell, and a light vanishes if it exceeds the spell's range."
  *
- * The whole spell is light, and the engine has no lighting — so not one
- * sentence of it trips a mechanical marker and the definition owes the table
- * every word. What it does owe the *engine* is the minute of Concentration a
- * cantrip is charging for, which is the thing that was going unspent.
+ * The whole spell is light, and every word of the light is the engine's now
+ * (E-L2): up to four Spheres of Dim Light at the points the caster names
+ * (`areaCopies`, `alsoAt`), each within 20 feet of another, moved by the Bonus
+ * Action by number (`alsoTo`), and a light its caster walks more than 120 feet
+ * from gone for good. What the lights look like is the table's.
  */
 export const DANCING_LIGHTS: SpellDefinition = {
   id: 'dancing-lights',
@@ -8358,16 +8359,19 @@ export const DANCING_LIGHTS: SpellDefinition = {
   concentration: true,
   range: { kind: 'ranged', feet: 120 },
   targets: { count: 0 },
-  // One patch for the four motes: the SRD's "up to four torch-size lights"
-  // shed Dim Light in a 10-foot radius each, and the engine lays one dim
-  // sphere at the point the caster names, which the table puts where the
-  // nearest mote is. The 20-foot tether between two lights is the DM's.
+  // "each light sheds Dim Light in a 10-foot radius": a Sphere of Dim Light at
+  // each point the caster names.
   area: { kind: 'sphere', radius: 10, origin: 'point' },
   areaLight: { level: 'dim' },
+  // "You create **up to four** torch-size lights within range" — the first at
+  // `at`, the others at `alsoAt` — "A light must be within 20 feet of another
+  // light created by this spell, and a light vanishes if it exceeds the
+  // spell's range." (E-L2)
+  areaCopies: { upTo: 4, within: 20, keptInRange: true },
   effects: [],
   durationSeconds: 60,
-  // SRD: "As a Bonus Action, you can move the lights up to 60 feet to a new
-  // spot within range." The area moves, and the light it sheds is laid again
+  // SRD: "As a Bonus Action, you can move the lights up to 60 feet to a space
+  // within range." Light 1 by `to` and the others by `alsoTo`, each laid again
   // where it lands.
   activation: {
     action: 'bonus-action',
@@ -8375,8 +8379,11 @@ export const DANCING_LIGHTS: SpellDefinition = {
     label: 'Dancing Lights (the lights move)',
     effects: [],
   },
-  unmodelled: [
-    'You create up to four torch-size lights within range, or one glowing Medium form: the engine lays one dim patch for all four, placed where the table says the nearest mote is, and the 20-foot tether between two lights and a light vanishing outside the spell’s range are the DM’s',
+  // What the lights look like, in the book's words: torches, lanterns, orbs, or
+  // one vaguely humanlike form. One light is a casting of one (`at` alone), and
+  // how any of them looks is read by nothing.
+  dmDecides: [
+    'Alternatively, you combine the four lights into one glowing Medium form that is vaguely humanlike.',
   ],
 };
 

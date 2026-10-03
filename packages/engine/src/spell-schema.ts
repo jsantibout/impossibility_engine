@@ -7947,6 +7947,63 @@ export function checkSpellDefinition(
     });
   }
 
+  // SRD Dancing Lights' several lights: copies of a point-origin area that
+  // sheds light and does nothing else — see `AreaCopies`. (E-L2)
+  if (definition.areaCopies !== undefined) {
+    const copies = definition.areaCopies as {
+      readonly upTo?: unknown;
+      readonly within?: unknown;
+      readonly keptInRange?: unknown;
+    };
+    const wholeFeet = (value: unknown): boolean =>
+      typeof value === 'number' && Number.isInteger(value) && value > 0;
+    if (typeof copies.upTo !== 'number' || !Number.isInteger(copies.upTo) || copies.upTo < 2) {
+      found.push({
+        field: 'areaCopies.upTo',
+        code: 'bad_area_copies',
+        reason: `several templates are at least two, as a whole number; this is ${String(copies.upTo)}`,
+      });
+    }
+    if (copies.within !== undefined && !wholeFeet(copies.within)) {
+      found.push({
+        field: 'areaCopies.within',
+        code: 'bad_area_copies',
+        reason: `the distance that ties one copy to another is a whole number of feet; this is ${String(copies.within)}`,
+      });
+    }
+    if (copies.keptInRange !== undefined && copies.keptInRange !== true) {
+      found.push({
+        field: 'areaCopies.keptInRange',
+        code: 'bad_area_copies',
+        reason: 'a copy is kept in range or the spell says nothing about it; the only value is true',
+      });
+    }
+    if (
+      definition.area === undefined ||
+      definition.area.origin !== 'point' ||
+      definition.areaLight === undefined
+    ) {
+      found.push({
+        field: 'areaCopies',
+        code: 'copies_without_light',
+        reason: 'several templates are laid as light at points the caster names, so they need a point-origin area that sheds light',
+      });
+    }
+    if (
+      definition.effects.length > 0 ||
+      definition.areaTrigger !== undefined ||
+      definition.areaTerrain !== undefined ||
+      definition.areaObscurement !== undefined ||
+      definition.areaStanding !== undefined
+    ) {
+      found.push({
+        field: 'areaCopies',
+        code: 'copies_do_more_than_light',
+        reason: 'the copies are read by the light and by nothing else; a spell whose copies caught creatures, cost ground or filled the air would need every reader of an area to learn them',
+      });
+    }
+  }
+
   // A spell either prints that its target shape-shifts or it does not. (E-L2)
   if (definition.shapeShifts !== undefined && definition.shapeShifts !== true) {
     found.push({

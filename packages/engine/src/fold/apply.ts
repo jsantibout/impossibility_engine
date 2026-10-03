@@ -34,7 +34,7 @@ import { castingIdOf } from '../spells.js';
 import { featureOfSource } from '../progression.js';
 import { type Applying, unhandledEvent } from './common.js';
 import { releaseCasting, releaseGrants } from './release.js';
-import { dropOrphanedAreaEffects, douseStandingFlames } from './areas.js';
+import { dropOrphanedAreaEffects, douseStandingFlames, vanishLightsBeyondRange } from './areas.js';
 import { openTurnStart, reachStartOfTurn } from './turns.js';
 import {
   dropOrphanedSaves,
@@ -306,6 +306,9 @@ function applyEventUnder(state: GameState, event: GameEvent, legacy: Content | n
     // the turn's start is reached, so a creature standing in the sleet is not
     // owed a burn it is no longer suffering. See `douseStandingFlames`. (E-L2)
     douseStandingFlames(
+    // **A light its caster walked too far from**, gone for good — SRD Dancing
+    // Lights. See vanishLightsBeyondRange. (E-L2)
+    vanishLightsBeyondRange(
     // **A light carried into a Darkness**, put out where its bearer arrives —
     // see dispelMovedLight. Against the world before this event, so the pass
     // knows who moved. (E-L2)
@@ -421,6 +424,7 @@ function applyEventUnder(state: GameState, event: GameEvent, legacy: Content | n
     ),
     // The world before this event, so the pass sees an override leave.
     state,
+    ),
     ),
     ),
     ),

@@ -5013,6 +5013,39 @@ export interface AreaLight {
 }
 
 /**
+ * Several templates in one casting — SRD Dancing Lights: "You create **up to
+ * four** torch-size lights within range … each light sheds Dim Light in a
+ * 10-foot radius." / "As a Bonus Action, you can move the lights up to 60 feet
+ * to a space within range. **A light must be within 20 feet of another light
+ * created by this spell, and a light vanishes if it exceeds the spell's
+ * range.**" (E-L2)
+ *
+ * The first copy is the area the casting already places (`at`), and the
+ * others are named on the request (`alsoAt`) and pinned on the record
+ * (`OngoingSpell.copies`). Each is held to the Range at the casting, and the
+ * Bonus Action moves each (`to` for the first, `alsoTo` for the others) by the
+ * activation's own allowance.
+ *
+ * **Only the light is laid over the copies**, and the validator says so: a
+ * spell whose copies also caught creatures, made ground expensive or filled
+ * the air would need every one of those readers to learn the second, third and
+ * fourth template, and the one SRD spell that prints this sentence sheds light
+ * and nothing else.
+ */
+export interface AreaCopies {
+  /** "up to four": how many templates, the first counted. At least two. */
+  readonly upTo: number;
+  /** "A light must be within 20 feet of another light": the tether, in feet. */
+  readonly within?: number;
+  /**
+   * "to a space within range … and a light vanishes if it exceeds the spell's
+   * range": a copy is moved only to a space within the Range of its caster,
+   * and one that ends up beyond it — its caster walked off — is gone for good.
+   */
+  readonly keptInRange?: true;
+}
+
+/**
  * What a casting's area does to how far you can **see**, when that is not a
  * question about the light.
  *
@@ -5963,6 +5996,11 @@ export interface SpellDefinition {
    * this is the whole of it.
    */
   readonly areaLight?: AreaLight;
+  /**
+   * The casting lays its area **several times over**, each copy at a point the
+   * caster names — see {@link AreaCopies}. (E-L2)
+   */
+  readonly areaCopies?: AreaCopies;
   /**
    * What the area does to **seeing through it**, where that is not the light
    * — see {@link AreaObscurement}.

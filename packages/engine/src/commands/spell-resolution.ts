@@ -82,6 +82,7 @@ import {
   creaturesInArea,
   dispelOnPinning,
   distanceBetween,
+  distanceToPoint,
   positionOf,
   snapToSpace,
   type Placement,
@@ -193,6 +194,8 @@ import { teleportTo } from './teleport.js';
 import { payCastingDamageCost } from './damage.js';
 import {
   castingsEndedBy,
+  copiesTied,
+  copyRegions,
   magicalByCasting,
   ongoingSpellsOn,
   replacedCastings,
@@ -1355,7 +1358,18 @@ export function castOrRelease(
       readonly towards?: Point;
       readonly anchoring?: PointAnchoring;
       readonly path?: readonly Point[];
+      readonly copies?: readonly Point[];
     } | null = null;
+
+    // — the other templates, where the spell lays several (E-L2) ————————————
+    //
+    // SRD Dancing Lights: "You create up to four torch-size lights within
+    // range", and "A light must be within 20 feet of another light created by
+    // this spell". The first is `at` and is placed below as every area's point
+    // is; the others are held here to the count, the Range and the tie, before
+    // anything is spent.
+    const copies = placedCopies(state, casterId, definition, request, reach);
+    if (!copies.ok) return copies;
 
     if (definition.area !== undefined) {
       // **An Emanation that stays pins the caster's own square.** SRD Tiny
@@ -1471,6 +1485,7 @@ export function castOrRelease(
           ...(isWall && request.path !== undefined
             ? { path: request.path.map(snapToSpace) }
             : {}),
+          ...(copies.value === null ? {} : { copies: copies.value }),
           ...(request.towards === undefined ? {} : { towards: request.towards }),
           // `space` *is* the absence, so a casting that names it explicitly
           // serialises exactly as one that says nothing. Two records that mean
@@ -2604,6 +2619,8 @@ function resolveOnTargets(
       readonly anchoring?: PointAnchoring;
       /** The spaces a wall runs through — see `OngoingSpell.path`. */
       readonly path?: readonly Point[];
+      /** The casting's other templates — see `OngoingSpell.copies`. (E-L2) */
+      readonly copies?: readonly Point[];
     } | null;
     /** The identity the wrapper established, stamped on the casting's event. */
     readonly stamp: CommandStamp | null;
@@ -2781,6 +2798,12 @@ function resolveOnTargets(
     // The spaces a wall runs through, the one template that is drawn — see
     // `OngoingSpell.path`.
     ...(area?.path === undefined ? {} : { path: area.path }),
+    // And the casting's other templates, with the Range they vanish beyond —
+    // SRD Dancing Lights' lights 2 to 4. See `OngoingSpell.copies`. (E-L2)
+    ...(area?.copies === undefined ? {} : { copies: area.copies }),
+    ...(definition.areaCopies?.keptInRange === true && definition.range.kind === 'ranged'
+      ? { keptWithin: definition.range.feet }
+      : {}),
     // The facts the caster stated at the casting, kept because every later
     // sentence of the spell reads them and none can be recovered from
     // anything else. **A carried area records no position**: `caster` and the
@@ -4158,6 +4181,10 @@ export function resolveEffects(
         ...(pinnedStanding === undefined ? {} : { areaStanding: pinnedStanding }),
         ...(becomes.types === undefined ? {} : { types: becomes.types }),
         ...(becomes.path === undefined ? {} : { path: becomes.path }),
+        // SRD Dancing Lights' other lights, and the Range they vanish beyond.
+        // (E-L2)
+        ...(becomes.copies === undefined ? {} : { copies: becomes.copies }),
+        ...(becomes.keptWithin === undefined ? {} : { keptWithin: becomes.keptWithin }),
         // And what a DM's decision fires, pinned with the type the caster
         // stated — SRD Glyph of Warding's rune. See `OngoingSpell.triggered`.
         // **Or the spell it stores in the rune's place**, never both — see
@@ -4324,6 +4351,9 @@ export function resolveEffects(
       context.terrainRegion ?? null,
       becomes !== undefined,
       castLevel,
+      // SRD Dancing Lights' other lights, each laid where the caster put it.
+      // (E-L2)
+      copyRegions(definition, casterId, becomes?.copies),
     ),
   );
 
@@ -4336,6 +4366,62 @@ export function resolveEffects(
   }
 
   return ok({ events, castingId, outcomes, unverified });
+}
+
+
+/**
+ * The casting's other templates, held to what the spell prints of them — or
+ * null for a casting that names none. (E-L2)
+ *
+ * SRD Dancing Lights: "You create up to four torch-size lights within range",
+ * "A light must be within 20 feet of another light created by this spell".
+ * The count counts the first, which is `at`; each other point is measured
+ * from the caster as the first is, against the same reach; and the whole set,
+ * the first included, must be tied. A spell that lays one template is refused
+ * the field rather than quietly ignoring it.
+ */
+function placedCopies(
+  state: GameState,
+  casterId: CharacterId,
+  definition: SpellDefinition,
+  request: CastSpellRequest,
+  reach: number | null,
+): Result<readonly Point[] | null> {
+  const asked = request.alsoAt;
+  if (asked === undefined || asked.length === 0) return ok(null);
+  const copies = definition.areaCopies;
+  if (copies === undefined) {
+    return err('no_copies', `${definition.name} lays one template; there is nowhere for a second to go`);
+  }
+  if (asked.length + 1 > copies.upTo) {
+    return err(
+      'too_many_copies',
+      `${definition.name} lays up to ${copies.upTo}, and this casting names ${asked.length + 1}`,
+    );
+  }
+  if (request.at === undefined) {
+    return err('point_required', `${definition.name}'s first template goes at \`at\`, and nobody said where`);
+  }
+  const points = asked.map(snapToSpace);
+  if (state.scene !== null && reach !== null) {
+    for (const point of points) {
+      const away = distanceToPoint(state.scene, casterId, point);
+      if (!away.ok) return away;
+      if (away.value > reach) {
+        return err(
+          'out_of_range',
+          `${definition.name} reaches ${reach} feet; (${point.x}, ${point.y}, ${point.z}) is ${away.value} away`,
+        );
+      }
+    }
+  }
+  if (!copiesTied([snapToSpace(request.at), ...points], copies.within)) {
+    return err(
+      'copies_apart',
+      `${definition.name} keeps each of its templates within ${copies.within} feet of another, and one of these is further than that from all the rest`,
+    );
+  }
+  return ok(points);
 }
 
 /**
@@ -4976,6 +5062,10 @@ interface OngoingRecordPlan {
   readonly types?: readonly string[];
   /** The spaces a wall runs through, for the one template that is drawn — see `OngoingSpell.path`. */
   readonly path?: readonly Point[];
+  /** The casting's other templates — see `OngoingSpell.copies`. (E-L2) */
+  readonly copies?: readonly Point[];
+  /** The Range they vanish beyond — see `OngoingSpell.keptWithin`. (E-L2) */
+  readonly keptWithin?: number;
   /** Whether the caster said they were outdoors in a storm — see `OngoingSpell.inAStorm`. */
   readonly inAStorm?: true;
   /** The one creature the cast singled out — see `OngoingSpell.singledOut`. */

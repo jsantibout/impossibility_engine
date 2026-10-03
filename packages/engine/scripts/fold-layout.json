@@ -103,6 +103,7 @@
     "raiseAfterMovement",
     "endConditionsLeftBehind",
     "douseStandingFlames",
+    "vanishLightsBeyondRange",
     "endShapeBarsLeftBehind",
     "conditionsBoundToTheArea",
     "creaturesThatMoved",

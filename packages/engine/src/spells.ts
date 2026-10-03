@@ -641,6 +641,24 @@ export interface OngoingSpell {
    */
   readonly path?: readonly Point[];
   /**
+   * Where the casting's other templates stand — SRD Dancing Lights' lights 2,
+   * 3 and 4, beside {@link origin}, which is light 1. Pinned at the cast and
+   * moved by the Bonus Action (`spell-copies-moved`). See `AreaCopies`. (E-L2)
+   */
+  readonly copies?: readonly Point[];
+  /**
+   * The lights that have gone — SRD Dancing Lights' "a light vanishes if it
+   * exceeds the spell's range" — numbered as the caster numbered them, 1 for
+   * the light at {@link origin}. Written by the fold the moment one is beyond
+   * {@link keptWithin} of its caster, and never taken back. (E-L2)
+   */
+  readonly vanished?: readonly number[];
+  /**
+   * The Range a copy must stay within or vanish, in feet, pinned at the cast
+   * where the definition says so (`AreaCopies.keptInRange`). (E-L2)
+   */
+  readonly keptWithin?: number;
+  /**
    * The creature types the caster stated, where the spell prints a choice of
    * several — SRD Magic Circle's "Choose one or more of the following types".
    *

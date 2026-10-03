@@ -533,6 +533,10 @@ describe('the catalogue hands over exactly the text it means to', () => {
       'control-weather',
       'create-food-and-water',
       'create-or-destroy-water',
+      // **SRD Dancing Lights' look** (E-L2): the lights are the engine's —
+      // up to four, placed, tied, moved and vanishing past the Range — and
+      // the one vaguely humanlike form they may make instead is how they look.
+      'dancing-lights',
       'detect-evil-and-good',
       'detect-magic',
       'detect-poison-and-disease',

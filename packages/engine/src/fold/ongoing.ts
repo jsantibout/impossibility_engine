@@ -31,6 +31,7 @@ export const ONGOING_EVENTS = [
   'area-effect-settled',
   'casting-save-recorded',
   'spell-origin-moved',
+  'spell-copies-moved',
   'spell-aim-changed',
   'way-in-drawn',
   'way-in-height-declared',
@@ -208,6 +209,27 @@ export function applyOngoing({ state, next, legacy }: Applying, event: OngoingEv
       return {
         ...next,
         ongoing: { ...next.ongoing, [event.castingId]: { ...record, saves: kept } },
+      };
+    }
+
+    // SRD Dancing Lights' other lights, moved by the Bonus Action: the list as
+    // it now stands. A casting that never laid copies cannot have moved any,
+    // and a list of another length is a log and a set of rules that disagree.
+    // (E-L2)
+    case 'spell-copies-moved': {
+      const record = state.ongoing[event.castingId];
+      if (record === undefined) {
+        throw new CorruptLogError(event, `${event.castingId} is not running`);
+      }
+      if (record.copies === undefined || record.copies.length !== event.copies.length) {
+        throw new CorruptLogError(event, `${event.castingId} does not hold ${event.copies.length} other templates`);
+      }
+      return {
+        ...next,
+        ongoing: sortedRecord({
+          ...next.ongoing,
+          [event.castingId]: { ...record, copies: event.copies },
+        }),
       };
     }
 

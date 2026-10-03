@@ -849,13 +849,10 @@ export const ADJUDICATED: Readonly<Record<string, readonly Adjudication[]>> = {
       note: 'W8-S26, on review, reversing a reading that called this safe. Every SRD spell prints a component, and seventeen SRD stat blocks — a Giant Owl, a Couatl, an Imp, a Quasit, a Sprite, a Unicorn among those in reach — cast with no spell components at all; `adaptMonster` compiles those lines into ordinary castings, and a Counterspell is let at one where the book gives no window. The fact is printed and dropped, and the trigger reads it. The closest id: a rule over which casting the reaction may be aimed at, which the format cannot state.',
     },
   ],
-  'dancing-lights': [
-    {
-      clause: 'the engine lays one dim patch for all four',
-      why: 'a-wall-or-several-templates-in-one-area',
-      note: 'W9-S1 re-filed this from the light shape, which has nothing left to give it: the light is laid, magical and moved by the Bonus Action. What is missing is the geometry — four Spheres of Dim Light in one casting, each placed where the caster says, a 20-foot tether between one light and the next, and a range each light keeps on its own or vanishes past — which is several templates in one area, this id’s shape exactly. The table places the one patch where the nearest mote is.',
-    },
-  ],
+  // **Dancing Lights files nothing now** (E-L2): the several templates are
+  // `AreaCopies` — up to four lights, each at a point the caster names
+  // (`alsoAt`), tied within twenty feet, moved by number (`alsoTo`), and gone
+  // for good past the Range (`vanishLightsBeyondRange`).
   // **Darkness files nothing now** (E-L2): the glow on a deadline of its own is
   // put out by its timer (`effect-dispelled`), and the dispel holds whichever
   // came first — `dispelOnPinning` at every pinning, `dispelMovedLight` for a

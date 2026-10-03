@@ -948,6 +948,11 @@ const UNCOVERED_EVENT_TYPES: readonly string[] = [
   // which way, nothing rolled or moved by the turning, and a Bonus Action that
   // named no direction refused.
   'spell-aim-changed',
+  // A casting's other templates moved — SRD Dancing Lights' lights 2 to 4 by
+  // the Bonus Action (E-L2). Neither log was written when a casting could lay
+  // more than one template; `dancing-lights.test.ts` folds it and drives the
+  // move, the sixty feet, the Range and the twenty feet that tie the lights.
+  'spell-copies-moved',
   // A casting made and failed — SRD Slow's "a 25 percent chance the spell
   // fails". Neither log was written when a casting could fail after its cost
   // was paid; `slow-somatic.test.ts` folds it and drives both faces of the

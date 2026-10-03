@@ -340,6 +340,7 @@ const KNOWN_EVENT_TYPES: readonly string[] = [
   'spell-activated',
   'spell-aim-changed',
   'spell-cast',
+  'spell-copies-moved',
   'spell-declared',
   'spell-ended',
   // W7-S22: a casting made and failed — SRD Slow's gestures.

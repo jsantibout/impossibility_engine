@@ -2351,6 +2351,21 @@ export type GameEvent =
    * is optional and the activation is not — one event, one thing. The command
    * stamp therefore rides on `spell-activated`, which always happens.
    */
+  /**
+   * A casting's other templates moved — SRD Dancing Lights' "As a Bonus
+   * Action, you can move the lights up to 60 feet to a space within range",
+   * lights 2 to 4. (E-L2)
+   *
+   * The whole list as it now stands, in the order the caster numbered them, so
+   * folding the log reconstructs every light without arithmetic: the command
+   * has already checked the sixty feet, the Range and the twenty feet that tie
+   * them. Light 1 is the casting's own point and moves by `spell-origin-moved`.
+   */
+  | {
+      readonly type: 'spell-copies-moved';
+      readonly castingId: string;
+      readonly copies: readonly Point[];
+    }
   | {
       readonly type: 'spell-origin-moved';
       readonly castingId: string;
