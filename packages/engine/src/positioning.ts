@@ -1021,6 +1021,41 @@ function choosePoint(
 }
 
 /**
+ * The lattice point a placement names, for a thing that is not a creature —
+ * SRD Fireball's "a point you choose within range", stated as "sixty feet
+ * east of the hero".
+ *
+ * **The same arithmetic a creature's destination is**, so the two cannot
+ * disagree: the anchor through {@link resolveAnchor}, the offset through
+ * `project`, the room's edges through `within` — what {@link choosePoint}
+ * does for a named bearing, less the one question only a body asks, whether
+ * somebody is already standing there. A point is not a body, and a Fireball
+ * centred on the goblin is the commonest one there is.
+ *
+ * **The bearing is required past zero feet.** A creature with no bearing is
+ * swept into the first space it fits; a point has no fit to find, so a sweep
+ * would be the engine choosing which way the spell went. The caller asks for
+ * one before this is reached; a pure helper reached without one refuses,
+ * because there is nothing here to sweep for.
+ */
+export function pointFromPlacement(state: PositionState, placement: Placement): Result<Point> {
+  const { feet } = placement;
+  if (!Number.isFinite(feet) || feet < 0) {
+    return err('bad_distance', `${feet} is not a distance`);
+  }
+  const from = resolveAnchor(state, placement.from);
+  if (!from.ok) return from;
+  if (placement.bearing === undefined && feet > 0) {
+    return err('no_bearing', `a point ${feet} feet from there could lie in any direction; it needs a bearing`);
+  }
+  const at = project(from.value, feet, placement.bearing ?? 0, placement.elevation ?? 0);
+  if (!within(state.extent, at)) {
+    return err('outside_scene', `there is no room ${feet} feet from there inside this scene`);
+  }
+  return ok(at);
+}
+
+/**
  * Place a creature that has no position yet.
  *
  * Maestro is expected to call this freely — a creature walking into the scene

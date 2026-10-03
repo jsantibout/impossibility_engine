@@ -37,6 +37,7 @@ import {
   distanceBetween,
   distanceToPoint,
   isInsideScene,
+  pointFromPlacement,
   type Placement,
   type Point,
   type PointAnchoring,
@@ -74,7 +75,7 @@ import {
 import { type SlotlessReason } from '../spells.js';
 import { type ConcentrationConsequence } from './casting.js';
 import { type CastingResolution } from './casting-options.js';
-import { creatureOf, unknownCreature } from './command.js';
+import { anchorNeeded, creatureOf, sceneFor, unknownCreature } from './command.js';
 import { dyingProblem, walkingBodyProblem } from './spell-effect-creatures.js';
 
 /** What happened to one target of one casting. */
@@ -300,6 +301,23 @@ export interface CastSpellRequest extends CommandIdentity {
    * somewhere else.
    */
   readonly at?: Point;
+  /**
+   * {@link at}, stated the way a creature's destination is: so many feet on a
+   * bearing from a creature or a landmark (E-AIM).
+   *
+   * Nothing a caller reads reports a coordinate, so a point in feet from the
+   * walls was a point a model could only guess — and a guessed Fireball can
+   * land at its caster's feet. `resolveSpell` resolves this once, at the
+   * casting, through `pointFromPlacement`, which is the arithmetic a move's
+   * destination uses; from then on the casting holds the point and never the
+   * placement, so replaying it never asks where the anchor stood.
+   *
+   * A bearing is required past zero feet and asked for when missing
+   * (`no_bearing`), because sweeping for one would be the engine choosing
+   * which way the spell went. Stated beside {@link at} it is refused
+   * (`at_twice`): two answers to one question.
+   */
+  readonly atPlacement?: Placement;
   /**
    * Which way a Cone, Cube or Line points.
    *
@@ -1198,6 +1216,40 @@ export interface AreaRequest {
  * target has been picked: the whole point of it is to say who could be.
  */
 export type AreaPlacement = Omit<AreaRequest, 'targets'>;
+
+/**
+ * {@link AreaPlacement} with the point allowed to arrive the way a casting's
+ * may — as a placement (E-AIM). What {@link eligibleTargets} takes, so the
+ * question "who would this catch" is asked with exactly the arguments the
+ * casting will be sent with.
+ */
+export type AreaAim = AreaPlacement & { readonly atPlacement?: Placement };
+
+/**
+ * The point a spell's placement names, for the casting and for the shortlist
+ * alike (E-AIM) — one reading, so "who would this catch" and "who did this
+ * catch" cannot measure from two different places.
+ *
+ * `pointFromPlacement`'s arithmetic, with the refusals a command owes on top:
+ * a scene is asked for, an anchor nobody has declared or placed is asked for,
+ * an anchor that is no creature at all is refused (`anchorNeeded`), and a
+ * missing bearing comes back as a bare `no_bearing` request — **bare**, because
+ * which field answers it is the door's to say, and each caller attaches its
+ * own.
+ */
+export function pointAimedAt(
+  state: GameState,
+  casterId: CharacterId,
+  name: string,
+  placement: Placement,
+): Result<Point> {
+  const scene = sceneFor(state, casterId, `${name}'s point to be measured in`);
+  if (!scene.ok) return scene;
+  const point = pointFromPlacement(scene.value, placement);
+  if (point.ok) return point;
+  if (point.code === 'no_bearing') return needsContext('no_bearing', `${name}'s point: ${point.reason}`);
+  return anchorNeeded(state, point, placement.from, `${name}'s point is measured from it`);
+}
 
 /**
  * Where a spell's area sits and what shape it is.
@@ -3101,7 +3153,7 @@ export function eligibleTargets(
   casterId: CharacterId,
   spellId: string,
   slotLevel: number,
-  placement?: AreaPlacement,
+  aim?: AreaAim,
 ): EligibleTargets {
   const definition = content.spell(spellId);
   const caster = creatureOf(state, casterId);
@@ -3114,7 +3166,36 @@ export function eligibleTargets(
   // shortlist below — whom the caster can reach and see — rather than whoever
   // happens to stand in the one space the phantasm takes. (W7-S21)
   if (definition.area !== undefined && !areaStandsApart(definition.area)) {
-    return areaShortlist(state, casterId, definition, definition.area, placement);
+    // **The point the casting would be sent with, read the way the casting
+    // reads it** (E-AIM): a placement resolves through `pointAimedAt`, so the
+    // catch a caller is shown before a Shatter is the catch the Shatter takes
+    // — its own caster included, where the sphere reaches back to them.
+    const { atPlacement, ...placement } = aim ?? {};
+    if (atPlacement === undefined) {
+      return areaShortlist(state, casterId, definition, definition.area, placement);
+    }
+    const point =
+      placement.at !== undefined
+        ? err('at_twice', `${definition.name} was given a point and a placement for that point; give one`)
+        : pointAimedAt(state, casterId, definition.name, atPlacement);
+    if (!point.ok) {
+      return {
+        eligible: [],
+        excluded: [],
+        needsContext:
+          point.requests ??
+          [
+            {
+              kind: 'route',
+              subject: casterId,
+              need: point.reason,
+              because: `${definition.name} catches whoever is standing in its area, so who is on the list turns on where the area is laid`,
+              satisfyWith: 'eligibleTargets again with `atPlacement` stated as the casting would state it — an anchor that is in the scene, and a bearing past zero feet',
+            },
+          ],
+      };
+    }
+    return areaShortlist(state, casterId, definition, definition.area, { ...placement, at: point.value });
   }
 
   const eligible: CharacterId[] = [];

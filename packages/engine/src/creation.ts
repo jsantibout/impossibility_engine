@@ -3355,6 +3355,14 @@ function gatherProficiencies(
 
   for (const skill of parts.background.skillProficiencies) add(skill, parts.background.name, 'backgroundId');
   add(parts.background.toolProficiency, parts.background.name, 'backgroundId');
+  // The tools a class grants outright: the starting class's in full, and each
+  // later class's "As a Multiclass Character" list — SRD Rogue's Thieves'
+  // Tools either way. (E-AIM)
+  for (const tool of parts.definition.toolProficiencies ?? []) add(tool, parts.definition.name, 'classId');
+  for (const entry of choices.multiclass ?? []) {
+    const other = content.classById(entry.classId);
+    for (const tool of other?.multiclass.tools ?? []) add(tool, other!.name, 'multiclass');
+  }
   for (const skill of choices.classSkills) add(skill, parts.definition.name, 'classSkills');
 
   // Any feature that asks the player to choose a skill grants proficiency in
@@ -4526,6 +4534,12 @@ export function planCharacter(
     level: totalLevelOf(choices),
     abilities: scores,
     skills,
+    // What a check made with a tool reads (E-AIM). Proficiency only: no SRD
+    // feature grants Expertise with a tool, and the field takes it where
+    // content one day does. Absent where there are none.
+    ...(tools.length === 0
+      ? {}
+      : { tools: Object.fromEntries(tools.map((tool) => [tool, 'proficient' as const])) }),
     // SRD gives no saving throw proficiencies for a class after the first —
     // but a *feature* may add some, and two do: Slippery Mind names Wisdom and
     // Charisma, Disciplined Survivor names all six. Union, never a count:

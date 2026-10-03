@@ -4182,15 +4182,18 @@ export function standingCheckBonuses(
   state: GameState,
   who: CharacterId,
   skill: Skill,
+  /** The check already adds the Proficiency Bonus another way — a tool. (E-AIM) */
+  usesProficiency = false,
 ): readonly Bonus[] {
   const best = new Map<string, Bonus>();
 
   for (const { from, effect } of standingFor(state, who)) {
     // SRD Jack of All Trades: half the holder's own Proficiency Bonus, on a
-    // check made with a skill the holder is **not** proficient in.
+    // check made with a skill the holder is **not** proficient in "and that
+    // doesn't otherwise use your Proficiency Bonus".
     if (effect.grant.kind === 'half-proficiency-on-checks') {
       const holder = state.creatures[from];
-      if (holder === undefined || from !== who) continue;
+      if (holder === undefined || from !== who || usesProficiency) continue;
       const level = holder.sheet.skills[skill] ?? 'none';
       if (level !== 'none') continue;
       const flat = Math.floor(proficiencyBonus(sheetAsItStands(state, who) ?? holder.sheet) / 2);

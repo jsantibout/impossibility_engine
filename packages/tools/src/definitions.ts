@@ -284,6 +284,7 @@ import {
   sensesFields,
   sizeSchema,
   skillSchema,
+  spellPointPlacementSchema,
 } from './schemas.js';
 
 // — the shape of a definition —————————————————————————————————————————————
@@ -556,6 +557,20 @@ const placementOf = (
 });
 
 /**
+ * A spell's point as `cast_spell` and `eligible_targets` both take it: feet
+ * from the walls, or a placement from a creature or a landmark (E-AIM). One
+ * schema and one reader, so the shortlist is asked with exactly the arguments
+ * the casting will be sent with.
+ */
+const spellAtSchema = z.union([pointSchema.strict(), spellPointPlacementSchema]);
+
+/** {@link spellAtSchema} in the engine's vocabulary: a point, or a placement it resolves. */
+const spellAtOf = (
+  input: z.infer<typeof spellAtSchema> | undefined,
+): { at?: Point; atPlacement?: Placement } =>
+  input === undefined ? {} : 'feet' in input ? { atPlacement: placementOf(input) } : { at: point(input) };
+
+/**
  * A caller's mastery, in the engine's vocabulary.
  *
  * Three optional fields dropped when absent, for {@link choicesOf}'s reason:
@@ -731,31 +746,36 @@ const OPTIONS = tool({
 const ELIGIBLE_TARGETS = tool({
   name: 'eligible_targets',
   description:
-    'The shortlist of creatures a spell could legally be aimed at, with a reason for everyone left off it, and the facts that would have to be established before the rest could be judged. Free, and changes nothing. A shortlist, not a choice: you still name the target you meant.',
+    'The shortlist of creatures a spell could legally be aimed at, with a reason for everyone left off it, and the facts that would have to be established before the rest could be judged. Free, and changes nothing. A shortlist, not a choice: you still name the target you meant. For an area spell, send the `at` and the direction you would cast with, and `eligible` is exactly who the area would catch — measured the way the casting measures it, the caster included if they stand inside it.',
   mutates: false,
   input: z.object({
     caster: creatureId,
     spellId: z.string().min(1).describe('SRD spell id, e.g. hold-person.'),
     slotLevel: z.int().min(0).max(9).optional().describe('Slot level, if a levelled spell.'),
-    at: pointSchema
+    at: spellAtSchema
       .optional()
       .describe(
-        'Where an area spell would be centred. An area catches whoever is standing in it, so without this the answer for one is a request for the point rather than a list.',
+        'Where an area spell would be centred, in either of the forms `cast_spell.at` takes — a placement such as `{ "fromCreature": "hero", "feet": 30, "bearing": 90 }`, or feet from the walls. An area catches whoever is standing in it, so without this the answer for one is a request for the point rather than a list.',
       ),
     towards: pointSchema
       .optional()
       .describe('Point a Cone, Cube or Line at this exact spot, for an area spell that needs one.'),
+    towardsCreature: creatureId.optional().describe('Point a Cone, Cube or Line at this creature.'),
+    towardsLandmark: z.string().min(1).optional().describe('Point it at this landmark instead.'),
   }),
   run: (context, args) => {
+    const state = context.campaign.state();
+    const towards = towardsOf(state, args);
+    if (!towards.ok) return fromErr(towards, context.doorsFor);
     const shortlist = eligibleTargets(
-      context.campaign.state(),
+      state,
       context.campaign.content,
       who(args.caster),
       args.spellId,
       args.slotLevel ?? 0,
       {
-        ...(args.at === undefined ? {} : { at: point(args.at) }),
-        ...(args.towards === undefined ? {} : { towards: point(args.towards) }),
+        ...spellAtOf(args.at),
+        ...(towards.value === undefined ? {} : { towards: towards.value }),
       },
     );
     return okOutcome([], {
@@ -2894,7 +2914,11 @@ const CAST_SPELL = tool({
         'How to divide a casting that aims several rolls — Scorching Ray’s rays, Eldritch Blast’s beams, Magic Missile’s darts. Name every creature in `targets` exactly once, with a share each, adding up to exactly the rolls the casting makes; the engine says how many that is and refuses anything else. Leave it out and the rolls are dealt round the creatures you named, one each and round again for the rest. This is a targeting decision and never a result: the engine still rolls every one of them, and an attack hits, misses and crits on its own while a dart simply lands.',
       ),
     slotLevel: z.int().min(1).max(9).optional().describe('Which slot to spend. Omit for a cantrip.'),
-    at: pointSchema.optional().describe('Where an area spell is centred, for a spell that asks for a point.'),
+    at: spellAtSchema
+      .optional()
+      .describe(
+        'Where an area spell is centred, for a spell that asks for a point. Say it the way `move` says a destination — `{ "fromCreature": "hero", "feet": 30, "bearing": 0 }` is thirty feet north of the hero, and `fromLandmark` measures from a landmark — or as feet from the west and south walls, `{ "x": 40, "y": 30 }`.',
+      ),
     towards: pointSchema.optional().describe('Point a Cone, Cube or Line at this exact spot.'),
     path: z
       .array(pointSchema)
@@ -3135,7 +3159,9 @@ const CAST_SPELL = tool({
       ...(args.rollsAt === undefined
         ? {}
         : { rollsAt: args.rollsAt.map((aim) => ({ target: who(aim.target), count: aim.count })) }),
-      ...(args.at === undefined ? {} : { at: point(args.at) }),
+      // A point, or a placement the engine resolves to one at the casting —
+      // the same arithmetic a move's destination uses. (E-AIM)
+      ...spellAtOf(args.at),
       ...(args.path === undefined ? {} : { path: args.path.map(point) }),
       ...(towards.value === undefined ? {} : { towards: towards.value }),
       ...(args.anchoring === undefined ? {} : { anchoring: args.anchoring }),

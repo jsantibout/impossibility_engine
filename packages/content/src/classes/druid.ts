@@ -86,6 +86,8 @@ export const DRUID: ClassDefinition = {
     ],
   },
   weaponProficiencies: ['simple'],
+  // SRD Core Druid Traits: "Tool Proficiencies: Herbalism Kit".
+  toolProficiencies: ['Herbalism Kit'],
   armorTraining: { light: true, medium: false, heavy: false, shields: true },
   subclassLevel: 3,
   table: rows,

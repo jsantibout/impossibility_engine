@@ -226,7 +226,7 @@ export function placeCreatureInScene(
     // landmark one having joined the creature one when it stopped being a
     // verdict: see `anchorNeeded`.
     if (!placed.ok) {
-      return anchorNeeded(placed, placement.from, `${id} is being placed relative to it`);
+      return anchorNeeded(state, placed, placement.from, `${id} is being placed relative to it`);
     }
 
     return ok([

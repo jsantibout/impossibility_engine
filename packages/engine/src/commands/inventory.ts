@@ -1137,7 +1137,7 @@ export function dropItem(
       placement,
     );
     if (!lands.ok) {
-      return anchorNeeded(lands, placement.from, `${copy.id} is being put down relative to it`);
+      return anchorNeeded(state, lands, placement.from, `${copy.id} is being put down relative to it`);
     }
 
     // Everything keyed to this copy goes down with it. Only a copy that

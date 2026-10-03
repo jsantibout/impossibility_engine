@@ -193,8 +193,27 @@ export function sceneFor(
  * Anything else passes through untouched: an extent a pile does not fit
  * inside, a space already taken, a distance that is not one. Those are
  * verdicts, and re-sending them changes nothing.
+ *
+ * **And a creature the engine holds no record of is not unplaced** (E-AIM).
+ * Asking where it is standing asks for a placement the caller cannot make —
+ * `placeCreatureInScene` refuses a creature with no record — so the playtest's
+ * model, sprinting after a name the narration had used and nobody had added,
+ * was handed a question with no door. The anchor names something that is not
+ * in this game, which is a wrong fact rather than a missing one, and it is
+ * refused as such.
  */
-export function anchorNeeded<T>(refusal: Err, anchor: Anchor, because: string): Result<T> {
+export function anchorNeeded<T>(
+  state: GameState,
+  refusal: Err,
+  anchor: Anchor,
+  because: string,
+): Result<T> {
+  if (refusal.code === 'unplaced' && 'creature' in anchor && creatureOf(state, anchor.creature) === null) {
+    return err(
+      'unknown_creature',
+      `${anchor.creature} is not a creature in this game, so nothing can be measured from it; ${because}`,
+    );
+  }
   if (refusal.code === 'unknown_anchor' && 'landmark' in anchor) {
     return needsContext(refusal.code, refusal.reason, [
       {

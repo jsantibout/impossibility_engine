@@ -113,28 +113,62 @@ export const routeSchema = z
  * itself, for the one creature whose record pins nothing. See
  * {@link sizeSchema}.
  */
-export const placementSchema = z
-  .object({
-    fromLandmark: z.string().min(1).optional().describe('Landmark to measure from.'),
-    fromCreature: creatureId.optional().describe('Creature to measure from.'),
+const placementShape = {
+  fromLandmark: z.string().min(1).optional().describe('Landmark to measure from.'),
+  fromCreature: creatureId.optional().describe('Creature to measure from.'),
+  feet: z
+    .number()
+    .finite()
+    .nonnegative()
+    .describe('Feet from that landmark or creature where it ends up; not the distance moved.'),
+  bearing: z
+    .number()
+    .finite()
+    .optional()
+    .describe('Degrees clockwise from north. 0 is north, 90 is east. Swept for if omitted.'),
+  elevation: z.number().finite().optional().describe('Feet above the anchor, for a flier.'),
+};
+
+const oneAnchor = [
+  (value: { readonly fromLandmark?: string | undefined; readonly fromCreature?: string | undefined }) =>
+    (value.fromLandmark === undefined) !== (value.fromCreature === undefined),
+  { error: 'a placement needs exactly one of fromLandmark or fromCreature' },
+] as const;
+
+export const placementSchema = z.object(placementShape).refine(...oneAnchor);
+
+export type PlacementInput = z.infer<typeof placementSchema>;
+
+/**
+ * A spell's point, stated the way {@link placementSchema} states a creature's
+ * destination — the same five fields and the same one-anchor rule — with the
+ * two sentences that differ for a point (E-AIM).
+ *
+ * A creature's bearing is swept for, because "thirty feet from the door" has
+ * a first space a body fits in; a point's is not, because sweeping it would be
+ * the engine choosing which way a Fireball goes, so the engine asks for it
+ * past zero feet. And `feet` is where the point is, which is nobody's walk.
+ * Strict, so a point and a placement sent in one object are refused as the
+ * malformed call they are rather than one of them dropped in silence.
+ */
+export const spellPointPlacementSchema = z
+  .strictObject({
+    ...placementShape,
     feet: z
       .number()
       .finite()
       .nonnegative()
-      .describe('Feet from that landmark or creature where it ends up; not the distance moved.'),
+      .describe('Feet from that landmark or creature to the point.'),
     bearing: z
       .number()
       .finite()
       .optional()
-      .describe('Degrees clockwise from north. 0 is north, 90 is east. Swept for if omitted.'),
-    elevation: z.number().finite().optional().describe('Feet above the anchor, for a flier.'),
+      .describe(
+        'Degrees clockwise from north. 0 is north, 90 is east. Needed whenever `feet` is more than 0; left out, the casting is asked for it.',
+      ),
+    elevation: z.number().finite().optional().describe('Feet above the anchor, for a point in the air.'),
   })
-  .refine(
-    (value) => (value.fromLandmark === undefined) !== (value.fromCreature === undefined),
-    { error: 'a placement needs exactly one of fromLandmark or fromCreature' },
-  );
-
-export type PlacementInput = z.infer<typeof placementSchema>;
+  .refine(...oneAnchor);
 
 /**
  * What the attempt leans on, for the two conditions that read it.

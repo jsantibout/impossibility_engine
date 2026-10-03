@@ -412,10 +412,17 @@ describe('toolSchemas', () => {
     // somebody else's (naming no tool the player's door lacks), the second the
     // 1d4-hour wake the engine now throws. 132 → 133 tools on
     // the DM's door; +10 bytes on the player's and +1,872 on the DM's.
+    // And for E-AIM: `cast_spell.at` takes a placement beside the raw point —
+    // an `anyOf` of the strict point and `spellPointPlacementSchema`, whose
+    // bearing is asked for rather than swept — on both doors, +929 bytes each;
+    // `eligible_targets` takes the same `at` and the same three directions, so
+    // the catch can be read before the cast with the arguments the cast will
+    // carry, +1,253 each; and `ability_check.tool` on the DM's alone, +509. No
+    // tool added: +2,182 on the player's door and +2,691 on the DM's.
     expect(toolSchemas(player())).toHaveLength(100);
     expect(toolSchemas(dm())).toHaveLength(133);
-    expect(JSON.stringify(toolSchemas(player())).length).toBe(165371);
-    expect(JSON.stringify(toolSchemas(dm())).length).toBe(224567);
+    expect(JSON.stringify(toolSchemas(player())).length).toBe(167553);
+    expect(JSON.stringify(toolSchemas(dm())).length).toBe(227258);
   });
 });
 

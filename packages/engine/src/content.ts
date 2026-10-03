@@ -6486,6 +6486,9 @@ export function parseClassDefinition(value: unknown): Result<ClassDefinition> {
     saveProficiencies: s.strings(value, 'saveProficiencies') as ClassDefinition['saveProficiencies'],
     skillChoices: from === undefined ? { choose } : { choose, from: from as NonNullable<ClassDefinition['skillChoices']['from']> },
     weaponProficiencies: s.strings(value, 'weaponProficiencies'),
+    ...(value['toolProficiencies'] === undefined
+      ? {}
+      : { toolProficiencies: s.strings(value, 'toolProficiencies') }),
     armorTraining: parseArmorTraining(s.object(value, 'armorTraining'), where, problems),
     subclassLevel: s.int(value, 'subclassLevel'),
     table,
