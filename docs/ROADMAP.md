@@ -3428,3 +3428,30 @@ Appended 2026-10-03 — Infinite Realms batch I-2, four live playtest rounds:
 - **I-2's criteria:** a reload survives (file store, proven byte for byte); a
   level-up through the app (done, live); a redeploy waits on Supabase keys; the
   P0-T3 session through the app's adapter is not yet run.
+
+Appended 2026-10-03 — the last level-5 spells, and the party in the app:
+
+- **Spells in reach, not executed: 0** (engine `c722a64d`). E-L3 (creatures
+  and lasting magic), E-L2 (areas, walls, light and weather) and E-L1
+  (counter, target and choose) built what the W8-S26 readings filed, on the
+  owner's rulings of 2026-10-03 (Wind Wall clears its own strip; Gust once
+  when first hit; Plant Growth only where plants grow; Sanctuary at the
+  book's cost; metal marked in data, contact the DM's word; Shield built
+  now). The coordinator closed Wind Wall: the projectile table decides every
+  printed ranged line — a Frost Giant's Great Bow and a Solar's returning
+  Flying Sword ordinary, a Treant's Hail of Bark not — and small flying
+  objects and loose material go to `dmDecides` in the book's words. Features
+  in reach: 0. **Criterion 1 is now the bestiary alone**: 28 lines on 26
+  CR ≤ 5 blocks wait on a shape, and 8 handed-over lines match none
+  (`LEDGER.md` §5).
+- **Infinite Realms, the party** (app `d5aa219`, carried to E-L1 at
+  `37143f0`): recruits asked in words join as engine characters from the
+  pregen builds, played by a deterministic planner; one shared pack and
+  purse; one award levels the whole party and the player picks each
+  companion's options (or "Choose for me"); permadeath; when the player
+  character dies with a companion standing the player plays on as them, and
+  the story ends only when nobody stands. Foes are capped at two per party
+  member; a lone declared boss may reach the party's High budget.
+- **Still open:** round six's Watchtower never recruited its second ally;
+  the P0-T3 session through the app (criteria 3 and 4); Supabase when the
+  keys come.
