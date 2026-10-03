@@ -6489,6 +6489,21 @@ export interface SpellDefinition {
    */
   readonly untilDispelledAtSlot?: number;
   /**
+   * A duration **earlier castings lengthen** — SRD Arcanist's Magic Aura: "If
+   * you cast the spell on the same target every day for 30 days, the illusion
+   * lasts until dispelled."
+   *
+   * Each casting pins the moment its unbroken run began
+   * (`OngoingSpell.dailySince`): a casting by the same caster on the same
+   * target while that caster's previous one still runs carries the run on, and
+   * any other starts one. A day is each twenty-four hours from the run's start
+   * — the engine keeps a clock and no calendar — so a casting made on the run's
+   * last day (`days`) lasts until dispelled, and two castings on one day are one
+   * day. The third ending a casting's own history may give it, beside a slot's
+   * {@link untilDispelledAtSlot}; read by the casting and nothing else.
+   */
+  readonly untilDispelledAfterDays?: number;
+  /**
    * The spell offers its caster, **at the casting**, an ending the book
    * otherwise gives them none of.
    *

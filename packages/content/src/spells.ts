@@ -10213,6 +10213,13 @@ export const AID: SpellDefinition = {
  * The chosen type is `choiceStated`, because the book says *choose*, and the
  * engine refuses the one choice the book forbids: the type the creature
  * already is.
+ *
+ * **And thirty days make it permanent** — "If you cast the spell on the same
+ * target every day for 30 days, the illusion lasts until dispelled."
+ * `untilDispelledAfterDays`: each casting carries on the run of the caster's
+ * own casting still running on the target, and the casting made on the run's
+ * thirtieth day lasts until dispelled. The engine keeps a clock and no
+ * calendar, so a day is each twenty-four hours from the run's start.
  */
 export const ARCANISTS_MAGIC_AURA: SpellDefinition = {
   id: 'arcanists-magic-aura',
@@ -10230,15 +10237,17 @@ export const ARCANISTS_MAGIC_AURA: SpellDefinition = {
   effects: [{ kind: 'creature-type-override', creatureType: 'Humanoid' }],
   choiceStated: { of: 'creature-type', options: [...CREATURE_TYPES] },
   durationSeconds: 86_400,
+  // "If you cast the spell on the same target every day for 30 days, the
+  // illusion lasts until dispelled." Each casting carries on the run of the
+  // caster's own casting still running on the target; the one made on the
+  // run's thirtieth day lasts until dispelled.
+  untilDispelledAfterDays: 30,
   // The False Aura, in the book's words (W8-S26): what an object's aura looks
   // like to a Detect Magic that itself resolves nothing is narration twice
   // over, and nothing reads it.
   dmDecides: [
     '_False Aura (Object)._ You change the way the target appears to spells and magical effects that detect magical auras, such as _Detect Magic_.',
     "You can make a nonmagical object appear magical, make a magic item appear nonmagical, or change the object's aura so that it appears to belong to a school of magic you choose.",
-  ],
-  unmodelled: [
-    'the thirty consecutive daily castings that make the illusion last until dispelled are not counted: the Mask ends on its day whatever went before, and a creature type an effect reads every casting is what that permanence would keep',
   ],
 };
 

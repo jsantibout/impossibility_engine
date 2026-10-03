@@ -2719,8 +2719,13 @@ function resolveOnTargets(
    */
   let storedRecord: StoredCasting | undefined;
 
+  // SRD Arcanist's Magic Aura's thirty days — read off the castings running
+  // before this one, on the state as it stood. See `dailyRunOf`.
+  const daily = dailyRunOf(state, casterId, definition, targets);
+
   const ongoingWith = (): OngoingRecordPlan => ({
     spellId: definition.id,
+    ...(daily === undefined ? {} : { dailySince: daily.since }),
     ...(storedRecord === undefined ? {} : { stored: storedRecord }),
     // **What this casting turns aside**, where the definition says its benefit
     // does. SRD *Shield*'s "you take no damage from *Magic Missile*" is the
@@ -3306,7 +3311,9 @@ function resolveOnTargets(
       // casting writes no duration at all and `schedule` is never reached.
       // Read through `untilDispelledAt`, beside the `concentrationAt` five
       // lines above that reads the other half of the same sentence.
-      ...(untilDispelledAt(definition, castLevel)
+      // **And a run of castings may take it away too** — SRD Arcanist's Magic
+      // Aura cast on the run's thirtieth day. See `dailyRunOf`.
+      ...(untilDispelledAt(definition, castLevel) || daily?.forGood === true
         ? {}
         : definition.durationSeconds !== undefined
         ? {
@@ -4257,6 +4264,9 @@ export function resolveEffects(
         // And the moment the body began being kept — see
         // `OngoingSpell.preserving`, which `revive` is the one reader of.
         ...(becomes.preserving === undefined ? {} : { preserving: becomes.preserving }),
+        // And where it stands in a run of daily castings — SRD Arcanist's
+        // Magic Aura. See `OngoingSpell.dailySince`.
+        ...(becomes.dailySince === undefined ? {} : { dailySince: becomes.dailySince }),
         // And the two endings that are exceptions to the free dismissal — see
         // `OngoingSpell.endsAfterTrigger` and `OngoingSpell.dismissibleBy`.
         ...(becomes.endsAfterTrigger === undefined
@@ -4955,6 +4965,39 @@ interface OngoingRecordPlan {
   readonly inAStorm?: true;
   /** The one creature the cast singled out — see `OngoingSpell.singledOut`. */
   readonly singledOut?: string;
+  /** When this casting's run of daily castings began — see `OngoingSpell.dailySince`. */
+  readonly dailySince?: number;
+}
+
+/** Twenty-four hours: a day of SRD Arcanist's Magic Aura's run, on a clock with no calendar. */
+const DAY_SECONDS = 86_400;
+
+/**
+ * Where this casting stands in a run of daily castings, for a spell that
+ * prints one — SRD Arcanist's Magic Aura: "If you cast the spell on the same
+ * target every day for 30 days, the illusion lasts until dispelled."
+ *
+ * The run is carried on from this caster's own casting of the spell that is
+ * still running on the same target — the Mask lasts a day, so a run is never
+ * letting it lapse — and starts now where there is none. A day is each
+ * twenty-four hours from the run's start, so the casting made on the run's
+ * last day lasts until dispelled, and two castings on one day are one day.
+ * Undefined for every spell that prints no run.
+ */
+function dailyRunOf(
+  state: GameState,
+  casterId: CharacterId,
+  definition: SpellDefinition,
+  targets: readonly CharacterId[],
+): { readonly since: number; readonly forGood: boolean } | undefined {
+  const days = definition.untilDispelledAfterDays;
+  if (days === undefined) return undefined;
+  const carried = targets
+    .flatMap((target) => ongoingSpellsOn(state, target))
+    .filter((record) => record.caster === casterId && record.spellId === definition.id)
+    .flatMap((record) => (record.dailySince === undefined ? [] : [record.dailySince]));
+  const since = carried.length === 0 ? state.elapsed : Math.min(...carried);
+  return { since, forGood: state.elapsed - since >= (days - 1) * DAY_SECONDS };
 }
 
 /**

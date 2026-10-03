@@ -8107,6 +8107,25 @@ export function checkSpellDefinition(
   // that already runs until dispelled has no deadline for a higher slot to
   // take, and an Instantaneous one leaves no casting for a higher slot to
   // leave running.
+  // SRD Arcanist's Magic Aura's thirty days: a run of whole days long enough
+  // for a casting to carry on, over a span of seconds the run lengthens.
+  if (definition.untilDispelledAfterDays !== undefined) {
+    const days = definition.untilDispelledAfterDays;
+    if (!Number.isInteger(days) || days < 2) {
+      found.push({
+        field: 'untilDispelledAfterDays',
+        code: 'bad_daily_run',
+        reason: `a run of daily castings is a whole number of days, at least two; got ${String(days)}`,
+      });
+    }
+    if (definition.durationSeconds === undefined || definition.untilDispelled === true) {
+      found.push({
+        field: 'untilDispelledAfterDays',
+        code: 'bad_daily_run',
+        reason: 'a run of daily castings lengthens a span of seconds; this spell prints none for it to lengthen',
+      });
+    }
+  }
   if (definition.untilDispelledAtSlot !== undefined) {
     const from = definition.untilDispelledAtSlot;
     if (!Number.isInteger(from) || from < 1 || from > 9) {
