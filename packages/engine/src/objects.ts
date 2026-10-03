@@ -242,10 +242,19 @@ export function objectSheet(
  * on an earlier turn answers nothing, so a later Bonus Action asks again
  * rather than burning a hand that has since let go. Null where nobody has
  * said, or said it at another moment; an empty list is an answer.
+ *
+ * `item` asks about a thing `object` wears or wields rather than about a
+ * declared object, and a statement answers only the question it was made
+ * about: one about the knight's shield says nothing of his breastplate.
  */
-export function contactNow(state: GameState, object: CharacterId): readonly CharacterId[] | null {
+export function contactNow(
+  state: GameState,
+  object: CharacterId,
+  item?: string,
+): readonly CharacterId[] | null {
   const said = state.creatures[object]?.contact ?? null;
   if (said === null) return null;
+  if (said.item !== item) return null;
   if (said.turn !== (state.combat?.turnsTaken ?? null)) return null;
   if (said.elapsed !== state.elapsed) return null;
   return said.creatures;

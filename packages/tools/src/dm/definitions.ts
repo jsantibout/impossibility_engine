@@ -1806,18 +1806,29 @@ const DECLARE_BONES = tool({
  * is made on, so a later Bonus Action that heats the gate again asks again;
  * keyed by the object rather than by a casting, because the first question
  * comes before any casting exists.
+ *
+ * **And a second hand on a thing a creature wears or wields**: `item` names
+ * it and `object` is then its holder — the coordinator applying the owner's
+ * "the DM states contact" ruling to equipped items (2026-10-03).
  */
 const DECLARE_CONTACT = tool({
   name: 'declare_contact',
   description:
-    'Say which creatures are touching a declared object right now — a hand on the iron gate, a body pressed against the portcullis. Heat Metal cast at a declared object burns every creature you name here and nobody else, and asks you when nobody has said it this turn; name nobody to say nobody is. It holds for this turn only: say it again when a later turn heats the thing again. The object must be one declared with `declare_object`; a creature’s own weapon or armour is touched by whoever wears or wields it, which the engine already knows.',
+    'Say which creatures are touching a declared object right now — a hand on the iron gate, a body pressed against the portcullis. Heat Metal cast at a declared object burns every creature you name here and nobody else, and asks you when nobody has said it this turn; name nobody to say nobody is. It holds for this turn only: say it again when a later turn heats the thing again. The object must be one declared with `declare_object`. For a weapon or armour a creature wears or wields, name that creature as `object` and the thing as `item`, and list the **other** creatures touching it — a grappler’s hand on the knight’s breastplate: Heat Metal burns them beside the wearer, who touches it already. Left unsaid, the wearer alone touches it.',
   mutates: true,
   establishes: ['scene'],
   input: z.strictObject({
-    object: creatureId.describe('The declared object, by its id from `declare_object`.'),
+    object: creatureId.describe(
+      'The declared object, by its id from `declare_object` — or, with `item`, the creature wearing or wielding the thing.',
+    ),
+    item: z
+      .string()
+      .min(1)
+      .optional()
+      .describe('The weapon or armour `object` wears or wields, by item id, when the statement is about one.'),
     creatures: z
       .array(creatureId)
-      .describe('Every creature touching it now. An empty list says nobody is.'),
+      .describe('Every creature touching it now — besides its wearer, for an `item`. An empty list says nobody is.'),
   }),
   run: (context, args) =>
     settleEvents(
@@ -1826,9 +1837,13 @@ const DECLARE_CONTACT = tool({
         context.campaign.state(),
         who(args.object),
         args.creatures.map((one) => who(one)),
-        identity(context),
+        { ...identity(context), ...(args.item === undefined ? {} : { item: args.item }) },
       ),
-      { declared: args.object, creatures: [...new Set(args.creatures)].sort() },
+      {
+        declared: args.object,
+        ...(args.item === undefined ? {} : { item: args.item }),
+        creatures: [...new Set(args.creatures)].filter((one) => args.item === undefined || one !== args.object).sort(),
+      },
     ),
 });
 

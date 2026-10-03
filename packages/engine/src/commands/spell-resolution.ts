@@ -5544,15 +5544,9 @@ export function runEffects(
     // reaches nobody, because nobody holds what lies in the room. The
     // statement was asked for before this ran (`contactProblem`), so an
     // absent one here is a caller that skipped the question.
-    const touched =
-      origin.kind === 'casting' &&
-      origin.definition.targets.inContact === true &&
-      current.creatures[target]?.creatureType === OBJECT_CREATURE_TYPE;
-    if (touched) {
-      const touchers = contactNow(current, target);
-      if (touchers === null) {
-        throw new Error(`${name} reached ${target} with nobody's contact stated; contactProblem was not asked`);
-      }
+    const inContact = origin.kind === 'casting' && origin.definition.targets.inContact === true;
+    /** The list, less what is about holding the thing, on each other hand on it. */
+    const burnTouchers = (touchers: readonly CharacterId[]): Result<true> => {
       const reaching = list.filter((effect) => outcomeRidersOf(effect).drops === undefined);
       for (const toucher of touchers) {
         const by: EffectContext = { ...ctx, targets: [toucher] };
@@ -5564,7 +5558,30 @@ export function runEffects(
           current = done.value;
         }
       }
+      return ok(true);
+    };
+    if (inContact && current.creatures[target]?.creatureType === OBJECT_CREATURE_TYPE) {
+      const touchers = contactNow(current, target);
+      if (touchers === null) {
+        throw new Error(`${name} reached ${target} with nobody's contact stated; contactProblem was not asked`);
+      }
+      const burnt = burnTouchers(touchers);
+      if (!burnt.ok) return burnt;
       continue;
+    }
+
+    // **And the other hands on a thing this creature wears or wields** — a
+    // hand on the knight's heated breastplate, which the DM states through
+    // `declareContact` with the item (the coordinator applying the owner's
+    // "the DM states contact" ruling, 2026-10-03). Burned with the holder and
+    // before the holder's save, because the damage is one moment and the
+    // letting go follows it. Unstated, the holder alone touches it.
+    if (inContact && run.object !== undefined) {
+      const others = (contactNow(current, target, run.object) ?? []).filter(
+        (who) => who !== target && !targets.includes(who),
+      );
+      const burnt = burnTouchers(others);
+      if (!burnt.ok) return burnt;
     }
 
     for (const effect of list) {

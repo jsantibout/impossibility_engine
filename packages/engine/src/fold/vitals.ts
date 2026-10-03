@@ -435,6 +435,7 @@ function reduceVitals({ state, next }: Applying, event: VitalsEvent): GameState 
             creatures: event.creatures,
             turn: state.combat?.turnsTaken ?? null,
             elapsed: state.elapsed,
+            ...(event.item === undefined ? {} : { item: event.item }),
           },
         },
         object,

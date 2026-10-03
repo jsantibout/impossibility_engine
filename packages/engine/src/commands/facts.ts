@@ -181,6 +181,11 @@ export function declareFalling(
   });
 }
 
+export interface ContactCommand extends CommandIdentity {
+  /** The thing `on` wears or wields, by catalogue id, where the statement is about one. */
+  readonly item?: string;
+}
+
 /**
  * Say who is touching a declared object, now. (E-L1)
  *
@@ -196,38 +201,71 @@ export function declareFalling(
  * contradiction. An empty list is an answer — nobody is touching it — and a
  * casting at the object then burns nobody.
  *
- * Refused: a thing that is not a declared object (a creature's own armour is
- * touched by its wearer, which the engine already reads off what is
- * equipped), and an object named as one of the creatures touching it, because
- * the sentence is about creatures. The list is written sorted and once each.
+ * **Or who else is touching a thing a creature wears or wields** — a hand on
+ * the knight's heated breastplate. The holder touches it already and the
+ * engine reads that off what is equipped; `ContactCommand.item` names the
+ * thing, `on` is then its holder, and the creatures named are the other hands
+ * on it (the coordinator applying the owner's "the DM states contact" ruling,
+ * 2026-10-03). The holder named among them is dropped, being in contact by
+ * the rule rather than by the statement. Unstated, the holder alone touches
+ * it, as before.
+ *
+ * Refused: a creature with no item named (its gear is touched by whoever
+ * wears or wields it, and a statement is about one thing), an item the holder
+ * does not wear or wield, an item named on a declared object, and an object
+ * named as one of the creatures touching, because the sentence is about
+ * creatures. The list is written sorted and once each.
  */
 export function declareContact(
   state: GameState,
-  object: CharacterId,
+  on: CharacterId,
   creatures: readonly CharacterId[],
-  command: CommandIdentity = {},
+  command: ContactCommand = {},
 ): Result<GameEvent[]> {
-  const named = [...new Set(creatures)].sort();
-  return once(state, `declare-contact:${object}`, { ...command, creatures: named }, () => [], (stamp) => {
-    const thing = creatureOf(state, object);
-    if (thing === null) return unknownCreature(object);
-    if (thing.creatureType !== OBJECT_CREATURE_TYPE) {
-      return err(
-        'not_an_object',
-        `${object} is not a declared object; what touches a creature's own gear is what it is wearing or wielding`,
-      );
-    }
-    for (const who of named) {
-      const toucher = creatureOf(state, who);
-      if (toucher === null) return unknownCreature(who);
-      if (toucher.creatureType === OBJECT_CREATURE_TYPE) {
-        return err('not_a_creature', `${who} is an object, and the sentence is about creatures in contact`);
+  const { item, ...identity } = command;
+  const named = [...new Set(creatures)].filter((who) => item === undefined || who !== on).sort();
+  return once(
+    state,
+    `declare-contact:${on}`,
+    { ...identity, creatures: named, ...(item === undefined ? {} : { item }) },
+    () => [],
+    (stamp) => {
+      const thing = creatureOf(state, on);
+      if (thing === null) return unknownCreature(on);
+      const isObject = thing.creatureType === OBJECT_CREATURE_TYPE;
+      if (item === undefined && !isObject) {
+        return err(
+          'not_an_object',
+          `${on} is not a declared object; name the thing ${on} wears or wields to say who else is touching it`,
+        );
       }
-    }
-    return ok([
-      { type: 'contact-declared', object, creatures: named, ...(stamp === null ? {} : { command: stamp }) },
-    ]);
-  });
+      if (item !== undefined && isObject) {
+        return err(
+          'object_holds_nothing',
+          `${on} is a declared object and wears or wields nothing; say who is touching it with no item named`,
+        );
+      }
+      if (item !== undefined && !thing.equipped.some((worn) => worn.id === item)) {
+        return err('not_equipped', `${on} is not wearing or wielding ${item}`);
+      }
+      for (const who of named) {
+        const toucher = creatureOf(state, who);
+        if (toucher === null) return unknownCreature(who);
+        if (toucher.creatureType === OBJECT_CREATURE_TYPE) {
+          return err('not_a_creature', `${who} is an object, and the sentence is about creatures in contact`);
+        }
+      }
+      return ok([
+        {
+          type: 'contact-declared',
+          object: on,
+          creatures: named,
+          ...(item === undefined ? {} : { item }),
+          ...(stamp === null ? {} : { command: stamp }),
+        },
+      ]);
+    },
+  );
 }
 
 export interface DifficultTerrainCommand extends CommandIdentity {

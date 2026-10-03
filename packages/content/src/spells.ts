@@ -11243,6 +11243,11 @@ export const SHAPECHANGE: SpellDefinition = {
  * gate into the burn on each creature named, and the Constitution save stays
  * with the holder: nobody holds a gate, so nobody is asked to drop it.
  *
+ * **And a second hand on a thing somebody wears or wields** is the DM's to
+ * state through the same door, by the holder and the item — the coordinator
+ * applying the owner's ruling, 2026-10-03. Those named take the burn beside
+ * the wearer and no save; unstated, the wearer alone touches it.
+ *
  * **"Manufactured metal" is a mark in the data** (`targets.metal`): every SRD
  * weapon and armour row says whether it is metal, read off the SRD's own
  * crafting tools (`items.ts`), and every substance in the Object Armor Class
@@ -11335,9 +11340,6 @@ export const HEAT_METAL: SpellDefinition = {
     effects: [HEAT_METAL_BURN, HEAT_METAL_GRIP],
   },
   durationSeconds: 60,
-  unmodelled: [
-    'a second creature in physical contact with a thing somebody else is wearing or wielding — a hand on the heated breastplate — is not burned: the contact the DM states is with a declared object, and an equipped item’s contact is its holder alone',
-  ],
 };
 
 /**

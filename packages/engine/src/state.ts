@@ -1567,6 +1567,11 @@ export interface ContactMoment {
   readonly creatures: readonly CharacterId[];
   readonly turn: number | null;
   readonly elapsed: number;
+  /**
+   * The thing this creature wears or wields that the statement is about, where
+   * it is about one rather than about a declared object. Absent on an object.
+   */
+  readonly item?: string;
 }
 
 /**

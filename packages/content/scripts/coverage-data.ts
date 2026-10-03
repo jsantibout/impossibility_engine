@@ -398,7 +398,9 @@ export const VERIFIED_SPELLS: readonly string[] = [
   // `heat-metal-contact.test.ts` (E-L1): a club and a wooden door refused as
   // not metal, a Shield cast at with its material unsaid, an iron gate asking
   // who is touching it, burning everybody the DM named and nobody else with
-  // no save to drop it, and asking again on a later turn.
+  // no save to drop it, and asking again on a later turn; and a second hand
+  // the DM names on the knight's breastplate burned beside him, and nobody
+  // named on another thing.
   'heat-metal',
   'heroism',
   // `later-blows.test.ts` (engine): the 1d6 Necrotic on a mace swing and on a

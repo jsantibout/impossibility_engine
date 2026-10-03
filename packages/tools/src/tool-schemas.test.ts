@@ -468,10 +468,13 @@ describe('toolSchemas', () => {
     // a new door), 135 → 136 tools and +1,363 more bytes.
     // E-L1 and E-L2 merged (2026-10-03): the deltas sum, E-L1 having added
     // +4,425 bytes on the player's door and +6,624 on the DM's since E-L3.
+    // And `declare_contact.item` on the DM's alone — a second hand on a thing a
+    // creature wears or wields (the owner's ruling, applied 2026-10-03) — with
+    // the description and `object` saying so, +445. No tool added.
     expect(toolSchemas(player())).toHaveLength(101);
     expect(toolSchemas(dm())).toHaveLength(137);
     expect(JSON.stringify(toolSchemas(player())).length).toBe(179328);
-    expect(JSON.stringify(toolSchemas(dm())).length).toBe(244213);
+    expect(JSON.stringify(toolSchemas(dm())).length).toBe(244658);
   });
 });
 

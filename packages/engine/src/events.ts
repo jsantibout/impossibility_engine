@@ -1551,11 +1551,18 @@ export type GameEvent =
    * is an answer: nobody is touching it.
    *
    * Sorted and without repeats, so one statement serialises one way.
+   *
+   * **Or who else is touching a thing a creature wears or wields** — a hand
+   * on the knight's heated breastplate (the owner's ruling, applied by the
+   * coordinator on 2026-10-03). Then `object` is the holder and `item` the
+   * thing, by catalogue id; the holder touches it already and is not listed.
+   * One statement per record: saying it of a second item replaces the first.
    */
   | {
       readonly type: 'contact-declared';
       readonly object: CharacterId;
       readonly creatures: readonly CharacterId[];
+      readonly item?: string;
       readonly command?: CommandStamp;
     }
   /**

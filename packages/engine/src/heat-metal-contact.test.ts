@@ -340,3 +340,70 @@ describe('declareContact', () => {
     expect(out).toEqual([{ type: 'contact-declared', object: GATE, creatures: [KNIGHT, THUG] }]);
   });
 });
+
+/**
+ * A second hand on a thing somebody else is wearing or wielding — the
+ * coordinator applying the owner's "the DM states contact" ruling to equipped
+ * items (2026-10-03). The holder is the contact the engine already reads; the
+ * DM may name more, through the same door, by the holder and the item.
+ */
+describe('Heat Metal on a thing somebody wears, with a second hand on it', () => {
+  const DRUID_TOO = id('druid-too');
+  /** The knight in a breastplate as well as the shield, and a bystander nobody names. */
+  const ARMOURED: readonly GameEvent[] = (() => {
+    const log: readonly GameEvent[] = [
+      ...BASE,
+      added(DRUID_TOO),
+      { type: 'creature-placed', id: DRUID_TOO, placement: { from: { creature: DRUID }, feet: 30 } },
+      { type: 'items-gained', id: KNIGHT, items: [{ id: 'breastplate', quantity: 1 }], source: 'the quartermaster' },
+    ];
+    // In a fight, because the wearer's failed save hangs Disadvantage until the
+    // start of the caster's next turn, which only a fight has.
+    return [
+      ...run(log, (s) => equipItem(s, SRD_CONTENT, KNIGHT, 'breastplate')),
+      FIGHTING[FIGHTING.length - 1]!,
+    ];
+  })();
+
+  it('burns the wearer as before, the creature the DM named on it, and nobody else', () => {
+    const log = run(ARMOURED, (s) => declareContact(s, KNIGHT, [THUG], { item: 'breastplate' }));
+    const before = fold('seed', log);
+    const out = unwrap(heat(before, KNIGHT, { object: 'breastplate' }), 'the heat');
+    const after = out.events.reduce(applyEvent, before);
+    expect(hp(after, KNIGHT)).toBeLessThan(hp(before, KNIGHT));
+    expect(hp(after, THUG)).toBeLessThan(hp(before, THUG));
+    expect(hp(after, DRUID_TOO)).toBe(hp(before, DRUID_TOO));
+    expect(hp(after, DRUID)).toBe(hp(before, DRUID));
+    // The wearer still cannot take armour off, so the failed save hangs the
+    // Disadvantage on him; the hand that touched it holds nothing and takes
+    // only the burn.
+    expect(rollModesFor(after, { family: 'attack', roller: KNIGHT }).modes.length).toBeGreaterThan(0);
+    expect(rollModesFor(after, { family: 'attack', roller: THUG }).modes).toEqual([]);
+  });
+
+  it('burns only the wearer where nobody is named, or somebody is named on another thing', () => {
+    for (const log of [
+      ARMOURED,
+      run(ARMOURED, (s) => declareContact(s, KNIGHT, [THUG], { item: 'shield' })),
+    ]) {
+      const before = fold('seed', log);
+      const out = unwrap(heat(before, KNIGHT, { object: 'breastplate' }), 'the heat');
+      const after = out.events.reduce(applyEvent, before);
+      expect(hp(after, KNIGHT)).toBeLessThan(hp(before, KNIGHT));
+      expect(hp(after, THUG)).toBe(hp(before, THUG));
+    }
+  });
+
+  it('refuses a thing the holder is not wearing or wielding, and an item named on a declared object', () => {
+    const state = fold('seed', ARMOURED);
+    const unworn = declareContact(state, THUG, [KNIGHT], { item: 'breastplate' });
+    expect(isErr(unworn) && unworn.code).toBe('not_equipped');
+    const onGate = declareContact(state, GATE, [KNIGHT], { item: 'breastplate' });
+    expect(isErr(onGate) && onGate.code).toBe('object_holds_nothing');
+  });
+
+  it('pins the item on the statement', () => {
+    const out = unwrap(declareContact(fold('seed', ARMOURED), KNIGHT, [THUG], { item: 'breastplate' }), 'contact');
+    expect(out).toEqual([{ type: 'contact-declared', object: KNIGHT, item: 'breastplate', creatures: [THUG] }]);
+  });
+});

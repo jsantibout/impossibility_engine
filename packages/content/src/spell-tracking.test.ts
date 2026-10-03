@@ -2359,6 +2359,10 @@ describe('every spell this batch added is cast for real', () => {
     'enhance-ability',
     'enthrall',
     'expeditious-retreat',
+    // The metal object is a mark in the data and every hand on the hot thing
+    // is the DM's to state — the gate, and a second hand on the knight's
+    // breastplate (E-L1, the owner's answers of 2026-10-03). Nothing is left.
+    'heat-metal',
     // The fifth, and it prints nothing the engine leaves alone: the die that
     // rides later blows, the ability the caster names, the slot table, and the
     // Bonus Action that curses a new creature once the first one drops.
