@@ -5414,6 +5414,9 @@ function checkEffect(
 
     case 'dispel':
     case 'interrupt-casting':
+    // SRD Remove Curse's ending carries no fields either: which castings,
+    // lines and items are curses is a mark on each of them. (E-L1)
+    case 'end-curses':
     // SRD Spare the Dying's whole content is one word and it carries no
     // fields, so there is nothing here to be wrong. Who it may be aimed at is
     // `TargetRule.mustBeDying`, checked where every other target rule is.
@@ -8034,6 +8037,27 @@ export function checkSpellDefinition(
    * target's ending needs a target — SRD Gaseous Form is cast on a creature,
    * and a spell aimed at nobody has nobody to take the Magic action.
    */
+  // SRD Bestow Curse's "become cursed", SRD Hex's "You place a curse": the
+  // mark SRD Remove Curse reads, which ends the casting — so it needs one.
+  // (E-L1)
+  const curse = (definition as { readonly curse?: unknown }).curse;
+  if (curse !== undefined) {
+    if (curse !== true) {
+      found.push({
+        field: 'curse',
+        code: 'malformed_field',
+        reason: 'what a spell lays is a curse or it is not; the only value is true',
+      });
+    } else if (!castingPersists(definition)) {
+      found.push({
+        field: 'curse',
+        code: 'curse_with_nothing_running',
+        reason:
+          'a curse is ended by ending the casting that lays it, and an Instantaneous casting leaves none to end',
+      });
+    }
+  }
+
   if (definition.offersEndAfterTrigger === true && !castingPersists(definition)) {
     found.push({
       field: 'offersEndAfterTrigger',
@@ -9441,7 +9465,7 @@ function readsAsSentences(
  *
  * **The other pre-settled kinds need no entry here**, because the rules beside
  * this one already refuse them outside the casting's own list by name: a
- * `teleport`, a `summon`, a `chance` and an `end-attunement` each have a
+ * `teleport`, a `summon`, a `chance` and an `end-curses` each have a
  * placement rule of their own, and a branch is not `effects`.
  */
 const PRESETTLED_EFFECT_KINDS: ReadonlySet<string> = new Set([
@@ -9934,11 +9958,11 @@ function checkAreaBoundLifetime(
  *
  * | | |
  * |---|---|
- * | `end-attunement` | the casting's own list, and nowhere else |
+ * | `end-curses` | the casting's own list, and nowhere else |
  * | a `drops` rider | the casting's own list **or its activation's** |
  *
- * **An `end-attunement` is Remove Curse's, and that spell is Instantaneous**:
- * it breaks the Attunement once, at the touch, so there is no later moment for
+ * **An `end-curses` is Remove Curse's, and that spell is Instantaneous**:
+ * it acts once, at the touch, so there is no later moment for
  * one to be written at. An area trigger firing a minute later reads an
  * `OngoingSpell` and the caster is not there to be asked again.
  *
@@ -9965,7 +9989,7 @@ function checkObjectPlacement(
   path: string,
   found: SpellDefinitionProblem[],
 ): void {
-  if (kind === 'end-attunement' && where !== 'effects') {
+  if (kind === 'end-curses' && where !== 'effects') {
     found.push({
       field: `${path}.kind`,
       code: 'attunement_outside_the_casting',
@@ -11009,7 +11033,7 @@ export const EFFECT_KINDS: ReadonlySet<string> = new Set([
   'condition',
   'end-condition',
   'dispel',
-  'end-attunement',
+  'end-curses',
   'creature-type-override',
   'interrupt-casting',
   'armor-class',

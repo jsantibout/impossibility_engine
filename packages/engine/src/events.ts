@@ -854,6 +854,20 @@ export type GameEvent =
     }
 
   /**
+   * A printed line's curse lifted off a creature — SRD Remove Curse: "At your
+   * touch, all curses affecting one creature or object end." (E-L1)
+   *
+   * The curse is named by its `source`, which is its identity on the list,
+   * and the fold refuses one the creature does not carry: a lifting of a curse
+   * nobody laid is a log that has been made up.
+   */
+  | {
+      readonly type: 'printed-curse-lifted';
+      readonly id: CharacterId;
+      readonly source: string;
+    }
+
+  /**
    * A payout this creature now receives at each of its turn boundaries.
    *
    * SRD Heroism: "gains Temporary Hit Points equal to your spellcasting ability

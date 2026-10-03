@@ -6104,6 +6104,15 @@ export function checkContent(input: ContentInput): readonly ContentProblem[] {
     }
     problems.push(...itemUnmodelledProblems(item));
     problems.push(...itemHandoverProblems(item));
+    // "_Curse._" — a mark SRD Remove Curse reads, and nothing but a mark. (E-L1)
+    const cursed = (item as { readonly cursed?: unknown }).cursed;
+    if (cursed !== undefined && cursed !== true) {
+      problems.push({
+        field: `items[${item.id}].cursed`,
+        code: 'malformed_field',
+        reason: 'an item carries a curse or it does not; the only value is true',
+      });
+    }
     // A catalogue with no spells at all judges nothing about which spells an
     // item casts, on the same rule `byClass` already follows above: a fixture
     // that holds only items is not a catalogue whose wands cast nothing.
@@ -6747,6 +6756,9 @@ function parseItem(value: unknown): Result<CatalogueItem> {
     }),
     ...(bundleSize === undefined ? {} : { bundleSize }),
     ...(attunement === null ? {} : { attunement }),
+    // Carried as given and judged by `checkContent`, for `grants`' reason
+    // below. (E-L1)
+    ...(value['cursed'] === undefined ? {} : { cursed: value['cursed'] as true }),
     // Carried as given and judged by `checkContent`, which is the one gate
     // both the typed and the untyped path pass through — so a homebrew magic
     // item gets exactly the answers a transcribed one would.

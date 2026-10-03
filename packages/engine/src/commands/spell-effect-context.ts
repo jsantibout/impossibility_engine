@@ -339,7 +339,7 @@ export interface EffectContext {
    */
   readonly weapon?: string;
   /**
-   * The object an `end-attunement` effect was aimed at, by catalogue id.
+   * The object an `end-curses` effect was aimed at, by catalogue id.
    *
    * {@link EffectContext.weapon}'s neighbour and its reading: stated at the
    * casting, refused there when a spell that touches no object names one, so a

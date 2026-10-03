@@ -3237,33 +3237,37 @@ export type SpellEffect =
    */
   | { readonly kind: 'dispel' }
   /**
-   * The target's Attunement to one object, broken.
+   * Every curse affecting the target, ended — SRD Remove Curse.
    *
-   * SRD Remove Curse: "If the object is a cursed magic item, its curse
-   * remains, but **the spell breaks its owner's Attunement to the object** so
-   * it can be removed or discarded."
+   * > "At your touch, all curses affecting one creature or object end. If the
+   * > object is a cursed magic item, its curse remains, but the spell breaks
+   * > its owner's Attunement to the object so it can be removed or discarded."
    *
-   * **A curse is fiction and the attunement is not.** `CreatureState.attuned`
-   * is a relation the engine holds authoritatively — `attuneItem` writes it,
-   * `attunement-ended` takes it away, and the fold ends one when the holder
-   * dies or the item leaves — so this is the half of the sentence that is the
-   * engine's, and which curses end stays the table's. That split is what
-   * `what-ends-attunement-besides-a-command` names.
+   * **Three kinds of curse, each already held, each now marked** (E-L1): a
+   * running casting whose spell lays one (`OngoingSpell.curse` — SRD Bestow
+   * Curse, SRD Hex), ended when the touched creature is one it affects, which
+   * is never its own caster; a printed line's curse (`CreatureState.curses`,
+   * a werewolf's bite), lifted with `printed-curse-lifted`; and an Attunement
+   * to a cursed item (`CatalogueItem.cursed`), which SRD Greater Restoration
+   * calls one in as many words — "A curse, including the target's Attunement
+   * to a cursed magic item" — broken with `attunement-ended`.
    *
-   * **The effect carries no object**, for the reason `dispel` beside it
-   * carries no numbers: which item is a decision the *caster* makes at the
-   * casting, not a fact the definition can print. It arrives as
-   * `CastSpellRequest.object`, required by a spell that carries this kind and
-   * refused for one that does not, and the catalogue half — the item exists,
-   * the target is attuned to it — is checked in `resolveSpell`'s pre-flight
-   * before a slot is spent, exactly as the weapon a rider imbues is.
+   * **The object form is the caster's to state**, and it was a kind of its
+   * own (`end-attunement`) until this one subsumed it: the only SRD spell that
+   * wrote it was this one, and the book breaks an Attunement only to a cursed
+   * item. **A curse is fiction and the Attunement is not** — `attuneItem`
+   * writes it, `attunement-ended` takes it away, and nothing else moves: the
+   * object "can be removed or discarded", which is somebody's later decision
+   * and two commands that already exist. Named as
+   * `CastSpellRequest.object`, a cursed item the touched creature is attuned
+   * to keeps its curse and the Attunement alone is broken — the second
+   * sentence, and only it. An item that is not cursed is refused before
+   * anything is spent (`not_cursed`). Unnamed is the first sentence.
    *
-   * **Nothing else moves.** SRD says the object may then "be removed or
-   * discarded", which is somebody's later decision and two commands that
-   * already exist; a spell that took the cloak off its owner would be
-   * performing the sentence rather than adjudicating it.
+   * Carries no fields, for `dispel`'s reason: everything it reads is a fact
+   * the engine holds.
    */
-  | { readonly kind: 'end-attunement' }
+  | { readonly kind: 'end-curses' }
   /**
    * A creature type put over the target's own, for what magic believes.
    *
@@ -6658,6 +6662,21 @@ export interface SpellDefinition {
    */
   readonly untilDispelled?: true;
   /**
+   * What this spell lays on its target is **a curse**.
+   *
+   * SRD Bestow Curse: "must succeed on a Wisdom saving throw or **become
+   * cursed** for the duration"; SRD Hex: "**You place a curse** on a creature".
+   * SRD Remove Curse ends "all curses affecting one creature", and which of the
+   * castings a creature holds is one was the fact nothing recorded — this is
+   * the book saying so, and the casting pins it on its record
+   * (`OngoingSpell.curse`) so `end-curses` reads the record and no book.
+   *
+   * Refused on a spell that leaves nothing running: a curse is ended by
+   * ending the casting that lays it, and an Instantaneous one has no casting
+   * left to end. (E-L1)
+   */
+  readonly curse?: true;
+  /**
    * A check a creature may attempt against the casting itself.
    *
    * The illusions: nothing is on anybody, so what is examined is the spell.
@@ -8286,32 +8305,30 @@ export function riderDurations(
  * neither carries the destination the caster stated.
  */
 /**
- * Whether this spell breaks an Attunement, and so must be told which object.
- *
- * The reader `declaredFacts` and the pre-flight both ask, for
- * {@link teleportOf}'s reason: the symmetry — required where the spell prints
- * the clause, refused where it does not — is checked in two places and must
- * have one answer.
+ * Whether this spell ends curses — SRD Remove Curse — and so **may** be told
+ * an object: "If the object is a cursed magic item, its curse remains, but the
+ * spell breaks its owner's Attunement to the object." The object is optional:
+ * the touch may be on a creature, and then every curse affecting it ends.
  *
  * Only the casting's own list, because that is the only place the kind may be
  * written: the object is stated at the casting, Remove Curse is Instantaneous
- * and breaks the Attunement at the touch, and an area trigger or an activation
- * firing a minute later has no request to read it off. `checkObjectPlacement`
- * refuses it anywhere else, which is what makes reading one list here correct
- * rather than optimistic.
+ * and acts at the touch, and an area trigger or an activation firing a minute
+ * later has no request to read it off. `checkObjectPlacement` refuses it
+ * anywhere else, which is what makes reading one list here correct rather than
+ * optimistic. (E-L1)
  */
-export function breaksAttunement(definition: SpellDefinition): boolean {
-  return definition.effects.some((effect) => effect.kind === 'end-attunement');
+export function endsCurses(definition: SpellDefinition): boolean {
+  return definition.effects.some((effect) => effect.kind === 'end-curses');
 }
 
 /**
  * Whether this spell has to be told which object it is aimed at.
  *
- * Three clauses ask, and they are different sentences about the same fact: SRD
- * Remove Curse breaks an Attunement to an object, SRD Heat Metal heats one and
- * makes its holder drop it, and SRD Mending repairs one. All three name a thing
- * out of what the target has, none can be picked by the engine, and each is
- * refused before a slot is spent when the caster names none.
+ * Two clauses ask, and they are different sentences about the same fact: SRD
+ * Heat Metal heats one and makes its holder drop it, and SRD Mending repairs
+ * one. Both name a thing out of what the target has, neither can be picked by
+ * the engine, and each is refused before a slot is spent when the caster names
+ * none. (SRD Remove Curse *may* name one — see {@link endsCurses}.)
  *
  * **The casting's own list and its activation**, because Heat Metal's Bonus
  * Action deals the damage again to the same object — the record pins it, so
@@ -8319,7 +8336,7 @@ export function breaksAttunement(definition: SpellDefinition): boolean {
  * spell ever name one".
  */
 export function namesAnObject(definition: SpellDefinition): boolean {
-  return breaksAttunement(definition) || dropsAnObject(definition) || repairsAnObject(definition);
+  return dropsAnObject(definition) || repairsAnObject(definition);
 }
 
 /**
@@ -8998,10 +9015,9 @@ export function numbersRead(definition: SpellDefinition): NumbersRead {
       case 'healing-rule':
       case 'hit-point-maximum':
       case 'dispel':
-      // An attunement broken reads nothing of the caster either: which object
-      // is the caster's own choice, stated at the casting, and no number about
-      // them decides anything.
-      case 'end-attunement':
+      // Nor do the curses ended: which are curses is a mark on each, and the
+      // object is the caster's own choice, stated at the casting. (E-L1)
+      case 'end-curses':
       // Nor does a repair: which object is the caster's own choice and how much
       // rust came off is the record's, not the caster's.
       case 'repairs':

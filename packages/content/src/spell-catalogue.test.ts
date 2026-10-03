@@ -24,7 +24,6 @@ import {
   statesFoughtFact,
   statesWillingFact,
   teleportOf,
-  breaksAttunement,
   dropsAnObject,
   repairsAnObject,
   optionEffects,
@@ -243,14 +242,14 @@ const logFor = (spellId: string): readonly GameEvent[] => {
         ? [...withTheDead, { type: 'creature-died', id: TARGET, cause: 'the fixture' } as GameEvent]
         : withTheDead;
 
-  // **And an Attunement, where the spell breaks one.** SRD Remove Curse
-  // refuses an object its target is not attuned to, and that refusal is the
-  // behaviour: the fixture supplies the relation rather than the spell being
-  // excused the rule. Written straight into the log rather than driven through
+  // **And an Attunement, where the spell ends curses.** SRD Remove Curse is
+  // cast at the creature with no object named (E-L1), and the fixture gives
+  // the target an Attunement for the touch to leave alone — the cloak carries
+  // no curse. Written straight into the log rather than driven through
   // `attuneItem`, because what is under test is the casting and not the Short
   // Rest — `attunement.test.ts` is where the command's own rules are.
   const unbinds = (definition?.effects ?? []).some(
-    (effect) => effect.kind === 'end-attunement',
+    (effect) => effect.kind === 'end-curses',
   );
   const withTheAttunement: readonly GameEvent[] = unbinds
     ? [
@@ -485,16 +484,11 @@ const castAt = (
     // which animal this casting called. `statedFormOf` is the runtime's own
     // reader, for the reason the three above are.
     ...(statedFormOf(definition) === null ? {} : { form: statedFormOf(definition)!.among[0]! }),
-    // The eighth, and the same shape a seventh time: a spell that breaks an
-    // Attunement is refused until the caster names the object, and one that
-    // touches no object is refused for naming one. The sweep answers with the
-    // cloak the fixture attuned the target to. `breaksAttunement` is the
-    // runtime's own reader, for the reason the four above are.
-    ...(breaksAttunement(definition)
-      ? { object: ATTUNED }
-      : dropsAnObject(definition) || repairsAnObject(definition)
-        ? { object: HEATED }
-        : {}),
+    // The eighth, and the same shape a seventh time: a spell that heats or
+    // mends an object is refused until the caster names it, and one that
+    // touches no object is refused for naming one. SRD Remove Curse *may* name
+    // a cursed one and is cast here at the creature, naming none (E-L1).
+    ...(dropsAnObject(definition) || repairsAnObject(definition) ? { object: HEATED } : {}),
     // The tenth, and the same shape a ninth time: a spell that prints
     // branches is refused until the caster names one, and one that prints none
     // is refused for naming one. The sweep answers with the **first** branch

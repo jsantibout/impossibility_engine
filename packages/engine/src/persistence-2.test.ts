@@ -860,6 +860,9 @@ const UNCOVERED_EVENT_TYPES: readonly string[] = [
   // fold to exactly the states they always folded to with `curses` empty on
   // every creature. `compulsions-handed-over.test.ts` drives it end to end.
   'printed-curse-laid',
+  // And SRD Remove Curse lifting one (E-L1). Neither log lays a curse to
+  // lift, and `remove-curse.test.ts` drives it end to end.
+  'printed-curse-lifted',
   // A line a stat block prints a recharge on, spent and got back. Neither log
   // was written when the notation reached the engine at all — it was a field
   // on a parsed attack that nothing rolled a die for — and both fixtures fold

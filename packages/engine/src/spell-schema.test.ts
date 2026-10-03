@@ -4438,7 +4438,7 @@ describe('every branch judges untyped input rather than throwing on it', () => {
   );
 
   /**
-   * `dispel`, `interrupt-casting` and `end-attunement` contribute no rows, and
+   * `dispel`, `interrupt-casting` and `end-curses` contribute no rows, and
    * that is the honest entry rather than an omission: their branches read no
    * field at all, so the `kind` `checkShape` has already established is the
    * whole effect and there is nothing below it to be malformed. The third
@@ -4454,7 +4454,10 @@ describe('every branch judges untyped input rather than throwing on it', () => {
     // the fall" — so `fall-ward` carries no field at all and the `kind`
     // `checkShape` has already established is the whole effect.
     'fall-ward',
-    'end-attunement',
+    // SRD Remove Curse's ending, which was `end-attunement` until E-L1 folded
+    // that kind into it: which castings, lines and items are curses is a mark
+    // on each, and the object is stated at the casting.
+    'end-curses',
     // The fifth, and the plainest of them: SRD Spare the Dying's whole content
     // is "The creature becomes Stable", so `stabilise` carries no field
     // either. Who it may be aimed at is `TargetRule.mustBeDying`, which is

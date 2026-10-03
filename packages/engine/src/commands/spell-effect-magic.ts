@@ -148,6 +148,76 @@ export function resolveDispelEffect(
 }
 
 /**
+ * SRD Remove Curse, on the creature it touches — see `SpellEffect` `end-curses`.
+ *
+ * > "At your touch, all curses affecting one creature or object end. If the
+ * > object is a cursed magic item, its curse remains, but the spell breaks
+ * > its owner's Attunement to the object so it can be removed or discarded."
+ *
+ * **Named an object, the second sentence and nothing else**: the touched
+ * creature's Attunement to that cursed item is broken, and its own curses go
+ * on. The pre-flight has already refused an object it is not attuned to, or
+ * one that is not cursed, before anything was spent.
+ *
+ * **Named none, the first sentence**, over the three curses the engine holds:
+ * every running casting that lays one and affects this creature — never its
+ * own caster, who holds the curse rather than suffering it — ended, whole where
+ * this was its only victim and on this creature alone otherwise, which is
+ * Dispel Magic's reading of the same question; every printed curse on the
+ * creature lifted; and every Attunement to a cursed item broken, which SRD
+ * Greater Restoration names a curse outright. (E-L1)
+ */
+export function resolveEndCursesEffect(
+  ctx: EffectContext,
+  target: CharacterId,
+  world: GameState,
+): Result<GameState> {
+  const { supply, events, outcomes } = ctx;
+  let current = world;
+  const emit = (event: GameEvent): void => {
+    events.push(event);
+    current = applyEvent(current, event);
+  };
+
+  const victim = current.creatures[target];
+  if (victim === undefined) return ok(current);
+
+  if (ctx.object !== undefined) {
+    const item = supply.content.item(ctx.object);
+    if (item !== null && victim.attuned.some((held) => held.id === item.id)) {
+      emit({ type: 'attunement-ended', id: target, item: item.id });
+    }
+    outcomes.push({ target, affected: true });
+    return ok(current);
+  }
+
+  let affected = false;
+  for (const record of ongoingSpellsOn(current, target)) {
+    if (record.curse !== true || record.caster === target) continue;
+    const cursed = spellOn(current, record).filter((who) => who !== record.caster);
+    if (!cursed.includes(target)) continue;
+    emit({
+      type: 'spell-ended',
+      castingId: record.castingId,
+      on: cursed.length <= 1 ? null : target,
+      reason: 'dispelled',
+    });
+    affected = true;
+  }
+  for (const curse of [...(current.creatures[target]?.curses ?? [])]) {
+    emit({ type: 'printed-curse-lifted', id: target, source: curse.source });
+    affected = true;
+  }
+  for (const held of [...(current.creatures[target]?.attuned ?? [])]) {
+    if (supply.content.item(held.id)?.cursed !== true) continue;
+    emit({ type: 'attunement-ended', id: target, item: held.id });
+    affected = true;
+  }
+  outcomes.push({ target, affected });
+  return ok(current);
+}
+
+/**
  * SRD Counterspell: the save that decides whether a casting dissipates.
  */
 export function resolveInterruptCastingEffect(

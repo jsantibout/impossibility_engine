@@ -104,6 +104,19 @@ export interface CatalogueItem {
    */
   readonly attunement?: ItemAttunement;
   /**
+   * The item carries a curse — the SRD's "_Curse._" paragraph: Armor of
+   * Vulnerability, the Berserker Axe, Demon Armor, the Shield of Missile
+   * Attraction.
+   *
+   * Read by SRD Remove Curse: an Attunement to a cursed item is a curse on its
+   * owner ("A curse, including the target's Attunement to a cursed magic
+   * item", SRD Greater Restoration), ended at the touch, and named as the
+   * object it is the one thing the spell breaks — "its curse remains, but the
+   * spell breaks its owner's Attunement". An item that is not cursed is
+   * refused as that object. Absent for everything else. (E-L1)
+   */
+  readonly cursed?: true;
+  /**
    * What the item does, in the vocabulary a class feature is already written
    * in.
    *

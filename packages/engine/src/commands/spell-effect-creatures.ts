@@ -330,9 +330,9 @@ export function resolvePreservesEffect(
  * Why this Attunement may not be broken, or null where it may.
  *
  * Written once and asked twice, for {@link reviveProblem}'s reason: the
- * pre-flight in `resolveSpell` calls it before a slot is spent and
- * {@link resolveEndAttunementEffect} calls it where the event is written, and
- * two readings of one rule is two answers.
+ * pre-flight in `resolveSpell` calls it before a slot is spent, for SRD
+ * Remove Curse's object form (`end-curses`, E-L1), and one reading of the
+ * rule is one answer.
  *
  * The object is read as the **kind** it is a copy of, which is what
  * `attuneItem` and `endAttunement` both do: attunement is a yes or no per kind
@@ -356,45 +356,6 @@ export function attunementProblem(
     return err('not_attuned', `${target} is not attuned to ${item.name}, so ${name} breaks nothing`);
   }
   return ok(true);
-}
-
-/**
- * The target stops being attuned to the object the caster named.
- *
- * SRD Remove Curse: "the spell breaks its owner's Attunement to the object so
- * it can be removed or discarded." The removing and the discarding are two
- * commands somebody may take afterwards and are deliberately not taken here:
- * the sentence says the object *can* be removed, which is a permission rather
- * than an instruction, and a spell that took the cloak off its owner would be
- * playing the creature.
- *
- * The event is the one `endAttunement` already emits, so every reader of a
- * broken attunement — the grants that come off the sheet, the benefit that
- * stops — is reached by exactly the route it always was.
- */
-export function resolveEndAttunementEffect(
-  ctx: EffectContext,
-  _effect: EffectOfKind<'end-attunement'>,
-  target: CharacterId,
-  world: GameState,
-): Result<GameState> {
-  const { name, supply, events, outcomes } = ctx;
-  const object = ctx.object;
-  if (object === undefined) {
-    throw new Error(
-      `${name} breaks an Attunement and no object was named; ` +
-        'the caller should have been refused `object_required` before reaching here',
-    );
-  }
-
-  const allowed = attunementProblem(world, supply.content, target, object, name);
-  if (!allowed.ok) return allowed;
-
-  const kind = supply.content.item(object)!.id;
-  const ended = { type: 'attunement-ended' as const, id: target, item: kind };
-  events.push(ended);
-  outcomes.push({ target, affected: true });
-  return ok(applyEvent(world, ended));
 }
 
 /**

@@ -55,6 +55,7 @@ import {
   rollsDealtTo,
   DIRECTIONAL_AREAS,
   isCreatureType,
+  endsCurses,
   namesAnObject,
   areaStandsApart,
   optionEffects,
@@ -1615,7 +1616,9 @@ export function declaredFacts(
         `${definition.name} is aimed at one object and the engine will not choose which; name it`,
       );
     }
-  } else if (request.object !== undefined) {
+  } else if (request.object !== undefined && !endsCurses(definition)) {
+    // SRD Remove Curse **may** be aimed at an object — a cursed item its
+    // owner is attuned to — and need not be. (E-L1)
     return err(
       'no_object_clause',
       `${definition.name} does nothing to an object; which one is not a fact it asks for`,

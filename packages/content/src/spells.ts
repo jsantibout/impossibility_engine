@@ -5050,7 +5050,8 @@ export const PLANE_SHIFT: SpellDefinition = {
  * whose own description finishes on armour that cannot be doffed until a
  * Remove Curse lands.
  *
- * So the `end-attunement` effect is the half the engine owns. **Which object**
+ * So breaking the Attunement was the half the engine owned first (it was the
+ * `end-attunement` effect until E-L1 folded it into `end-curses`). **Which object**
  * is the caster's, stated at the casting through `CastSpellRequest.object`,
  * because a creature attuned to three items has three answers and the engine
  * picks none of them; an item the target is not attuned to is refused before a
@@ -5058,11 +5059,20 @@ export const PLANE_SHIFT: SpellDefinition = {
  * off its owner: SRD says it "can be removed or discarded", which is a
  * permission and two commands somebody may take afterwards.
  *
- * **The first sentence is a debt now, and this paragraph used to call it
- * fiction** (W8-S26). It read "nothing the engine applies is a curse — Bestow
- * Curse is tracked and applies nothing"; Bestow Curse is executed since, and a
- * lycanthrope's curse is on the record, so there are curses in state for the
- * touch to end and the touch ends none of them.
+ * **And the first sentence is built** (E-L1). It waited on knowing which of
+ * the castings and marks a creature holds is a curse, and each kind now says:
+ * a spell that lays one is marked `curse` and pins it on its record (SRD
+ * Bestow Curse, SRD Hex), a printed line's curse is the `curses` list, and an
+ * item carrying one is `CatalogueItem.cursed` — whose Attunement SRD Greater
+ * Restoration calls a curse outright. `end-curses` ends all three on the
+ * creature touched.
+ *
+ * **The object is optional now, and must be cursed.** Named, it is the second
+ * sentence and only that: the owner's Attunement to the cursed item breaks,
+ * "its curse remains", and the owner's own curses go on. An item that carries
+ * no curse is refused (`not_cursed`), because an Attunement to it is no curse
+ * and the book breaks it only to a cursed one. Unnamed, the touch ends every
+ * curse affecting the creature.
  */
 export const REMOVE_CURSE: SpellDefinition = {
   id: 'remove-curse',
@@ -5073,10 +5083,7 @@ export const REMOVE_CURSE: SpellDefinition = {
   concentration: false,
   range: { kind: 'touch' },
   targets: { count: 1, self: true },
-  effects: [{ kind: 'end-attunement' }],
-  unmodelled: [
-    'the curses the touch ends are not ended: a Bestow Curse on the target and a curse on its record go on, because nothing tells the engine which of the castings and marks it holds is a curse — and the Attunement is broken to any item the caster names, where the book breaks it only to a cursed one',
-  ],
+  effects: [{ kind: 'end-curses' }],
 };
 
 /**
@@ -14532,6 +14539,8 @@ export const HEX: SpellDefinition = {
   // bands and therefore three keys, with a level 4 slot falling in the second
   // because 5 has not been reached.
   durationAtSlot: { 2: 14400, 3: 28800, 5: 86400 },
+  // "You place a curse on a creature" — what SRD Remove Curse ends. (E-L1)
+  curse: true,
 };
 
 /**
@@ -14894,6 +14903,9 @@ export const BESTOW_CURSE: SpellDefinition = {
   // third field of the slot family, and the one a table of seconds could not
   // say: an ending rather than a length. Same reader as SRD Major Image's.
   untilDispelledAtSlot: 9,
+  // "must succeed on a Wisdom saving throw or become cursed" — what SRD
+  // Remove Curse ends. (E-L1)
+  curse: true,
 };
 
 /**

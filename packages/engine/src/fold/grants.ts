@@ -57,6 +57,7 @@ export const GRANTS_EVENTS = [
   'size-overridden',
   'printed-line-immunity-granted',
   'printed-curse-laid',
+  'printed-curse-lifted',
   'turn-payout-granted',
   'creature-attached',
   'creature-detached',
@@ -476,6 +477,17 @@ export function applyGrants({ state, next }: Applying, event: GrantsEvent): Game
         ...creature.curses.filter((held) => held.source !== event.curse.source),
         event.curse,
       ].sort((a, b) => (a.source < b.source ? -1 : a.source > b.source ? 1 : 0));
+      return withCreature(next, event.id, { curses }, creature);
+    }
+
+    // SRD Remove Curse lifting a printed line's curse (E-L1). One that is not
+    // there is refused: nothing lifts what nobody laid.
+    case 'printed-curse-lifted': {
+      const creature = creatureOf(state, event, event.id);
+      if (!creature.curses.some((held) => held.source === event.source)) {
+        throw new CorruptLogError(event, `${event.id} carries no curse from ${event.source}`);
+      }
+      const curses = creature.curses.filter((held) => held.source !== event.source);
       return withCreature(next, event.id, { curses }, creature);
     }
 

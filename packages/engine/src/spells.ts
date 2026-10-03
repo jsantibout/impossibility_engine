@@ -575,6 +575,13 @@ export interface OngoingSpell {
    */
   readonly choice?: StatedChoicePin;
   /**
+   * What this casting lays is a curse — `SpellDefinition.curse`, pinned at the
+   * cast so SRD Remove Curse's `end-curses` reads the record and no
+   * catalogue. Absent on every casting that lays none, which is every record
+   * written before the field. (E-L1)
+   */
+  readonly curse?: true;
+  /**
    * Which of the spell's printed branches this casting ran.
    *
    * SRD Command's five words, Thaumaturgy's six wonders, Enlarge/Reduce's two

@@ -90,7 +90,7 @@ import {
 } from '../positioning.js';
 import { remaining, slotKeyOf, tallied } from '../resources.js';
 import {
-  breaksAttunement,
+  endsCurses,
   castOnAHit,
   concentrationAt,
   dropsAnObject,
@@ -203,7 +203,6 @@ import {
   maskProblem,
   objectHeldProblem,
   resolveCreatureTypeOverrideEffect,
-  resolveEndAttunementEffect,
   resolveReviveEffect,
   resolvePreservesEffect,
   resolveStabiliseEffect,
@@ -255,6 +254,7 @@ import {
 } from './spell-effect-hit-points.js';
 import {
   resolveDispelEffect,
+  resolveEndCursesEffect,
   resolveInterruptCastingEffect,
 } from './spell-effect-magic.js';
 import {
@@ -1862,7 +1862,7 @@ export function castOrRelease(
     // caster who names the wrong cloak must not have paid for it.
     // `declaredFacts` has already held the symmetry; what is left is the half
     // that needs the catalogue.
-    if (request.object !== undefined && breaksAttunement(definition)) {
+    if (request.object !== undefined && endsCurses(definition)) {
       for (const target of targets) {
         const breakable = attunementProblem(
           state,
@@ -1872,6 +1872,16 @@ export function castOrRelease(
           definition.name,
         );
         if (!breakable.ok) return breakable;
+      }
+      // **And the object Remove Curse is aimed at is a cursed magic item**:
+      // "If the object is a cursed magic item, its curse remains, but the
+      // spell breaks its owner's Attunement to the object." An Attunement to
+      // anything else is no curse, and the spell breaks nothing of it. (E-L1)
+      if (supply.content.item(request.object)?.cursed !== true) {
+        return err(
+          'not_cursed',
+          `${definition.name} breaks the Attunement to a cursed magic item, and ${request.object} carries no curse`,
+        );
       }
     }
 
@@ -3928,8 +3938,8 @@ function resolveOneEffect(
       return resolvePassiveDefenseEffect(ctx, effect, target, world);
     case 'dispel':
       return resolveDispelEffect(ctx, target, world);
-    case 'end-attunement':
-      return resolveEndAttunementEffect(ctx, effect, target, world);
+    case 'end-curses':
+      return resolveEndCursesEffect(ctx, target, world);
     case 'creature-type-override':
       return resolveCreatureTypeOverrideEffect(ctx, effect, target, world);
     case 'interrupt-casting':
@@ -4171,7 +4181,7 @@ export function resolveEffects(
      */
     readonly weapon?: string;
     /**
-     * The object an `end-attunement` effect was aimed at, by catalogue id.
+     * The object an `end-curses` effect was aimed at, by catalogue id.
      *
      * The weapon's neighbour and its reading: the caster's decision, stated at
      * the casting and never derived, pinned on a declaration because a
@@ -4347,6 +4357,9 @@ export function resolveEffects(
         // reason: a sentence corrected in the catalogue next month must not
         // reach a casting made today.
         ...(definition.endsEarly === undefined ? {} : { endsEarly: definition.endsEarly }),
+        // And whether what it lays is a curse — SRD Remove Curse reads the
+        // record. (E-L1)
+        ...(definition.curse === true ? { curse: true as const } : {}),
         // And the damage its caster shares with its target — SRD Warding Bond
         // — pinned so the damage funnel reads the record and no book. (W7-S19)
         ...(definition.sharesDamage === undefined ? {} : { sharesDamage: definition.sharesDamage }),
