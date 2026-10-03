@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { SRD_CONTENT } from '@ie/content';
-import { asCharacterId, isErr, expect as unwrap, type CharacterId, type Result } from '@ie/shared';
+import { asCharacterId, isErr, expect as unwrap, type Result } from '@ie/shared';
 import type { CharacterSheet } from './character.js';
 import { createRng, restoreRng, type Rng } from './dice.js';
 import { createRollIssuer } from './rolls.js';
