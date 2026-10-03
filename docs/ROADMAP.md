@@ -3401,3 +3401,30 @@ Appended 2026-09-26, late — wave nine closed, **milestone I-1 reached**:
   chronicle. **Next, I-2:** persistence (I-A8/I-A9), a level-up through the
   app, and the owner's five live playtest scenarios (an AI player; the AI DM
   awards loot and levels).
+
+Appended 2026-10-03 — Infinite Realms batch I-2, four live playtest rounds:
+
+- **Built through the app** (app `8f0345f`): fights the story declares
+  (`openEncounter`, the whole bestiary, the SRD Moderate budget, two foes per
+  party member, one boss up to High when the story declares exactly one
+  creature); treasure into the engine (rarity cap — Common/Uncommon to level
+  4, Rare at 5 — 176 dealable items, named sums clamped to the dice); rests,
+  story time (`advance_time` 1 minute–24 hours) and dawn after a Long Rest;
+  a level through the app (the narrator's guarded `awardLevel`, options probed
+  from `advance_character`); death saves one tap a turn and game over; the
+  hero's reactions mid-monster-turn (Shield, Uncanny Dodge); aiming by
+  placement with a "Cast it anyway / Hold off" question for a blast that would
+  catch the hero; the AI player and a five-scenario live playtest writing a
+  story and a transcript per run. The owner's other bot (Grok) pushed the
+  narrator's "fight when provoked" voice, implied fights and implied coin.
+- **Engine tracks the playtests found:** E-DOWN (the dead and the downed do not
+  act), E-STABLE (the 1d4-hour wake; dying outside a fight asks), E-AIM
+  (a point as a placement, ability checks with a tool, asking where a refusal
+  told nothing). Engine `02704c4c`.
+- **Round four** (all invariants held in all five; about $0.24 for 100 turns):
+  road-ambush met its goal; Shield and a level-up in the tower; level 5 and
+  an ogre killed in the hoard. **Still short:** no magic item found in four
+  rounds, no area spell, no short rest taken, no Concentration held.
+- **I-2's criteria:** a reload survives (file store, proven byte for byte); a
+  level-up through the app (done, live); a redeploy waits on Supabase keys; the
+  P0-T3 session through the app's adapter is not yet run.
