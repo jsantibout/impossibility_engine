@@ -2723,6 +2723,11 @@ describe('a consumer count is a query', () => {
     // Fog Cloud, Stinking Cloud, Gust of Wind's gas, Web's anchoring,
     // Suggestion's errand and Glyph's surface — so the coin flip leads alone
     // again and the trigger shape is in the band below it.
+    //
+    // **And E-L1 took one from each, so the coin flip still leads alone**:
+    // Slow's 25 percent is thrown on the four roads that make a casting
+    // outside the pipeline, and Remove Curse's curses are marked and ended —
+    // one consumer off the coin flip and one off the trigger shape.
     expect(leaders).toEqual(['a-random-outcome-that-is-not-a-d20']);
     expect(Object.keys(SPLIT_BUNDLES)).toContain('an-action-a-spell-compels-or-forbids');
     // And the split is visible from here rather than only in the record: the
@@ -2816,7 +2821,10 @@ describe('a consumer count is a query', () => {
       // Plant Growth's caster exclusions are a request field pinned onto the
       // ground (`TerrainRegion.excluding`), so the wall-and-templates shape
       // lost another consumer and fell below the band.
-      'a-casting-ended-by-a-trigger',
+      //
+      // **And E-L1 took one more off the trigger shape** (Remove
+      // Curse's curses), merged after E-L2, so it fell below the band and the
+      // second place and the stat block stand in it alone.
       'a-second-place-to-put-a-creature',
       'a-stat-block-created-mid-fight',
     ]);

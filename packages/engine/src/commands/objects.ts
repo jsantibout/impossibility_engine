@@ -142,6 +142,13 @@ export function declareObject(
         // Pinned so that placing it is not a second reading of what the caller
         // already said, exactly as a stat block's size is.
         size: object.size,
+        // And what it is made of, pinned for the same reason: SRD Heat Metal
+        // reads whether it is metal at a casting the fold must not open a
+        // catalogue for. (E-L1)
+        material: {
+          id: material.id,
+          ...(material.metal === undefined ? {} : { metal: material.metal }),
+        },
         ...(stamp === null ? {} : { command: stamp }),
       },
     ]);

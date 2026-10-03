@@ -104,4 +104,78 @@ describe('take_legendary_action', () => {
     expect(charge.unverified.join(' ')).toContain('half its Speed');
     expect(charge.events.some((event) => event.type === 'roll-recorded')).toBe(true);
   });
+
+  /**
+   * SRD Sanctuary in front of the Horn (E-L1, the owner's ruling of
+   * 2026-10-03): the DM chose whom it strikes, so the DM says what it does if
+   * the ward turns it away — `ifWarded` on this call, which is the door the
+   * question names. That the second call is answered at all is what proves the
+   * field reaches the engine.
+   */
+  it('asks what the Horn does at a warded creature, and takes `ifWarded` on the same call', () => {
+    const t = table('the-warded-bandit');
+    expectOk(t.call('create_character', { id: 'ada', choices: cleric('Ada') }));
+    expectOk(t.call('add_creature', { id: 'horn', monsterId: 'unicorn' }));
+    expectOk(t.call('add_creature', { id: 'grish', monsterId: 'bandit' }));
+    expectOk(t.call('set_scene', { width: 120, depth: 80, height: 20 }));
+    expectOk(t.call('add_landmark', { name: 'the pool', at: { x: 30, y: 30 } }));
+    expectOk(t.call('place_creature', { who: 'horn', fromLandmark: 'the pool', feet: 0 }));
+    expectOk(t.call('place_creature', { who: 'grish', fromCreature: 'horn', feet: 10, bearing: 0 }));
+    expectOk(t.call('place_creature', { who: 'ada', fromCreature: 'grish', feet: 10, bearing: 0 }));
+    expectOk(t.call('declare_sight', { from: 'ada', to: 'grish', seen: true }));
+    expectOk(
+      t.call('cast_spell', { caster: 'ada', spellId: 'sanctuary', targets: ['grish'], slotLevel: 1, payment: 'slot' }),
+    );
+    expectOk(t.call('roll_initiative', { combatants: [{ who: 'horn' }, { who: 'grish' }, { who: 'ada' }] }));
+    expectOk(t.call('end_turn', {}));
+    for (let guard = 0; guard < 3 && t.surface.observe().turnOf === 'horn'; guard += 1) {
+      expectOk(t.call('end_turn', {}));
+    }
+
+    const asked = t.call('take_legendary_action', { who: 'horn', line: 'Charging Horn', target: 'grish' });
+    expect(asked.status).toBe('needs-context');
+    if (asked.status === 'needs-context') {
+      expect(asked.code).toBe('warded_fallback_required');
+      expect(asked.establish.flatMap((request) => request.tools)).toEqual(['take_legendary_action']);
+    }
+    expectOk(
+      t.call('take_legendary_action', { who: 'horn', line: 'Charging Horn', target: 'grish', ifWarded: 'lose' }),
+    );
+  });
+});
+
+/** A level 1 cleric with Sanctuary prepared, the fixture `choice-by-target.test.ts` builds. */
+const cleric = (name: string): Record<string, unknown> => ({
+  name,
+  classId: 'cleric',
+  level: 1,
+  speciesId: 'human',
+  backgroundId: 'acolyte',
+  abilities: {
+    method: 'standard-array',
+    assignment: { str: 10, dex: 12, con: 14, int: 8, wis: 15, cha: 13 },
+  },
+  abilityIncreases: { wis: 2, cha: 1 },
+  classSkills: ['medicine', 'persuasion'],
+  languages: ['Elvish', 'Goblin'],
+  alignment: 'Neutral Good',
+  cantrips: ['guidance', 'sacred-flame', 'thaumaturgy'],
+  spellbook: [],
+  preparedSpells: ['bless', 'cure-wounds', 'healing-word', 'shield-of-faith'],
+  classEquipment: 'A',
+  backgroundEquipment: 'A',
+  equipped: [],
+  hitPoints: { method: 'fixed' },
+  featureChoices: { 'human:skillful': ['survival'], 'cleric:divine-order': ['Protector'] },
+  feats: {
+    'human:versatile': { featId: 'alert' },
+    'acolyte:magic-initiate-cleric': {
+      featId: 'magic-initiate',
+      spellList: 'cleric',
+      spellcastingAbility: 'wis',
+      cantrips: ['light', 'spare-the-dying'],
+      levelOneSpell: 'sanctuary',
+    },
+  },
+  dmGrants: { items: [], goldPieces: 0, magicItems: [], note: 'standard package only' },
 });

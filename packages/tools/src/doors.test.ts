@@ -431,7 +431,17 @@ const SELF_ANSWERED_FIELDS: Readonly<Record<string, readonly string[]>> = {
   // a list rather than a boolean: the engine asks rather than refusing when
   // nobody has said, and the answer is this call again with the creature
   // named.
-  'cast_spell:route': ['willing'],
+  // And SRD Sanctuary's choice on a failed save, asked of both doors that
+  // target: a new target, or lose it (E-L1).
+  'cast_spell:route': ['willing', 'ifWarded'],
+  'attack:route': ['ifWarded'],
+  // The same choice on the two other doors of this surface that aim at a
+  // creature the caller picks: a familiar's swing given up from the Attack
+  // action, and a readied spell, whose targets are chosen at the release —
+  // which also carries the path a readied move took, the release's other
+  // re-send (E-L1).
+  'order_summons_attack:route': ['ifWarded'],
+  'release_ready:route': ['route', 'ifWarded'],
   // The second place's way back. SRD Blink's "an unoccupied space of your
   // choice … within 10 feet of the space you vanished from" is a `position`
   // the engine asks for and will not pick, and the three calls that bring a
@@ -594,6 +604,13 @@ const DECLARATIONS: Readonly<
    */
   declareBones: { tool: 'declare_bones', dmOnly: true },
   declarePlants: { tool: 'declare_plants', dmOnly: true },
+  /**
+   * **Who is touching a declared object, and the DM's alone** by the owner's
+   * answer of 2026-10-03: a model that could say whose hand is on the gate
+   * would be choosing who SRD Heat Metal's 2d8 lands on. It carries no number,
+   * and holds for the turn it is said on. (E-L1)
+   */
+  declareContact: { tool: 'declare_contact', dmOnly: true },
   /**
    * **Withheld until this batch, and the reason it gave has stopped being
    * true.** The line here read "the clock and what a morning refills, which is
@@ -1059,6 +1076,20 @@ const ANSWERS: Readonly<Record<string, Answer>> = {
   // SRD Calm Emotions' "(choose for each creature)": one branch per caught
   // creature, answered as a list of pairs on the one door that casts.
   option_by_target_required: { fields: ['cast_spell.optionByTarget'] },
+  // SRD Sanctuary's choice, made by the attacker before the die (E-L1, owner's
+  // ruling of 2026-10-03): a new target, or lose the attack or spell. The
+  // DM's `cast_printed_line` and `take_legendary_action` carry the same field
+  // on that surface, which this registry does not read; an Opportunity
+  // Attack, a swing at whoever dealt the damage and a glyph's stored spell
+  // are aimed by their own rule and lose it without asking.
+  warded_fallback_required: {
+    fields: [
+      'attack.ifWarded',
+      'cast_spell.ifWarded',
+      'order_summons_attack.ifWarded',
+      'release_ready.ifWarded',
+    ],
+  },
 
   // — and two that are not a caller's to answer at all —————————————————————
   missing_field: {
@@ -1215,6 +1246,9 @@ const KIND_SETTLED_BY: Readonly<Record<string, ContextRequestKind | null>> = {
   // A Skeleton raised where nobody said bones lie stops on it, and asks as a
   // fact about the room: `scene`, as the climb above does.
   declareBones: 'scene',
+  // A Heat Metal at a declared object nobody has said is touched stops on it,
+  // and asks as a fact about the room: `scene`, as the bones do. (E-L1)
+  declareContact: 'scene',
   // An Overgrowth over ground nobody has described stops on it, and asks as a
   // fact about the room: `scene`, as the bones above do. (E-L2)
   declarePlants: 'scene',

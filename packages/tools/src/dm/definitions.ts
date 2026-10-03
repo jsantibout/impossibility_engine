@@ -97,6 +97,7 @@ import {
   declareCreatureHeads,
   declareDamageType,
   declareBones,
+  declareContact,
   declarePlants,
   declareObject,
   declareWayInHeight,
@@ -142,6 +143,8 @@ import {
   TOOLS,
   towardsOf,
   who,
+  ifWardedOf,
+  ifWardedSchema,
 } from '../definitions.js';
 import { catchOf } from '../observe.js';
 import { fromErr, okOutcome } from '../outcome.js';
@@ -1793,6 +1796,58 @@ const DECLARE_BONES = tool({
 });
 
 /**
+ * Who is touching a declared object, right now — SRD Heat Metal's "any
+ * creature in physical contact with the object". (E-L1)
+ *
+ * On this surface alone, by the owner's answer of 2026-10-03: whose hand is on
+ * an unattended iron gate is a fact about the room, and a model that could say
+ * who was touching the thing its druid was about to heat would be choosing who
+ * the 2d8 lands on. It carries no number. The statement holds for the turn it
+ * is made on, so a later Bonus Action that heats the gate again asks again;
+ * keyed by the object rather than by a casting, because the first question
+ * comes before any casting exists.
+ *
+ * **And a second hand on a thing a creature wears or wields**: `item` names
+ * it and `object` is then its holder — the coordinator applying the owner's
+ * "the DM states contact" ruling to equipped items (2026-10-03).
+ */
+const DECLARE_CONTACT = tool({
+  name: 'declare_contact',
+  description:
+    'Say which creatures are touching a declared object right now — a hand on the iron gate, a body pressed against the portcullis. Heat Metal cast at a declared object burns every creature you name here and nobody else, and asks you when nobody has said it this turn; name nobody to say nobody is. It holds for this turn only: say it again when a later turn heats the thing again. The object must be one declared with `declare_object`. For a weapon or armour a creature wears or wields, name that creature as `object` and the thing as `item`, and list the **other** creatures touching it — a grappler’s hand on the knight’s breastplate: Heat Metal burns them beside the wearer, who touches it already. Left unsaid, the wearer alone touches it.',
+  mutates: true,
+  establishes: ['scene'],
+  input: z.strictObject({
+    object: creatureId.describe(
+      'The declared object, by its id from `declare_object` — or, with `item`, the creature wearing or wielding the thing.',
+    ),
+    item: z
+      .string()
+      .min(1)
+      .optional()
+      .describe('The weapon or armour `object` wears or wields, by item id, when the statement is about one.'),
+    creatures: z
+      .array(creatureId)
+      .describe('Every creature touching it now — besides its wearer, for an `item`. An empty list says nobody is.'),
+  }),
+  run: (context, args) =>
+    settleEvents(
+      context,
+      declareContact(
+        context.campaign.state(),
+        who(args.object),
+        args.creatures.map((one) => who(one)),
+        { ...identity(context), ...(args.item === undefined ? {} : { item: args.item }) },
+      ),
+      {
+        declared: args.object,
+        ...(args.item === undefined ? {} : { item: args.item }),
+        creatures: [...new Set(args.creatures)].filter((one) => args.item === undefined || one !== args.object).sort(),
+      },
+    ),
+});
+
+/**
  * Where normal plants grow in the room, or that a stretch grows nothing — SRD
  * Plant Growth's "All normal plants in a 100-foot-radius Sphere". (E-L2, the
  * owner's ruling of 2026-10-03)
@@ -2092,6 +2147,7 @@ const CAST_PRINTED_LINE = tool({
       .array(creatureId)
       .optional()
       .describe('Creatures this casting designates unaffected, for a spell that offers it.'),
+    ifWarded: ifWardedSchema.describe('What this casting does if a creature it harms is warded and the Wisdom save fails — SRD Sanctuary: "either choose a new target or lose the attack or spell". `{ "target": … }` casts it at that creature instead, in this call; `"lose"` spends what the casting cost and the spell does nothing. Asked for only where a ward stands in the way; leave it out and the engine says so before any die is thrown.'),
   }),
   run: (context, args) =>
     settle(
@@ -2104,6 +2160,7 @@ const CAST_PRINTED_LINE = tool({
           ...(args.spell === undefined ? {} : { spell: args.spell }),
           casting: {
             targets: (args.targets ?? []).map(who),
+            ...ifWardedOf(args.ifWarded),
             ...(args.at === undefined ? {} : { at: aPoint(args.at) }),
             ...(args.towards === undefined ? {} : { towards: aPoint(args.towards) }),
             ...(args.teleportTo === undefined
@@ -2144,6 +2201,8 @@ const CAST_PRINTED_LINE = tool({
         ),
         castingId: value.castingId,
         outcomes: value.outcomes,
+        // A ward turned the casting away — SRD Sanctuary. (E-L1)
+        ...(value.warded === true ? { warded: true } : {}),
       }),
       (value) => value.unverified,
     ),
@@ -2296,7 +2355,9 @@ const TAKE_LEGENDARY_ACTION = tool({
   description:
     'Spend one of a creature’s legendary action uses, immediately after another creature’s turn has ended and before the next creature acts. Name the heading as the block prints it and, for an attack line, whom it strikes; for a shield line, whom it covers (the creature itself where you leave it out). The engine spends the use, refuses a fourth in a round and a shield already used this round, throws the block’s own dice and swings the block’s own attack, and gives every use back at the start of the creature’s turn. The move a Charging Horn prints is yours, with `move_creature`.',
   mutates: true,
-  selfAnswers: ['creature'],
+  // And SRD Sanctuary's fallback, by re-sending this call with `ifWarded`.
+  // (E-L1)
+  selfAnswers: ['creature', 'route'],
   input: z.strictObject({
     who: creatureId.describe('Which creature is spending the use.'),
     line: printedLineName,
@@ -2305,6 +2366,7 @@ const TAKE_LEGENDARY_ACTION = tool({
       .describe(
         'Whom the line is aimed at: the creature a Charging Horn strikes, or the one a Shimmering Shield covers. Leave it out on a shield to cover the creature itself; leave it out on an attack and you will be asked.',
       ),
+    ifWarded: ifWardedSchema.describe('What this swing does if the target is warded and the Wisdom save fails — SRD Sanctuary: "either choose a new target or lose the attack". `{ "target": … }` swings at that creature instead, in this call; `"lose"` spends the attack and makes no roll. Asked for only where a ward stands in the way; leave it out and the engine says so before any die is thrown.'),
   }),
   run: (context, args) =>
     settle(
@@ -2315,6 +2377,7 @@ const TAKE_LEGENDARY_ACTION = tool({
         {
           line: args.line,
           ...(args.target === undefined ? {} : { target: who(args.target) }),
+          ...ifWardedOf(args.ifWarded),
           ...identity(context),
         },
         context.campaign.supply(),
@@ -2579,7 +2642,9 @@ const TRIGGER_GLYPH = tool({
         context.campaign.supply(),
       ),
       (value) => value.events,
-      (value) => ({ castingId: value.castingId, outcomes: value.outcomes }),
+      // `warded`: the stored spell was lost to a ward on the triggerer (SRD
+      // Sanctuary), not cast at nobody. (E-L1)
+      (value) => ({ castingId: value.castingId, outcomes: value.outcomes, ...(value.warded === true ? { warded: true } : {}) }),
       (value) => value.unverified,
     ),
 });
@@ -2806,6 +2871,7 @@ export const DM_ONLY_TOOLS: readonly ToolDefinition[] = [
   AWARD_COIN,
   AWARD_ITEMS,
   DECLARE_BONES,
+  DECLARE_CONTACT,
   DECLARE_PLANTS,
   DECLARE_DAMAGE_TYPE,
   DECLARE_HEADS,

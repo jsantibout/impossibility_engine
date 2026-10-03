@@ -395,6 +395,12 @@ export const VERIFIED_SPELLS: readonly string[] = [
   // dropping a held mace, the same failure leaving the armoured knight holding
   // his breastplate with Disadvantage instead, a made save leaving both alone,
   // and the Bonus Action dealing the damage again on a later turn.
+  // `heat-metal-contact.test.ts` (E-L1): a club and a wooden door refused as
+  // not metal, a Shield cast at with its material unsaid, an iron gate asking
+  // who is touching it, burning everybody the DM named and nobody else with
+  // no save to drop it, and asking again on a later turn; and a second hand
+  // the DM names on the knight's breastplate burned beside him, and nobody
+  // named on another thing.
   'heat-metal',
   'heroism',
   // `later-blows.test.ts` (engine): the 1d6 Necrotic on a mace swing and on a
@@ -556,6 +562,13 @@ export const VERIFIED_SPELLS: readonly string[] = [
   // against a climber and not a flier, and let down again.
   'rope-trick',
   'sacred-flame',
+  // `passive-defenses.test.ts` (engine, E-L1): the ward cast through
+  // `resolveSpell`, a swing and a Guiding Bolt at the warded wizard asking for
+  // `ifWarded` before any die, a failed save losing the swing with no roll and
+  // the casting with its action and slot spent, a new target swung at and
+  // cast at in the same command, one save per ward per turn, an area catching
+  // the warded creature unasked, and the ward's d20 counted in the log.
+  'sanctuary',
   // Driven end to end by `several-attack-rolls.test.ts`, and partial as well,
   // which is the pairing `sorcerous-burst` already stands for: three rays
   // counted in the log out of one casting, a fourth bought with a level 3

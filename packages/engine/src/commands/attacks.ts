@@ -55,6 +55,7 @@ import {
   type GameState,
   type PendingAttack,
 } from '../events.js';
+import type { CommandStamp } from '../state.js';
 import { modifierFor, type CharacterSheet, type StatedAttack } from '../character.js';
 import {
   attacksInAction,
@@ -103,7 +104,7 @@ import {
   type SpellDefinition,
   type SpellEffect,
 } from '../spell-definitions.js';
-import { resolveEffects } from './spell-resolution.js';
+import { castingFailure, resolveEffects } from './spell-resolution.js';
 import type { RepeatSave } from '../timers.js';
 import { ONGOING_RECORD_VERSION } from '../ongoing-compatibility.js';
 import { schedule } from './conditions.js';
@@ -152,7 +153,7 @@ import {
 import { creatureOf, unknownCreature } from './command.js';
 import { numbersFor, routeLabel } from './item-casting.js';
 import { remaining } from '../resources.js';
-import type { CastingRoute } from '../spellcasting.js';
+import { type CastingRoute, componentsWaivedBy } from '../spellcasting.js';
 import { landDamage, statedFrom } from './damage.js';
 import {
   CLEAVE_REACH,
@@ -184,7 +185,7 @@ import {
   enemyWithinFiveFeet,
 } from './rolls.js';
 import { consumedRollModifiers } from '../roll-modifiers.js';
-import { answerTheBlow, wardAgainst, wearTheWeapon } from './passive-defenses.js';
+import { answerTheBlow, wardAgainst, type WardFallback, wardOwed, wearTheWeapon } from './passive-defenses.js';
 
 /**
  * The weapons this creature currently has in hand, as records.
@@ -1373,6 +1374,14 @@ export interface CantripSwingRequest {
 
 export interface AttackCommand extends CommandIdentity {
   readonly target: CharacterId;
+  /**
+   * What this swing does if a ward turns it away — SRD Sanctuary: "either
+   * choose a new target or lose the attack". A new creature to swing at, or
+   * `'lose'`, which spends the swing. Asked (`warded_fallback_required`) only
+   * where the target stands behind a ward this attacker has not settled this
+   * turn; never chosen by the engine. See `WardFallback`. (E-L1)
+   */
+  readonly ifWarded?: WardFallback;
   /** The weapon, by catalogue id, or null for an Unarmed Strike. */
   readonly weapon: string | null;
   /**
@@ -1675,14 +1684,24 @@ export interface AttackResolution {
   /**
    * A ward turned this swing away before it was thrown.
    *
-   * SRD Sanctuary. `attack` is null and nothing was spent, which is the owner's
-   * ruling of 2026-09-22: the attacker may swing at a creature nobody warded
-   * instead, or take the book's other branch by simply not swinging again.
+   * SRD Sanctuary. Either the swing was lost — `attack` is null, the swing is
+   * spent out of the Attack action and no attack roll was made — or it went to
+   * the new target `ifWarded` named, and `attack` is that swing. The owner's
+   * ruling of 2026-10-03, reversing that of 2026-09-22, which spent nothing.
    *
    * Absent rather than false, so a reader asks one question and a log written
    * before wards existed reads back unchanged.
    */
   readonly warded?: true;
+  /**
+   * The spell this swing was cast with failed before the attack was made.
+   *
+   * SRD Slow's 25 percent on SRD True Strike: "you make one attack with the
+   * weapon used in the spell's casting", and the casting failed, so `attack`
+   * is null and the Action is spent. Absent rather than false, for
+   * {@link warded}'s reason. (E-L1)
+   */
+  readonly fizzled?: true;
   /**
    * A duplicate took the blow, so nothing of it reached the target.
    *
@@ -1952,7 +1971,22 @@ export function resolveAttack(
   // like a miss: the same contract `resolveDamage` keeps, for the same reason.
   return once(state, `attack:${id}`, command, () => {
     return { events: [], attack: null, unverified: [], duplicate: true };
-  }, (stamp) => {
+  }, (stamp) => swingAt(state, id, command, supply, stamp));
+}
+
+/**
+ * The body of {@link resolveAttack}, under the identity the wrapper made — and
+ * entered a second time, under the same identity, where SRD Sanctuary turned
+ * the swing away and the attacker had named a new target to turn it on.
+ */
+function swingAt(
+  state: GameState,
+  id: CharacterId,
+  command: AttackCommand,
+  supply: Supply,
+  stamp: CommandStamp | null,
+): Result<AttackResolution> {
+  {
     if (state.pendingAttack !== null) {
       return err(
         'attack_pending',
@@ -2299,10 +2333,11 @@ export function resolveAttack(
     // SRD Sanctuary: "any creature who **targets** the warded creature with an
     // attack roll ... must succeed on a Wisdom saving throw or either choose a
     // new target or lose the attack or spell." Targeting, so it is asked
-    // before the roll — and **before the economy**, which is the owner's
-    // ruling of 2026-09-22 and the whole of why both of the book's branches
-    // stay reachable: an attacker turned away still holds the Attack action
-    // and may swing at somebody nobody warded.
+    // before the roll. **What a failure costs is the book's** (the owner's
+    // ruling of 2026-10-03, reversing that of 2026-09-22): the attacker states
+    // its branch up front as `ifWarded`, a new target is swung at in this
+    // command, and a lost swing is spent out of the Attack action below and
+    // makes no roll.
     //
     // Nothing is a Reaction here and nothing is held: the defender elects
     // nothing and is not asked. See `commands/passive-defenses.ts`.
@@ -2322,27 +2357,65 @@ export function resolveAttack(
     // reason, and both branches below subtract it.
     const issuedBefore = supply.issuer.count;
 
-    const ward = wardAgainst(state, id, command.target, supply);
-    if (!ward.ok) return ward;
-    if (ward.value.barred) {
-      return ok({
-        events: [
-          ...ward.value.events,
+    // **What the attacker does if the ward turns it away**, asked before the
+    // die and never chosen for it — SRD Sanctuary's "either choose a new
+    // target or lose the attack". See `WardFallback`. (E-L1)
+    const fallback = command.ifWarded;
+    if (typeof fallback === 'object') {
+      if (fallback.target === command.target) {
+        return err(
+          'bad_fallback',
+          `${command.target} is the creature the ward stands on; a new target is somebody else`,
+        );
+      }
+      if (creatureOf(state, fallback.target) === null) {
+        return unknownCreature(fallback.target, 'has no record here yet; add it first');
+      }
+    }
+    if (fallback === undefined && wardOwed(state, id, command.target)) {
+      return needsContext(
+        'warded_fallback_required',
+        `${command.target} is warded: if ${id} fails the Wisdom save, the book makes it choose a new target or lose the attack, and the engine will not choose`,
+        [
           {
-            type: 'rolls-issued',
-            count: supply.issuer.count - issuedBefore,
-            rng: supply.rng.snapshot(),
+            kind: 'route',
+            subject: id,
+            need: `what ${id} does if the ward turns the swing away`,
+            because: 'SRD Sanctuary: "either choose a new target or lose the attack or spell"',
+            satisfyWith: 'resolveAttack again with ifWarded: a new target, or "lose"',
           },
         ],
-        // No roll was made, which is what losing the attack means. Not a miss
-        // — `attack` being null with `duplicate` false is the one other way
-        // this command comes back without one, and `warded` says which.
-        attack: null,
+      );
+    }
+
+    const ward = wardAgainst(state, id, command.target, supply);
+    if (!ward.ok) return ward;
+    // "Choose a new target": the same swing, at the creature named, in this
+    // command and under its identity. The new target's own ward, if it has
+    // one, is asked in turn, and a second failure loses the swing.
+    if (ward.value.barred && typeof fallback === 'object') {
+      const turned: GameEvent[] = [
+        ...ward.value.events,
+        { type: 'rolls-issued', count: supply.issuer.count - issuedBefore, rng: supply.rng.snapshot() },
+      ];
+      const next = swingAt(
+        turned.reduce(applyEvent, state),
+        id,
+        { ...command, target: fallback.target, ifWarded: 'lose' },
+        supply,
+        stamp,
+      );
+      if (!next.ok) return next;
+      return ok({
+        ...next.value,
+        events: [...turned, ...next.value.events],
         warded: true,
-        unverified: [...ward.value.unverified],
-        duplicate: false,
+        unverified: [...ward.value.unverified, ...next.value.unverified],
       });
     }
+    // "Lose the attack": the swing is spent below, as any swing is, and no
+    // roll is made. (Owner's ruling of 2026-10-03.)
+    const lostToWard = ward.value.barred;
 
     // — the action it costs —————————————————————————————————————————————————
     //
@@ -2375,17 +2448,60 @@ export function resolveAttack(
 
     // — the casting this swing is made through ————————————————————————————
     //
-    // **Here, and this is where the Action goes.** After the ward, because an
-    // attacker the ward turned away has lost the attack and paid nothing for
-    // it — the owner's ruling of 2026-09-22, which this casting must not
-    // quietly overturn by spending the caster's Action on a swing that never
-    // happened. Before the roll, because the spell is what makes the roll:
+    // **Here, and this is where the Action goes.** After the ward, so the
+    // casting is made at the creature the swing is really at, and spent even
+    // where the ward turned the swing away — "lose the attack or spell" costs
+    // what it says, the owner's ruling of 2026-10-03, reversing that of
+    // 2026-09-22. Before the roll, because the spell is what makes the roll:
     // `spell-cast` stands ahead of it in the log, which is the order the book
     // prints and the order a reader needs.
     if (castWithIt !== null) {
       const cast = castWithTheSwing(state, id, castWithIt);
       if (!cast.ok) return cast;
       events.push(...cast.value);
+
+      // **And the gestures are made now** — SRD Slow's 25 percent, after the
+      // Action is spent and before the attack the spell makes. Inside this
+      // command's own count of dice (`bracketed`), which the ward's die is in
+      // already. A failure is the spell failing, and the attack is the spell:
+      // the Action is gone and no attack is made. (E-L1)
+      const made = cast.value.find((event) => event.type === 'spell-cast');
+      if (made?.type !== 'spell-cast') {
+        throw new Error(`castWithTheSwing: ${castWithIt.definition.name} wrote no spell-cast`);
+      }
+      const fumbled = castingFailure(
+        state,
+        id,
+        supply.content.spellEntry(castWithIt.definition.id),
+        {
+          castingId: made.castingId,
+          name: castWithIt.definition.name,
+          supply,
+          exempt: false,
+          waived: componentsWaivedBy(castWithIt.route),
+          bracketed: true,
+        },
+      );
+      if (!fumbled.ok) return fumbled;
+      events.push(...fumbled.value.events);
+      if (fumbled.value.failed) {
+        return ok({
+          events: [
+            ...events,
+            {
+              type: 'rolls-issued',
+              count: supply.issuer.count - issuedBefore,
+              rng: supply.rng.snapshot(),
+            },
+          ],
+          // No roll was made, because the spell that makes it failed. Not a
+          // miss, and not a ward: `fizzled` says which.
+          attack: null,
+          fizzled: true,
+          unverified,
+          duplicate: false,
+        });
+      }
     }
 
     // — the sequence this creature's block prints ——————————————————————————
@@ -2573,6 +2689,9 @@ export function resolveAttack(
         id,
         ...(unarmedStrike ? { unarmed: true } : {}),
         ...(narrowedGrant ? { swing: { line: attackName, against: command.target } } : {}),
+        // A swing a ward turned away spends this slot and rolls nothing, so
+        // nothing that ends on an attack roll ends on it. (E-L1)
+        ...(lostToWard ? { turnedAway: true as const } : {}),
         // SRD Light, recorded where the Attack action is paid for: the budget
         // is what the extra attack reads, and only this command knew which
         // weapon the swing used. Never the extra attack's own weapon — that
@@ -2598,6 +2717,24 @@ export function resolveAttack(
     // whether or not there is a fight running.
     if (printed?.recharge !== undefined) {
       events.push({ type: 'printed-line-expended', id, line: printed.name });
+    }
+
+    // **A swing the ward turned away is spent and ends here** — SRD
+    // Sanctuary's "lose the attack". The Action, the swing within it, a
+    // Cleave's or a Light weapon's allowance and a printed line's recharge
+    // have all gone above, exactly as for a swing that missed; no attack roll
+    // is made. (E-L1)
+    if (lostToWard) {
+      return ok({
+        events: [
+          ...events,
+          { type: 'rolls-issued', count: supply.issuer.count - issuedBefore, rng: supply.rng.snapshot() },
+        ],
+        attack: null,
+        warded: true,
+        unverified,
+        duplicate: false,
+      });
     }
 
     // — the roll ———————————————————————————————————————————————————————————
@@ -3440,7 +3577,7 @@ export function resolveAttack(
       unverified: [...unverified, ...hurt.value.unverified, ...mastered.value.unverified],
       duplicate: false,
     });
-  });
+  }
 }
 
 /**
@@ -4253,6 +4390,39 @@ function castOnHit(
   }, null);
   if (!cast.ok) return cast;
 
+  // **Whether the gestures fail** — SRD Slow's 25 percent, after the Bonus
+  // Action and the slot (or the free casting) are spent and before a die of
+  // the spell's own. Its own `rolls-issued`, beside the bracket the blow opens
+  // afterwards around its own dice. A failure is the spell failing and nothing
+  // else: the weapon's blow lands as it would have, with nothing added and
+  // nothing left running. Every SRD spell cast on a hit is Verbal only, so this
+  // is a homebrew road today. (E-L1)
+  const made = cast.value.find((event) => event.type === 'spell-cast');
+  if (made?.type !== 'spell-cast') {
+    throw new Error(`castOnHit: ${definition.name} wrote no spell-cast`);
+  }
+  const fumbled = castingFailure(state, id, content.spellEntry(definition.id), {
+    castingId: made.castingId,
+    name: definition.name,
+    supply,
+    exempt: false,
+    waived: componentsWaivedBy(route),
+  });
+  if (!fumbled.ok) return fumbled;
+  if (fumbled.value.failed) {
+    return ok({
+      events: [
+        ...(freePool === null
+          ? []
+          : [{ type: 'resource-spent' as const, id, key: freePool, amount: 1 }]),
+        ...cast.value,
+        ...fumbled.value.events,
+      ],
+      damage: [],
+      unverified: [],
+    });
+  }
+
   // A second component rather than a bigger notation: the SRD writes two
   // sentences, so the log shows two contributions and says *why* the second
   // one is there. Same damage type, so they meet the target's defences as one
@@ -4291,6 +4461,8 @@ function castOnHit(
   const events: GameEvent[] = [
     ...(freePool === null ? [] : [{ type: 'resource-spent' as const, id, key: freePool, amount: 1 }]),
     ...cast.value,
+    // The die the gestures were thrown against, where one was.
+    ...fumbled.value.events,
     ...keeps.value,
   ];
   const unverified: string[] = [];

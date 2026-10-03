@@ -21,6 +21,105 @@ import { effectiveConditions, sheetAsItStands } from '../standing.js';
 import { ongoingSpellsOn } from './ongoing.js';
 import { checkBonuses, recordD20Test, savingSupport } from './rolls.js';
 import { type EffectContext, type EffectOfKind } from './spell-effect-context.js';
+import type { OngoingSpell } from '../spells.js';
+
+/**
+ * The caster's spellcasting ability, or the refusal a casting with none earns.
+ *
+ * SRD: "make an ability check using your spellcasting ability" — the *chosen*
+ * source's, which is why it is read off the context rather than off the sheet.
+ * See {@link EffectContext.ability}: a casting that has no ability to roll with
+ * is refused at the route, before anything is spent, so this guard is the
+ * statement that the branch is unreachable rather than a rule.
+ */
+function dispellingAbility(ctx: EffectContext): Result<NonNullable<EffectContext['ability']>> {
+  if (ctx.ability === null) {
+    return err(
+      'no_spellcasting_ability',
+      `${ctx.name} is resolved with an ability check using your own spellcasting ability, and ${ctx.casterId} has none to make it with`,
+    );
+  }
+  return ok(ctx.ability);
+}
+
+/**
+ * One running spell, dispelled or not — the arithmetic both of Dispel Magic's
+ * forms share, so the creature form and the magical effect form cannot come to
+ * disagree about a threshold or a DC.
+ *
+ * `on` is what `spell-ended` releases: one creature, or the whole casting.
+ */
+function dispelOne(
+  ctx: EffectContext,
+  ability: NonNullable<EffectContext['ability']>,
+  spell: OngoingSpell,
+  world: GameState,
+  on: CharacterId | null,
+): Result<{ readonly world: GameState; readonly ended: boolean; readonly check?: D20TestResult }> {
+  const { casterId, casterSheet, name, castLevel, supply, events } = ctx;
+  // SRD "Using a Higher-Level Spell Slot": "You automatically end a
+  // spell on the target if the spell's level is equal to or less than
+  // the level of the spell slot you use." Dispel Magic is level 3, so
+  // the printed "level 3 or lower" is the same sentence read at the
+  // spell's own level — one rule, not two.
+  const automatic = spell.level <= castLevel;
+  let rolled: D20TestResult | undefined;
+
+  if (!automatic) {
+    // "make an ability check using your spellcasting ability (DC 10
+    // plus that spell's level)" — a bare ability check, no skill and
+    // no proficiency, through the one calculator the engine has.
+    const check = rollAbilityCheck(
+      supply.issuer,
+      supply.rng,
+      casterSheet().sheet,
+      // The caster's own spellcasting ability, which is what the sentence
+      // asks for and is not a number: it decides the roll's modes and which
+      // conditions fail it outright. An item's route may carry none — a wand
+      // that prints its own DC in a hand that casts nothing — and
+      // `castersAbilityRead` refuses such a casting at the route, before
+      // anything is spent, which is why this cannot be null here.
+      ability,
+      {
+        dc: 10 + spell.level,
+        conditions: effectiveConditions(world, casterId),
+        ...(supply.modes === undefined ? {} : { modes: supply.modes }),
+        // A worn item's "+1 bonus to ability checks" reaches this one too:
+        // the SRD makes it an ability check, and says nothing that excludes
+        // it. One gatherer, so the four check sites cannot disagree.
+        bonuses: checkBonuses(world, casterId, supply.bonuses),
+      },
+    );
+    if (!check.ok) return check;
+
+    events.push(
+      recordD20Test(
+        casterId,
+        `${name} vs ${spell.spell} (level ${spell.level})`,
+        check.value,
+        check.value.success ? 'dispelled' : 'held',
+      ),
+    );
+
+    // A failed check changes nothing at all. The spell runs on, the slot is
+    // still spent, and the log says which.
+    if (!check.value.success) return ok({ world, ended: false, check: check.value });
+    rolled = check.value;
+  }
+
+  const ended: GameEvent = {
+    type: 'spell-ended',
+    castingId: spell.castingId,
+    on,
+    reason: 'dispelled',
+  };
+  events.push(ended);
+  return ok({
+    world: applyEvent(world, ended),
+    ended: true,
+    ...(rolled === undefined ? {} : { check: rolled }),
+  });
+}
 
 /**
  * SRD Dispel Magic, against whatever is running on the target.
@@ -35,20 +134,10 @@ export function resolveDispelEffect(
   target: CharacterId,
   world: GameState,
 ): Result<GameState> {
-  const { casterId, casterSheet, name, castLevel, ability, supply, events, outcomes } = ctx;
+  const { outcomes } = ctx;
   let current = world;
-
-  // SRD: "make an ability check using your spellcasting ability" — the
-  // *chosen* source's, which is why it is read off the context rather than off
-  // the sheet. See {@link EffectContext.ability}: a casting that has no ability
-  // to roll with is refused at the route, before anything is spent, so this
-  // guard is the statement that the branch is unreachable rather than a rule.
-  if (ability === null) {
-    return err(
-      'no_spellcasting_ability',
-      `${name} is resolved with an ability check using your own spellcasting ability, and ${casterId} has none to make it with`,
-    );
-  }
+  const ability = dispellingAbility(ctx);
+  if (!ability.ok) return ability;
 
   // SRD Dispel Magic: "Any ongoing spell of level 3 or lower **on the
   // target** ends." What is on the target is live state, and before the
@@ -62,59 +151,6 @@ export function resolveDispelEffect(
   }
 
   for (const spell of running) {
-    // SRD "Using a Higher-Level Spell Slot": "You automatically end a
-    // spell on the target if the spell's level is equal to or less than
-    // the level of the spell slot you use." Dispel Magic is level 3, so
-    // the printed "level 3 or lower" is the same sentence read at the
-    // spell's own level — one rule, not two.
-    const automatic = spell.level <= castLevel;
-    let rolled: D20TestResult | undefined;
-
-    if (!automatic) {
-      // "make an ability check using your spellcasting ability (DC 10
-      // plus that spell's level)" — a bare ability check, no skill and
-      // no proficiency, through the one calculator the engine has.
-      const check = rollAbilityCheck(
-        supply.issuer,
-        supply.rng,
-        casterSheet().sheet,
-        // The caster's own spellcasting ability, which is what the sentence
-        // asks for and is not a number: it decides the roll's modes and which
-        // conditions fail it outright. An item's route may carry none — a wand
-        // that prints its own DC in a hand that casts nothing — and
-        // `castersAbilityRead` refuses such a casting at the route, before
-        // anything is spent, which is why this cannot be null here.
-        ability,
-        {
-          dc: 10 + spell.level,
-          conditions: effectiveConditions(current, casterId),
-          ...(supply.modes === undefined ? {} : { modes: supply.modes }),
-          // A worn item's "+1 bonus to ability checks" reaches this one too:
-          // the SRD makes it an ability check, and says nothing that excludes
-          // it. One gatherer, so the four check sites cannot disagree.
-          bonuses: checkBonuses(current, casterId, supply.bonuses),
-        },
-      );
-      if (!check.ok) return check;
-
-      events.push(
-        recordD20Test(
-          casterId,
-          `${name} vs ${spell.spell} (level ${spell.level})`,
-          check.value,
-          check.value.success ? 'dispelled' : 'held',
-        ),
-      );
-
-      if (!check.value.success) {
-        // A failed check changes nothing at all. The spell runs on, the
-        // slot is still spent, and the log says which.
-        outcomes.push({ target, check: check.value, affected: false });
-        continue;
-      }
-      rolled = check.value;
-    }
-
     // Whether the whole casting ends or only its hold on this creature
     // is the distinction SRD draws by letting Dispel Magic target "one
     // creature, object, or magical effect": a spell that is on this
@@ -126,24 +162,114 @@ export function resolveDispelEffect(
     // casting is still holding something on, and reading the stored half alone
     // would end a whole Bless because the record remembered aiming at nobody.
     const whole = spellOn(current, spell).length <= 1;
-    const ended: GameEvent = {
-      type: 'spell-ended',
-      castingId: spell.castingId,
-      on: whole ? null : target,
-      reason: 'dispelled',
-    };
-    events.push(ended);
-    current = applyEvent(current, ended);
-
+    const done = dispelOne(ctx, ability.value, spell, current, whole ? null : target);
+    if (!done.ok) return done;
+    current = done.value.world;
     outcomes.push({
       target,
       // Present only when the spell was high enough to need one, which
       // is the difference between the two halves of the SRD's sentence.
-      ...(rolled === undefined ? {} : { check: rolled }),
-      dispelled: spell.castingId,
-      affected: true,
+      ...(done.value.check === undefined ? {} : { check: done.value.check }),
+      ...(done.value.ended ? { dispelled: spell.castingId } : {}),
+      affected: done.value.ended,
     });
   }
+  return ok(current);
+}
+
+/**
+ * SRD Dispel Magic, against a **magical effect**: "Choose one creature,
+ * object, or magical effect within range." (E-L1)
+ *
+ * A casting that runs on no creature — a Fog Cloud, a Web — named by its id
+ * (`CastSpellRequest.magicalEffect`), and the same arithmetic as the creature
+ * form ends it whole. It reports no target outcome, because no creature was
+ * the target; the `spell-ended` and any check are in the log. The pre-flight
+ * has refused a casting that is not running, one on a creature, and one beyond
+ * the Range, so a record missing here is one an earlier effect of this same
+ * casting already ended.
+ */
+export function resolveDispelOnEffect(
+  ctx: EffectContext,
+  castingId: string,
+  world: GameState,
+): Result<GameState> {
+  const ability = dispellingAbility(ctx);
+  if (!ability.ok) return ability;
+  const record = world.ongoing[castingId];
+  if (record === undefined) return ok(world);
+  const done = dispelOne(ctx, ability.value, record, world, null);
+  if (!done.ok) return done;
+  return ok(done.value.world);
+}
+
+/**
+ * SRD Remove Curse, on the creature it touches — see `SpellEffect` `end-curses`.
+ *
+ * > "At your touch, all curses affecting one creature or object end. If the
+ * > object is a cursed magic item, its curse remains, but the spell breaks
+ * > its owner's Attunement to the object so it can be removed or discarded."
+ *
+ * **Named an object, the second sentence and nothing else**: the touched
+ * creature's Attunement to that cursed item is broken, and its own curses go
+ * on. The pre-flight has already refused an object it is not attuned to, or
+ * one that is not cursed, before anything was spent.
+ *
+ * **Named none, the first sentence**, over the three curses the engine holds:
+ * every running casting that lays one and affects this creature — never its
+ * own caster, who holds the curse rather than suffering it — ended, whole where
+ * this was its only victim and on this creature alone otherwise, which is
+ * Dispel Magic's reading of the same question; every printed curse on the
+ * creature lifted; and every Attunement to a cursed item broken, which SRD
+ * Greater Restoration names a curse outright. (E-L1)
+ */
+export function resolveEndCursesEffect(
+  ctx: EffectContext,
+  target: CharacterId,
+  world: GameState,
+): Result<GameState> {
+  const { supply, events, outcomes } = ctx;
+  let current = world;
+  const emit = (event: GameEvent): void => {
+    events.push(event);
+    current = applyEvent(current, event);
+  };
+
+  const victim = current.creatures[target];
+  if (victim === undefined) return ok(current);
+
+  if (ctx.object !== undefined) {
+    const item = supply.content.item(ctx.object);
+    if (item !== null && victim.attuned.some((held) => held.id === item.id)) {
+      emit({ type: 'attunement-ended', id: target, item: item.id });
+    }
+    outcomes.push({ target, affected: true });
+    return ok(current);
+  }
+
+  let affected = false;
+  for (const record of ongoingSpellsOn(current, target)) {
+    if (record.curse !== true || record.caster === target) continue;
+    const cursed = spellOn(current, record).filter((who) => who !== record.caster);
+    if (!cursed.includes(target)) continue;
+    emit({
+      type: 'spell-ended',
+      castingId: record.castingId,
+      on: cursed.length <= 1 ? null : target,
+      reason: 'dispelled',
+    });
+    affected = true;
+  }
+  for (const curse of [...(current.creatures[target]?.curses ?? [])]) {
+    emit({ type: 'printed-curse-lifted', id: target, source: curse.source });
+    affected = true;
+  }
+  for (const held of [...(current.creatures[target]?.attuned ?? [])]) {
+    if (supply.content.item(held.id)?.cursed !== true) continue;
+    emit({ type: 'attunement-ended', id: target, item: held.id });
+    affected = true;
+  }
+  outcomes.push({ target, affected });
   return ok(current);
 }
 

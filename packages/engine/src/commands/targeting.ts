@@ -57,6 +57,7 @@ import {
   rollsDealtTo,
   DIRECTIONAL_AREAS,
   isCreatureType,
+  endsCurses,
   namesAnObject,
   areaStandsApart,
   optionEffects,
@@ -79,6 +80,7 @@ import { type ConcentrationConsequence } from './casting.js';
 import { type CastingResolution } from './casting-options.js';
 import { anchorNeeded, creatureOf, sceneFor, unknownCreature } from './command.js';
 import { dyingProblem, walkingBodyProblem } from './spell-effect-creatures.js';
+import type { WardFallback } from './passive-defenses.js';
 
 /** What happened to one target of one casting. */
 export interface SpellTargetOutcome {
@@ -202,12 +204,15 @@ export interface SpellResolution {
   readonly castingId: string | null;
   readonly outcomes: readonly SpellTargetOutcome[];
   /**
-   * A ward turned this casting away before anything was spent.
+   * A ward turned this casting away.
    *
    * SRD Sanctuary, on the casting's side of "an attack roll or a damaging
-   * spell". `castingId` is null and `events` holds the save the caster failed
-   * — nothing else happened, because the ward is asked with the targets
-   * settled and before the slot, the action and the first die.
+   * spell", by the owner's ruling of 2026-10-03 (reversing that of
+   * 2026-09-22, which spent nothing). Either the spell was lost — the casting
+   * was made, its action and slot spent, and it ended at once under the ward
+   * (`spell-fizzled`), so `castingId` names it and `outcomes` is empty — or
+   * it was cast at the new target `ifWarded` named, and `outcomes` are that
+   * casting's.
    *
    * Absent rather than false, so a reader asks one question and a log written
    * before wards existed reads back unchanged. It is not a fourth outcome
@@ -546,6 +551,38 @@ export interface CastSpellRequest extends CommandIdentity {
    * on a spell that chooses once, where {@link option} is the word.
    */
   readonly optionByTarget?: Readonly<Record<string, string>>;
+  /**
+   * The chosen value for each creature, where the spell lets the casting
+   * answer again per creature.
+   *
+   * SRD Enhance Ability's upcast: "You can choose a different ability for each
+   * target" — see `StatedChoice.perTarget`. Keyed by creature id, one printed
+   * value each, over exactly the creatures the casting names. Refused beside
+   * {@link choice}, which answers once for all of them, and on a spell that
+   * prints no such permission.
+   */
+  readonly choiceByTarget?: Readonly<Record<string, string>>;
+  /**
+   * A running casting this one is aimed at as a **magical effect**, by its id.
+   *
+   * SRD Dispel Magic: "Choose one creature, object, **or magical effect**
+   * within range." A Fog Cloud or a Web runs on nobody, so no creature can be
+   * named to reach it; this names the casting itself. Only a spell that ends
+   * spells takes it, and with no target beside it; the casting must be running
+   * and on no creature (one that is on a creature is aimed at through the
+   * creature), and the place it holds within the Range — all asked before
+   * anything is spent. (E-L1)
+   */
+  readonly magicalEffect?: string;
+  /**
+   * What this casting does if a ward turns it away — SRD Sanctuary: "either
+   * choose a new target or lose the attack or spell". A new creature to cast
+   * it at, or `'lose'`, which spends the action and the slot for nothing.
+   * Asked (`warded_fallback_required`) only where a damaging casting names a
+   * creature behind a ward this caster has not settled this turn; never chosen
+   * by the engine. See `WardFallback`. (E-L1)
+   */
+  readonly ifWarded?: WardFallback;
   /**
    * Which creatures the caster or their allies are fighting.
    *
@@ -1660,18 +1697,57 @@ export function declaredFacts(
   // holds — attuned to it, wearing it — both need the catalogue, which this
   // function has none of, and both are asked in `resolveSpell`'s pre-flight
   // before anything is spent.
-  if (namesAnObject(definition)) {
+  //
+  // **Unless the casting is aimed at the object itself** — SRD Heat Metal at
+  // an iron gate nobody holds (`TargetRule.inContact`). The declared object is
+  // the thing, so there is no item to name beside it, and naming one is two
+  // answers to one question. (E-L1)
+  const atTheObject =
+    definition.targets.inContact === true &&
+    request.targets.length > 0 &&
+    request.targets.every((target) => isDeclaredObject(state, target));
+  if (atTheObject) {
+    if (request.object !== undefined) {
+      return err(
+        'object_is_the_target',
+        `${definition.name} is aimed at a declared object, which is the thing it acts on; name no item beside it`,
+      );
+    }
+  } else if (namesAnObject(definition)) {
     if (request.object === undefined) {
       return err(
         'object_required',
         `${definition.name} is aimed at one object and the engine will not choose which; name it`,
       );
     }
-  } else if (request.object !== undefined) {
+  } else if (request.object !== undefined && !endsCurses(definition)) {
+    // SRD Remove Curse **may** be aimed at an object — a cursed item its
+    // owner is attuned to — and need not be. (E-L1)
     return err(
       'no_object_clause',
       `${definition.name} does nothing to an object; which one is not a fact it asks for`,
     );
+  }
+
+  // — a magical effect, named as the casting it is (E-L1) ————————————————
+  //
+  // SRD Dispel Magic's "or magical effect": only a spell that ends spells is
+  // aimed at one, and it is aimed at that instead of at a creature. Whether
+  // the casting is running, on nobody and in range needs the state, and is
+  // asked in `resolveSpell`'s pre-flight beside the object's.
+  if (request.magicalEffect !== undefined) {
+    if (!definition.effects.some((effect) => effect.kind === 'dispel')) {
+      return err(
+        'no_effect_clause',
+        `${definition.name} ends no spell, so a magical effect is not a thing it may be aimed at`,
+      );
+    }
+    if (request.targets.length > 0) {
+      return err(
+        'effect_and_target',
+        `${definition.name} is aimed at one creature, object or magical effect; name the effect or the target, not both`,
+      );
+    }
   }
 
   // — which form a summons takes —————————————————————————————————————————
@@ -1795,6 +1871,46 @@ export function declaredFacts(
       `${definition.name} is cast through a feature that fixes ${fixedChoice}, not ${request.choice}`,
     );
   }
+  // SRD Enhance Ability's upcast: "You can choose a different ability for each
+  // target." The map is the answer given per creature instead of once, held to
+  // the same printed list and to exactly the creatures this casting names —
+  // a spell with the permission has no area, so the named creatures are the
+  // targets. See `StatedChoice.perTarget`.
+  const byTarget = request.choiceByTarget;
+  if (byTarget !== undefined) {
+    if (!asked || choice!.perTarget !== true) {
+      return err(
+        'no_per_target_choice_clause',
+        `${definition.name} answers its choice once for the whole casting, if it asks one at all; a value per creature is not a fact it asks for`,
+      );
+    }
+    if (request.choice !== undefined || fixedChoice !== undefined) {
+      return err(
+        'choice_once_and_per_target',
+        `${definition.name} is answered either once for every creature or once for each, not both`,
+      );
+    }
+    const named = new Set(request.targets);
+    const keys = Object.keys(byTarget);
+    const uncovered = [
+      ...request.targets.filter((who) => byTarget[who] === undefined),
+      ...keys.filter((who) => !named.has(who as CharacterId)),
+    ];
+    if (uncovered.length > 0) {
+      return err(
+        'choice_by_target_uncovered',
+        `${definition.name} takes one value for each creature it names and none for anybody else; ${[...new Set(uncovered)].sort().join(', ')} ${uncovered.length === 1 ? 'is' : 'are'} not answered for or not named`,
+      );
+    }
+    for (const who of keys.sort()) {
+      if (!choice!.options.includes(byTarget[who]!)) {
+        return err(
+          'unknown_choice',
+          `${definition.name} prints ${choice!.options.join(', ')}, not ${byTarget[who]!} (named for ${who})`,
+        );
+      }
+    }
+  }
   const answered = request.choice ?? fixedChoice;
   if (!asked) {
     if (answered !== undefined) {
@@ -1804,10 +1920,13 @@ export function declaredFacts(
       );
     }
   } else if (answered === undefined) {
-    return err(
-      'choice_required',
-      `${definition.name} prints ${choice!.options.join(', ')} and the engine will not choose between them; name which`,
-    );
+    // Answered per creature above, which is an answer; silence is not.
+    if (byTarget === undefined) {
+      return err(
+        'choice_required',
+        `${definition.name} prints ${choice!.options.join(', ')} and the engine will not choose between them; name which`,
+      );
+    }
   } else if (!choice!.options.includes(answered)) {
     return err(
       'unknown_choice',
@@ -2672,6 +2791,9 @@ export function namedTargets(
     // attack." The force appears whether or not anything is standing beside
     // it, and refusing that would be a rule the book does not have.
     if (definition.targets.optional === true) return ok([]);
+    // SRD Dispel Magic aimed at a magical effect names no creature: the
+    // casting it names stands where the target would. (E-L1)
+    if (request.magicalEffect !== undefined) return ok([]);
     // **A spell cast on its caster and nobody else names nobody else.** SRD
     // Produce Flame's flame "appears in your hand": `casterOnly` admits one
     // creature, so a casting that names none is cast on that one, and every

@@ -1,4 +1,5 @@
-import type { ConditionName, DamageType } from '@ie/shared';
+import type { CharacterId, ConditionName, DamageType } from '@ie/shared';
+import type { GameState } from './state.js';
 import type { CreatureSize } from '@ie/srd/schemas';
 import type { DamageDefenses } from './attack.js';
 import type { CharacterSheet } from './character.js';
@@ -80,6 +81,26 @@ export interface ObjectMaterial {
    * the whole reason the substances are content rather than a constant here.
    */
   readonly defenses?: Readonly<Record<string, DamageDefenses>>;
+  /**
+   * Whether the substance is a metal — read by SRD Heat Metal's "Choose a
+   * manufactured metal object" when the thing chosen is a declared object.
+   * Pinned on the object's record by `declareObject`, so the fold and a later
+   * casting read the answer the declaration was made with. Absent is a
+   * substance nobody has said of, and a casting at it goes ahead with that
+   * said. (E-L1)
+   */
+  readonly metal?: boolean;
+}
+
+/**
+ * What a declared object's record says it is made of: the substance's id and
+ * the one fact about it a rule reads, copied off {@link ObjectMaterial} when
+ * the object was declared. The Armour Class the row suggested is already on
+ * the sheet, so it is not copied twice. (E-L1)
+ */
+export interface MaterialPin {
+  readonly id: string;
+  readonly metal?: boolean;
 }
 
 /**
@@ -209,4 +230,32 @@ export function objectSheet(
       ...(damageThreshold === undefined ? {} : { damageThreshold }),
     },
   };
+}
+
+/**
+ * Who the table has said is touching this declared object, **if it said so
+ * now** — SRD Heat Metal's "any creature in physical contact with the
+ * object". (E-L1)
+ *
+ * `fallWindowOpen`'s rule, for its reason: a touch is momentary, and the turn
+ * in combat and the clock outside one are the whole of "now". A statement made
+ * on an earlier turn answers nothing, so a later Bonus Action asks again
+ * rather than burning a hand that has since let go. Null where nobody has
+ * said, or said it at another moment; an empty list is an answer.
+ *
+ * `item` asks about a thing `object` wears or wields rather than about a
+ * declared object, and a statement answers only the question it was made
+ * about: one about the knight's shield says nothing of his breastplate.
+ */
+export function contactNow(
+  state: GameState,
+  object: CharacterId,
+  item?: string,
+): readonly CharacterId[] | null {
+  const said = state.creatures[object]?.contact ?? null;
+  if (said === null) return null;
+  if (said.item !== item) return null;
+  if (said.turn !== (state.combat?.turnsTaken ?? null)) return null;
+  if (said.elapsed !== state.elapsed) return null;
+  return said.creatures;
 }

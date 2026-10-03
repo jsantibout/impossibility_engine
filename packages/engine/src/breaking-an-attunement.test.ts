@@ -8,6 +8,7 @@ import { applyEvent, fold, type GameEvent, type GameState } from './events.js';
 import { spellSlotKey } from './resources.js';
 import { declaredCasting } from './spellcasting.js';
 import { checkSpellDefinitionValue } from './spell-schema.js';
+import { extendContent } from './content.js';
 import { attunedItems, attuneItem, equipItem, resolveSpell } from './commands.js';
 import { beginRest } from './rest.js';
 
@@ -22,12 +23,20 @@ import { beginRest } from './rest.js';
  * A curse is fiction and the attunement is not: `CreatureState.attuned` holds
  * it, `attuneItem` writes it and `attunement-ended` takes it away. So this is
  * the shape `what-ends-attunement-besides-a-command` names — a table fact a
- * rule then reads, which is a debt — and the half the engine owns is the only
- * half it builds. Which curses end stays the table's.
+ * rule then reads, which is a debt.
+ *
+ * **The Attunement broken is a cursed item's, and only a cursed item's**
+ * (E-L1). It was a kind of its own, `end-attunement`, that broke an Attunement
+ * to whatever the caster named; the book breaks it only where "the object is a
+ * cursed magic item", so the kind was folded into Remove Curse's `end-curses`
+ * and an item that carries no curse is refused as its object. The Cloak of
+ * Woe below is a homebrew copy of the SRD Cloak of Elvenkind carrying
+ * `CatalogueItem.cursed`; the SRD cloak itself carries none.
  *
  * The object is stated at the casting, because the engine will not pick it: a
  * creature attuned to three items has three answers and the book asked the
- * caster.
+ * caster. Naming none is the first sentence — every curse on the creature —
+ * which `remove-curse.test.ts` drives.
  */
 
 const id = (s: string): CharacterId => asCharacterId(s);
@@ -35,7 +44,15 @@ const CLERIC = id('cleric');
 const BEARER = id('bearer');
 
 const CLOAK = 'cloak-of-elvenkind';
+const WOE = 'cloak-of-woe';
 const AMULET = 'amulet-of-health';
+
+const CONTENT = unwrap(
+  extendContent(SRD_CONTENT, {
+    items: [{ ...SRD_CONTENT.item(CLOAK)!, id: WOE, name: 'Cloak of Woe', cursed: true }],
+  }),
+  'content',
+);
 
 const sheet: CharacterSheet = {
   level: 5,
@@ -91,6 +108,7 @@ const BASE: readonly GameEvent[] = [
     id: BEARER,
     items: [
       { id: CLOAK, quantity: 1 },
+      { id: WOE, quantity: 1 },
       { id: AMULET, quantity: 1 },
     ],
     source: 'the hoard',
@@ -102,17 +120,17 @@ const BASE: readonly GameEvent[] = [
   { type: 'sight-declared', from: CLERIC, to: BEARER, seen: true },
 ];
 
-/** The bearer wears the cloak and is attuned to it. */
-const attuned = (): readonly GameEvent[] => {
-  const worn = run(BASE, (s) => equipItem(s, SRD_CONTENT, BEARER, CLOAK));
+/** The bearer wears one cloak and is attuned to it. */
+const attunedTo = (cloak: string): readonly GameEvent[] => {
+  const worn = run(BASE, (s) => equipItem(s, CONTENT, BEARER, cloak));
   const resting = run(worn, (s) => beginRest(s, BEARER, 'short'));
-  return run(resting, (s) => attuneItem(s, SRD_CONTENT, BEARER, CLOAK));
+  return run(resting, (s) => attuneItem(s, CONTENT, BEARER, cloak));
 };
 
 const supply = () => ({
   issuer: createRollIssuer('r'),
   rng: createRng('curse') as Rng,
-  content: SRD_CONTENT,
+  content: CONTENT,
 });
 
 const cast = (state: GameState, over: Record<string, unknown> = {}) =>
@@ -123,8 +141,8 @@ const cast = (state: GameState, over: Record<string, unknown> = {}) =>
     supply(),
   );
 
-describe('what a definition may say about ending an attunement', () => {
-  const definition = (effects: unknown[]): unknown => ({
+describe('what a definition may say about ending curses', () => {
+  const definition = (effects: unknown[], over: Record<string, unknown> = {}): unknown => ({
     id: 'homebrew-unbinding',
     name: 'Homebrew Unbinding',
     level: 3,
@@ -134,57 +152,77 @@ describe('what a definition may say about ending an attunement', () => {
     range: { kind: 'touch' },
     targets: { count: 1 },
     effects,
-    unmodelled: ['what a curse is, is the DM’s'],
+    ...over,
   });
 
-  const codes = (effects: unknown[]): readonly string[] =>
-    checkSpellDefinitionValue(definition(effects)).map((one) => one.code);
+  const codes = (effects: unknown[], over: Record<string, unknown> = {}): readonly string[] =>
+    checkSpellDefinitionValue(definition(effects, over)).map((one) => one.code);
 
   it('accepts the bare kind, which names no object of its own', () => {
-    expect(codes([{ kind: 'end-attunement' }])).toEqual([]);
+    expect(codes([{ kind: 'end-curses' }])).toEqual([]);
+  });
+
+  it('refuses it where no casting is being made to state the object at', () => {
+    expect(
+      codes([], {
+        concentration: true,
+        durationSeconds: 60,
+        activation: { action: 'action', label: 'again', effects: [{ kind: 'end-curses' }] },
+      }),
+    ).toContain('attunement_outside_the_casting');
   });
 });
 
-describe('Remove Curse breaks an attunement', () => {
+describe('SRD Remove Curse breaks the Attunement to a cursed item named as its object', () => {
   it('ends the attunement to the item the caster names', () => {
-    const before = fold('seed', attuned());
-    expect(attunedItems(before, BEARER)).toEqual([CLOAK]);
+    const before = fold('seed', attunedTo(WOE));
+    expect(attunedItems(before, BEARER)).toEqual([WOE]);
 
-    const out = unwrap(cast(before, { object: CLOAK }), 'the unbinding');
+    const out = unwrap(cast(before, { object: WOE }), 'the unbinding');
     const after = out.events.reduce(applyEvent, before);
     expect(attunedItems(after, BEARER)).toEqual([]);
     // The cloak is still worn and still owned — SRD: "so it can be removed or
     // discarded", which is somebody's later decision rather than this spell's.
-    expect(after.creatures[BEARER]?.equipped.map((worn) => worn.id)).toContain(CLOAK);
+    expect(after.creatures[BEARER]?.equipped.map((worn) => worn.id)).toContain(WOE);
   });
 
   it('says what did it, in the event the fold applies', () => {
-    const before = fold('seed', attuned());
-    const out = unwrap(cast(before, { object: CLOAK }), 'the unbinding');
+    const before = fold('seed', attunedTo(WOE));
+    const out = unwrap(cast(before, { object: WOE }), 'the unbinding');
     const ended = out.events.find((event) => event.type === 'attunement-ended');
     expect(ended).toBeDefined();
-    expect(ended && 'item' in ended && ended.item).toBe(CLOAK);
+    expect(ended && 'item' in ended && ended.item).toBe(WOE);
   });
 
   it('refuses an item the target is not attuned to', () => {
-    const out = cast(fold('seed', attuned()), { object: AMULET });
+    const out = cast(fold('seed', attunedTo(WOE)), { object: AMULET });
     expect(isErr(out) && out.code).toBe('not_attuned');
   });
 
   it('refuses an item the catalogue does not hold', () => {
-    const out = cast(fold('seed', attuned()), { object: 'a-cursed-hat' });
+    const out = cast(fold('seed', attunedTo(WOE)), { object: 'a-cursed-hat' });
     expect(isErr(out) && out.code).toBe('unknown_item');
   });
 
+  it('refuses an item that carries no curse, which the book breaks no Attunement to', () => {
+    const out = cast(fold('seed', attunedTo(CLOAK)), { object: CLOAK });
+    expect(isErr(out) && out.code).toBe('not_cursed');
+  });
+
   it('costs nothing when it refuses', () => {
-    const before = fold('seed', attuned());
-    expect(isErr(cast(before, { object: AMULET }))).toBe(true);
+    const before = fold('seed', attunedTo(CLOAK));
+    expect(isErr(cast(before, { object: CLOAK }))).toBe(true);
     expect(before.creatures[CLERIC]?.resources.pools[spellSlotKey(3)]?.spent ?? 0).toBe(0);
   });
 
-  it('refuses a casting that names no object at all', () => {
-    const out = cast(fold('seed', attuned()));
-    expect(isErr(out) && out.code).toBe('object_required');
+  it('touches the creature where no object is named: the cursed Attunement goes, the plain one stays', () => {
+    const woe = fold('seed', attunedTo(WOE));
+    const lifted = unwrap(cast(woe), 'the touch').events.reduce(applyEvent, woe);
+    expect(attunedItems(lifted, BEARER)).toEqual([]);
+
+    const plain = fold('seed', attunedTo(CLOAK));
+    const kept = unwrap(cast(plain), 'the touch').events.reduce(applyEvent, plain);
+    expect(attunedItems(kept, BEARER)).toEqual([CLOAK]);
   });
 
   it('refuses an object named at a spell that touches none', () => {

@@ -11,8 +11,9 @@
  * the rule actually lives.
  */
 
-import { type CharacterId, err, ok, type Result } from '@ie/shared';
+import { type CharacterId, err, needsContext, ok, type Result } from '@ie/shared';
 import { type Content } from '../content.js';
+import { contactNow, OBJECT_CREATURE_TYPE } from '../objects.js';
 import { applyEvent, type GameState } from '../events.js';
 import { walkerOf } from '../state.js';
 import { isCreatureType } from '../spell-definitions.js';
@@ -338,9 +339,9 @@ export function resolvePreservesEffect(
  * Why this Attunement may not be broken, or null where it may.
  *
  * Written once and asked twice, for {@link reviveProblem}'s reason: the
- * pre-flight in `resolveSpell` calls it before a slot is spent and
- * {@link resolveEndAttunementEffect} calls it where the event is written, and
- * two readings of one rule is two answers.
+ * pre-flight in `resolveSpell` calls it before a slot is spent, for SRD
+ * Remove Curse's object form (`end-curses`, E-L1), and one reading of the
+ * rule is one answer.
  *
  * The object is read as the **kind** it is a copy of, which is what
  * `attuneItem` and `endAttunement` both do: attunement is a yes or no per kind
@@ -364,45 +365,6 @@ export function attunementProblem(
     return err('not_attuned', `${target} is not attuned to ${item.name}, so ${name} breaks nothing`);
   }
   return ok(true);
-}
-
-/**
- * The target stops being attuned to the object the caster named.
- *
- * SRD Remove Curse: "the spell breaks its owner's Attunement to the object so
- * it can be removed or discarded." The removing and the discarding are two
- * commands somebody may take afterwards and are deliberately not taken here:
- * the sentence says the object *can* be removed, which is a permission rather
- * than an instruction, and a spell that took the cloak off its owner would be
- * playing the creature.
- *
- * The event is the one `endAttunement` already emits, so every reader of a
- * broken attunement — the grants that come off the sheet, the benefit that
- * stops — is reached by exactly the route it always was.
- */
-export function resolveEndAttunementEffect(
-  ctx: EffectContext,
-  _effect: EffectOfKind<'end-attunement'>,
-  target: CharacterId,
-  world: GameState,
-): Result<GameState> {
-  const { name, supply, events, outcomes } = ctx;
-  const object = ctx.object;
-  if (object === undefined) {
-    throw new Error(
-      `${name} breaks an Attunement and no object was named; ` +
-        'the caller should have been refused `object_required` before reaching here',
-    );
-  }
-
-  const allowed = attunementProblem(world, supply.content, target, object, name);
-  if (!allowed.ok) return allowed;
-
-  const kind = supply.content.item(object)!.id;
-  const ended = { type: 'attunement-ended' as const, id: target, item: kind };
-  events.push(ended);
-  outcomes.push({ target, affected: true });
-  return ok(applyEvent(world, ended));
 }
 
 /**
@@ -517,4 +479,88 @@ export function objectHeldProblem(
     'not_equipped',
     `${name} reaches a creature holding or wearing the object, and ${target} has no ${item.name} in hand or on their back`,
   );
+}
+
+/**
+ * Whether the thing a casting heats is metal — SRD Heat Metal's "Choose a
+ * manufactured metal object" (`TargetRule.metal`). (E-L1)
+ *
+ * Read off the mark content gave it: the named item's `metal`, or, where the
+ * casting is aimed at a declared object, the substance its declaration
+ * pinned. `false` is refused `not_metal`; a thing nobody marked — the SRD
+ * never says what a Shield is made of — answers with the line the casting
+ * goes ahead with, which the caller adds to what it could not check.
+ */
+export function metalProblem(
+  state: GameState,
+  content: Content,
+  name: string,
+  targets: readonly CharacterId[],
+  object: string | undefined,
+): Result<readonly string[]> {
+  const unsaid: string[] = [];
+  if (object !== undefined) {
+    const item = content.item(object);
+    if (item === null) return err('unknown_item', `${object} is not in the catalogue`);
+    if (item.metal === false) {
+      return err('not_metal', `${name} heats a metal object, and ${item.name} is not made of metal`);
+    }
+    if (item.metal === undefined) {
+      unsaid.push(`${name}: nobody has recorded whether ${item.name} is metal — the table's to rule on`);
+    }
+  }
+  for (const target of targets) {
+    const thing = state.creatures[target];
+    if (thing === undefined || thing.creatureType !== OBJECT_CREATURE_TYPE) continue;
+    if (thing.material?.metal === false) {
+      return err('not_metal', `${name} heats a metal object, and ${thing.name} is ${thing.material.id}`);
+    }
+    if (thing.material?.metal === undefined) {
+      unsaid.push(`${name}: nobody has recorded whether ${thing.name} is metal — the table's to rule on`);
+    }
+  }
+  return ok(unsaid);
+}
+
+/**
+ * Who a casting aimed at a declared object reaches, or the question that
+ * would say — SRD Heat Metal's "Any creature in physical contact with the
+ * object" (`TargetRule.inContact`). (E-L1)
+ *
+ * The DM states contact (`declareContact`) and the statement is worth the
+ * moment it was made at (`contactNow`); a target with no statement current is
+ * asked about, with the room's kind of question, because the 2d8 would
+ * otherwise fall on somebody nobody named. Asked on both paths, the cast's
+ * pre-flight and a later use, for {@link objectHeldProblem}'s reason. The
+ * answer is each declared object's touchers. A target that is a creature is
+ * not asked about: the holder touches what it wears or wields by the rule,
+ * and other hands on it are burned only where the DM has named them.
+ */
+export function contactProblem(
+  state: GameState,
+  name: string,
+  targets: readonly CharacterId[],
+): Result<Readonly<Record<string, readonly CharacterId[]>>> {
+  const touching: Record<string, readonly CharacterId[]> = {};
+  for (const target of targets) {
+    if (state.creatures[target]?.creatureType !== OBJECT_CREATURE_TYPE) continue;
+    const now = contactNow(state, target);
+    if (now === null) {
+      return needsContext(
+        'contact_unstated',
+        `${name} burns any creature in physical contact with ${target}, and nobody has said who that is`,
+        [
+          {
+            kind: 'scene',
+            subject: target,
+            need: 'which creatures are touching the object right now — nobody is an answer',
+            because: `${name} deals its damage to any creature in physical contact with the object`,
+            satisfyWith: 'a declareContact command for that object',
+          },
+        ],
+      );
+    }
+    touching[target] = now;
+  }
+  return ok(touching);
 }

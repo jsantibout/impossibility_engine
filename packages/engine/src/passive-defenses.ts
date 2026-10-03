@@ -26,8 +26,8 @@ import type { SenseName } from './positioning.js';
  * kind with a flag would be the wrong shape: the ward's answer is *no attack
  * at all*, and the other two answer an attack that was made. A definition
  * that could say "before or after" would be able to say the two things that
- * make no sense — a ward consulted after the hit, which would spend an Attack
- * action the book leaves in the attacker's hand, and duplicates consulted
+ * make no sense — a ward consulted after the hit, which would roll an attack
+ * the book says is lost before it is thrown, and duplicates consulted
  * before one, which is the reading three earlier attempts at this shape took
  * and which the book does not support.
  *

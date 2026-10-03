@@ -311,13 +311,17 @@ export const ACID_ARROW: SpellDefinition = {
  * counterspeller's spell save DC, which is why this is an effect aimed at a
  * target rather than a roll the caster makes.
  *
- * The one clause not modelled is the components qualifier, and it is worth
- * saying why rather than quietly checking nothing: **all 339 SRD 5.2.1 spells
- * have at least one of Verbal, Somatic or Material**, so the clause excludes
- * nothing the engine can currently be asked about, and a creature casting by
- * some means the engine has not been told the components of is an unknown
- * rather than a no. `counterspell.test.ts` pins that count, so the day the
- * data stops saying it, something goes red.
+ * **The components qualifier is checked, and it is the casting's rather than
+ * the book's.** All 339 SRD 5.2.1 spells print at least one of Verbal, Somatic
+ * or Material — `counterspell.test.ts` pins that count — but a casting may
+ * still be made with none: seventeen stat blocks cast "requiring no spell
+ * components" (a Dust Mephit's Sleep, an Imp's Invisibility), and SRD "Spells
+ * Cast from Items" says an item's spell "requires no components". The route a
+ * casting goes by says what it waives (`GrantedSpell.waives`, carried off the
+ * parsed line; every component, for an item), the declaration pins
+ * `componentless` where nothing is left, and the window does not open on it —
+ * the reading SRD Subtle Spell already took. A line that waives only the
+ * Material component still opens it. (E-L1)
  */
 export const COUNTERSPELL: SpellDefinition = {
   id: 'counterspell',
@@ -334,14 +338,9 @@ export const COUNTERSPELL: SpellDefinition = {
   requiresSight: true,
   targets: { count: 1 },
   effects: [{ kind: 'interrupt-casting', ability: 'con' }],
-  // **A debt, and the reading that called it safe was half right** (W8-S26,
-  // on review). Every SRD 5.2.1 spell prints a component, which
-  // `counterspell.test.ts` (engine) still proves; but seventeen stat blocks
-  // cast "requiring no spell components" — a Giant Owl's Clairvoyance, a
-  // Couatl's Sleep — and a casting of theirs opens the window all the same.
-  unmodelled: [
-    'the trigger reads "casting a spell with Verbal, Somatic, or Material components", and the qualifier is not checked: every SRD 5.2.1 spell prints one of the three, but a stat block that casts "requiring no spell components" — a Giant Owl’s Clairvoyance, a Couatl’s Sleep — opens the window where the book gives none',
-  ],
+  // "casting a spell with Verbal, Somatic, or Material components" — read off
+  // the casting: a stat block's "requiring no spell components" and an item's
+  // casting leave nothing to see or hear, and open no window. (E-L1)
 };
 
 /**
@@ -2669,10 +2668,12 @@ export const HYPNOTIC_PATTERN: SpellDefinition = {
  * attack inside the Attack action is `caps-attacks`; the 25 percent is
  * `casting-chance`, a die the casting pipeline throws after the slot and the
  * action are spent, read against the Somatic component the spell's entry
- * prints — `SpellEntry.components`, carried out of the parsed book. Three roads
- * make a casting without passing that point — a Ready, a spell cast with or on
- * a hit, a glyph's stored spell — and do not throw the die yet, which is the
- * `unmodelled` line below. (W7-S22)
+ * prints — `SpellEntry.components`, carried out of the parsed book. (W7-S22)
+ * **And on the four roads that make a casting elsewhere**, through the same
+ * `castingFailure`: a spell readied with the Ready action, where it is cast; a
+ * cantrip cast with the swing, whose failure makes no attack; a spell cast on
+ * a hit, whose failure adds nothing to the blow; and the spell a Glyph of
+ * Warding stores, whose failure leaves the glyph holding nothing. (E-L1)
  */
 export const SLOW: SpellDefinition = {
   id: 'slow',
@@ -2746,9 +2747,6 @@ export const SLOW: SpellDefinition = {
     },
   ],
   durationSeconds: 60,
-  unmodelled: [
-    'the 25 percent chance is thrown where a casting is made through the casting pipeline, and not yet on three roads that make one elsewhere: a spell readied with the Ready action (cast at the Ready), a cantrip cast with a swing or a smite cast on a hit, and the spell a Glyph of Warding stores at its inscription',
-  ],
 };
 
 /**
@@ -2797,6 +2795,13 @@ export const BANISHMENT: SpellDefinition = {
  * Whether "fetch the key and give it to me" is achievable, and whether it
  * obviously harms the target, is a judgement the SRD hands the table, so the
  * engine spends the slot, runs the eight hours, and says so.
+ *
+ * **"That can hear and understand you" is the engine's** (E-L1): a Deafened
+ * target is refused, and so is one that shares no language with the caster —
+ * a character's languages off its record, a stat block's off its parsed
+ * Languages line. Where nothing the engine holds can say (a creature with
+ * neither, or a tongue among a block's "other languages" its GM chooses), the
+ * casting goes ahead and says so.
  */
 export const SUGGESTION: SpellDefinition = {
   id: 'suggestion',
@@ -2806,7 +2811,10 @@ export const SUGGESTION: SpellDefinition = {
   castingTime: 'action',
   concentration: true,
   range: { kind: 'ranged', feet: 30 },
-  targets: { count: 1 },
+  // "one creature you can see within range that can hear and understand you"
+  // — not Deafened, and sharing a language with the caster: a character's off
+  // its record, a stat block's off its Languages line. (E-L1)
+  targets: { count: 1, hearsAndUnderstands: true },
   requiresSight: true,
   effects: [{ kind: 'save', ability: 'wis', condition: 'charmed' }],
   durationSeconds: 28800,
@@ -2832,9 +2840,6 @@ export const SUGGESTION: SpellDefinition = {
     'For example, you could say, "Fetch the key to the cult\'s treasure vault, and give the key to me."',
     'Or you could say, "Stop fighting, leave this library peacefully, and don\'t return."',
     'The Charmed target pursues the suggestion to the best of its ability.',
-  ],
-  unmodelled: [
-    'the target must be able to hear and understand you: neither a Deafened target nor one that shares no language with the caster is refused',
   ],
 };
 
@@ -5054,7 +5059,8 @@ export const PLANE_SHIFT: SpellDefinition = {
  * whose own description finishes on armour that cannot be doffed until a
  * Remove Curse lands.
  *
- * So the `end-attunement` effect is the half the engine owns. **Which object**
+ * So breaking the Attunement was the half the engine owned first (it was the
+ * `end-attunement` effect until E-L1 folded it into `end-curses`). **Which object**
  * is the caster's, stated at the casting through `CastSpellRequest.object`,
  * because a creature attuned to three items has three answers and the engine
  * picks none of them; an item the target is not attuned to is refused before a
@@ -5062,11 +5068,20 @@ export const PLANE_SHIFT: SpellDefinition = {
  * off its owner: SRD says it "can be removed or discarded", which is a
  * permission and two commands somebody may take afterwards.
  *
- * **The first sentence is a debt now, and this paragraph used to call it
- * fiction** (W8-S26). It read "nothing the engine applies is a curse — Bestow
- * Curse is tracked and applies nothing"; Bestow Curse is executed since, and a
- * lycanthrope's curse is on the record, so there are curses in state for the
- * touch to end and the touch ends none of them.
+ * **And the first sentence is built** (E-L1). It waited on knowing which of
+ * the castings and marks a creature holds is a curse, and each kind now says:
+ * a spell that lays one is marked `curse` and pins it on its record (SRD
+ * Bestow Curse, SRD Hex), a printed line's curse is the `curses` list, and an
+ * item carrying one is `CatalogueItem.cursed` — whose Attunement SRD Greater
+ * Restoration calls a curse outright. `end-curses` ends all three on the
+ * creature touched.
+ *
+ * **The object is optional now, and must be cursed.** Named, it is the second
+ * sentence and only that: the owner's Attunement to the cursed item breaks,
+ * "its curse remains", and the owner's own curses go on. An item that carries
+ * no curse is refused (`not_cursed`), because an Attunement to it is no curse
+ * and the book breaks it only to a cursed one. Unnamed, the touch ends every
+ * curse affecting the creature.
  */
 export const REMOVE_CURSE: SpellDefinition = {
   id: 'remove-curse',
@@ -5077,10 +5092,7 @@ export const REMOVE_CURSE: SpellDefinition = {
   concentration: false,
   range: { kind: 'touch' },
   targets: { count: 1, self: true },
-  effects: [{ kind: 'end-attunement' }],
-  unmodelled: [
-    'the curses the touch ends are not ended: a Bestow Curse on the target and a curse on its record go on, because nothing tells the engine which of the castings and marks it holds is a curse — and the Attunement is broken to any item the caster names, where the book breaks it only to a cursed one',
-  ],
+  effects: [{ kind: 'end-curses' }],
 };
 
 /**
@@ -5955,6 +5967,13 @@ export const SILENT_IMAGE: SpellDefinition = {
  *
  * Note what 2024 changed: **there is no check at all** below the threshold.
  * The 2014 habit of rolling for everything is a different spell.
+ *
+ * **"Or magical effect" is reachable now** (E-L1). A creature and a declared
+ * object were always nameable; a spell that runs on nobody — a Fog Cloud, a
+ * Web — is named by its casting id (`CastSpellRequest.magicalEffect`) with no
+ * target beside it, refused unless it is running, on no creature and within
+ * the 120 feet, and ended by the same arithmetic. One that holds no place in
+ * the scene cannot be measured, and the casting says so.
  */
 export const DISPEL_MAGIC: SpellDefinition = {
   id: 'dispel-magic',
@@ -5966,9 +5985,6 @@ export const DISPEL_MAGIC: SpellDefinition = {
   range: { kind: 'ranged', feet: 120 },
   targets: { count: 1 },
   effects: [{ kind: 'dispel' }],
-  unmodelled: [
-    '"one creature, object, or magical effect" — only a creature can be named, because only a creature has a record to hand the engine; a spell running on nobody (an illusion, a wall) is reachable by no target',
-  ],
 };
 
 /**
@@ -9965,17 +9981,25 @@ export const ICE_KNIFE: SpellDefinition = {
  * The ward is the other half, and the owner's ruling of 2026-09-22 is what
  * made it writable. Two things about it are unlike anything else in the
  * catalogue: the creature who rolls is the one **attacking**, and what a
- * failure costs is the attack itself. The engine aims nothing on a caller's
- * behalf, so it takes neither of the book's two branches for the attacker —
- * the swing is lost, **nothing is spent**, and redirecting is a second
- * command against a creature nobody warded.
+ * failure costs is the attack itself.
+ *
+ * **What a failure costs is the book's** — the owner's ruling of 2026-10-03,
+ * **reversing that of 2026-09-22**, which had the swing lost and nothing
+ * spent. The engine still aims nothing on a caller's behalf, so the attacker
+ * states the branch before the die: `ifWarded` names a new target, or
+ * `'lose'`, and a casting or a swing at a warded creature with neither is
+ * asked (`warded_fallback_required`) before anything is thrown. "Lose the
+ * attack" spends that swing out of the Attack action and makes no roll; "lose
+ * the … spell" spends the action and the slot and the spell ends at once under
+ * the ward (`spell-fizzled`); "choose a new target" swings or casts at the
+ * creature named, in the same command — and a second ward there, failed, loses
+ * it. (E-L1)
  *
  * **Both halves of "an attack roll or a damaging spell" are answered, and at
  * the moment each of them targets.** A weapon swing meets the ward inside
  * `resolveAttack`, before the Attack action; a casting meets it inside
  * `resolveSpell`, with the targets settled and before the slot, the action
- * and the first die. So the price is the same on both paths — nothing —
- * and what the caster does next is theirs.
+ * and the first die.
  *
  * **"This spell doesn't protect the warded creature from areas of effect" is
  * executed, and it costs a guard rather than being free.** Both branches of
@@ -9987,8 +10011,7 @@ export const ICE_KNIFE: SpellDefinition = {
  *
  * The one place this is narrower than the book is deliberate and the owner
  * accepted it: an attacker gets **one save per ward per turn** rather than one
- * per targeting. Without that a failure costs nothing and can be re-declared
- * until it passes, which is the spell undone.
+ * per targeting, which stands beside the 2026-10-03 ruling.
  */
 export const SANCTUARY: SpellDefinition = {
   id: 'sanctuary',
@@ -10019,12 +10042,9 @@ export const SANCTUARY: SpellDefinition = {
     { on: 'target-deals-damage', ends: 'casting' },
   ],
   // One save per ward per turn is the owner's ruling of 2026-09-22 and the
-  // engine's rule, stated in the docstring above; it is not a debt and it is
-  // not the table's, so it left `unmodelled` (W8-S26). What is still owed is
-  // the price of the failure.
-  unmodelled: [
-    'the branch the save buys spends nothing: "choose a new target" is a second swing at a creature nobody warded, because the engine aims nothing on a caller’s behalf — but "lose the attack or spell" is a cost, and an attacker who takes neither branch keeps the attack, the action and the slot the book says are lost',
-  ],
+  // engine's rule, stated in the docstring above. The price of a failure is
+  // the book's since the ruling of 2026-10-03, and the attacker's fallback is
+  // `ifWarded` on the swing or the casting. (E-L1)
 };
 
 /**
@@ -10349,10 +10369,13 @@ export const BARKSKIN: SpellDefinition = {
  * Strength so the definition is a whole spell read alone, and the casting
  * replaces it with the ability the caster named.
  *
- * **The upcast is still not executed, and it is a different sentence.** "You
- * can choose a different ability for each target" is one casting whose effects
- * differ from target to target, which is a shape of its own and not a second
- * choice: this spell states one value, and every creature it caught gets it.
+ * **And the upcast is the same question asked again per creature.** "You can
+ * choose a different ability for each target" is one casting whose effects
+ * differ from target to target — but differ only in the value already being
+ * substituted, so it is `StatedChoice.perTarget` rather than a second shape:
+ * the request answers once (`choice`) or once per creature it touches
+ * (`choiceByTarget`), and each creature's mode takes its own answer through
+ * the same `statedChoice`. (E-L1)
  */
 export const ENHANCE_ABILITY: SpellDefinition = {
   id: 'enhance-ability',
@@ -10377,11 +10400,11 @@ export const ENHANCE_ABILITY: SpellDefinition = {
   ],
   // "choose Strength, Dexterity, Intelligence, Wisdom, or Charisma" — five,
   // in the order the SRD prints them, and Constitution is not among them.
-  choiceStated: { of: 'ability', options: ['str', 'dex', 'int', 'wis', 'cha'] },
+  // "You can choose a different ability for each target" is `perTarget`: the
+  // casting answers once with `choice`, or once for each creature it touches
+  // with `choiceByTarget`, off the same five.
+  choiceStated: { of: 'ability', options: ['str', 'dex', 'int', 'wis', 'cha'], perTarget: true },
   durationSeconds: 3600,
-  unmodelled: [
-    '"You can choose a different ability for each target" is a second choice per creature rather than one per casting: a casting states one value and applies its effects to every target alike',
-  ],
 };
 
 /**
@@ -11209,8 +11232,36 @@ export const SHAPECHANGE: SpellDefinition = {
  * **The object is an equipped item and the target is whoever has it.** That is
  * the holding fact the engine keeps — a weapon in a hand or armour on a body,
  * both `equipped` — so the caster names the creature and the thing, and the
- * damage lands on the creature in contact with it. An unattended metal gate is
- * still the table's: nothing in the engine is touching it.
+ * damage lands on the creature in contact with it.
+ *
+ * **Or the object is a declared one, and the target is the object** (E-L1,
+ * the owner's answers of 2026-10-03). An unattended iron gate is a declared
+ * object (`declareObject`), and who is touching it is the DM's to state
+ * (`declareContact`) — a momentary fact, so the cast and each later Bonus
+ * Action ask for it when nobody has said it this turn, rather than let the
+ * 2d8 fall on somebody unstated. `targets.inContact` turns the casting at the
+ * gate into the burn on each creature named, and the Constitution save stays
+ * with the holder: nobody holds a gate, so nobody is asked to drop it.
+ *
+ * **And a second hand on a thing somebody wears or wields** is the DM's to
+ * state through the same door, by the holder and the item — the coordinator
+ * applying the owner's ruling, 2026-10-03. Those named take the burn beside
+ * the wearer and no save; unstated, the wearer alone touches it.
+ *
+ * **A thing its holder dropped is touching nothing.** It lies in the room as
+ * an item on the floor, not a declared object, so a later Bonus Action aimed
+ * at the creature that let it go is refused (`not_equipped`) and no contact
+ * can be stated on it. That is the reading this spell has had since `drops`
+ * was built (`heat-metal.test.ts`), and it is a reading: the book's "deal
+ * this damage again" would reach a creature that picked the hot mace up off
+ * the floor without wielding it.
+ *
+ * **"Manufactured metal" is a mark in the data** (`targets.metal`): every SRD
+ * weapon and armour row says whether it is metal, read off the SRD's own
+ * crafting tools (`items.ts`), and every substance in the Object Armor Class
+ * table says so too, pinned on the object when it is declared. A club or a
+ * wooden door is refused before the slot; a Shield, whose material the book
+ * never states, is cast at with that said.
  *
  * **"Or drop the object if it can" is the verb that was missing.**
  * `what-a-creature-is-holding` was half built — hands are counted and a
@@ -11282,8 +11333,10 @@ export const HEAT_METAL: SpellDefinition = {
   range: { kind: 'ranged', feet: 60 },
   // The creature wearing or wielding the heated thing. Which thing is
   // `CastSpellRequest.object`, and the casting is refused before a slot is
-  // spent when the target has no such thing in hand or on their back.
-  targets: { count: 1, self: true },
+  // spent when the target has no such thing in hand or on their back. Or a
+  // declared object, burning whoever the DM says is touching it (`inContact`);
+  // either way the thing is metal (`metal`). (E-L1)
+  targets: { count: 1, self: true, metal: true, inContact: true },
   requiresSight: true,
   effects: [HEAT_METAL_BURN, HEAT_METAL_GRIP],
   activation: {
@@ -11295,10 +11348,6 @@ export const HEAT_METAL: SpellDefinition = {
     effects: [HEAT_METAL_BURN, HEAT_METAL_GRIP],
   },
   durationSeconds: 60,
-  unmodelled: [
-    'an object nobody is wearing or wielding is not heated: "any creature in physical contact with the object" is a touching the engine keeps no record of, and what it does keep is what a creature has equipped — the 2d8 Fire such a touch deals is not thrown',
-    'whether the thing chosen is manufactured, metal, and a weapon or a suit of Heavy or Medium armour is not asked: the catalogue records what an item is made of nowhere, so a casting at a creature’s wooden club is not refused',
-  ],
 };
 
 /**
@@ -11985,6 +12034,13 @@ export const MASS_HEAL: SpellDefinition = {
  * which the field does not fix. Enlarge/Reduce and Glyph of Warding print the
  * same shape, which is what makes it a shape rather than this cantrip's
  * problem.
+ *
+ * **And the cap is of "its 1-minute effects"**, which two of the six are not:
+ * _Invisible Hand_ and _Phantom Sound_ are instantaneous inside a spell whose
+ * Duration line says a minute. `SpellOption.instantaneous` is the branch
+ * setting its own Duration, so those two leave no record, schedule no deadline
+ * and neither count against the three nor end one of them to make room.
+ * (E-L1)
  */
 export const THAUMATURGY: SpellDefinition = {
   id: 'thaumaturgy',
@@ -12039,12 +12095,18 @@ export const THAUMATURGY: SpellDefinition = {
     },
     'invisible-hand': {
       label: 'Invisible Hand',
+      // "You **instantaneously** cause…" — over before the minute starts, so
+      // this wonder leaves nothing running for the cap of three to count.
+      instantaneous: true,
       handsOver: [
         'Invisible Hand. You instantaneously cause an unlocked door or window to fly open or slam shut.',
       ],
     },
     'phantom-sound': {
       label: 'Phantom Sound',
+      // "You create an **instantaneous** sound" — the same, and for the same
+      // reason.
+      instantaneous: true,
       handsOver: [
         'Phantom Sound. You create an instantaneous sound that originates from a point of your choice within range, such as a rumble of thunder, the cry of a raven, or ominous whispers.',
       ],
@@ -12057,11 +12119,10 @@ export const THAUMATURGY: SpellDefinition = {
   durationSeconds: 60,
   // "If you cast this spell multiple times, you can have up to three of its
   // 1-minute effects active at a time" — Prestidigitation's sentence with a
-  // different word for the same number, and the same field answers it.
+  // different word for the same number, and the same field answers it. The
+  // two wonders the book calls instantaneous leave no record, so they count
+  // against nothing and end nothing to make room.
   maxRunning: 3,
-  unmodelled: [
-    'the cap counts every casting rather than only the four wonders that last a minute: the two the book calls instantaneous leave a record here as the other four do, so a door flung open counts against the three',
-  ],
 };
 
 /**
@@ -14604,6 +14665,8 @@ export const HEX: SpellDefinition = {
   // bands and therefore three keys, with a level 4 slot falling in the second
   // because 5 has not been reached.
   durationAtSlot: { 2: 14400, 3: 28800, 5: 86400 },
+  // "You place a curse on a creature" — what SRD Remove Curse ends. (E-L1)
+  curse: true,
 };
 
 /**
@@ -14967,6 +15030,9 @@ export const BESTOW_CURSE: SpellDefinition = {
   // third field of the slot family, and the one a table of seconds could not
   // say: an ending rather than a length. Same reader as SRD Major Image's.
   untilDispelledAtSlot: 9,
+  // "must succeed on a Wisdom saving throw or become cursed" — what SRD
+  // Remove Curse ends. (E-L1)
+  curse: true,
 };
 
 /**

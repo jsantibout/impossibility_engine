@@ -79,7 +79,7 @@ const CORPSE = id('corpse');
 const DYING = id('dying');
 
 /** The one thing this table puts in a hand — see the setup below. */
-const HEATED = 'quarterstaff';
+const HEATED = 'mace';
 
 const sheet = (over: Partial<CharacterSheet> = {}): CharacterSheet => ({
   level: 9,
@@ -224,7 +224,8 @@ const SETUP: readonly GameEvent[] = [
   // **And a thing in the ally's hand**, for the spell that heats one: SRD Heat
   // Metal refuses an object its target is neither wearing nor wielding, and
   // the fixture supplies the wielding rather than the spell being excused the
-  // rule. A Quarterstaff, because it is wielded and so can be let go of.
+  // rule. A Mace, because it is wielded and so can be let go of, and a smith's
+  // work and so metal (E-L1).
   { type: 'items-gained', id: ALLY, items: [{ id: HEATED, quantity: 1 }], source: 'the fixture' },
   { type: 'item-equipped', id: ALLY, item: HEATED, armor: null },
   // The ally is falling, which is the same discipline the types above follow:
@@ -1839,8 +1840,9 @@ describe('every spell this batch added is cast for real', () => {
    * with nobody taking a Reaction. Mirror Image also needed the one thing no
    * casting had ever hung on a creature — a count that goes down — and
    * Sanctuary needed a ruling about what a failed ward costs, which the owner
-   * gave: the attack is lost, nothing is spent, and one save per ward per
-   * turn.
+   * gave on 2026-09-22 — the attack is lost, nothing is spent, and one save
+   * per ward per turn — and revised on 2026-10-03: "lose the attack or spell"
+   * costs what it says, and the attacker names its fallback up front (E-L1).
    */
   /**
    * **Augury leaves by a door built out of the item vocabulary**, which is
@@ -1971,8 +1973,9 @@ describe('every spell this batch added is cast for real', () => {
     // half: the failed Constitution save lets go of the object, "if it can" is
     // `handsFor`, and the Disadvantage is the `orElse` that runs only where it
     // could not be. The object is an equipped item, the Bonus Action deals the
-    // same damage again through the record, and what is left is an object
-    // nobody is wearing or wielding.
+    // same damage again through the record, and the object nobody is wearing or
+    // wielding left too (E-L1): a declared object, and every hand on it the
+    // DM's to state.
     'heat-metal',
     // **Hex leaves by the rider on later blows and a mark that moves.** Its
     // four sentences were four different absences and none of them is one
@@ -2351,8 +2354,16 @@ describe('every spell this batch added is cast for real', () => {
     // whichever came first.
     'darkness',
     'daylight',
+    // And the upcast's own sentence, "You can choose a different ability for
+    // each target", is `StatedChoice.perTarget` — the one question answered
+    // again per creature. Nothing is left over. (E-L1)
+    'enhance-ability',
     'enthrall',
     'expeditious-retreat',
+    // The metal object is a mark in the data and every hand on the hot thing
+    // is the DM's to state — the gate, and a second hand on the knight's
+    // breastplate (E-L1, the owner's answers of 2026-10-03). Nothing is left.
+    'heat-metal',
     // The fifth, and it prints nothing the engine leaves alone: the die that
     // rides later blows, the ability the caster names, the slot table, and the
     // Bonus Action that curses a new creature once the first one drops.
@@ -2364,6 +2375,9 @@ describe('every spell this batch added is cast for real', () => {
     // And the fourth, finished by the consent track: a `willing` list to
     // declare into.
     'resistance',
+    // And the price of a ward's failure is the book's since the owner's ruling
+    // of 2026-10-03, stated up front as `ifWarded`. Nothing is left over. (E-L1)
+    'sanctuary',
     // And the last clause of this one was half a sentence: "Creatures that
     // don't sleep, such as elves, **or** that have Immunity to the Exhaustion
     // condition automatically succeed." The Immunity was read off the creature

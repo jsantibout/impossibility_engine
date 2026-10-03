@@ -54,7 +54,7 @@ import {
   quantityOf,
 } from './inventory.js';
 import { type GrantedActionRule, spendAction, spendBonusAction, spendReaction } from '../combat.js';
-import { type Content, hasComponent, type SpellEntry } from '../content.js';
+import { castsWithComponent, type Content, type SpellComponent, type SpellEntry } from '../content.js';
 import { type CommandIdentity, commandOutcome, once } from '../idempotency.js';
 import {
   type Ability,
@@ -75,6 +75,7 @@ import {
   type GameEvent,
   type GameState,
   isOn,
+  spellOn,
 } from '../events.js';
 import { ONGOING_RECORD_VERSION } from '../ongoing-compatibility.js';
 import {
@@ -94,7 +95,7 @@ import {
 } from '../positioning.js';
 import { remaining, slotKeyOf, tallied } from '../resources.js';
 import {
-  breaksAttunement,
+  endsCurses,
   castOnAHit,
   concentrationAt,
   dropsAnObject,
@@ -107,6 +108,7 @@ import {
   handedOver,
   onCaster,
   persists,
+  rangeFeetAt,
   untilDispelledAt,
   riderDuration,
   anchoredOnTarget,
@@ -132,7 +134,9 @@ import {
   castingTimeOf,
   type SequencedBurst,
 } from '../spell-definitions.js';
-import { castsAtWill, type CastingRoute } from '../spellcasting.js';
+import { castsAtWill, type CastingRoute, componentsWaivedBy } from '../spellcasting.js';
+import { hearsAndUnderstands } from '../languages.js';
+import { contactNow, OBJECT_CREATURE_TYPE } from '../objects.js';
 import {
   castingNumber,
   castingSource,
@@ -208,9 +212,10 @@ import {
 import {
   attunementProblem,
   maskProblem,
+  contactProblem,
+  metalProblem,
   objectHeldProblem,
   resolveCreatureTypeOverrideEffect,
-  resolveEndAttunementEffect,
   resolveReviveEffect,
   resolvePreservesEffect,
   resolveStabiliseEffect,
@@ -263,6 +268,8 @@ import {
 } from './spell-effect-hit-points.js';
 import {
   resolveDispelEffect,
+  resolveDispelOnEffect,
+  resolveEndCursesEffect,
   resolveInterruptCastingEffect,
 } from './spell-effect-magic.js';
 import {
@@ -273,7 +280,7 @@ import {
 } from './spell-effect-rolls.js';
 import { resolveChanceEffect, thrownAgainst } from './spell-effect-chance.js';
 import { aimsHarmAtATarget } from '../spell-definitions.js';
-import { wardAgainst } from './passive-defenses.js';
+import { wardAgainst, wardOwed } from './passive-defenses.js';
 import { resolveTeleportEffect } from './spell-effect-teleport.js';
 import { bonesUnstated, resolveRaiseEffect, resolveSummonEffect } from './spell-effect-summon.js';
 import { resolveElsewhereEffect } from './elsewhere.js';
@@ -534,14 +541,43 @@ export function resolveDeclaredCast(
       castingId: pending.castingId,
       name: definition.name,
       supply,
-      exempt: pending.numbers !== undefined || pending.subtle === true,
+      exempt: pending.subtle === true,
+      // An item's casting (the record carries its numbers) requires no
+      // components; a stat block's line waives what it prints. (E-L1)
+      waived:
+        pending.numbers !== undefined
+          ? new Set(['material', 'somatic', 'verbal'] as const)
+          : componentsWaivedBy(chosen.value),
     });
     if (!fumbled.ok) return fumbled;
     events.push(...fumbled.value.events);
     if (fumbled.value.failed) {
       return ok({ events, castingId: pending.castingId, outcomes: [], unverified: [] });
     }
-    if (storedCast !== null) events.push(storedCast.event);
+    // **And the spell it stores is a casting too**, made "as part of creating
+    // the glyph" with gestures of its own — so SRD Slow's die is thrown again
+    // for it, after its slot is spent. A failure is that spell failing: the
+    // glyph was made and holds nothing, neither the spell nor the rune its
+    // caster did not choose. See `OngoingRecordPlan.storedFizzled`. (E-L1)
+    let storedFizzled = false;
+    if (storedCast !== null) {
+      events.push(storedCast.event);
+      const storedFumble = castingFailure(
+        state,
+        pending.caster,
+        supply.content.spellEntry(storedCast.stored.spellId),
+        {
+          castingId: storedCast.stored.castingId,
+          name: storing.value!.definition.name,
+          supply,
+          exempt: false,
+          waived: componentsWaivedBy(storing.value!.route),
+        },
+      );
+      if (!storedFumble.ok) return storedFumble;
+      events.push(...storedFumble.value.events);
+      storedFizzled = storedFumble.value.failed;
+    }
 
     // What the caster stated at the declaration, read back off the record it
     // was written on. Normalised already — this is the same function that
@@ -649,6 +685,11 @@ export function resolveDeclaredCast(
       ...(pending.rollsPerTarget === undefined
         ? {}
         : { rollsPerTarget: pending.rollsPerTarget }),
+      // And the value chosen for each of them, read back the same way: an
+      // Enhance Ability declared Dexterity for the Rogue settles Dexterity.
+      ...(pending.choiceByTarget === undefined
+        ? {}
+        : { choiceByTarget: pending.choiceByTarget }),
       unverified: [
         ...pending.unverified,
         ...(pending.strayed ?? []).map(
@@ -685,6 +726,9 @@ export function resolveDeclaredCast(
       // And the object, read back the same way: a Remove Curse declared at the
       // cloak settles at the cloak and at no other thing in the pack.
       ...(pending.object === undefined ? {} : { object: pending.object }),
+      // And the magical effect, read back the same way: a Dispel Magic declared
+      // at the Fog Cloud settles at the Fog Cloud. (E-L1)
+      ...(pending.magicalEffect === undefined ? {} : { magicalEffect: pending.magicalEffect }),
       // The sixth, read back the same way. A Find Familiar declared as a Cat
       // settles as a Cat an hour later and as nothing else.
       ...(pending.form === undefined ? {} : { form: pending.form }),
@@ -695,11 +739,12 @@ export function resolveDeclaredCast(
       ...(pending.bonesAt === undefined ? {} : { bonesAt: pending.bonesAt }),
       ...(pending.rider === undefined ? {} : { rider: pending.rider }),
       ...(pending.hitDice === undefined ? {} : { hitDice: pending.hitDice }),
-      ...(persists(definition)
+      ...(persists(definition, pending.option)
         ? {
             becomesOngoing: {
               spellId: definition.id,
-              ...(storedCast === null ? {} : { stored: storedCast.stored }),
+              ...(storedCast === null || storedFizzled ? {} : { stored: storedCast.stored }),
+              ...(storedFizzled ? { storedFizzled: true as const } : {}),
               on: onCaster(definition)
                 ? ('caster' as const)
                 : pending.origin === undefined
@@ -834,7 +879,25 @@ export function castOrRelease(
       outcomes: [],
       unverified: [],
     };
-  }, (stamp) => {
+  }, (stamp) => castingBody(state, casterId, given, supply, held, taking, stored, stamp));
+}
+
+/**
+ * The body of {@link castOrRelease}, under the identity the wrapper made — and
+ * entered a second time, under the same identity, where SRD Sanctuary turned
+ * the casting away and the caster had named a new target to cast it at.
+ */
+function castingBody(
+  state: GameState,
+  casterId: CharacterId,
+  given: CastSpellRequest,
+  supply: Supply,
+  held: HeldCasting | null,
+  taking: { readonly throughLine: string } | undefined,
+  stored: StoredRelease | undefined,
+  stamp: CommandStamp | null,
+): Result<SpellResolution> {
+  {
     // A turn-boundary save outstanding means somebody may or may not still be
     // Paralyzed, and a damage roll or a D20 Test held open is an outcome nobody
     // has settled; casting into either would change the world underneath it.
@@ -1589,6 +1652,30 @@ export function castOrRelease(
       }
     }
 
+    // — a target that can hear and understand the caster (E-L1) ——————————————
+    //
+    // SRD Suggestion: "one creature you can see within range that can hear
+    // and understand you". Hearing is the Deafened condition and understanding
+    // is a shared language, read off a character's record and a stat block's
+    // Languages line; a target that has neither is refused before anything is
+    // spent. Where nothing the engine holds can say — no record and no line, or
+    // a shared tongue that could only be one of the GM's "other languages" —
+    // the casting goes ahead and says so, because there is no door a table
+    // could answer a question through and the book's default is the casting.
+    if (definition.targets.hearsAndUnderstands === true) {
+      for (const target of targets) {
+        const heard = hearsAndUnderstands(state, supply.content, casterId, target);
+        if (heard.answer === 'no') {
+          return err(heard.code, `${definition.name} needs a target that can hear and understand you: ${heard.why}`);
+        }
+        if (heard.answer === 'unknown') {
+          unverified.push(
+            `${definition.name}: whether ${target} can hear and understand ${casterId} is the table's — ${heard.why}`,
+          );
+        }
+      }
+    }
+
     // — a plane the caster states, on a spell that prints no such clause (W7-S19)
     //
     // SRD Sending: "if the target is on a different plane than you, there is
@@ -1879,7 +1966,7 @@ export function castOrRelease(
     // caster who names the wrong cloak must not have paid for it.
     // `declaredFacts` has already held the symmetry; what is left is the half
     // that needs the catalogue.
-    if (request.object !== undefined && breaksAttunement(definition)) {
+    if (request.object !== undefined && endsCurses(definition)) {
       for (const target of targets) {
         const breakable = attunementProblem(
           state,
@@ -1889,6 +1976,68 @@ export function castOrRelease(
           definition.name,
         );
         if (!breakable.ok) return breakable;
+      }
+      // **And the object Remove Curse is aimed at is a cursed magic item**:
+      // "If the object is a cursed magic item, its curse remains, but the
+      // spell breaks its owner's Attunement to the object." An Attunement to
+      // anything else is no curse, and the spell breaks nothing of it. (E-L1)
+      if (supply.content.item(request.object)?.cursed !== true) {
+        return err(
+          'not_cursed',
+          `${definition.name} breaks the Attunement to a cursed magic item, and ${request.object} carries no curse`,
+        );
+      }
+    }
+
+    // And the magical effect a dispel was aimed at, asked the same way (E-L1).
+    // SRD Dispel Magic: "Choose one creature, object, or magical effect
+    // within range." The casting has to be running; it has to be on no
+    // creature, because one that is on a creature is aimed at through the
+    // creature and the book's two halves — the whole casting or this hold on
+    // it — are that form's to decide; and the place it holds has to be within
+    // the Range. A casting that holds no place in the scene cannot be measured,
+    // and the table's word stands for the distance, said out loud.
+    if (request.magicalEffect !== undefined) {
+      const effect = state.ongoing[request.magicalEffect];
+      if (effect === undefined) {
+        return err('not_ongoing', `${request.magicalEffect} is not a spell that is still running`);
+      }
+      if (spellOn(state, effect).length > 0) {
+        return err(
+          'effect_on_a_creature',
+          `${effect.spell} (${effect.castingId}) is on ${spellOn(state, effect).join(', ')}; ${definition.name} is aimed at it through the creature`,
+        );
+      }
+      const reach = rangeFeetAt(definition, numbersAsCast().casterLevel);
+      if (effect.origin === undefined || reach === null) {
+        unverified.push(
+          `${definition.name}: whether ${effect.spell} (${effect.castingId}) is within range is the table's — it holds no place in the scene the engine can measure`,
+        );
+      } else if (state.scene === null) {
+        // A place with no scene to measure it in is a missing fact, asked the
+        // way a creature target's range asks it.
+        return needsContext(
+          'no_scene',
+          `${definition.name} measures its range to the place ${effect.spell} holds, and there is no scene to measure it in`,
+          [
+            {
+              kind: 'scene',
+              subject: casterId,
+              need: 'a scene, so that the distance to the effect means something',
+              because: `${definition.name} is aimed at a magical effect within range`,
+              satisfyWith: 'a setScene command',
+            },
+          ],
+        );
+      } else {
+        const away = distanceToPoint(state.scene, casterId, effect.origin);
+        if (!away.ok) return away;
+        if (away.value > reach) {
+          return err(
+            'out_of_range',
+            `${definition.name} reaches ${reach} feet; ${effect.spell} (${effect.castingId}) is ${away.value} away`,
+          );
+        }
       }
     }
 
@@ -1908,6 +2057,21 @@ export function castOrRelease(
         );
         if (!touching.ok) return touching;
       }
+    }
+
+    // SRD Heat Metal's other two facts, asked at the same moment (E-L1). The
+    // object is metal — off the mark content gave the item, or the substance
+    // a declared object pinned — and, where the casting is aimed at a
+    // declared object, somebody has said who is touching it now: the 2d8
+    // lands on them, and on nobody the DM did not name.
+    if (definition.targets.metal === true) {
+      const metal = metalProblem(state, supply.content, definition.name, targets, request.object);
+      if (!metal.ok) return metal;
+      unverified.push(...metal.value);
+    }
+    if (definition.targets.inContact === true) {
+      const touching = contactProblem(state, definition.name, targets);
+      if (!touching.ok) return touching;
     }
 
     // And whether the teleport this casting performs can happen at all, asked
@@ -2112,7 +2276,39 @@ export function castOrRelease(
     // ward read off the list alone turns a Fireball away from everybody
     // standing in it — which is the sentence the SRD wrote to forbid.
     const wardEvents: GameEvent[] = [];
+    // The ward that turned the casting away where the caster chose to lose it
+    // — SRD Sanctuary's "lose the … spell". See `WardFallback`. (E-L1)
+    let lostToWard: { readonly source: string; readonly label: string } | undefined;
     if (definition.area === undefined && aimsHarmAtATarget(definition.effects)) {
+      // **What the caster does if a ward turns it away**, asked before the die
+      // and never chosen for it: a new target, or "lose". (E-L1, owner's
+      // ruling of 2026-10-03.)
+      const fallback = request.ifWarded;
+      if (typeof fallback === 'object') {
+        if (targets.includes(fallback.target)) {
+          return err(
+            'bad_fallback',
+            `${fallback.target} is already a target of ${definition.name}; a new target is somebody it is not aimed at`,
+          );
+        }
+        if (creatureOf(state, fallback.target) === null) return unknownCreature(fallback.target);
+      }
+      const owed = targets.filter((target) => wardOwed(state, casterId, target));
+      if (fallback === undefined && owed.length > 0) {
+        return needsContext(
+          'warded_fallback_required',
+          `${owed.join(', ')} ${owed.length === 1 ? 'is' : 'are'} warded: if ${casterId} fails the Wisdom save, the book makes it choose a new target or lose the spell, and the engine will not choose`,
+          [
+            {
+              kind: 'route',
+              subject: casterId,
+              need: `what ${casterId} does if the ward turns ${definition.name} away`,
+              because: 'SRD Sanctuary: "either choose a new target or lose the attack or spell"',
+              satisfyWith: 'resolveSpell again with ifWarded: a new target, or "lose"',
+            },
+          ],
+        );
+      }
       const issuedBeforeWards = supply.issuer.count;
       let warded = state;
       for (const target of targets) {
@@ -2131,31 +2327,60 @@ export function castOrRelease(
           count: supply.issuer.count - issuedBeforeWards,
           rng: supply.rng.snapshot(),
         });
-        return ok({
-          events: wardEvents,
-          // Nothing was cast, which is the shape SRD Wind Fan's failed use
-          // already has: the engine could do what it was asked, and what it
-          // was asked came to nothing. See {@link SpellResolution.castingId}.
-          castingId: null,
-          outcomes: [],
-          warded: true,
-          unverified,
-        });
+
+        // "Choose a new target": the same casting at the creature named, in
+        // this command and under its identity. The new target's own ward, if
+        // it has one, is asked in turn, and a second failure loses the spell.
+        if (typeof fallback === 'object') {
+          const next = castingBody(
+            wardEvents.reduce(applyEvent, state),
+            casterId,
+            {
+              ...given,
+              targets: given.targets.map((who) => (who === target ? fallback.target : who)),
+              ifWarded: 'lose',
+            },
+            supply,
+            held,
+            taking,
+            stored,
+            stamp,
+          );
+          if (!next.ok) return next;
+          return ok({
+            ...next.value,
+            events: [...wardEvents, ...next.value.events],
+            warded: true,
+            unverified: [...ward.value.unverified, ...next.value.unverified],
+          });
+        }
+        // "Lose the spell": cast below, the action and the slot spent, and
+        // nothing of it lands. (Owner's ruling of 2026-10-03.)
+        lostToWard = ward.value.by;
+        break;
       }
-      if (supply.issuer.count > issuedBeforeWards) {
-        wardEvents.push({
-          type: 'rolls-issued',
-          count: supply.issuer.count - issuedBeforeWards,
-          rng: supply.rng.snapshot(),
-        });
+      if (lostToWard === undefined) {
+        if (supply.issuer.count > issuedBeforeWards) {
+          wardEvents.push({
+            type: 'rolls-issued',
+            count: supply.issuer.count - issuedBeforeWards,
+            rng: supply.rng.snapshot(),
+          });
+        }
       }
     }
+    // A casting the ward has lost is cast now and not held: there is nothing
+    // to hold open for an answer when the spell has already gone.
+    const { hold: _held, ...unheld } = request;
+    void _held;
+    const proceeding: CastSpellRequest = lostToWard === undefined ? request : unheld;
 
     // The saves the wards took are in front of the casting's own batch. The
     // state handed on is the one before them on purpose: a `roll-recorded`
     // writes nothing, and the ledger slot beside it is read by no rule the
     // resolution below asks.
-    const resolved = resolveOnTargets(state, casterId, caster, definition, request, {
+    const resolved = resolveOnTargets(state, casterId, caster, definition, proceeding, {
+      ...(lostToWard === undefined ? {} : { lostToWard }),
       castLevel,
       route,
       targets,
@@ -2179,8 +2404,12 @@ export function castOrRelease(
       ...(stored === undefined ? {} : { pinnedNumbers: stored.numbers }),
     });
     if (!resolved.ok || wardEvents.length === 0) return resolved;
-    return ok({ ...resolved.value, events: [...wardEvents, ...resolved.value.events] });
-  });
+    return ok({
+      ...resolved.value,
+      events: [...wardEvents, ...resolved.value.events],
+      ...(lostToWard === undefined ? {} : { warded: true as const }),
+    });
+  }
 }
 
 /** SRD: "The Ritual version of a spell takes 10 minutes longer to cast." */
@@ -2450,6 +2679,44 @@ function itemFailure(
 }
 
 /**
+ * The likeliest `casting-chance` rule standing on a caster that reaches a spell
+ * with this entry's components, or null where none does — the one search
+ * {@link castingFailure} throws against and {@link casterOwesTheDie} asks.
+ */
+function worstCastingChance(
+  state: GameState,
+  casterId: CharacterId,
+  entry: SpellEntry | null,
+  waived: ReadonlySet<SpellComponent>,
+): { readonly held: GrantedActionRule; readonly percent: number } | null {
+  let worst: { readonly held: GrantedActionRule; readonly percent: number } | null = null;
+  for (const held of actionRulesOn(state, casterId)) {
+    const rule = held.rule;
+    // The component **this casting** has — a stat block that casts "requiring
+    // no Somatic or Material components" makes no gestures to fumble. (E-L1)
+    if (rule.kind !== 'casting-chance' || !castsWithComponent(entry, rule.component, waived)) {
+      continue;
+    }
+    if (worst === null || rule.percent > worst.percent) worst = { held, percent: rule.percent };
+  }
+  return worst;
+}
+
+/**
+ * Whether casting a spell with this entry would throw SRD Slow's die for this
+ * caster — pure, so a road that holds no dice of its own (the Ready) can ask
+ * before it is handed any. (E-L1)
+ */
+export function casterOwesTheDie(
+  state: GameState,
+  casterId: CharacterId,
+  entry: SpellEntry | null,
+  waived: ReadonlySet<SpellComponent>,
+): boolean {
+  return worstCastingChance(state, casterId, entry, waived) !== null;
+}
+
+/**
  * Whether a casting fails for want of a component its caster cannot manage,
  * and the die that decided it.
  *
@@ -2476,9 +2743,20 @@ function itemFailure(
  *
  * **Its own `rolls-issued`**, because a failure never reaches `runEffects`,
  * which writes the batch's — and a casting that holds writes this one and then
- * that one, which is `itemFailure`'s arrangement. (W7-S22)
+ * that one, which is `itemFailure`'s arrangement. (W7-S22) **Unless the caller
+ * is inside a bracket of its own** (`bracketed`): SRD True Strike's casting is
+ * made inside an attack command that counts every die it throws from one mark,
+ * the ward's included, and a second count of the same die would re-issue a
+ * `RollId` over one already in the log.
+ *
+ * **Exported for the roads that make a casting outside the pipeline** (E-L1):
+ * see {@link casterOwesTheDie}, which a road with no dice in hand asks first.
+ * a spell readied at the Ready, a cantrip cast with the swing, a spell cast on
+ * a hit, and the spell a glyph stores at its inscription. Each asks here after
+ * its own cost is paid, so a slowed caster's gestures fail on every road the
+ * same way.
  */
-function castingFailure(
+export function castingFailure(
   state: GameState,
   casterId: CharacterId,
   entry: SpellEntry | null,
@@ -2487,15 +2765,13 @@ function castingFailure(
     readonly name: string;
     readonly supply: Supply;
     readonly exempt: boolean;
+    /** What the road the casting went by waives — see `componentsWaivedBy`. */
+    readonly waived: ReadonlySet<SpellComponent>;
+    readonly bracketed?: true;
   },
 ): Result<{ readonly events: readonly GameEvent[]; readonly failed: boolean }> {
   if (casting.exempt) return ok({ events: [], failed: false });
-  let worst: { readonly held: GrantedActionRule; readonly percent: number } | null = null;
-  for (const held of actionRulesOn(state, casterId)) {
-    const rule = held.rule;
-    if (rule.kind !== 'casting-chance' || !hasComponent(entry, rule.component)) continue;
-    if (worst === null || rule.percent > worst.percent) worst = { held, percent: rule.percent };
-  }
+  const worst = worstCastingChance(state, casterId, entry, casting.waived);
   if (worst === null) return ok({ events: [], failed: false });
 
   const { supply } = casting;
@@ -2511,7 +2787,15 @@ function castingFailure(
 
   const events: GameEvent[] = [
     thrown.value.recorded,
-    { type: 'rolls-issued', count: supply.issuer.count - issuedBefore, rng: supply.rng.snapshot() },
+    ...(casting.bracketed === true
+      ? []
+      : [
+          {
+            type: 'rolls-issued' as const,
+            count: supply.issuer.count - issuedBefore,
+            rng: supply.rng.snapshot(),
+          },
+        ]),
   ];
   if (thrown.value.failed) {
     events.push({
@@ -2702,6 +2986,12 @@ function resolveOnTargets(
     } | null;
     /** The identity the wrapper established, stamped on the casting's event. */
     readonly stamp: CommandStamp | null;
+    /**
+     * The ward that turned this casting away, where the caster chose to lose
+     * the spell — SRD Sanctuary. The casting is made and paid for, and ends at
+     * once under the ward's source. (E-L1)
+     */
+    readonly lostToWard?: { readonly source: string; readonly label: string };
     /** How long it takes and whether it is a Ritual — see `castingOf`. */
     readonly casting: CastingTiming;
     /**
@@ -2826,6 +3116,8 @@ function resolveOnTargets(
    * written. See `storedSpellCast`. (W7-S21)
    */
   let storedRecord: StoredCasting | undefined;
+  /** The stored spell's gestures failed — see `OngoingRecordPlan.storedFizzled`. */
+  let storedFizzled = false;
 
   // SRD Arcanist's Magic Aura's thirty days — read off the castings running
   // before this one, on the state as it stood. See `dailyRunOf`.
@@ -2835,6 +3127,7 @@ function resolveOnTargets(
     spellId: definition.id,
     ...(daily === undefined ? {} : { dailySince: daily.since }),
     ...(storedRecord === undefined ? {} : { stored: storedRecord }),
+    ...(storedFizzled ? { storedFizzled: true as const } : {}),
     // **What this casting turns aside**, where the definition says its benefit
     // does. SRD *Shield*'s "you take no damage from *Magic Missile*" is the
     // only sentence of this shape in the book, and both halves of what is
@@ -3063,6 +3356,20 @@ function resolveOnTargets(
   // `hold` to ask for one, which is where that rule is actually enforced — a
   // runtime guard here would be unreachable code claiming to be a rule.
   if (held !== null) {
+    // **A release a ward turned away is lost here** — SRD Sanctuary's "lose
+    // the … spell", on the casting the Ready or the glyph already paid for:
+    // it ends at once under the ward, as a cast one does below, before a die
+    // of its own. (E-L1)
+    if (context.lostToWard !== undefined) {
+      events.push({
+        type: 'spell-fizzled',
+        castingId: held.castingId,
+        id: casterId,
+        source: context.lostToWard.source,
+        label: context.lostToWard.label,
+      });
+      return charged(ok({ events, castingId: held.castingId, outcomes: [], unverified, warded: true }));
+    }
     return charged(
       resolveEffects(state, casterId, caster, definition, {
         castLevel,
@@ -3093,7 +3400,7 @@ function resolveOnTargets(
         // This was the one resolution path of three that wrote no record, so a
         // readied Bless was running, concentrated on, and invisible to Dispel
         // Magic.
-        ...(persists(definition) ? { becomesOngoing: ongoingWith() } : {}),
+        ...(persists(definition, request.option) ? { becomesOngoing: ongoingWith() } : {}),
         ...(request.option === undefined ? {} : { option: request.option }),
         ...(terrainRegion === null ? {} : { terrainRegion }),
       }),
@@ -3313,6 +3620,17 @@ function resolveOnTargets(
     return ok({ events, castingId: null, outcomes: [], unverified: [] });
   }
 
+  // **What this casting is made with**, by the book and by the road it goes:
+  // the entry's components less what the route waives — a stat block's
+  // "requiring no spell components", an item's casting, which "requires no
+  // components". SRD Silence reads the Verbal one, SRD Counterspell's window
+  // reads whether any is left, and SRD Slow's failure reads the Somatic one.
+  // (E-L1)
+  const waived = componentsWaivedBy(route);
+  const componentless = !(['verbal', 'somatic', 'material'] as const).some((component) =>
+    castsWithComponent(supply.content.spellEntry(definition.id), component, waived),
+  );
+
   // The identity is the wrapper's: `castOrRelease` established it over the
   // request the caller actually sent, and a second `identify` here would
   // fingerprint this derived command instead and refuse every honest retry.
@@ -3405,8 +3723,12 @@ function resolveOnTargets(
       // up, because `castSpell` holds a spell's *name* and no definition; and
       // **the casting's** answer rather than the book's, because SRD Subtle
       // Spell casts "without any Verbal, Somatic, or Material components" and
-      // a casting that bought it has none whatever the entry prints.
-      ...(definition.noVerbalComponent === true || altered.resolving.subtle !== undefined
+      // a casting that bought it has none whatever the entry prints. **And a
+      // casting whose road waives it** — a stat block's "requiring no spell
+      // components", an item's casting — has none either. (E-L1)
+      ...(definition.noVerbalComponent === true ||
+      altered.resolving.subtle !== undefined ||
+      waived.has('verbal')
         ? { noVerbalComponent: true as const }
         : {}),
       ...(request.slotless === undefined ? {} : { slotless: request.slotless }),
@@ -3426,9 +3748,15 @@ function resolveOnTargets(
       // casting writes no duration at all and `schedule` is never reached.
       // Read through `untilDispelledAt`, beside the `concentrationAt` five
       // lines above that reads the other half of the same sentence.
+      //
+      // **Nor does a branch that is over in an instant** — SRD Thaumaturgy's
+      // door flung open, whatever the spell's minute says. See
+      // `SpellOption.instantaneous`, read through `persists` with the word.
       // **And a run of castings may take it away too** — SRD Arcanist's Magic
       // Aura cast on the run's thirtieth day. See `dailyRunOf`.
-      ...(untilDispelledAt(definition, castLevel) || daily?.forGood === true
+      ...(untilDispelledAt(definition, castLevel) ||
+      !persists(definition, request.option) ||
+      daily?.forGood === true
         ? {}
         : definition.durationSeconds !== undefined
         ? {
@@ -3488,10 +3816,18 @@ function resolveOnTargets(
                 ? {}
                 : { saveModes: alters.saveModes }),
               ...(altered.resolving.subtle === undefined ? {} : { subtle: true as const }),
+              // And a casting with no component left by the road it went —
+              // see `PendingCasting.componentless`. (E-L1)
+              ...(componentless ? { componentless: true as const } : {}),
               // The bare value, not the pair: a settlement re-reads the whole
               // definition anyway, so the half it cannot work out again is the
               // caster's answer and nothing else.
               ...(answeredChoice === undefined ? {} : { choice: answeredChoice }),
+              // And the answer per creature, where the caster gave one — SRD Enhance
+              // Ability's upcast. Aligned to the targets pinned above.
+              ...(request.choiceByTarget === undefined
+                ? {}
+                : { choiceByTarget: request.choiceByTarget }),
               // And the word spoken, for the same reason: a Command declared
               // as Halt settles as Halt and as no other word.
               ...(request.option === undefined ? {} : { option: request.option }),
@@ -3506,6 +3842,10 @@ function resolveOnTargets(
               // must not settle at the other one in the pack.
               ...(request.weapon === undefined ? {} : { weapon: request.weapon }),
               ...(request.object === undefined ? {} : { object: request.object }),
+              // And the magical effect a dispel was aimed at. (E-L1)
+              ...(request.magicalEffect === undefined
+                ? {}
+                : { magicalEffect: request.magicalEffect }),
               // The sixth: a Find Familiar declared as a Cat settles as a Cat.
               ...(request.form === undefined ? {} : { form: request.form }),
               // And the plane a message spell's recipient is on — SRD Sending —
@@ -3543,8 +3883,23 @@ function resolveOnTargets(
   // casting its own first run created — the same trap the trigger guard and
   // the pending-casting guard both sprang before it, and the third instance
   // of the rule that a retry must never look at the world it made.
-  events.push(...replacedCastings(state, casterId, definition, targets));
+  events.push(...replacedCastings(state, casterId, definition, targets, request.option));
   events.push(...cast.value);
+
+  // **A casting the ward turned away is lost here** — SRD Sanctuary's "lose
+  // the … spell": the action and the slot are spent above, and the spell ends
+  // at once under the ward, through the door SRD Slow's failure uses, before
+  // a die of its own. (E-L1, owner's ruling of 2026-10-03.)
+  if (context.lostToWard !== undefined) {
+    events.push({
+      type: 'spell-fizzled',
+      castingId,
+      id: casterId,
+      source: context.lostToWard.source,
+      label: context.lostToWard.label,
+    });
+    return ok({ events, castingId, outcomes: [], unverified, warded: true });
+  }
 
   // **Whether the casting fails for want of its gestures** — SRD Slow's 25
   // percent — asked here, where the slot and the action are both spent and
@@ -3558,7 +3913,8 @@ function resolveOnTargets(
       castingId,
       name: definition.name,
       supply,
-      exempt: route.kind === 'item' || altered.resolving.subtle !== undefined,
+      exempt: altered.resolving.subtle !== undefined,
+      waived,
     });
     if (!fumbled.ok) return fumbled;
     events.push(...fumbled.value.events);
@@ -3577,7 +3933,24 @@ function resolveOnTargets(
       context.storing,
     );
     events.push(storedCast.event);
-    storedRecord = storedCast.stored;
+    // SRD Slow's die for the stored spell's own gestures, as the settlement
+    // throws it. (E-L1)
+    const storedFumble = castingFailure(
+      state,
+      casterId,
+      supply.content.spellEntry(storedCast.stored.spellId),
+      {
+        castingId: storedCast.stored.castingId,
+        name: context.storing.definition.name,
+        supply,
+        exempt: false,
+        waived: componentsWaivedBy(context.storing.route),
+      },
+    );
+    if (!storedFumble.ok) return storedFumble;
+    events.push(...storedFumble.value.events);
+    if (storedFumble.value.failed) storedFizzled = true;
+    else storedRecord = storedCast.stored;
   }
 
   // **What the spell puts in its caster's hand**, after the casting itself so
@@ -3634,6 +4007,8 @@ function resolveOnTargets(
       ...(request.optionByTarget === undefined ? {} : { optionByTarget: request.optionByTarget }),
       ...(request.damageType === undefined ? {} : { damageType: request.damageType }),
       ...(answeredChoice === undefined ? {} : { choice: answeredChoice }),
+      // And the answer per creature — see `StatedChoice.perTarget`.
+      ...(request.choiceByTarget === undefined ? {} : { choiceByTarget: request.choiceByTarget }),
       ...(origin === null ? {} : { from: origin }),
       ...(fought === undefined ? {} : { fought }),
       ...(stated.inAStorm === undefined ? {} : { inAStorm: stated.inAStorm }),
@@ -3642,6 +4017,7 @@ function resolveOnTargets(
       ...(request.teleportTo === undefined ? {} : { teleportTo: request.teleportTo }),
       ...(request.weapon === undefined ? {} : { weapon: request.weapon }),
       ...(request.object === undefined ? {} : { object: request.object }),
+      ...(request.magicalEffect === undefined ? {} : { magicalEffect: request.magicalEffect }),
       ...(request.form === undefined ? {} : { form: request.form }),
       ...(request.otherPlane === undefined ? {} : { otherPlane: request.otherPlane }),
       ...(request.bonesAt === undefined ? {} : { bonesAt: request.bonesAt }),
@@ -3653,7 +4029,7 @@ function resolveOnTargets(
       // have been folded into, so it settles exactly the casting the trigger
       // accepted and reads it as it now stands.
       ...(context.answers === undefined ? {} : { answers: context.answers }),
-      ...(persists(definition) ? { becomesOngoing: ongoingWith() } : {}),
+      ...(persists(definition, request.option) ? { becomesOngoing: ongoingWith() } : {}),
       ...(request.option === undefined ? {} : { option: request.option }),
       ...(terrainRegion === null ? {} : { terrainRegion }),
     }),
@@ -3890,8 +4266,8 @@ function resolveOneEffect(
       return resolvePassiveDefenseEffect(ctx, effect, target, world);
     case 'dispel':
       return resolveDispelEffect(ctx, target, world);
-    case 'end-attunement':
-      return resolveEndAttunementEffect(ctx, effect, target, world);
+    case 'end-curses':
+      return resolveEndCursesEffect(ctx, target, world);
     case 'creature-type-override':
       return resolveCreatureTypeOverrideEffect(ctx, effect, target, world);
     case 'interrupt-casting':
@@ -4038,6 +4414,11 @@ export function resolveEffects(
      */
     readonly optionByTarget?: Readonly<Record<string, string>>;
     /**
+     * The value chosen for each creature, where the casting answered per
+     * creature — see `StatedChoice.perTarget`.
+     */
+    readonly choiceByTarget?: Readonly<Record<string, string>>;
+    /**
      * The one branch this casting ran, where it ran one.
      *
      * **A record's `option` is not this, and Plant Growth is why.** A branch
@@ -4128,7 +4509,7 @@ export function resolveEffects(
      */
     readonly weapon?: string;
     /**
-     * The object an `end-attunement` effect was aimed at, by catalogue id.
+     * The object an `end-curses` effect was aimed at, by catalogue id.
      *
      * The weapon's neighbour and its reading: the caster's decision, stated at
      * the casting and never derived, pinned on a declaration because a
@@ -4136,6 +4517,11 @@ export function resolveEffects(
      * cloak must not settle at the amulet.
      */
     readonly object?: string;
+    /**
+     * The running casting a dispel was aimed at as a magical effect — see
+     * `CastSpellRequest.magicalEffect`. (E-L1)
+     */
+    readonly magicalEffect?: string;
     /**
      * The stat block a summoning spell that leaves the form to its caster was
      * told to raise — see `EffectContext.form`. Pinned on a declaration for
@@ -4217,6 +4603,15 @@ export function resolveEffects(
     }
   }
 
+  // **And whoever is touching a declared object has to have been named, now**
+  // — the same seam, for the same reason (E-L1). A touch the DM stated on the
+  // round of the cast is not a touch on a later turn, so the Bonus Action asks
+  // again before its dice; `runEffects` then reads the answer.
+  if (definition.targets.inContact === true) {
+    const touching = contactProblem(state, definition.name, targets);
+    if (!touching.ok) return touching;
+  }
+
   const resolved = runEffects(state, casterId, caster, {
     origin: { kind: 'casting', castingId, definition },
     effects: context.effects ?? definition.effects,
@@ -4237,6 +4632,7 @@ export function resolveEffects(
     targets,
     ...(context.rollsPerTarget === undefined ? {} : { rollsPerTarget: context.rollsPerTarget }),
     ...(context.optionByTarget === undefined ? {} : { optionByTarget: context.optionByTarget }),
+    ...(context.choiceByTarget === undefined ? {} : { choiceByTarget: context.choiceByTarget }),
     ...(context.damageType === undefined ? {} : { damageType: context.damageType }),
     ...(context.choice === undefined ? {} : { choice: context.choice }),
     unverified,
@@ -4254,6 +4650,7 @@ export function resolveEffects(
     ...(context.teleportTo === undefined ? {} : { teleportTo: context.teleportTo }),
     ...(context.weapon === undefined ? {} : { weapon: context.weapon }),
     ...(context.object === undefined ? {} : { object: context.object }),
+    ...(context.magicalEffect === undefined ? {} : { magicalEffect: context.magicalEffect }),
     ...(context.form === undefined ? {} : { form: context.form }),
     ...(context.otherPlane === undefined ? {} : { otherPlane: context.otherPlane }),
     ...(context.bonesAt === undefined ? {} : { bonesAt: context.bonesAt }),
@@ -4306,7 +4703,9 @@ export function resolveEffects(
         ...(definition.triggered?.onlyStatedTypes === true && becomes.types !== undefined
           ? { activatedBy: becomes.types }
           : {}),
-        ...(definition.triggered === undefined || becomes.stored !== undefined
+        ...(definition.triggered === undefined ||
+        becomes.stored !== undefined ||
+        becomes.storedFizzled === true
           ? {}
           : {
               triggered: {
@@ -4318,6 +4717,9 @@ export function resolveEffects(
         // reason: a sentence corrected in the catalogue next month must not
         // reach a casting made today.
         ...(definition.endsEarly === undefined ? {} : { endsEarly: definition.endsEarly }),
+        // And whether what it lays is a curse — SRD Remove Curse reads the
+        // record. (E-L1)
+        ...(definition.curse === true ? { curse: true as const } : {}),
         // And the damage its caster shares with its target — SRD Warding Bond
         // — pinned so the damage funnel reads the record and no book. (W7-S19)
         ...(definition.sharesDamage === undefined ? {} : { sharesDamage: definition.sharesDamage }),
@@ -4705,6 +5107,12 @@ export interface EffectRun {
    * one list.
    */
   readonly optionByTarget?: Readonly<Record<string, string>>;
+  /**
+   * The value chosen for each creature, substituted over {@link effects} for
+   * that creature alone — SRD Enhance Ability's "a different ability for each
+   * target". See `StatedChoice.perTarget`. Only a casting can carry one.
+   */
+  readonly choiceByTarget?: Readonly<Record<string, string>>;
   /** The damage type the casting stated, for the branch lists above. */
   readonly damageType?: string;
   /** The value the casting chose, for the branch lists above. */
@@ -4758,6 +5166,8 @@ export interface EffectRun {
   readonly teleportTo?: Placement;
   readonly weapon?: string;
   readonly object?: string;
+  /** The running casting a dispel was aimed at — see `CastSpellRequest.magicalEffect`. */
+  readonly magicalEffect?: string;
   readonly form?: string;
   readonly otherPlane?: true;
   readonly bonesAt?: readonly Placement[];
@@ -5073,6 +5483,7 @@ export function runEffects(
     ...(run.teleportTo === undefined ? {} : { teleportTo: run.teleportTo }),
     ...(run.weapon === undefined ? {} : { weapon: run.weapon }),
     ...(run.object === undefined ? {} : { object: run.object }),
+    ...(run.magicalEffect === undefined ? {} : { magicalEffect: run.magicalEffect }),
     ...(run.form === undefined ? {} : { form: run.form }),
     ...(run.otherPlane === undefined ? {} : { otherPlane: run.otherPlane }),
     ...(run.bonesAt === undefined ? {} : { bonesAt: run.bonesAt }),
@@ -5080,6 +5491,20 @@ export function runEffects(
     ...(run.hitDice === undefined ? {} : { hitDice: run.hitDice }),
     ...(run.answers === undefined ? {} : { answers: run.answers }),
   };
+
+  // **A dispel aimed at a magical effect runs once, at that casting** — SRD
+  // Dispel Magic's "or magical effect". The effect is on no creature, so the
+  // loop below has nobody to visit; the pre-flight has already refused a
+  // casting that is not running, one that is on a creature and one beyond the
+  // Range. (E-L1)
+  if (ctx.magicalEffect !== undefined) {
+    for (const effect of effects) {
+      if (effect.kind !== 'dispel') continue;
+      const done = resolveDispelOnEffect(ctx, ctx.magicalEffect, current);
+      if (!done.ok) return done;
+      current = done.value;
+    }
+  }
 
   // **A raising runs once, over the whole casting.** Its subjects are the
   // corpses named as targets *and* the bones stated as points, and a casting
@@ -5100,7 +5525,66 @@ export function runEffects(
     // with the same substitutions the common list had.
     const own =
       origin.kind === 'casting' ? perTargetEffects(origin.definition, run, target) : null;
-    for (const effect of own === null ? effects : [...effects, ...own]) {
+    // **And the value chosen for this creature**, where the casting answered
+    // per creature — SRD Enhance Ability's upcast. The same substitution the
+    // single answer went through, made again over the list this creature
+    // runs, so the Rogue's Dexterity is not the Bard's Charisma.
+    const mine = run.choiceByTarget?.[target];
+    const theirs =
+      mine === undefined || origin.kind !== 'casting'
+        ? effects
+        : statedChoice(effects, origin.definition.choiceStated?.of, mine);
+    const list = own === null ? theirs : [...theirs, ...own];
+
+    // **A casting at a declared object lands on whoever touches it** — SRD
+    // Heat Metal's "any creature in physical contact with the object"
+    // (`TargetRule.inContact`, E-L1). The object takes nothing; each creature
+    // the DM named takes the list, one at a time and with its own dice, as a
+    // target of its own. A clause about **holding** the thing (`drops`)
+    // reaches nobody, because nobody holds what lies in the room. The
+    // statement was asked for before this ran (`contactProblem`), so an
+    // absent one here is a caller that skipped the question.
+    const inContact = origin.kind === 'casting' && origin.definition.targets.inContact === true;
+    /** The list, less what is about holding the thing, on each other hand on it. */
+    const burnTouchers = (touchers: readonly CharacterId[]): Result<true> => {
+      const reaching = list.filter((effect) => outcomeRidersOf(effect).drops === undefined);
+      for (const toucher of touchers) {
+        const by: EffectContext = { ...ctx, targets: [toucher] };
+        for (const effect of reaching) {
+          const victim = current.creatures[toucher];
+          if (victim === undefined) continue;
+          const done = resolveOneEffect(by, effect, toucher, victim, current);
+          if (!done.ok) return done;
+          current = done.value;
+        }
+      }
+      return ok(true);
+    };
+    if (inContact && current.creatures[target]?.creatureType === OBJECT_CREATURE_TYPE) {
+      const touchers = contactNow(current, target);
+      if (touchers === null) {
+        throw new Error(`${name} reached ${target} with nobody's contact stated; contactProblem was not asked`);
+      }
+      const burnt = burnTouchers(touchers);
+      if (!burnt.ok) return burnt;
+      continue;
+    }
+
+    // **And the other hands on a thing this creature wears or wields** — a
+    // hand on the knight's heated breastplate, which the DM states through
+    // `declareContact` with the item (the coordinator applying the owner's
+    // "the DM states contact" ruling, 2026-10-03). Burned with the holder and
+    // before the holder's save, because the damage is one moment and the
+    // letting go follows it. Unstated, the holder alone touches it.
+    if (inContact && run.object !== undefined) {
+      const others = (contactNow(current, target, run.object) ?? []).filter(
+        (who) => who !== target && !targets.includes(who),
+      );
+      const burnt = burnTouchers(others);
+      if (!burnt.ok) return burnt;
+    }
+
+    for (const effect of list) {
       const victim = current.creatures[target];
       if (victim === undefined) continue;
 
@@ -5271,6 +5755,13 @@ interface OngoingRecordPlan {
   readonly spellId: string;
   /** The spell this casting stores — see `OngoingSpell.stored`. (W7-S21) */
   readonly stored?: StoredCasting;
+  /**
+   * The spell this casting was storing failed as it was cast — SRD Slow's 25
+   * percent, thrown for its gestures. The glyph was made and holds nothing: no
+   * stored spell, and not the rune the caster chose against either, so the
+   * record pins neither. (E-L1)
+   */
+  readonly storedFizzled?: true;
   readonly on: 'caster' | 'targets' | 'point';
   /** What this casting answered and turns aside — see `OngoingSpell.negates`. */
   readonly negates?: { readonly casting: string; readonly spell: string };

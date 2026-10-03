@@ -290,6 +290,32 @@ describe('a readied spell is cast now and released later', () => {
     if (isErr(out)) expect(out.code).toBe('not_readiable');
   });
 
+  /**
+   * SRD Sanctuary in front of a release (E-L1, the owner's ruling of
+   * 2026-10-03): the release chooses the targets, so it states what the spell
+   * does if a ward turns it away, and is asked when it does not.
+   */
+  it('asks what a released spell does at a warded creature, and loses it when told to', () => {
+    const log: readonly GameEvent[] = [
+      ...nextTurn(readySpell()),
+      {
+        type: 'passive-defense-granted',
+        id: CULTIST,
+        defense: { source: 'Sanctuary#cast:99', defense: { kind: 'ward', ability: 'wis', dc: 99 } },
+      },
+    ];
+    const asked = releaseReady(fold('seed', log), ARCHER, { targets: [CULTIST] }, supply('release'));
+    expect(isErr(asked) && asked.code).toBe('warded_fallback_required');
+
+    const lost = unwrap(
+      releaseReady(fold('seed', log), ARCHER, { targets: [CULTIST], ifWarded: 'lose' }, supply('release')),
+      'release',
+    );
+    expect(lost.spell?.warded).toBe(true);
+    const after = fold('seed', [...log, ...lost.events]);
+    expect(after.creatures[CULTIST]!.vitals.hp).toBe(fold('seed', log).creatures[CULTIST]!.vitals.hp);
+  });
+
   it('resolves the spell on release, at the slot it was readied with', () => {
     const log = nextTurn(readySpell());
     const released = unwrap(
@@ -373,6 +399,47 @@ describe('a readied Concentration spell keeps concentrating', () => {
       'release',
     );
     expect(castingTimers(fold('seed', [...log, ...released.events])).length).toBe(1);
+  });
+
+  /**
+   * A release a ward turned away ended under the ward (SRD Sanctuary, E-L1),
+   * so it starts no clock: a deadline on a casting that is not running is the
+   * stale timer `fold/release.ts` exists to prevent.
+   */
+  it('starts no duration for a release a ward turned away', () => {
+    // The cultist within the archer's reach, for the Touch the spell needs.
+    const toucher: readonly GameEvent[] = [
+      ...SETUP.filter(
+        (e) => e.type !== 'spellcasting-declared' && !(e.type === 'creature-placed' && e.id === CULTIST),
+      ),
+      { type: 'creature-placed', id: CULTIST, placement: { from: { creature: ARCHER }, feet: 5, bearing: 0 } },
+      {
+        type: 'resource-pool-declared',
+        id: ARCHER,
+        pool: { key: spellSlotKey(3), label: 'level 3 spell slot', max: 1, recovers: 'long-rest' },
+      },
+      {
+        type: 'spellcasting-declared',
+        id: ARCHER,
+        spellcasting: declaredCasting({ ability: 'int', prepared: ['vampiric-touch'] }),
+      },
+    ];
+    const log: readonly GameEvent[] = [
+      ...nextTurn(ready({ kind: 'spell', spellId: 'vampiric-touch', slotLevel: 3 }, toucher)),
+      {
+        type: 'passive-defense-granted',
+        id: CULTIST,
+        defense: { source: 'Sanctuary#cast:99', defense: { kind: 'ward', ability: 'wis', dc: 99 } },
+      },
+    ];
+    const released = unwrap(
+      releaseReady(fold('seed', log), ARCHER, { targets: [CULTIST], ifWarded: 'lose' }, supply('touch')),
+      'release',
+    );
+    expect(released.spell?.warded).toBe(true);
+    const after = fold('seed', [...log, ...released.events]);
+    expect(Object.keys(after.ongoing)).toEqual([]);
+    expect(castingTimers(after)).toEqual([]);
   });
 });
 

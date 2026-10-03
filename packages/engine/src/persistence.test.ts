@@ -229,6 +229,7 @@ const KNOWN_EVENT_TYPES: readonly string[] = [
   'condition-applied',
   'condition-immunity-granted',
   'condition-removed',
+  'contact-declared',
   'cover-declared',
   'creature-added',
   'creature-attached',
@@ -316,6 +317,7 @@ const KNOWN_EVENT_TYPES: readonly string[] = [
   // Where the table says normal plants grow — SRD Plant Growth. E-L2.
   'plants-declared',
   'printed-curse-laid',
+  'printed-curse-lifted',
   'printed-line-expended',
   'printed-line-immunity-granted',
   'printed-line-recharged',

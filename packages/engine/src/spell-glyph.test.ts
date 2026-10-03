@@ -78,7 +78,7 @@ const TEMPLE: readonly GameEvent[] = [
     spellcasting: declaredCasting({
       ability: 'wis',
       classId: 'cleric',
-      prepared: ['glyph-of-warding', 'hold-person', 'banishment', 'shatter', 'aid', 'animate-dead'],
+      prepared: ['glyph-of-warding', 'hold-person', 'banishment', 'shatter', 'aid', 'animate-dead', 'inflict-wounds', 'phantasmal-killer'],
     }),
   },
   ...[2, 3, 4].map(
@@ -418,5 +418,59 @@ describe('SRD Glyph of Warding’s spell glyph', () => {
     runeLog = [...runeLog, ...must(resolveDeclaredCast(fold('seed', runeLog), runeId, supply('settle')), 'settle').events];
     const named = triggerGlyph(fold('seed', runeLog) as GameState, { castingId: runeId, by: BANDIT }, supply('step'));
     expect(isErr(named) && named.code).toBe('nothing_stored');
+  });
+
+  /**
+   * SRD Sanctuary on the creature that set the glyph off (E-L1). The stored
+   * spell is aimed at that creature by the glyph's own rule and nobody is
+   * there to choose another, so nobody is asked: a failed save loses it, and
+   * the glyph has gone off with nothing in it. This is the reading the
+   * coordinator was asked to confirm.
+   */
+  it('loses a damaging stored spell to a ward on the triggerer, without asking anybody', () => {
+    const { log, castingId } = inscribed({ spellId: 'inflict-wounds', slotLevel: 2 });
+    const warded: readonly GameEvent[] = [
+      ...log,
+      {
+        type: 'passive-defense-granted',
+        id: BANDIT,
+        defense: { source: 'Sanctuary#cast:99', defense: { kind: 'ward', ability: 'wis', dc: 99 } },
+      },
+    ];
+    const before = fold('seed', warded) as GameState;
+    const fired = must(triggerGlyph(before, { castingId, by: BANDIT }, supply('step')), 'trigger');
+    expect(fired.outcomes).toEqual([]);
+    expect(fired.warded).toBe(true);
+    // Outside a fight the ward says it holds nobody to one save, and the lost
+    // release keeps that line.
+    expect(fired.unverified.some((line) => line.includes('no turns here to hold them to one save'))).toBe(true);
+    const after = fold('seed', [...warded, ...fired.events]) as GameState;
+    expect(after.creatures[BANDIT]!.vitals.hp).toBe(before.creatures[BANDIT]!.vitals.hp);
+    expect(after.ongoing[castingId]).toBeUndefined();
+  });
+
+  /**
+   * And a stored spell with a Duration starts no clock when a ward loses it:
+   * it ended under the ward, and a deadline on a casting that is not running
+   * is the stale timer `fold/release.ts` exists to prevent. (E-L1)
+   */
+  it('starts no duration for a stored spell a ward turned away', () => {
+    const { log, castingId } = inscribed({ spellId: 'phantasmal-killer', slotLevel: 4 }, 4);
+    const warded: readonly GameEvent[] = [
+      ...log,
+      {
+        type: 'passive-defense-granted',
+        id: BANDIT,
+        defense: { source: 'Sanctuary#cast:99', defense: { kind: 'ward', ability: 'wis', dc: 99 } },
+      },
+    ];
+    const fired = must(
+      triggerGlyph(fold('seed', warded) as GameState, { castingId, by: BANDIT }, supply('step')),
+      'trigger',
+    );
+    expect(fired.warded).toBe(true);
+    const after = fold('seed', [...warded, ...fired.events]) as GameState;
+    expect(Object.keys(after.ongoing)).toEqual([]);
+    expect(Object.values(after.timers).filter((t) => t.target.kind === 'casting')).toEqual([]);
   });
 });

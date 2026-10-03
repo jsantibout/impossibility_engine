@@ -408,7 +408,14 @@ export function answeredCasting(
   // down. One reading, two readers: `reactionOpportunities` skips exactly these
   // records, so a caller is never offered a window this function would then
   // close.
-  const open = pendingCastingsOf(state).filter((casting) => casting.subtle !== true);
+  //
+  // **Nor is a casting made with no component left** — SRD Counterspell's
+  // "casting a spell with Verbal, Somatic, or Material components", against a
+  // Dust Mephit's "requiring no spell components" or a wand's casting. The
+  // same filter at both readers, for the same reason. (E-L1)
+  const open = pendingCastingsOf(state).filter(
+    (casting) => casting.subtle !== true && casting.componentless !== true,
+  );
   if (open.length === 0) {
     return err(
       'no_trigger',
@@ -749,6 +756,11 @@ export interface CastingPlan {
    */
   readonly choice?: string;
   /**
+   * The value chosen for each creature, where the casting answered per
+   * creature — SRD Enhance Ability's upcast. See `PendingCasting.choiceByTarget`.
+   */
+  readonly choiceByTarget?: Readonly<Record<string, string>>;
+  /**
    * The creature types the caster chose, where the spell prints a choice of
    * one or more — SRD Magic Circle's. Beside {@link choice} and carried the
    * same way, so a circle declared against Fiends settles against Fiends.
@@ -843,6 +855,10 @@ export interface CastingPlan {
    * `PendingCasting.subtle`.
    */
   readonly subtle?: true;
+  /** Made with no component left — see `PendingCasting.componentless`. (E-L1) */
+  readonly componentless?: true;
+  /** The magical effect a dispel was aimed at — see `PendingCasting.magicalEffect`. (E-L1) */
+  readonly magicalEffect?: string;
   /**
    * Where a teleporting spell puts its target.
    *
@@ -1308,6 +1324,9 @@ function castSpellWith(
         // disagrees with the first.
         ...(command.hold.damageType === undefined ? {} : { damageType: command.hold.damageType }),
         ...(command.hold.choice === undefined ? {} : { choice: command.hold.choice }),
+        ...(command.hold.choiceByTarget === undefined
+          ? {}
+          : { choiceByTarget: command.hold.choiceByTarget }),
         ...(command.hold.types === undefined ? {} : { types: command.hold.types }),
         ...(command.hold.option === undefined ? {} : { option: command.hold.option }),
         // And the ending its caster chose at the casting, carried the same
@@ -1328,6 +1347,12 @@ function castSpellWith(
         // Counterspell window respectively read off the record.
         ...(command.hold.saveModes === undefined ? {} : { saveModes: command.hold.saveModes }),
         ...(command.hold.subtle === undefined ? {} : { subtle: command.hold.subtle }),
+        ...(command.hold.componentless === undefined
+          ? {}
+          : { componentless: command.hold.componentless }),
+        ...(command.hold.magicalEffect === undefined
+          ? {}
+          : { magicalEffect: command.hold.magicalEffect }),
         // And where the teleport goes, which is the one fact a settlement
         // could not possibly work out again.
         ...(command.hold.teleportTo === undefined ? {} : { teleportTo: command.hold.teleportTo }),

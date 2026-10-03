@@ -209,5 +209,7 @@ export function upgradeOngoing(
     ...(casting.option === undefined ? {} : { option: casting.option }),
     ...(casting.optionByTarget === undefined ? {} : { optionByTarget: casting.optionByTarget }),
     ...(casting.negates === undefined ? {} : { negates: casting.negates }),
+    // And a curse's mark, for the same reason (E-L1).
+    ...(casting.curse === undefined ? {} : { curse: casting.curse }),
   };
 }

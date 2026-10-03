@@ -23,7 +23,9 @@ import {
   DEFERRABLE_RIDERS,
   DIRECTIONAL_AREAS,
   DM_DECIDES,
+  dropsAnObject,
   modifierRidersOf,
+  repairsAnObject,
   persists as castingPersists,
   optionEffectLists,
   readsAStatedStorm,
@@ -5575,6 +5577,9 @@ function checkEffect(
 
     case 'dispel':
     case 'interrupt-casting':
+    // SRD Remove Curse's ending carries no fields either: which castings,
+    // lines and items are curses is a mark on each of them. (E-L1)
+    case 'end-curses':
     // SRD Spare the Dying's whole content is one word and it carries no
     // fields, so there is nothing here to be wrong. Who it may be aimed at is
     // `TargetRule.mustBeDying`, checked where every other target rule is.
@@ -6341,6 +6346,46 @@ function checkWhatACastingMayBeAimedAt(
         });
       }
     }
+  }
+
+  // SRD Heat Metal's two clauses about its object, each a flag. A material
+  // rule needs an object to read: an item the casting names, or a declared
+  // object it is aimed at. (E-L1)
+  const metal = (definition.targets as { readonly metal?: unknown }).metal;
+  const inContact = (definition.targets as { readonly inContact?: unknown }).inContact;
+  if (inContact !== undefined && inContact !== true) {
+    found.push({
+      field: 'targets.inContact',
+      code: 'malformed_field',
+      reason: 'a spell reaches whoever touches the object it is aimed at or it does not; the only value is true',
+    });
+  }
+  if (metal !== undefined) {
+    if (metal !== true) {
+      found.push({
+        field: 'targets.metal',
+        code: 'malformed_field',
+        reason: 'a spell is aimed at a metal object or it is not; the only value is true',
+      });
+    } else if (inContact !== true && !dropsAnObject(definition) && !repairsAnObject(definition)) {
+      found.push({
+        field: 'targets.metal',
+        code: 'metal_without_an_object',
+        reason:
+          'the spell names no object and is aimed at none, so there is nothing for "metal" to be true of: give it a clause that names one, or `inContact`',
+      });
+    }
+  }
+
+  // SRD Suggestion's "that can hear and understand you" — a flag, read where
+  // the targets are settled. (E-L1)
+  const hears = (definition.targets as { readonly hearsAndUnderstands?: unknown }).hearsAndUnderstands;
+  if (hears !== undefined && hears !== true) {
+    found.push({
+      field: 'targets.hearsAndUnderstands',
+      code: 'malformed_field',
+      reason: 'a spell either needs its target to hear and understand the caster or it does not; the only value is true',
+    });
   }
 
   definition.effects.forEach((effect, i) => {
@@ -7976,6 +8021,48 @@ export function checkSpellDefinition(
         reason: `this spell pins the ${choice.of === 'ability' ? 'skill' : 'ability'} beside the ${choice.of} the casting chooses, and the two would have to agree; drop the pinned one`,
       });
     }
+
+    // **And a choice answered per creature needs creatures to answer for.**
+    // SRD Enhance Ability's upcast: "You can choose a different ability for
+    // each target." A spell that only ever names one has no second creature
+    // for a second answer to belong to; a spell with an area, an activation
+    // or a trigger reads the record's one answer again on a later turn, and a
+    // map is a choice none of those readers is told about.
+    const perTarget = (choice as { readonly perTarget?: unknown }).perTarget;
+    if (perTarget !== undefined) {
+      const targets = definition.targets as {
+        readonly count?: unknown;
+        readonly extraPerSlotLevelAbove?: unknown;
+        readonly unlimited?: unknown;
+      };
+      const several =
+        (typeof targets.count === 'number' && targets.count > 1) ||
+        targets.extraPerSlotLevelAbove !== undefined ||
+        targets.unlimited === true;
+      if (perTarget !== true) {
+        found.push({
+          field: 'choiceStated.perTarget',
+          code: 'malformed_field',
+          reason: 'a spell either lets its caster choose again for each creature or it does not; the only value is true',
+        });
+      } else if (!several) {
+        found.push({
+          field: 'choiceStated.perTarget',
+          code: 'per_target_choice_on_one_target',
+          reason: 'this spell names one creature at any slot, so there is no second creature for a different answer to belong to',
+        });
+      } else if (
+        definition.area !== undefined ||
+        definition.activation !== undefined ||
+        definition.areaTrigger !== undefined
+      ) {
+        found.push({
+          field: 'choiceStated.perTarget',
+          code: 'per_target_choice_read_again',
+          reason: 'an area, an activation or a trigger reads the casting’s one answer again on a later turn, and an answer per creature is a choice none of them is told about',
+        });
+      }
+    }
   }
 
   // — the branches the spell prints, of which a casting runs one ——————————
@@ -8287,6 +8374,27 @@ export function checkSpellDefinition(
    * target's ending needs a target — SRD Gaseous Form is cast on a creature,
    * and a spell aimed at nobody has nobody to take the Magic action.
    */
+  // SRD Bestow Curse's "become cursed", SRD Hex's "You place a curse": the
+  // mark SRD Remove Curse reads, which ends the casting — so it needs one.
+  // (E-L1)
+  const curse = (definition as { readonly curse?: unknown }).curse;
+  if (curse !== undefined) {
+    if (curse !== true) {
+      found.push({
+        field: 'curse',
+        code: 'malformed_field',
+        reason: 'what a spell lays is a curse or it is not; the only value is true',
+      });
+    } else if (!castingPersists(definition)) {
+      found.push({
+        field: 'curse',
+        code: 'curse_with_nothing_running',
+        reason:
+          'a curse is ended by ending the casting that lays it, and an Instantaneous casting leaves none to end',
+      });
+    }
+  }
+
   if (definition.offersEndAfterTrigger === true && !castingPersists(definition)) {
     found.push({
       field: 'offersEndAfterTrigger',
@@ -9615,6 +9723,46 @@ function checkOptions(
       });
     }
 
+    // SRD Thaumaturgy's door flung open and its sound: a branch over in an
+    // instant whatever the spell's Duration says — see
+    // `SpellOption.instantaneous`. It overrides a duration, so it needs one to
+    // override; it leaves no record, so it may hang nothing a record would end.
+    const instant = (branch as { readonly instantaneous?: unknown }).instantaneous;
+    if (instant !== undefined) {
+      if (instant !== true) {
+        found.push({
+          field: `options.${key}.instantaneous`,
+          code: 'malformed_field',
+          reason: 'a branch is either over in an instant or takes the spell’s own Duration; the only value is true',
+        });
+      } else if (definition.concentration === true) {
+        found.push({
+          field: `options.${key}.instantaneous`,
+          code: 'instant_branch_of_a_concentration_spell',
+          reason:
+            'a Concentration spell runs for as long as it is held, and a branch of it cannot be over in an instant',
+        });
+      } else if (!castingPersists(definition)) {
+        found.push({
+          field: `options.${key}.instantaneous`,
+          code: 'instant_branch_of_an_instant_spell',
+          reason:
+            'this spell leaves nothing running whichever branch is cast, so a branch has no Duration to be over before',
+        });
+      } else if (
+        effects.length > 0 ||
+        standing.length > 0 ||
+        branch.areaTerrain !== undefined
+      ) {
+        found.push({
+          field: `options.${key}.instantaneous`,
+          code: 'instant_branch_hangs_effects',
+          reason:
+            'a branch over in an instant leaves no running record, so anything it hung would have nothing to end it; it may only hand its sentence over',
+        });
+      }
+    }
+
     if (
       effects.length === 0 &&
       handsOver.length === 0 &&
@@ -9677,7 +9825,7 @@ function readsAsSentences(
  *
  * **The other pre-settled kinds need no entry here**, because the rules beside
  * this one already refuse them outside the casting's own list by name: a
- * `teleport`, a `summon`, a `chance` and an `end-attunement` each have a
+ * `teleport`, a `summon`, a `chance` and an `end-curses` each have a
  * placement rule of their own, and a branch is not `effects`.
  */
 const PRESETTLED_EFFECT_KINDS: ReadonlySet<string> = new Set([
@@ -10183,11 +10331,11 @@ function checkAreaBoundLifetime(
  *
  * | | |
  * |---|---|
- * | `end-attunement` | the casting's own list, and nowhere else |
+ * | `end-curses` | the casting's own list, and nowhere else |
  * | a `drops` rider | the casting's own list **or its activation's** |
  *
- * **An `end-attunement` is Remove Curse's, and that spell is Instantaneous**:
- * it breaks the Attunement once, at the touch, so there is no later moment for
+ * **An `end-curses` is Remove Curse's, and that spell is Instantaneous**:
+ * it acts once, at the touch, so there is no later moment for
  * one to be written at. An area trigger firing a minute later reads an
  * `OngoingSpell` and the caster is not there to be asked again.
  *
@@ -10214,7 +10362,7 @@ function checkObjectPlacement(
   path: string,
   found: SpellDefinitionProblem[],
 ): void {
-  if (kind === 'end-attunement' && where !== 'effects') {
+  if (kind === 'end-curses' && where !== 'effects') {
     found.push({
       field: `${path}.kind`,
       code: 'attunement_outside_the_casting',
@@ -11300,7 +11448,7 @@ export const EFFECT_KINDS: ReadonlySet<string> = new Set([
   'condition',
   'end-condition',
   'dispel',
-  'end-attunement',
+  'end-curses',
   'creature-type-override',
   'interrupt-casting',
   'armor-class',

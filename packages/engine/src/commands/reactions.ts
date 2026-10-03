@@ -1551,6 +1551,10 @@ export function takeDamageResponse(
         // rather than an Unarmed Strike nobody printed.
         ...reactionSwing(sheetAsItStands(after, reactor) ?? creature.sheet, command),
         free: true,
+        // The swing is at the creature that dealt the damage and no other, so
+        // a ward that turns it away leaves no new target to choose: it is
+        // lost, as an Opportunity Attack's is. (E-L1)
+        ifWarded: 'lose',
       },
       supply,
     );
@@ -1985,6 +1989,10 @@ export function reactionOpportunities(state: GameState, content: Content): reado
     // so the window simply does not open — a Counterspell holder is offered
     // nothing rather than offered something the casting would then refuse.
     if (casting.subtle === true) continue;
+    // And a casting made with no component left is the same nothing to see or
+    // hear, by the road it went rather than an option bought — SRD
+    // Counterspell's qualifier, read off the record. (E-L1)
+    if (casting.componentless === true) continue;
     for (const key of Object.keys(state.creatures).sort()) {
       const who = key as CharacterId;
       if (who === casting.caster || !canReact(who)) continue;

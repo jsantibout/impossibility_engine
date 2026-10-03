@@ -104,6 +104,34 @@ export interface CatalogueItem {
    */
   readonly attunement?: ItemAttunement;
   /**
+   * The item carries a curse — the SRD's "_Curse._" paragraph: Armor of
+   * Vulnerability, the Berserker Axe, Demon Armor, the Shield of Missile
+   * Attraction.
+   *
+   * Read by SRD Remove Curse: an Attunement to a cursed item is a curse on its
+   * owner ("A curse, including the target's Attunement to a cursed magic
+   * item", SRD Greater Restoration), ended at the touch, and named as the
+   * object it is the one thing the spell breaks — "its curse remains, but the
+   * spell breaks its owner's Attunement". An item that is not cursed is
+   * refused as that object. Absent for everything else. (E-L1)
+   */
+  readonly cursed?: true;
+  /**
+   * Whether the thing is made of metal — SRD Heat Metal's "Choose a
+   * manufactured metal object, such as a metal weapon or a suit of Heavy or
+   * Medium metal armor".
+   *
+   * A mark in the data rather than a rule in the engine, because the SRD
+   * prints no material column: the reading is content's, made once per row and
+   * reviewed there. `false` is a thing that is not metal and is refused as the
+   * object of a spell that heats metal; **absent is a thing the catalogue does
+   * not say** — no craft in the SRD makes a Shield, and a staff is "made of
+   * wood, and others are composed of polished metal" — and the casting goes
+   * ahead with that said, the table's to rule on. (E-L1, the owner's answer
+   * of 2026-10-03)
+   */
+  readonly metal?: boolean;
+  /**
    * What the item does, in the vocabulary a class feature is already written
    * in.
    *

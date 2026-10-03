@@ -108,7 +108,7 @@ export const MISSING_SHAPES = {
   'a-repeat-save-raised-by-a-trigger':
     'a repeat save raised by something that happened — taking damage, having moved, coming within a distance, another effect trying to cure it. The turn hook is the only thing that raises one, which `docs/design/time-and-turns.md` states outright: "Raising is derived; rolling is commanded ... `turn-advanced` *raises* the saves the boundary owes". The fourth of the four mechanisms the audit found bundled under `a-repeat-save-beyond-the-turn-hook`.',
   'a-casting-ended-by-a-trigger':
-    'a casting ends by its deadline, by Concentration, by a dispel or by a recast — `docs/design/casting.md`, "Lifecycle, and the one place it ends". IE-032 built the fifth way, `endsEarly` in spell-definitions.ts, and its causes have grown one sentence at a time since: the target attacks, deals damage, casts or dons armour; the caster or an ally damages it; it takes any damage or drops to 0; a summon takes damage or drops; a sleeper is shaken awake; the caster leaves the area, drops to 0 or is separated past a distance. **W9-S2 built two more and they finished six spells between them**: a strong wind (`dispersed-by-wind`, read off a casting whose area pins `disperses` or a `wind-declared`), which is Fog Cloud and Stinking Cloud and what Gust of Wind blows; and the table’s word that a cause the spell prints has happened (`the-table-declares`, a phrase the record pins and `declareEnding` matches), which is Web’s webs not anchored, Suggestion’s activity complete and a glyph’s surface moved. **What is left in reach is one sentence, and it is more than a cause.** SRD Remove Curse ends **curses**: which of the castings and marks a creature holds is a curse is a fact nothing records. (SRD Web’s fire was another, ending **part** of a casting, and E-L2 built it: a burning Cube on the record, its 2d4 at the turn boundary, and the Cube taken out of the area when its round is out. SRD Prayer of Healing’s targets remaining within range for the ten minutes, a drift measured during a rite rather than at its end, was the third: E-L3 built it as a fold pass that marks a target strayed as it happens, `PendingCasting.strayed`, and the settlement passes it over.) **Out of level-5 reach** the id still holds Sequester’s condition the caster chooses, Polymorph’s Temporary Hit Points running out, Geas and its punishment, Mislead’s double outliving its invisibility, the Arcane Hand, Astral Projection and Simulacrum dropping to 0, Maze’s escape, Modify Memory’s damage or another spell, and the Hat of Disguise.',
+    'a casting ends by its deadline, by Concentration, by a dispel or by a recast — `docs/design/casting.md`, "Lifecycle, and the one place it ends". IE-032 built the fifth way, `endsEarly` in spell-definitions.ts, and its causes have grown one sentence at a time since: the target attacks, deals damage, casts or dons armour; the caster or an ally damages it; it takes any damage or drops to 0; a summon takes damage or drops; a sleeper is shaken awake; the caster leaves the area, drops to 0 or is separated past a distance. **W9-S2 built two more and they finished six spells between them**: a strong wind (`dispersed-by-wind`, read off a casting whose area pins `disperses` or a `wind-declared`), which is Fog Cloud and Stinking Cloud and what Gust of Wind blows; and the table’s word that a cause the spell prints has happened (`the-table-declares`, a phrase the record pins and `declareEnding` matches), which is Web’s webs not anchored, Suggestion’s activity complete and a glyph’s surface moved. **Nothing is left in reach.** (SRD Remove Curse ends **curses**, and that is built, E-L1: a spell that lays one is marked `curse` and pinned on its record, and `end-curses` ends it with the printed curses and a cursed item’s Attunement.) (SRD Web’s fire was another, ending **part** of a casting, and E-L2 built it: a burning Cube on the record, its 2d4 at the turn boundary, and the Cube taken out of the area when its round is out. SRD Prayer of Healing’s targets remaining within range for the ten minutes, a drift measured during a rite rather than at its end, was the third: E-L3 built it as a fold pass that marks a target strayed as it happens, `PendingCasting.strayed`, and the settlement passes it over.) **Out of level-5 reach** the id still holds Sequester’s condition the caster chooses, Polymorph’s Temporary Hit Points running out, Geas and its punishment, Mislead’s double outliving its invisibility, the Arcane Hand, Astral Projection and Simulacrum dropping to 0, Maze’s escape, Modify Memory’s damage or another spell, and the Hat of Disguise.',
   'a-fact-only-the-table-can-declare':
     'a fact the engine does not hold and cannot derive, which a rule then reads — how well you know a creature, whether you are outdoors in a storm, whether you are fighting it. Declared cover, declared sight and declared allegiance are the discipline CLAUDE.md already draws for this; the audit (§4) is where these clauses were found filed as a selector problem when what they want is the fact. **IE-030 built the fought fact**: `CastSpellRequest.fought` carries it, the five spells that read it as Advantage are finished, and SRD Enthrall reads the same fact as an automatic success through `autoSucceedIf: { fought: true }`. What is left under this id is every other fact of the kind — how well you know a creature, whether you are outdoors — that no request yet states.',
   'an-automatic-success-by-creature-type':
@@ -122,7 +122,7 @@ export const MISSING_SHAPES = {
   'an-outcome-that-reads-the-targets-hit-points':
     'a threshold on the target’s current Hit Points, read before anything is rolled. PROGRESS.md ranks it: "Reads the target’s current Hit Points | 0 / 4 | vitals". The vitals are there and no effect asks them a question.',
   'a-target-rule-the-format-cannot-state':
-    '`TargetRule` in spell-definitions.ts says who a casting may be aimed at, and this id is what it still cannot say. **Built, and no longer here**: a size (`mustBeSize`, read through `effectiveSizeOf`) and a Challenge Rating (`save.autoSucceedIf.challengeRatingAbove`, off `CreatureState.cr`), which is what Animal Messenger wanted; the caster and nobody else (`casterOnly`, SRD Thaumaturgy’s Booming Voice); and the rules W9-S4 built. An object has no will to consent with, so a `willing` target that is a declared object is not asked, and a casting that names nobody wards a place (SRD Nondetection). A point is held to an unoccupied space on the lattice floor (`SpellArea.pointOnUnoccupiedGround`, SRD Flaming Sphere). A weapon that is magic already, by its record (`isMagicalItem`) or by a running rider whose spell makes it so (`weapon-rider.makesMagical`), is refused (SRD Magic Weapon). And the caster or a declared object and nobody else is `objectOrSelf`, written for SRD Light’s object that is not carried by someone else. **What is left in reach is a different fact each time.** SRD Suggestion’s target must hear and understand the caster: the Deafened condition is held, and a shared language is not, because a stat block’s Languages line reaches no sheet. SRD Heat Metal’s manufactured metal object: the catalogue records no material for an item. SRD Counterspell’s window opens on a casting that prints no components — a stat block’s componentless spellcasting — where the book opens none: a pin on the printed casting road and a filter on the reaction, which lead the next core batch. And SRD Dispel Magic’s magical effect: a Web or a Fog Cloud runs on nobody and a target is a creature or a declared object, so a casting on no creature cannot be named — a stated fact naming the running casting wants a request field pinned through a held declaration and a resolver run with no creature in it, which is more than a target rule. Past level-5 reach the id also holds Awaken, Animal Shapes and True Polymorph among the spells and the item packets that carry no target rule at all, each filed with its own note.',
+    '`TargetRule` in spell-definitions.ts says who a casting may be aimed at, and this id is what it still cannot say. **Built, and no longer here**: a size (`mustBeSize`, read through `effectiveSizeOf`) and a Challenge Rating (`save.autoSucceedIf.challengeRatingAbove`, off `CreatureState.cr`), which is what Animal Messenger wanted; the caster and nobody else (`casterOnly`, SRD Thaumaturgy’s Booming Voice); and the rules W9-S4 built. An object has no will to consent with, so a `willing` target that is a declared object is not asked, and a casting that names nobody wards a place (SRD Nondetection). A point is held to an unoccupied space on the lattice floor (`SpellArea.pointOnUnoccupiedGround`, SRD Flaming Sphere). A weapon that is magic already, by its record (`isMagicalItem`) or by a running rider whose spell makes it so (`weapon-rider.makesMagical`), is refused (SRD Magic Weapon). And the caster or a declared object and nobody else is `objectOrSelf`, written for SRD Light’s object that is not carried by someone else. **What is left in reach is a different fact each time.** (SRD Suggestion’s target must hear and understand the caster, and that is built now, E-L1: `TargetRule.hearsAndUnderstands` reads the Deafened condition and a language shared off a character’s record or a stat block’s parsed Languages line.) (SRD Heat Metal’s manufactured metal object is built now, E-L1: `TargetRule.metal` reads `CatalogueItem.metal`, marked on every SRD weapon and armour row off the Tools table’s Craft lines, and the substance a declared object pins.) (SRD Counterspell’s window used to open on a casting with no components — a stat block’s componentless spellcasting — and is built now, E-L1: the parsed line’s `waives` is pinned onto the route and a casting with nothing left is `componentless` on the record the window reads.) (SRD Dispel Magic’s magical effect is built too, E-L1: `CastSpellRequest.magicalEffect` names the running casting, pinned through a held declaration and dispelled with no creature in the run.) Past level-5 reach the id also holds Awaken, Animal Shapes and True Polymorph among the spells and the item packets that carry no target rule at all, each filed with its own note.',
   'a-creature-fact-an-effect-overrides':
     'an effect that changes what **other** rules believe about a creature. **The type is built and the name now means the other two facts.** PROGRESS.md named it — "Arcanist’s Magic Aura changes what other spells believe a creature’s type to be, which `mustBeType` reads on every casting" — and `creature-type-override` is that sentence: a sourced grant beside `CreatureState.creatureType` rather than a write over it, read by `typeMagicSees`, whose docstring draws the line the SRD sentence draws between a spell asking and a creature asking. The fact itself is untouched, and every door that ends a grant gives the goblin its own type back. What is left is **size** — held, read by sharing a space, passing through and the volume a template tests, and written over by nothing — and the third fact IE-044 read off SRD Gaseous Form: "The target can enter and occupy the space of another creature", where what the other rule believes is that a creature holds its space against a willing mover. One reader built, two facts left.',
   'an-ability-score-a-spell-changes':
@@ -210,15 +210,20 @@ export const MISSING_SHAPES = {
   'a-success-branch-that-does-something':
     '**Built.** spell-definitions.ts says it now: "A success has its own slot and not a member here". `save.onSuccessRiders` is a second `OutcomeRiders` written under a name that says which branch it rides, so the invariant the rider design rests on stands — a settled outcome’s riders are handed over and never asked which one. The validator narrows the slot to the four a printed success writes, a mode, a condition, a movement and a spend, and refuses damage on the book’s authority: no saving throw in it rewards a success with a hit. SRD Ray of Enfeeblement is executed off it. **Two claimants are left** and neither is blocked on this: Flesh to Stone waits on an automatic success, a repeat counted to three and a Petrified that outlives the count; Irresistible Dance waits on a creature somebody else is playing.',
   'a-spells-effects-applied-to-different-targets':
-    '`docs/design/spell-definitions.md`: "**A spell has one effect list applied to every target**, so nothing yet expresses “each creature takes damage *and* is knocked Prone” with different outcomes per target beyond the save each one rolls." A casting that chooses per creature, or divides a pool among them, is the same gap.',
+    '`docs/design/spell-definitions.md`: "**A spell has one effect list applied to every target**, so nothing yet expresses “each creature takes damage *and* is knocked Prone” with different outcomes per target beyond the save each one rolls." A casting that divides a pool among its creatures, or sends them to different places, is the same gap. **A casting that chooses per creature is not, any more**: a branch per creature is `optionPerTarget` (SRD Calm Emotions) and a value per creature is `StatedChoice.perTarget` (SRD Enhance Ability, E-L1), each creature running the one list with its own answer substituted in.',
   'a-rider-on-a-later-weapon-attack':
     '`PROGRESS.md`, on what the drained shapes left: "a rider on every weapon attack (Divine Favor, Hex, Hunter’s Mark)"; PROGRESS.md ranks it as "Extra damage on the target’s later attacks | 3 / 10 | `damageBonuses` / `extraDamage`, Rage Damage, Radiant Strikes". **IE-035 built the extra-damage half** — the `attack-rider` grant hangs a notation and a damage type on the caster, optionally narrowed to weapon attacks or to a marked target, and Divine Favor, Hunter’s Mark and Hex’s first sentence are all expressible by it. **And the weapon half is built too**: a casting now names the particular weapon it was aimed at (`CastSpellRequest.weapon`), the `weapon-rider` grant hangs on whoever holds it keyed by that weapon’s id, and what it may change is the **substituted ability**, the **replaced damage die** and a **flat** plus of the weapon’s own type reaching the attack roll and the damage roll alike — with a band table apiece, off the slot and off the caster’s level. Shillelagh and Magic Weapon are what that finished. **And the type a swing chooses is built too**: `weapon-rider.damageTypes` is the offer Shillelagh’s second sentence makes, answered on the attack command under the spell’s own name rather than pinned at the casting, and it replaces the weapon’s own type where it is taken. What is left is every rider that is neither of those builds: a damage type chosen at the moment of the attack on a rider that is **not** keyed to one weapon (Conjure Minor Elementals), extra damage with **no type** and so the weapon’s own (Enlarge/Reduce), a rider that fires on damage from **a spell** rather than an attack roll (Bestow Curse), and a substitution on an **Unarmed Strike**, which is not a weapon and so is not a thing a casting can name (Alter Self). **And the casting that *makes* the attack it rides is built**: `weapon-attack` is the door no effect kind opened — the attack command takes the cantrip beside the weapon, spends the Action as the casting’s, substitutes the spellcasting ability into the attack and damage rolls, adds the Cantrip Upgrade’s dice off a band table keyed by character level and offers the type the sentence prints, with nothing granted and nothing left standing. True Strike is what that finished.',
   'a-cap-on-how-many-castings-run-at-once':
     '**Built, and the id is empty.** `replacesPriorCasting` in spell-definitions.ts is the cap the SRD writes twice — "The hand vanishes ... if you cast this spell again" — and it is a cap of **one**, applied by ending the prior casting. `maxRunning` is the same field with a number in it and `replacedCastings` is one arithmetic for both sentences: the oldest castings by this caster of this spell end until the new one is the last that fits. SRD Prestidigitation’s three is the only spell in the book that writes it and is executed off it. Kept rather than deleted because an id is a key two branches append to, and because the reading it records — ending the oldest rather than refusing the fourth — is the one a later homebrew spell will meet.',
   'a-duration-the-slot-changes':
     'PROGRESS.md, on Major Image: "Concentration and duration that **change with the slot level** ... which `SpellDefinition` cannot express". **IE-035 built the half that is a longer span**: `durationAtSlot` is a per-definition table of slot level to seconds, read where the deadline is scheduled, and the six spells printing the SRD’s "Your Concentration can last longer with a spell slot of…" — Hex, Hunter’s Mark, the three Dominates — and SRD Mass Suggestion’s "The duration is longer with…" all read their own table. **And the Concentration half is built too**: `concentrationEndsAtSlot` is the slot from which a spell stops requiring Concentration, which SRD Bestow Curse prints at level 5 and SRD Major Image prints at level 4, beside its other clause. **And the ending half is built now too**: `untilDispelledAtSlot` is the slot from which a casting stops having a deadline at all, which SRD Major Image prints at level 4 beside its Concentration clause — so that spell is executed and the field it wanted is the third of the family, read by `untilDispelledAt` where the deadline would have been scheduled. SRD Bestow Curse’s level 9 slot prints the same "lasts until dispelled" and reads the same field. What is left under this id is an ending that is **not** the absence of one: SRD Geas’s level 9 slot makes the spell last "until it is ended by one of the spells mentioned above" — one spell naming another as its ending, which no field here says and a table of seconds could not.',
-  'a-duration-the-chosen-branch-sets':
-    'a duration a casting’s chosen branch sets rather than the spell. `SpellOption` in spell-definitions.ts carries a branch’s effects, its area clauses and its own handovers, and no duration: the deadline is the definition’s, scheduled once whichever branch ran. SRD Thaumaturgy prints six wonders under one minute and calls two of them instantaneous, so every casting leaves a record the cap of three counts, and a door flung open counts against Booming Voice. W8-S26 filed it under `a-duration-the-slot-changes` as the closest id; the duration is the branch’s, not the slot’s. W9-S2 minted this one as filing only.',
+  // **`a-duration-the-chosen-branch-sets` was here and is retired** (E-L1).
+  // Its one claimant was SRD Thaumaturgy, whose six wonders run a minute and
+  // two of which the book calls instantaneous. `SpellOption.instantaneous` is
+  // the branch's own Duration, read through `persists` with the word the
+  // casting spoke: such a branch leaves no record, schedules no deadline, and
+  // counts against no cap, so a door flung open no longer ends a Booming Voice.
+  // A shape nothing is blocked on is one the guard deletes.
   'a-deadline-anchored-to-a-rest':
     '`docs/design/time-and-turns.md`: "`duration.ts` has two types" — "A span of time" and "A moment in the turn order". A rest is neither, and the SRD anchors effects to one constantly. The clock records `lastShortRestAt` and a rest is a span the engine measures, so the fact is there and no deadline can name it.',
   'an-effect-that-fires-when-the-casting-ends':
@@ -226,7 +231,7 @@ export const MISSING_SHAPES = {
   'senses-beyond-declared-sight':
     '**the attacker-side half is built and this is what is left.** `docs/design/light-and-sight.md` draws the line where it now falls: "the attacker-side sense reading (P2-T16), not this". A creature has held senses since `sensesOf` and `SENSES_THAT_SOMEHOW_SEE` landed; what a `RollSelector` had no room for was the *exception* — `unlessPerceivedWith` is that axis, `sensesPerceiving` is the reader, and Blur’s sentence excusing an attacker who perceives you with Blindsight or Truesight is finished by them. What is left is every sense clause that is not a modifier on a roll: a casting that **confers** a sense on a creature (the Darkvision spell, Gem of Seeing), and a sense that excuses its holder from an illusion or an area rather than from a die (Mirage Arcane). None of those is an attacker reading a sense off a roll, and none has state to sit in. **One creature borrowing another’s is built** (W7-S21): SRD Find Familiar’s Bonus Action is `borrowSenses`, a record with its deadline on it that `canSee` and `sensesOf` read — yes where the familiar sees, and its senses for the caster — so the declared model stays three-valued. **And a stat block’s printed Senses line reaches its sheet** (W8-S25): `adaptMonster` compiles it into the `sense` grants `sensesOf` reads, so an Owl familiar has its own Darkvision to lend, and Find Familiar has left this id.',
   'what-a-creature-is-holding':
-    '**Half of this is built, and the name now means the other half.** What `docs/design/characters-and-equipment.md` recorded — "Nothing checks that two hands are free, either." — is checked now: hands are a count on the sheet, what an item takes up is read off its printed record, a third thing in two hands is refused, and a casting may put a thing *into* a hand and hold it there for as long as it runs, which is what Goodberry’s ten berries and Flame Blade’s blade were waiting on. **The verb that takes something out of a hand is built too, and what is left is whose hand.** `OutcomeRiders.drops` is a rider on a settled outcome: the object the casting named leaves the creature, the *if it can* the sentence prints is `handsFor` off the item’s printed record, `orElse` is what the outcome does instead where it cannot be, and `forcedDrop` performs it through `unequipItem` and `dropItem` so the thing lands on the floor the engine does keep now. SRD Heat Metal is executed off it. **And the floor a departing creature leaves its gear on is built** (W9-S3): SRD Find Familiar’s and Find Steed’s "it leaves behind … anything it was wearing or carrying" is pinned on the kept bond (`KeptBond.leavesBehind`), and each departure the bond has — the drop to 0, the pocket, the replacement — unequips and drops every line in the creature’s own space before it goes, the owner having ruled on 2026-09-27 that the sentence is each spell’s and not a rule of departure. What is left is SRD Fear’s "drop whatever it is holding", which names **no object at all**: this rider drops the one thing the caster stated, and a clause that empties both hands of whatever happens to be in them is a second sentence with a second shape. `dropConjured` is still the door for a conjured thing, which simply ceases to exist, and it refuses everything else by name.',
+    '**Half of this is built, and the name now means the other half.** What `docs/design/characters-and-equipment.md` recorded — "Nothing checks that two hands are free, either." — is checked now: hands are a count on the sheet, what an item takes up is read off its printed record, a third thing in two hands is refused, and a casting may put a thing *into* a hand and hold it there for as long as it runs, which is what Goodberry’s ten berries and Flame Blade’s blade were waiting on. **The verb that takes something out of a hand is built too, and what is left is whose hand.** `OutcomeRiders.drops` is a rider on a settled outcome: the object the casting named leaves the creature, the *if it can* the sentence prints is `handsFor` off the item’s printed record, `orElse` is what the outcome does instead where it cannot be, and `forcedDrop` performs it through `unequipItem` and `dropItem` so the thing lands on the floor the engine does keep now. SRD Heat Metal is executed off it. **And the floor a departing creature leaves its gear on is built** (W9-S3): SRD Find Familiar’s and Find Steed’s "it leaves behind … anything it was wearing or carrying" is pinned on the kept bond (`KeptBond.leavesBehind`), and each departure the bond has — the drop to 0, the pocket, the replacement — unequips and drops every line in the creature’s own space before it goes, the owner having ruled on 2026-09-27 that the sentence is each spell’s and not a rule of departure. **And who touches an unattended thing is the DM’s to state** (E-L1): `declareContact` names the creatures touching a declared object, or the other hands on a thing a creature wears or wields, for the turn it is said on, and SRD Heat Metal burns them. What is left is SRD Fear’s "drop whatever it is holding", which names **no object at all**: this rider drops the one thing the caster stated, and a clause that empties both hands of whatever happens to be in them is a second sentence with a second shape. `dropConjured` is still the door for a conjured thing, which simply ceases to exist, and it refuses everything else by name.',
   'targeting-rules-that-differ-within-one-casting':
     'one range and one sight requirement are checked against every named target. The SRD sometimes measures a later target from an earlier one, requires sight of only the first, or prints a reach for the attack that is not the spell’s Range — a third measurement beside the caster and the area point `docs/design/spell-definitions.md` added for Mass Cure Wounds ("The range then belongs to the point rather than to each target"). **The reach half is built and what is left is the other two.** `attack.reach` is the distance a swing goes where the spell’s own Range does not say it — SRD Vampiric Touch’s "within reach" on a Range of Self — checked with the targets settled and before anything is spent, and that spell has left this id. A later target measured from an earlier one, and sight required of the first target only, are the two SRD Chain Lightning still prints and neither is a distance from the caster.',
   // **`a-condition-that-ends-when-its-holder-leaves-an-area` was here and is
@@ -819,13 +824,11 @@ export const ADJUDICATED: Readonly<Record<string, readonly Adjudication[]>> = {
       note: 'SRD gates the *removal* of the condition behind a save, and a save is raised here only by a turn boundary; nothing puts one in front of another effect’s cure.',
     },
   ],
-  'counterspell': [
-    {
-      clause: 'the qualifier is not checked',
-      why: 'a-target-rule-the-format-cannot-state',
-      note: 'W8-S26, on review, reversing a reading that called this safe. Every SRD spell prints a component, and seventeen SRD stat blocks — a Giant Owl, a Couatl, an Imp, a Quasit, a Sprite, a Unicorn among those in reach — cast with no spell components at all; `adaptMonster` compiles those lines into ordinary castings, and a Counterspell is let at one where the book gives no window. The fact is printed and dropped, and the trigger reads it. The closest id: a rule over which casting the reaction may be aimed at, which the format cannot state.',
-    },
-  ],
+  // **Counterspell has left the map** (E-L1). The parser carries a line's
+  // "requiring no … components" (`waives`), `adaptMonster` compiles it onto
+  // every route the line opens, and a casting with no component left — or one
+  // from an item, which "requires no components" — is pinned `componentless`
+  // on the record the window reads, which then does not open.
   // **Dancing Lights files nothing now** (E-L2): the several templates are
   // `AreaCopies` — up to four lights, each at a point the caster names
   // (`alsoAt`), tied within twenty feet, moved by number (`alsoTo`), and gone
@@ -853,13 +856,10 @@ export const ADJUDICATED: Readonly<Record<string, readonly Adjudication[]>> = {
       note: 'Not an outcome rider, and the distinction is the whole reason this has a shape of its own: a rider rides the roll its host made, and this fires on a number the engine went on to compute from it — the target reaching 0 Hit Points. The gear turned to dust and the restriction on reviving it ride on the same missing branch.',
     },
   ],
-  'dispel-magic': [
-    {
-      clause: 'only a creature can be named',
-      why: 'a-target-rule-the-format-cannot-state',
-      note: 'W8-S26 read this line for the first time. SRD: "Choose one creature, object, or magical effect within range." A Web or a Fog Cloud is a casting in `state.ongoing` that the ending would reach, and the casting has no way to name it: a target is a creature. A target that is not a creature is a target rule the format cannot state — the closest id, whose description is about the facts a rule selects by rather than the kind of thing it selects.',
-    },
-  ],
+  // **Dispel Magic has left the map** (E-L1). "Or magical effect" is
+  // `CastSpellRequest.magicalEffect`: a running casting on no creature, named
+  // by its id, held to the Range through the place it holds, and pinned on a
+  // declaration so a held Dispel Magic settles at the cloud it was aimed at.
   'dominate-beast': [
     {
       clause: 'whenever it takes damage',
@@ -896,13 +896,11 @@ export const ADJUDICATED: Readonly<Record<string, readonly Adjudication[]>> = {
       note: 'The commands the link carries are the target’s actions — not the slots they come out of, which a spell may now spend, but which action is taken and at what. That is a decision, and it is made by somebody who is not playing the creature.',
     },
   ],
-  'enhance-ability': [
-    {
-      clause: 'You can choose a different ability for each target',
-      why: 'a-spells-effects-applied-to-different-targets',
-      note: 'W8-S26 read this line for the first time, and it is this id word for word: "A casting that chooses per creature … is the same gap." The casting states one ability and every target gets Advantage on that one, so an upcast that gives the Rogue Dexterity and the Fighter Strength is refused its second choice.',
-    },
-  ],
+  // **Enhance Ability has left the map** (E-L1). "You can choose a different
+  // ability for each target" is the casting's one question asked again per
+  // creature, and `StatedChoice.perTarget` lets the request answer it that way
+  // (`choiceByTarget`): each creature's mode takes its own value through the
+  // same `statedChoice` the single answer goes through.
   // **Feather Fall files nothing now** (E-L2). The sight gate on its trigger is
   // built — `fallAnswerable` reads "you or a creature you can see within 60 feet
   // of you" for the casting and for the offer alike — and the rate of descent is
@@ -965,18 +963,11 @@ export const ADJUDICATED: Readonly<Record<string, readonly Adjudication[]>> = {
   // `NAMED_ACTIONS` holds Utilize and `takeUtilize` is a spender that names
   // itself as one. The note that said otherwise was written before that
   // spender existed.
-  'heat-metal': [
-    {
-      clause: 'an object nobody is wearing or wielding',
-      why: 'what-a-creature-is-holding',
-      note: 'W8-S26 re-read this as a debt. SRD: "Any creature in physical contact with the object takes 2d8 Fire damage when you cast the spell." What the engine keeps is what a creature has equipped, which is the whole of the contact it can read; a creature touching a heated gate is owed dice nobody throws. The closest id, whose description is what a creature has in hand and on its body.',
-    },
-    {
-      clause: 'whether the thing chosen is manufactured, metal',
-      why: 'a-target-rule-the-format-cannot-state',
-      note: 'W8-S26 read this line for the first time. SRD: "Choose a manufactured metal object, such as a metal weapon or a suit of Heavy or Medium metal armor, that you can see within range." Which object a casting may name is a target rule, and the catalogue records no material to hold it to. The closest id: a selection by a fact about the target that the format cannot state.',
-    },
-  ],
+  // **Heat Metal has left the map** (E-L1, by the owner's answers of
+  // 2026-10-03). The metal object is `TargetRule.metal`, read off a mark in
+  // the data; the unattended object is `TargetRule.inContact`, burning whoever
+  // the DM names through `declareContact`; and a second hand on a thing a
+  // creature wears or wields is the same door, by the holder and the item.
   'hideous-laughter': [
     {
       clause: 'it laughs uncontrollably if it\'s capable of laughter',
@@ -1119,34 +1110,24 @@ export const ADJUDICATED: Readonly<Record<string, readonly Adjudication[]>> = {
   // no about it and `summonedBy` — the link `strandedSummons` already reads —
   // is what says which casting a bleeding steed belongs to. Everything else
   // this spell prints is the table's.
-  'remove-curse': [
-    {
-      clause: 'the curses the touch ends are not ended',
-      why: 'a-casting-ended-by-a-trigger',
-      note: 'W8-S26 re-read this as a debt, because the reason it gave, that nothing the engine applies is one, stopped being true when Bestow Curse was executed and a lycanthrope’s curse went on the record. SRD: "At your touch, all curses affecting one creature or object end." Another spell ending this one is a cause this id names for Geas, whose own text names Remove Curse; what is missing is knowing which of the castings and marks a creature holds is a curse.',
-    },
-  ],
+  // **Remove Curse has left the map** (E-L1). Which of the castings and marks
+  // a creature holds is a curse is recorded now: `SpellDefinition.curse`
+  // (Bestow Curse, Hex) pinned on the record, the printed `curses` list, and
+  // `CatalogueItem.cursed` for an Attunement Greater Restoration calls one —
+  // and `end-curses` ends all three at the touch.
   // Blink and Rope Trick left the tracked map on the second place. Blink
   // carries no entry here: the shades of gray are in its `dmDecides` since
   // W8-S26. Rope Trick's hanging rope and its portal went the same way, and
   // since W9-S3 it carries none either: the rope pulled up is `drawWayIn`, and
   // the climb is a move to a portal whose height the DM states.
-  sanctuary: [
-    {
-      clause: 'the branch the save buys spends nothing',
-      why: 'a-spell-that-answers-a-later-attack',
-      note: 'W8-S26 re-read this as a debt. SRD: "any creature who targets the warded creature with an attack roll or a damaging spell must succeed on a Wisdom saving throw or either choose a new target or lose the attack or spell." The engine aims nothing on a caller’s behalf, so choosing a new target is a second command — and losing the attack or the spell is a price, which an attacker who takes neither branch never pays: the ward refuses before the action, the slot or the die. The closest id: an ongoing spell that answers somebody else’s attack with nobody taking a Reaction, which is how the ward was built.',
-    },
-    // "if the warded creature makes an attack roll" was filed here as a gap —
-    // `roll-recorded` was an audit line and the ending hung on the swing that
-    // spent something — and is one no longer: the roll's own record says it
-    // was an attack roll (`roll-recorded.attackRoll`) and the ending seam reads
-    // it, so an Opportunity Attack that misses ends the ward where the book
-    // ends it. Removed rather than reworded, because the map holds gaps.
-    // "One save per ward per turn" left the map with W8-S26: it is the
-    // owner's ruling of 2026-09-22 and the engine's rule, not a gap and not
-    // the table's, and the definition's docstring carries it.
-  ],
+  // **Sanctuary has left the map** (E-L1). The owner's ruling of 2026-10-03
+  // reverses that of 2026-09-22: "lose the attack or spell" costs what it says.
+  // The attacker states its fallback before the die (`ifWarded`: a new target,
+  // or lose), a lost attack spends that attack, a lost spell spends the action
+  // and the slot, and a new target is swung at or cast at in the same command.
+  // "One save per ward per turn" stands, and is the engine's rule. The attack
+  // roll the ending reads was taken off this map earlier, by
+  // `roll-recorded.attackRoll`.
   // **Sleet Storm files nothing now** (E-L2): "exposed flames in the area are
   // doused" is `douses-flames`, an `AreaStanding` clause the fold reads against
   // every burning creature standing in the Cylinder after every event.
@@ -1175,13 +1156,10 @@ export const ADJUDICATED: Readonly<Record<string, readonly Adjudication[]>> = {
   // repeat save is hosted by the casting on one creature at a time, filed on
   // the `grants` timer the casting's own source already keys, so "ending the
   // spell on itself" reaches the goblin that made its save and nobody else.
-  slow: [
-    {
-      clause: 'the 25 percent chance is thrown where a casting is made through the casting pipeline',
-      why: 'a-random-outcome-that-is-not-a-d20',
-      note: 'W8-S26 read this line for the first time. SRD: "If it casts a spell with a Somatic component, there is a 25 percent chance the spell fails as a result of the target making the spell’s gestures too slowly." The percentage is built and thrown where a casting goes through the pipeline; three roads that make a casting elsewhere do not throw it, so a slowed caster’s readied spell never fails. The closest id, whose built half is this percentage.',
-    },
-  ],
+  // **And the last of them is gone too** (E-L1): the 25 percent is thrown on
+  // the four roads that make a casting outside the pipeline — the Ready, a
+  // cantrip cast with the swing, a spell cast on a hit, and the spell a glyph
+  // stores — through the same exported `castingFailure`. Slow has left the map.
   'spike-growth': [
     {
       clause: 'Wisdom (Perception or Survival) check against your spell save DC',
@@ -1189,13 +1167,11 @@ export const ADJUDICATED: Readonly<Record<string, readonly Adjudication[]>> = {
       note: 'The reading that lets the handed-over sentence past the marker rule (W8-S26). The marker fires on the check, which the casting offers to anybody who takes the Search action whatever the table reads; who has to make it — a creature that could not see the area when the spell was cast — is a fact about a moment gone by, and what it buys is knowing, which changes nothing the engine holds.',
     },
   ],
-  suggestion: [
-    {
-      clause: 'the target must be able to hear and understand you',
-      why: 'a-target-rule-the-format-cannot-state',
-      note: 'W8-S26 read this line for the first time, and W9-S2 corrected what it said about languages. The Deafened condition is state the engine holds. The languages a creature knows are held only on a character’s record (`CreatureState.character`): `adaptMonster` compiles no Languages line, so a stat block knows none the engine can read. A casting at a Deafened target, or at a character sharing no language with the caster, is one the book refuses and the engine does not — a target rule the format cannot state, which is this id. The stat-block half waits on a Languages-line track in W8-S25’s pattern, after B12.',
-    },
-  ],
+  // **Suggestion has left the map** (E-L1). "That can hear and understand
+  // you" is `TargetRule.hearsAndUnderstands`: the Deafened condition, and a
+  // language the caster speaks and the target understands — a character's off
+  // its record, a stat block's off its Languages line, which the parser now
+  // reads (`Monster.speech`) in W8-S25's pattern.
   sunbeam: [
     {
       clause: 'creates a new Line on a later turn',
@@ -1210,17 +1186,10 @@ export const ADJUDICATED: Readonly<Record<string, readonly Adjudication[]>> = {
       note: 'the clause this shape’s own test was built to hand back. It was filed `table` on the strength of one field — "the definition is tracked and carries no `SpellArea`, because a template no effect resolves over is a radius with no place attached" — and `spell-honesty.test.ts` pinned both halves so that the day Darkness grew an area the reading would fail rather than go quietly on calling a rule fiction. That day is P3-S: Darkness holds a Sphere, the Sphere holds magical darkness, and Sunburst’s own 60-foot Sphere overlaps it perfectly well. What is missing is the **trigger**, and `docs/design/light-and-sight.md` says exactly where its edge is: the mutual dispel runs "on pinning a patch", and Sunburst pins none — it is a flash, Instantaneous, leaving no light behind. So `lightDispelledBy` is built and reachable from every casting that lays light, and a casting that lays none has no way to call it.',
     },
   ],
-  thaumaturgy: [
-    {
-      clause: 'the cap counts every casting',
-      why: 'a-duration-the-chosen-branch-sets',
-      note: 'W8-S26 read this line for the first time. The cap of three is `maxRunning` and is built; what the definition cannot say is that two of its six branches are instantaneous inside a spell that lasts a minute, so every casting leaves a record the cap counts — and Booming Voice’s Advantage is a mode a fourth casting can end early when a door flung open counted against the three. A duration the chosen branch sets, which is this id: W8-S26 filed it under the slot’s id as the closest, and W9-S2 minted its own.',
-    },
-  ],
-  // **Executed by `maxRunning` and by the branches**, and the entry that
-  // outlived both is the one clause of the six wonders that is not narration.
-  // The other five were always fiction; this one is an ordinary roll modifier
-  // with nowhere to stand.
+  // **Thaumaturgy has left the map** (E-L1): the cap counted every casting
+  // because two of its six branches are instantaneous inside a spell that
+  // lasts a minute, and `SpellOption.instantaneous` is the branch's own
+  // Duration — a door flung open leaves no record for the cap to count.
   // **Web files nothing now** (E-L2). The flammable webs are `SpellDefinition.flammable`:
   // the table says a Cube met fire (`exposeToFire`), the turn boundary deals the
   // 2d4 to a creature starting its turn in it (`burningCubesDue`), and the fold
@@ -4463,7 +4432,7 @@ export const ITEM_SHAPES = {
   'an-area-an-item-creates':
     'a Cone, a Sphere or an Emanation an item puts on the battlefield. docs/archive/design/space-and-areas.md ties an area to the casting that made it — "So a casting’s area sits at a point *or* on a creature, and which it is was decided at the casting by the definition" — and an item that confers effects has no casting, no definition and no area field, so a horn that blasts a 30-foot Cone reaches its targets by hand or not at all. **And the clause SRD Mace of Terror writes, "each creature of your choice within 30 feet of you", is one of these** — which the re-derivation had to settle to file the pipes, the mace and the rod. The 2024 rules write that sentence as an Emanation; a conferral lands on one creature however far it reaches; so an item that catches several at once wants this shape and not `a-range-an-item-names` alone.',
   'what-ends-attunement-besides-a-command':
-    'an attunement that ends, or refuses to end, for a reason no command gives. docs/design/characters-and-equipment.md names it as the second thing a brief still owes — "what ends attunement besides a command — death, losing the item, another creature attuning to it" — and the book’s cursed items are the other half of that missing rule: armour that cannot be doffed until a Remove Curse lands is an attunement its holder may not release. **The spell half is built**: an `end-attunement` effect breaks the Attunement to the object the caster names, SRD Remove Curse is executed off it, and the death and the item gone were already derived by the fold. What is left is the **refusal** — an attunement a curse will not let go of until that spell lands — which is a state no item record holds, and the four cursed items still sit on it.',
+    'an attunement that ends, or refuses to end, for a reason no command gives. docs/design/characters-and-equipment.md names it as the second thing a brief still owes — "what ends attunement besides a command — death, losing the item, another creature attuning to it" — and the book’s cursed items are the other half of that missing rule: armour that cannot be doffed until a Remove Curse lands is an attunement its holder may not release. **The spell half is built**: SRD Remove Curse’s `end-curses` (E-L1, which folded in the `end-attunement` effect that came before it) breaks the Attunement to a cursed item — one marked `CatalogueItem.cursed` — named as its object, or every such Attunement on the creature it touches; the death and the item gone were already derived by the fold. What is left is the **refusal** — an attunement a curse will not let go of until that spell lands — which is a state no item record holds, and the four cursed items still sit on it.',
   'a-concentration-with-no-casting-behind-it':
     'Concentration on something that was never cast. docs/archive/design/casting.md makes the casting the unit throughout — "a second Concentration casting breaks the first at its declaration" — and `releaseCasting` is the single door out, so an item whose effect lasts as long as its user maintains Concentration has nothing for that door to close.',
   'a-benefit-an-item-suspends-on-a-trigger':

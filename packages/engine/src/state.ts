@@ -19,6 +19,7 @@ import type { CharacterSheet, GrantedArmorClass, GrantedLineImmunity } from './c
 import { type ActiveRollModifier } from './roll-modifiers.js';
 import { type ActivePassiveDefense } from './passive-defenses.js';
 import type { RngState } from './dice.js';
+import type { MaterialPin } from './objects.js';
 import {
   type ConditionState,
   type DeniedBenefit,
@@ -932,6 +933,25 @@ export interface CreatureState {
    */
   readonly falling: FallMoment | null;
   /**
+   * Who the table last said is touching this declared object — or, on a
+   * creature, who else is touching a thing it wears or wields (`item`) — and
+   * when: SRD Heat Metal's "any creature in physical contact with the object".
+   * (E-L1)
+   *
+   * Beside `falling` for `falling`'s reason: a touch is **momentary**, worth
+   * the turn and the clock it was said at and closed by them with no event
+   * (`contactNow`). Null on everything nobody has said it of, which is every
+   * log written before this field — so both frozen fixtures fold unchanged.
+   */
+  readonly contact: ContactMoment | null;
+  /**
+   * What this declared object is made of, as content said when it was
+   * declared — pinned by `creature-added`. Null on every creature, and on an
+   * object declared before the pin existed, which a rule reading it takes as
+   * "nobody said". (E-L1)
+   */
+  readonly material: MaterialPin | null;
+  /**
    * Where this creature is instead of in the scene, or null while it stands
    * in it.
    *
@@ -1540,6 +1560,23 @@ export interface LastDamage {
 }
 
 /**
+ * Who is touching a declared object, or the other hands on a thing a creature
+ * wears or wields (`item`), and the moment it was said. See
+ * {@link CreatureState.contact}; read back by `contactNow`, on
+ * {@link FallMoment}'s rule. (E-L1)
+ */
+export interface ContactMoment {
+  readonly creatures: readonly CharacterId[];
+  readonly turn: number | null;
+  readonly elapsed: number;
+  /**
+   * The thing this creature wears or wields that the statement is about, where
+   * it is about one rather than about a declared object. Absent on an object.
+   */
+  readonly item?: string;
+}
+
+/**
  * That this creature is falling, and the moment it was said.
  *
  * {@link LastDamage}'s shape with its one identifying field taken away, for
@@ -1994,6 +2031,14 @@ export interface PendingCasting {
    */
   readonly choice?: string;
   /**
+   * The value the caster chose for each creature, where the spell lets the
+   * casting answer per creature — SRD Enhance Ability's "You can choose a
+   * different ability for each target". Beside {@link choice} and for its
+   * reason: the targets were settled at the declaration, so the answers that
+   * belong to them were too, and a settlement takes no fresh request.
+   */
+  readonly choiceByTarget?: Readonly<Record<string, string>>;
+  /**
    * The creature types the caster chose, where the spell prints a choice of
    * one or more — SRD Magic Circle's "Choose one or more of the following
    * types". Beside {@link choice} and for its reason: a circle declared against
@@ -2137,6 +2182,31 @@ export interface PendingCasting {
    * Absent means an ordinary casting, which is every one written until now.
    */
   readonly subtle?: true;
+  /**
+   * Whether this casting is made with no component at all, by the road it
+   * went by rather than by an option bought.
+   *
+   * SRD Counterspell is taken "when you see a creature … casting a spell with
+   * Verbal, Somatic, or Material components". A Dust Mephit's Sleep is cast
+   * "requiring no spell components" and a wand's Fireball "requires no
+   * components" (SRD "Spells Cast from Items"), so neither offers the window.
+   * Worked out at the declaration, with the spell's entry and the route in
+   * hand — `castsWithComponent` over `componentsWaivedBy` — and pinned here
+   * because the window reads the record and no catalogue. Beside
+   * {@link subtle} and read by the same two readers; kept apart because Subtle
+   * Spell is bought and pays for more than this. (E-L1)
+   *
+   * Absent for every casting that has a component left, which is every one
+   * written before the field.
+   */
+  readonly componentless?: true;
+  /**
+   * The running casting this one was aimed at as a magical effect — SRD
+   * Dispel Magic's "Choose one creature, object, or magical effect". A
+   * declaration names it and the settlement takes no fresh request, so it is
+   * pinned beside the targets it stands in for. (E-L1)
+   */
+  readonly magicalEffect?: string;
   /**
    * Where a teleporting spell puts its target.
    *

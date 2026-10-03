@@ -125,6 +125,7 @@ import { durationSecondsAt, untilDispelledAt } from '../spell-definitions.js';
 import { endOfCurrentTurn, startOfNextTurn } from '../time.js';
 import { OBJECT_CREATURE_TYPE } from '../objects.js';
 import type { MonsterTreeStride } from '@ie/srd';
+import type { WardFallback } from './passive-defenses.js';
 import { castSpell, chooseRoute, type Supply, nextCastingId } from './casting.js';
 import { creatureOf, reachedBy, sceneFor, unknownCreature } from './command.js';
 import {
@@ -145,7 +146,8 @@ import { featureTimer } from './features.js';
 import { actorRefusal, mayAct } from './holds.js';
 import { teleportTo } from './teleport.js';
 import { type MoveResolution, moveWithin } from './movement.js';
-import { castOrRelease } from './spell-resolution.js';
+import { casterOwesTheDie, castingFailure, castOrRelease } from './spell-resolution.js';
+import { componentsWaivedBy } from '../spellcasting.js';
 import {
   aimedIdentity,
   type AimedRolls,
@@ -1905,6 +1907,13 @@ export interface LegendaryActionCommand extends CommandIdentity {
    * caller is asked, because a swing at nobody is not a swing.
    */
   readonly target?: CharacterId;
+  /**
+   * What the swing does if a ward turns it away — SRD Sanctuary's "either
+   * choose a new target or lose the attack or spell", stated up front as
+   * `resolveAttack`'s and `resolveSpell`'s own `ifWarded` is, and asked for
+   * when it is missing and a ward stands in the way. (E-L1)
+   */
+  readonly ifWarded?: WardFallback;
 }
 
 export interface LegendaryActionOutcome {
@@ -2119,6 +2128,7 @@ export function takeLegendaryAction(
             weapon: null,
             action: printed.attack,
             free: true,
+            ...(command.ifWarded === undefined ? {} : { ifWarded: command.ifWarded }),
             ...inner('swing'),
           },
           supply,
@@ -3261,6 +3271,8 @@ export interface PrintedCastingOutcome {
   /** What the casting and the line between them left to the table. */
   readonly unverified: readonly string[];
   readonly duplicate: boolean;
+  /** A ward turned the casting away — see `SpellResolution.warded`. (E-L1) */
+  readonly warded?: true;
 }
 
 /**
@@ -3297,9 +3309,12 @@ export interface PrintedCastingOutcome {
  * *not* a pool on the grant — two ledgers for one heading is how a creature
  * comes to cast four Blesses out of a 3/Day line, once through each door.
  *
- * **"Requiring no spell components" is fiction here.** The engine models no
- * components at all, so the clause changes nothing it could check; it is said
- * in the note the casting hands back rather than enforced.
+ * **"Requiring no spell components" is enforced, not narrated** (E-L1). The
+ * parser carries what the line waives onto the route (`GrantedSpell.waives`),
+ * and the casting reads it: SRD Counterspell's window does not open on a
+ * casting with no component left, SRD Slow's die is not thrown for gestures
+ * the line does without, and SRD Silence does not stop a casting that waives
+ * its Verbal component.
  *
  * **A line that casts on itself has no target to state.** SRD Imp, Quasit and
  * Sprite print "casts _Invisibility_ **on itself**", and the parser reads the
@@ -3533,16 +3548,14 @@ export function castPrintedLine(
         events: [...events, ...cast.value.events],
         castingId: cast.value.castingId,
         outcomes: cast.value.outcomes,
+        ...(cast.value.warded === true ? { warded: true as const } : {}),
         unverified: [
           ...cast.value.unverified,
-          // The one clause of the sentence the engine read and models nothing
-          // of, said out loud at the moment of use rather than dropped at the
-          // door — the discipline a spell's own unmodelled lines already keep.
-          ...(/requiring no [A-Za-z ]+ components/.test(line.text)
-            ? [
-                `${line.name}: "requiring no spell components" — the engine models no components at all, so the clause changes nothing it could check`,
-              ]
-            : []),
+          // "requiring no spell components" used to be said out loud here as
+          // the one clause nothing read. It is read now — the route waives what
+          // the line prints, and SRD Counterspell's window and SRD Slow's
+          // failure ask (`GrantedSpell.waives`, E-L1) — so there is nothing to
+          // confess.
           // And the clause the heading printed that the engine could not gate
           // on — W7-B11.
           ...(unenforcedRequirementOf(line) === null ? [] : [unenforcedRequirementOf(line)!]),
@@ -3718,14 +3731,10 @@ function castThroughTrait(
     events,
     castingId: cast.value.castingId,
     outcomes: cast.value.outcomes,
-    unverified: [
-      ...cast.value.unverified,
-      ...(/requiring no [A-Za-z ]+ components/.test(line.text)
-        ? [
-            `${line.name}: "requiring no Material components" — the engine models no components at all, so the clause changes nothing it could check`,
-          ]
-        : []),
-    ],
+    ...(cast.value.warded === true ? { warded: true as const } : {}),
+    // The components clause is read now — see `GrantedSpell.waives` — so it is
+    // no longer confessed here. (E-L1)
+    unverified: [...cast.value.unverified],
     duplicate: false,
   });
 }
@@ -4882,6 +4891,17 @@ export function takeReady(
   id: CharacterId,
   command: ReadyCommand,
   content: Content,
+  /**
+   * The dice a readied **spell** may need, because the casting is made here.
+   *
+   * SRD Slow: "If it casts a spell with a Somatic component, there is a 25
+   * percent chance the spell fails" — and SRD Ready: "you cast it as normal …
+   * but hold its energy", so the gestures are made at the Ready and the die
+   * is thrown here. Every other Ready throws nothing, which is why the
+   * parameter is optional; a readied casting that owes the die and was given
+   * none is a caller's mistake and throws (E-L1).
+   */
+  dice?: Pick<Supply, 'issuer' | 'rng'>,
 ): Result<GameEvent[]> {
   return once(state, `ready:${id}`, command, () => [], (stamp) => {
     // A mandatory effect this creature has been caught by, or a turn whose start
@@ -4922,9 +4942,14 @@ export function takeReady(
     let response: ReadiedResponse;
 
     if (command.response.kind === 'spell') {
-      const held = holdSpell(state, content, id, command.response);
+      const held = holdSpell(state, content, id, command.response, dice);
       if (!held.ok) return held;
       events.push(...held.value.events);
+      // **A casting whose gestures failed holds nothing.** The action and the
+      // slot are spent and the Concentration the hold began is ended with the
+      // casting (`spell-fizzled`), so there is no energy to release and no
+      // Reaction is waiting on the trigger. (E-L1)
+      if (held.value.response === null) return ok(events);
       response = held.value.response;
     } else if (command.response.kind === 'move') {
       response = { kind: 'move' };
@@ -4969,7 +4994,8 @@ function holdSpell(
   content: Content,
   id: CharacterId,
   response: ReadyResponse & { readonly kind: 'spell' },
-): Result<{ readonly events: readonly GameEvent[]; readonly response: ReadiedResponse }> {
+  dice: Pick<Supply, 'issuer' | 'rng'> | undefined,
+): Result<{ readonly events: readonly GameEvent[]; readonly response: ReadiedResponse | null }> {
   const definition = content.spell(response.spellId);
   if (definition === null) {
     return err(
@@ -5074,8 +5100,32 @@ function holdSpell(
   });
   if (!cast.ok) return cast;
 
+  // **The gestures are made now**, because the spell is cast now — SRD Slow's
+  // 25 percent, asked after the slot is spent and before anything is held.
+  // The die is `castingFailure`'s, the one every casting road throws. (E-L1)
+  const waived = componentsWaivedBy(route);
+  const owes = casterOwesTheDie(state, id, content.spellEntry(definition.id), waived);
+  if (owes && dice === undefined) {
+    throw new Error(
+      `takeReady: ${id}'s readied ${definition.name} owes a die to a casting-chance rule, and the caller passed no dice`,
+    );
+  }
+  const fumbled = owes
+    ? castingFailure(state, id, content.spellEntry(definition.id), {
+        castingId,
+        name: definition.name,
+        supply: { ...dice!, content },
+        exempt: false,
+        waived,
+      })
+    : ok({ events: [] as readonly GameEvent[], failed: false });
+  if (!fumbled.ok) return fumbled;
+  if (fumbled.value.failed) {
+    return ok({ events: [...cast.value, ...fumbled.value.events], response: null });
+  }
+
   return ok({
-    events: cast.value,
+    events: [...cast.value, ...fumbled.value.events],
     response: {
       kind: 'spell',
       spellId: response.spellId,
@@ -5161,6 +5211,14 @@ export interface ReleaseCommand extends CommandIdentity {
   readonly ignore?: boolean;
   /** Who a readied spell lands on. Empty for an area spell, which picks its own. */
   readonly targets?: readonly CharacterId[];
+  /**
+   * What the released spell does if a ward turns it away — SRD Sanctuary's "either
+   * choose a new target or lose the attack or spell", stated up front as
+   * `resolveAttack`'s and `resolveSpell`'s own `ifWarded` is, and asked for
+   * when it is missing and a ward stands in the way. (E-L1)
+   */
+  readonly ifWarded?: WardFallback;
+
   /**
    * How many of a readied casting's attack rolls go at each of those creatures.
    *
@@ -5382,6 +5440,9 @@ function releaseSpell(
     {
       spellId: response.spellId,
       targets: command.targets ?? [],
+      // Beside the targets, because it is the release that chooses them —
+      // and so is what a ward at one of them costs. (E-L1)
+      ...(command.ifWarded === undefined ? {} : { ifWarded: command.ifWarded }),
       // Beside the targets, because it is the release that chooses them.
       ...(command.rollsAt === undefined ? {} : { rollsAt: command.rollsAt }),
       ...(command.at === undefined ? {} : { at: command.at }),
@@ -5414,8 +5475,15 @@ function releaseSpell(
   //
   // **Unless the slot bought "until dispelled"**, read through the same
   // `untilDispelledAt` the ordinary resolution reads — SRD Major Image's level
-  // 4+ slot leaves no deadline for a release to schedule.
-  if (definition.durationSeconds !== undefined && !untilDispelledAt(definition, response.castLevel)) {
+  // 4+ slot leaves no deadline for a release to schedule. **Nor a release a
+  // ward turned away**, which ended under the ward before it took effect: a
+  // clock on a casting that is no longer running is the stale timer
+  // `fold/release.ts` exists to prevent. (E-L1)
+  if (
+    resolved.value.warded !== true &&
+    definition.durationSeconds !== undefined &&
+    !untilDispelledAt(definition, response.castLevel)
+  ) {
     const timer = schedule(
       events.reduce(applyEvent, state),
       { kind: 'casting', castingId: response.castingId },

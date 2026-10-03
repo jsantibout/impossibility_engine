@@ -1924,6 +1924,19 @@ export const MonsterSpellSchema = z.object({
 export type MonsterSpell = z.infer<typeof MonsterSpellSchema>;
 
 /**
+ * One component a printed casting does without, by the engine's own name.
+ *
+ * "requiring no **spell** components" is all three; "requiring no Material
+ * components" and "requiring no Somatic or Material components" name the ones
+ * they waive. **Carried, because two rules read it** (E-L1): SRD Counterspell's
+ * window opens on "a creature … casting a spell with Verbal, Somatic, or
+ * Material components", and SRD Slow's failure reads a Somatic one. A list in
+ * alphabetical order, never empty; absent where the line prints no clause.
+ */
+export const SpellComponentWaivedSchema = z.enum(['material', 'somatic', 'verbal']);
+export type SpellComponentWaived = z.infer<typeof SpellComponentWaivedSchema>;
+
+/**
  * The Spellcasting line a stat block prints, read whole.
  *
  * "The cultist casts one of the following spells, using Wisdom as the
@@ -1953,6 +1966,8 @@ export const MonsterSpellcastingSchema = z.object({
   /** "+4 to hit with spell attacks", where the line prints it. */
   attackBonus: z.number().int().optional(),
   spells: z.array(MonsterSpellSchema).min(1),
+  /** The components the line's castings do without — see {@link SpellComponentWaivedSchema}. */
+  waives: z.array(SpellComponentWaivedSchema).min(1).optional(),
 });
 export type MonsterSpellcasting = z.infer<typeof MonsterSpellcastingSchema>;
 
@@ -1979,9 +1994,11 @@ export type MonsterSpellcasting = z.infer<typeof MonsterSpellcastingSchema>;
  * resolving it (or refusing to) is the engine's, not this reader's. A line
  * that states an ability outright states it here.
  *
- * **"Requiring no spell components" is dropped on purpose.** The engine models
- * no components, so the clause changes nothing it could check; it is fiction
- * the narrating layer already has in the sentence it is handed.
+ * **"Requiring no spell components" is carried** as {@link waives} (E-L1). It
+ * was dropped while the engine modelled no components; it models a spell's
+ * components now (`SpellEntry.components`), SRD Counterspell's window and SRD
+ * Slow's failure both read them, and this is the line saying a casting through
+ * it has fewer.
  */
 export const MonsterCastLineSchema = z.object({
   /**
@@ -2070,6 +2087,11 @@ export const MonsterCastLineSchema = z.object({
    * route states no casting time of its own and the spell's stands.
    */
   ownCastingTime: z.literal(true).optional(),
+  /**
+   * "requiring no spell components" — the components this line's castings do
+   * without. See {@link SpellComponentWaivedSchema}. (E-L1)
+   */
+  waives: z.array(SpellComponentWaivedSchema).min(1).optional(),
 });
 export type MonsterCastLine = z.infer<typeof MonsterCastLineSchema>;
 
@@ -3898,6 +3920,33 @@ export const featureSchema = z.object({
 export interface Feature extends z.infer<typeof featureSchema> {}
 export const FeatureSchema: z.ZodType<Feature> = featureSchema;
 
+/**
+ * A stat block's Languages line, read (E-L1).
+ *
+ * SRD Monsters, "Languages": "This entry lists languages that the monster can
+ * use to communicate. Sometimes a monster can understand a language but can't
+ * communicate with it, which is noted in its entry. 'None' indicates that a
+ * creature doesn't comprehend any language." SRD Suggestion's target must
+ * "hear and understand you", so the line is a fact a rule reads.
+ *
+ * - `speaks`: the tongues the block uses to communicate, in printed order.
+ *   Primordial's four dialects are Primordial, because "creatures that know
+ *   one of these dialects can communicate with those that know a different one".
+ * - `understands`: the ones it understands "but can't speak", and no others.
+ * - `others`: "Common plus one other language" — a count the GM fills in, and
+ *   whether the block speaks them or only understands them.
+ * - `all`: "All".
+ * - `telepathy`: the range, which is not hearing and which no rule here reads.
+ */
+export const MonsterSpeechSchema = z.object({
+  speaks: z.array(z.string().min(1)),
+  understands: z.array(z.string().min(1)),
+  others: z.object({ count: z.number().int().min(1), spoken: z.boolean() }).optional(),
+  all: z.literal(true).optional(),
+  telepathy: z.number().int().positive().optional(),
+});
+export type MonsterSpeech = z.infer<typeof MonsterSpeechSchema>;
+
 export const MonsterSchema = z.object({
   id: z.string().regex(/^[a-z0-9-]+$/),
   name: z.string().min(1),
@@ -3962,6 +4011,12 @@ export const MonsterSchema = z.object({
     .optional(),
   passivePerception: z.number().int().min(0),
   languages: z.array(z.string()),
+  /**
+   * The Languages line, read — see {@link MonsterSpeechSchema}. Absent where
+   * the line prints a clause the shape has no field for (the lycanthropes'
+   * "can't speak in wolf form"); `languages` keeps the book's strings. (E-L1)
+   */
+  speech: MonsterSpeechSchema.optional(),
 
   /** Numeric challenge rating; `1/8` becomes `0.125`. */
   cr: z.number().min(0),

@@ -189,8 +189,9 @@ describe('toolSchemas', () => {
     // And one on the DM's alone for E-L3, `declare_bones`.
     // And one on each for E-L2, `expose_to_fire`.
     // And one on the DM's alone for E-L2's owner rulings, `declare_plants`.
+    // And one on the DM's alone for E-L1, `declare_contact`.
     expect(toolSchemas(player())).toHaveLength(101);
-    expect(toolSchemas(dm())).toHaveLength(136);
+    expect(toolSchemas(dm())).toHaveLength(137);
     // Re-pinned 2026-09-24 for the printed-lines track, which opened one door
     // on the DM's surface alone: `teleport_printed_line` takes the teleport a
     // stat block prints, at the distance the block prints, to a space the DM
@@ -433,6 +434,25 @@ describe('toolSchemas', () => {
     // door), +1,291 and its separator, and `trigger_glyph` saying who sets off
     // a refined glyph, +326. 133 → 134 tools on the DM's door; +3,285 bytes on
     // the player's and +4,903 on the DM's.
+    // And for E-L1: `cast_spell.choiceByTarget` (SRD Enhance Ability's "a
+    // different ability for each target") and a sentence on `cast_spell.choice`
+    // pointing at it, on both doors, +988 each. And `cast_spell.object` says
+    // Remove Curse takes it or not, and only a cursed item (SRD Remove Curse's
+    // object form), +173 each. And `cast_spell.magicalEffect` (SRD Dispel
+    // Magic's "or magical effect", a running casting by its id), +501 each.
+    // Both together: +4,947 on the player's door and +6,565 on the DM's.
+    // And for E-L1's second part: `attack.ifWarded` and `cast_spell.ifWarded`
+    // (SRD Sanctuary's fallback, owner's ruling of 2026-10-03), +1,358 on each
+    // door. And for SRD Heat Metal (owner's answers of 2026-10-03):
+    // `cast_spell.object` says a thing that is not metal is refused and that
+    // a declared object may be the target, +185 on each door; and on the DM's
+    // alone `declare_contact` (who is touching a declared object, a new
+    // door), +979 with its separator. 134 → 135 tools on the DM's door;
+    // +185 bytes on the player's and +1,164 on the DM's. And Sanctuary's
+    // fallback on every other door that aims a swing or a spell at a creature
+    // the caller picks: `order_summons_attack.ifWarded` and
+    // `release_ready.ifWarded` on both doors, +1,220; `cast_printed_line` and
+    // `take_legendary_action` on the DM's alone, +1,220. No tool added.
     // And for E-L2: `cast_spell.alsoAt` (SRD Dancing Lights' lights 2 to 4,
     // placed where the caster names) and `activate_spell.alsoTo` (the Bonus
     // Action moving them by number) on both doors. No tool added: +1,532 bytes
@@ -446,10 +466,15 @@ describe('toolSchemas', () => {
     // `settle_area_effects` naming the lantern's throw it settles, +1,346 bytes
     // on each. On the DM's alone: `declare_plants` (where normal plants grow,
     // a new door), 135 → 136 tools and +1,363 more bytes.
+    // E-L1 and E-L2 merged (2026-10-03): the deltas sum, E-L1 having added
+    // +4,425 bytes on the player's door and +6,624 on the DM's since E-L3.
+    // And `declare_contact.item` on the DM's alone — a second hand on a thing a
+    // creature wears or wields (the owner's ruling, applied 2026-10-03) — with
+    // the description and `object` saying so, +445. No tool added.
     expect(toolSchemas(player())).toHaveLength(101);
-    expect(toolSchemas(dm())).toHaveLength(136);
-    expect(JSON.stringify(toolSchemas(player())).length).toBe(174903);
-    expect(JSON.stringify(toolSchemas(dm())).length).toBe(237589);
+    expect(toolSchemas(dm())).toHaveLength(137);
+    expect(JSON.stringify(toolSchemas(player())).length).toBe(179328);
+    expect(JSON.stringify(toolSchemas(dm())).length).toBe(244658);
   });
 });
 

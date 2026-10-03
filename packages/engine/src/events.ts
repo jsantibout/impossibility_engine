@@ -29,6 +29,7 @@ import type { CharacterSheet, GrantedArmorClass, GrantedLineImmunity } from './c
 import { type ActiveRollModifier } from './roll-modifiers.js';
 import { type ActivePassiveDefense } from './passive-defenses.js';
 import type { DieRoll, RngState } from './dice.js';
+import type { MaterialPin } from './objects.js';
 import { type PoolDeclaration, type Recovery } from './resources.js';
 import type { CharacterRecord } from './creation.js';
 import type {
@@ -363,6 +364,18 @@ export type GameEvent =
       readonly cr?: number;
       /** Which side of the fight this creature is on. See {@link CreatureState.side}. */
       readonly side?: string;
+      /**
+       * What a declared object is made of, as content said when it was
+       * declared. See {@link CreatureState.material}.
+       *
+       * Pinned for rule 5: `declareObject` reads the substance's row, and SRD
+       * Heat Metal reads whether it is metal at a casting that may come a year
+       * of logs later. **Optional, and absent on everything that is not a
+       * declared object** — and on every object declared before this field
+       * existed, which a casting reads as "nobody said" — so both frozen
+       * fixtures fold unchanged. (E-L1)
+       */
+      readonly material?: MaterialPin;
       readonly command?: CommandStamp;
     }
   /**
@@ -853,6 +866,20 @@ export type GameEvent =
       readonly type: 'printed-curse-laid';
       readonly id: CharacterId;
       readonly curse: PrintedCurse;
+    }
+
+  /**
+   * A printed line's curse lifted off a creature — SRD Remove Curse: "At your
+   * touch, all curses affecting one creature or object end." (E-L1)
+   *
+   * The curse is named by its `source`, which is its identity on the list,
+   * and the fold refuses one the creature does not carry: a lifting of a curse
+   * nobody laid is a log that has been made up.
+   */
+  | {
+      readonly type: 'printed-curse-lifted';
+      readonly id: CharacterId;
+      readonly source: string;
     }
 
   /**
@@ -1510,6 +1537,32 @@ export type GameEvent =
   | {
       readonly type: 'fall-declared';
       readonly id: CharacterId;
+      readonly command?: CommandStamp;
+    }
+  /**
+   * The table says who is touching a declared object, now. (E-L1)
+   *
+   * SRD Heat Metal: "Any creature in physical contact with the object takes
+   * 2d8 Fire damage". Whose hand is on an unattended iron gate is a fact about
+   * the room the engine holds no record of — the owner's answer of 2026-10-03
+   * makes it the DM's to state — so it arrives the way a fall does: a
+   * **momentary** fact, worth the turn and the clock it was said at
+   * (`contactNow`), and re-declared rather than contradicted. An empty list
+   * is an answer: nobody is touching it.
+   *
+   * Sorted and without repeats, so one statement serialises one way.
+   *
+   * **Or who else is touching a thing a creature wears or wields** — a hand
+   * on the knight's heated breastplate (the owner's ruling, applied by the
+   * coordinator on 2026-10-03). Then `object` is the holder and `item` the
+   * thing, by catalogue id; the holder touches it already and is not listed.
+   * One statement per record: saying it of a second item replaces the first.
+   */
+  | {
+      readonly type: 'contact-declared';
+      readonly object: CharacterId;
+      readonly creatures: readonly CharacterId[];
+      readonly item?: string;
       readonly command?: CommandStamp;
     }
   /**
@@ -2937,6 +2990,15 @@ export type GameEvent =
        * Absent on every swing.
        */
       readonly use?: string;
+      /**
+       * The swing a ward turned away — SRD Sanctuary's "lose the attack". The
+       * slot is spent, as the owner's ruling of 2026-10-03 has it, and **no
+       * attack roll was made**, so nothing that ends when its creature makes
+       * one reads this one (`fold/endings.ts`): an invisible attacker turned
+       * away stays unseen, and a warded one keeps its own ward. Absent on
+       * every swing that rolled. (E-L1)
+       */
+      readonly turnedAway?: true;
       /**
        * The catalogue id of the **Light** weapon this swing used, where it
        * used one.

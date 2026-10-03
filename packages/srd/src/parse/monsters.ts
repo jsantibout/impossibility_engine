@@ -16,6 +16,8 @@ import {
   MonsterPlaneShiftSchema,
   MonsterPullSchema,
   MonsterSpellcastingSchema,
+  MonsterSpeechSchema,
+  type MonsterSpeech,
   MonsterSwallowSchema,
   MonsterTeleportSchema,
   MonsterTreeStrideSchema,
@@ -2039,6 +2041,118 @@ export function parseTraitShape(text: string): MonsterTrait | null {
   return null;
 }
 
+/** The count words a Languages line prints for "plus N other languages". */
+const OTHER_COUNT: Readonly<Record<string, number>> = {
+  one: 1,
+  two: 2,
+  three: 3,
+  four: 4,
+  five: 5,
+  six: 6,
+};
+
+/**
+ * A run of tongue names — "Common, Elvish, and Sylvan", "Common plus two other
+ * languages" — or null where a word is not a name this reads.
+ *
+ * Primordial's dialects are Primordial: "Primordial includes the Aquan, Auran,
+ * Ignan, and Terran dialects. Creatures that know one of these dialects can
+ * communicate with those that know a different one." Any other parenthesis is
+ * a clause the shape has no field for, and the line is left unread.
+ */
+function readTongues(
+  run: string,
+): { readonly names: readonly string[]; readonly others?: number } | null {
+  let text = run.replace(/Primordial \([A-Za-z, ]+\)/g, 'Primordial');
+  if (/[()]/.test(text)) return null;
+  let others: number | undefined;
+  const plus = /^(.+) plus (one|two|three|four|five|six) other languages?$/.exec(text);
+  if (plus !== null) {
+    text = plus[1]!;
+    others = OTHER_COUNT[plus[2]!];
+  }
+  const names = text
+    .split(/,? and |, /)
+    .map((name) => name.trim())
+    .filter((name) => name !== '');
+  if (names.length === 0 || names.some((name) => !/^[A-Z][A-Za-z'’ ]*$/.test(name))) return null;
+  return { names: [...new Set(names)], ...(others === undefined ? {} : { others }) };
+}
+
+/**
+ * A stat block's Languages line, read whole or not at all (E-L1) — see
+ * `MonsterSpeechSchema`. The clauses are separated by "; " in the book: the
+ * tongues spoken, the ones understood "but can't speak", and telepathy.
+ */
+export function parseLanguagesLine(text: string): MonsterSpeech | null {
+  const line = text.replace(/\s+/g, ' ').trim();
+  if (line === '') return null;
+  const speaks: string[] = [];
+  const understands: string[] = [];
+  let others: { count: number; spoken: boolean } | undefined;
+  let all = false;
+  let telepathy: number | undefined;
+
+  for (const clause of line.split('; ')) {
+    const mind = new RegExp(`^telepathy (\\d+) ft\\.(?: \\([^()]*\\))?$`).exec(clause);
+    if (mind !== null) {
+      telepathy = Number(mind[1]);
+      continue;
+    }
+    if (clause === 'None') continue;
+    if (clause === 'All') {
+      all = true;
+      continue;
+    }
+    const heard = new RegExp(`^[Uu]nderstands (.+?) but can${APOSTROPHE}t speak(?: them)?$`).exec(clause);
+    const run = readTongues(heard === null ? clause : heard[1]!);
+    if (run === null) return null;
+    (heard === null ? speaks : understands).push(...run.names);
+    if (run.others !== undefined) {
+      if (others !== undefined) return null;
+      others = { count: run.others, spoken: heard === null };
+    }
+  }
+
+  const checked = MonsterSpeechSchema.safeParse({
+    speaks: [...new Set(speaks)],
+    understands: [...new Set(understands)].filter((name) => !speaks.includes(name)),
+    ...(others === undefined ? {} : { others }),
+    ...(all ? { all: true } : {}),
+    ...(telepathy === undefined ? {} : { telepathy }),
+  });
+  return checked.success ? checked.data : null;
+}
+
+/**
+ * What "requiring no … components" waives, read off a casting sentence (E-L1).
+ *
+ * `undefined` where the sentence prints no such clause; `null` where it prints
+ * one this cannot read, which refuses the whole line — the discipline every
+ * shape here keeps. "spell components" is all three; otherwise the clause names
+ * them, joined by "or", "and" or a comma. Sorted, so one fact has one spelling.
+ *
+ * Asked of the sentence beside the anchored pattern rather than captured by
+ * it, so the groups every reader below already numbers do not move.
+ */
+const COMPONENTS_WAIVED = /requiring no ([A-Za-z ,]+?) components/;
+const COMPONENT_NAMES: Readonly<Record<string, 'verbal' | 'somatic' | 'material'>> = {
+  Verbal: 'verbal',
+  Somatic: 'somatic',
+  Material: 'material',
+};
+function componentsWaived(
+  sentence: string,
+): readonly ('verbal' | 'somatic' | 'material')[] | null | undefined {
+  const clause = COMPONENTS_WAIVED.exec(sentence);
+  if (clause === null) return undefined;
+  if (clause[1] === 'spell') return ['material', 'somatic', 'verbal'];
+  const words = clause[1]!.split(/,? or |,? and |, /);
+  const named = words.map((word) => COMPONENT_NAMES[word.trim()]);
+  if (named.some((one) => one === undefined)) return null;
+  return [...new Set(named as ('verbal' | 'somatic' | 'material')[])].sort();
+}
+
 /**
  * The book's **third** opening, matched end to end.
  *
@@ -2199,11 +2313,16 @@ export function parseSpellcastingLine(text: string): MonsterSpellcasting | null 
     spells.push(...read);
   }
 
+  // What the castings do without — see {@link componentsWaived}.
+  const waives = componentsWaived(segments[0]!);
+  if (waives === null) return null;
+
   const casting = {
     ability,
     ...(preamble[2] === undefined ? {} : { saveDc: Number(preamble[2]) }),
     ...(preamble[3] === undefined ? {} : { attackBonus: Number(preamble[3]) }),
     spells,
+    ...(waives === undefined ? {} : { waives }),
   };
 
   // Validated rather than trusted, for the reason `parseSaveLine` validates
@@ -2366,6 +2485,10 @@ export function parseCastLine(text: string): MonsterCastLine | null {
   const onAnother = matched[2] === ' on that creature';
   if (onAnother && !TOUCH_DELIVERED.test(words)) return null;
 
+  // What the casting does without — see {@link componentsWaived}.
+  const waives = componentsWaived(words);
+  if (waives === null) return null;
+
   const line = {
     spells,
     ability: stated ?? ('spellcasting' as const),
@@ -2376,6 +2499,7 @@ export function parseCastLine(text: string): MonsterCastLine | null {
     // who is **not** the caster.
     ...(onAnother ? { notSelf: true as const } : {}),
     ...(matched[5] === undefined ? {} : { saveDc: Number(matched[5]) }),
+    ...(waives === undefined ? {} : { waives }),
   };
 
   // Validated rather than trusted, for the reason `parseSaveLine` validates
@@ -2396,10 +2520,9 @@ export function parseCastLine(text: string): MonsterCastLine | null {
  * **The book's cast template turned inside out**: the gate comes first, the
  * menu last, and the price is a Long Rest per spell rather than a heading's
  * count. Every clause is read — the allies' count, reach and noun; the ability
- * and the DC; the menu; the rest per spell; the spell's own casting time — but
- * the components, which the engine does not model, for the reason
- * {@link CAST_LINE} drops them. Anchored end to end, so a coven sentence that
- * said one more thing stays prose.
+ * and the DC; the menu; the rest per spell; the spell's own casting time — and
+ * the components it waives, as every cast line's are (E-L1). Anchored end to
+ * end, so a coven sentence that said one more thing stays prose.
  */
 const COVEN_LINE = new RegExp(
   `^While within (\\d+) feet of at least (one|two|three|four) ([a-z][a-z -]*?) allies, ` +
@@ -2417,7 +2540,8 @@ function parseCovenLine(words: string): MonsterCastLine | null {
   if (coven === null) return null;
   const spells = readCastMenu(coven[6]!);
   const ability = ABILITY_KEYS[coven[4]!];
-  if (spells === null || ability === undefined) return null;
+  const waives = componentsWaived(words);
+  if (spells === null || ability === undefined || waives === null) return null;
   const checked = MonsterCastLineSchema.safeParse({
     spells,
     ability,
@@ -2425,6 +2549,7 @@ function parseCovenLine(words: string): MonsterCastLine | null {
     alliesWithin: { count: COUNT_WORD[coven[2]!]!, feet: Number(coven[1]), kind: coven[3]! },
     eachSpellOncePer: 'long-rest',
     ownCastingTime: true,
+    ...(waives === undefined ? {} : { waives }),
   });
   return checked.success ? checked.data : null;
 }
@@ -4060,6 +4185,11 @@ function parseEntry(
     ...(specialSenses.length === 0 ? {} : { specialSenses }),
     passivePerception: passiveMatch ? Number(passiveMatch[1]) : 10,
     languages: splitList(fields.get('languages') ?? ''),
+    // And the line read, where every clause of it could be (E-L1).
+    ...(() => {
+      const speech = parseLanguagesLine(fields.get('languages') ?? '');
+      return speech === null ? {} : { speech };
+    })(),
 
     cr,
     crLabel,

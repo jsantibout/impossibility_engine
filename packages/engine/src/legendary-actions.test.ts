@@ -302,3 +302,44 @@ describe('the moment', () => {
     });
   });
 });
+
+/**
+ * SRD Sanctuary in front of a legendary swing (E-L1, the owner's ruling of
+ * 2026-10-03). The DM chose whom the Horn strikes, so the DM states what it
+ * does if a ward turns it away — `ifWarded`, the field `resolveAttack` takes —
+ * and is asked when it is missing, before the use or a die is spent.
+ */
+describe('a legendary swing at a warded creature', () => {
+  /** The bandit behind a ward no unicorn can beat. */
+  const warded = (): GameState =>
+    applyEvent(afterBrensTurn(), {
+      type: 'passive-defense-granted',
+      id: BANDIT,
+      defense: { source: 'Sanctuary#cast:99', defense: { kind: 'ward', ability: 'wis', dc: 99 } },
+    });
+
+  it('asks what the Horn does if the ward turns it away, before the use', () => {
+    const state = warded();
+    const asked = horn(state, BANDIT, 'asked');
+    expect(asked.ok ? 'ok' : asked.code).toBe('warded_fallback_required');
+    expect(uses(state)).toBe(3);
+  });
+
+  it('loses the swing when told to, and spends the use', () => {
+    const state = warded();
+    const out = unwrap(
+      takeLegendaryAction(
+        state,
+        UNICORN,
+        { line: 'Charging Horn', target: BANDIT, ifWarded: 'lose', commandId: 'horn-lose' },
+        supply('horn-lose'),
+      ),
+      'the horn',
+    );
+    expect(out.attack?.warded).toBe(true);
+    expect(out.attack?.attack).toBeNull();
+    const next = after(state, out.events);
+    expect(next.creatures[BANDIT]!.vitals.hp).toBe(state.creatures[BANDIT]!.vitals.hp);
+    expect(uses(next)).toBe(2);
+  });
+});

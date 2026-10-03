@@ -182,3 +182,62 @@ describe('a door does not wedge the fight it is standing next to', () => {
     expect(after.scene!.positions['oak-door']).toBeDefined();
   });
 });
+
+/**
+ * Who is touching a declared object — SRD Heat Metal's "any creature in
+ * physical contact with the object" (E-L1, the owner's answer of 2026-10-03).
+ * The DM's to say, so on this surface alone, and the door a casting's
+ * `contact_unstated` question names here.
+ */
+describe('declare_contact', () => {
+  const GATE = { id: 'iron-gate', name: 'the iron gate', material: 'iron', size: 'large', build: 'resilient' } as const;
+
+  it('says who is touching the object, and pins what it is made of', () => {
+    const t = table('the-gate');
+    expectOk(t.call('declare_object', GATE));
+    expectOk(t.call('add_creature', { id: 'grish', monsterId: 'goblin-warrior' }));
+    const said = expectOk(t.call('declare_contact', { object: 'iron-gate', creatures: ['grish'] }));
+    expect(said.resolution).toMatchObject({ declared: 'iron-gate', creatures: ['grish'] });
+
+    const gate = t.campaign.state().creatures['iron-gate']!;
+    expect(gate.contact?.creatures).toEqual(['grish']);
+    expect(gate.material).toEqual({ id: 'iron', metal: true });
+  });
+
+  /**
+   * A second hand on a thing a creature wears or wields — the coordinator
+   * applying the owner's "the DM states contact" ruling to equipped items.
+   * `item` reaches the engine: the statement it writes names the thing, and a
+   * thing the holder is not wielding is refused.
+   */
+  it('says who else is touching a thing a creature wields', () => {
+    const t = table('the-blade');
+    expectOk(t.call('add_creature', { id: 'grish', monsterId: 'goblin-warrior' }));
+    expectOk(t.call('add_creature', { id: 'snik', monsterId: 'goblin-warrior' }));
+    expectOk(t.call('award_items', { who: 'grish', items: [{ id: 'mace' }], because: 'the armoury' }));
+    expectOk(t.call('equip_item', { who: 'grish', item: 'mace' }));
+    const wielded = 'mace';
+
+    const said = expectOk(
+      t.call('declare_contact', { object: 'grish', item: wielded, creatures: ['snik', 'grish'] }),
+    );
+    expect(said.resolution).toMatchObject({ declared: 'grish', item: wielded, creatures: ['snik'] });
+    expect(t.campaign.state().creatures['grish']!.contact).toMatchObject({ item: wielded, creatures: ['snik'] });
+
+    expect(codeOf(t.call('declare_contact', { object: 'grish', item: 'breastplate', creatures: ['snik'] }))).toBe(
+      'not_equipped',
+    );
+  });
+
+  it('refuses a creature as the object, and is not on the model’s surface', () => {
+    const t = table('the-goblin');
+    expectOk(t.call('add_creature', { id: 'grish', monsterId: 'goblin-warrior' }));
+    expect(codeOf(t.call('declare_contact', { object: 'grish', creatures: [] }))).toBe('not_an_object');
+
+    expect(DM_ONLY_TOOL_NAMES).toContain('declare_contact');
+    expect(TOOL_NAMES).not.toContain('declare_contact');
+    expect(t.surface.doorsFor('scene')).toContain('declare_contact');
+    const model = createSurface(createCampaign({ content: SRD_CONTENT, seed: 'model' }));
+    expect(model.doorsFor('scene')).not.toContain('declare_contact');
+  });
+});

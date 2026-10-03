@@ -36,6 +36,7 @@ import {
 } from '../positioning.js';
 import { canSeePoint } from '../standing.js';
 import {
+  persists,
   ranged,
   type SpellActivation,
   type SpellDefinition,
@@ -179,7 +180,14 @@ export function replacedCastings(
   definition: SpellDefinition,
   /** The creatures the new casting names, for a recast rule that reads either end. */
   targets: readonly CharacterId[] = [],
+  /** The branch the new casting runs, where the spell prints branches. */
+  option?: string,
 ): readonly GameEvent[] {
+  // **A casting that leaves nothing running makes no room.** SRD Thaumaturgy
+  // caps "its **1-minute effects**", and a door flung open in an instant is
+  // not one of them: it counts against nothing and ends nothing. See
+  // `SpellOption.instantaneous`.
+  if (!persists(definition, option)) return [];
   // **One rule with two numbers.** `replacesPriorCasting` is a cap of one and
   // `maxRunning` is a cap of *n*; the validator refuses a definition that
   // writes both, so at most one of these two lines is ever about anything.

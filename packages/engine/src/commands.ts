@@ -81,6 +81,7 @@ export type {
   DismantleDeviceCommand,
 } from './commands/devices.js';
 export {
+  declareContact,
   declareCreatureType,
   declareDamageType,
   declareDifficultTerrain,

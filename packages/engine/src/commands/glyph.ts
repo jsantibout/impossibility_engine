@@ -417,6 +417,11 @@ function releaseStoredSpell(
     ...(stored.damageType === undefined ? {} : { damageType: stored.damageType }),
     ...(stored.choice === undefined ? {} : { choice: stored.choice }),
     ...(stored.option === undefined ? {} : { option: stored.option }),
+    // SRD Sanctuary at the creature that set the glyph off: the stored spell
+    // is aimed at that creature and nobody is present to choose another, so a
+    // failed save loses it — what this road did before the 2026-10-03 ruling
+    // made the attacker name its fallback. (E-L1)
+    ifWarded: 'lose',
   };
   const resolved = castOrRelease(
     state,
@@ -434,8 +439,13 @@ function releaseStoredSpell(
 
   const events: GameEvent[] = [...resolved.value.events];
   // The stored spell's full duration, from the moment it takes effect — the
-  // arithmetic a released readied spell's clock is started with.
-  if (definition.durationSeconds !== undefined && !untilDispelledAt(definition, stored.slotLevel)) {
+  // arithmetic a released readied spell's clock is started with. None for a
+  // stored spell a ward turned away, which has already ended. (E-L1)
+  if (
+    resolved.value.warded !== true &&
+    definition.durationSeconds !== undefined &&
+    !untilDispelledAt(definition, stored.slotLevel)
+  ) {
     const timer = schedule(
       events.reduce(applyEvent, state),
       { kind: 'casting', castingId: stored.castingId },
@@ -457,5 +467,8 @@ function releaseStoredSpell(
     castingId: glyphId,
     outcomes: resolved.value.outcomes,
     unverified: resolved.value.unverified,
+    // Lost to a ward on the triggerer — SRD Sanctuary — rather than catching
+    // nobody, which a caller could not otherwise tell apart. (E-L1)
+    ...(resolved.value.warded === true ? { warded: true as const } : {}),
   });
 }

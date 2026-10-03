@@ -2499,6 +2499,11 @@ export function takeOpportunityAttack(
         ...reactionSwing(sheetAsItStands(after, reactor) ?? swinger.sheet, command),
         // The Reaction above is what this costs; it is not the Attack action.
         free: true,
+        // SRD Sanctuary's fallback, answered by the rule that made this swing:
+        // an Opportunity Attack is made "against the provoking creature" and
+        // no other, so the new target the ward offers is no choice here, and a
+        // failed save loses the swing. (E-L1)
+        ifWarded: 'lose',
         // No id: this command owns the guard, and the same id fingerprinted
         // twice under two kinds would make the retry read as a reused id.
         // Same split as `releaseReady`, which guards the release and hands the

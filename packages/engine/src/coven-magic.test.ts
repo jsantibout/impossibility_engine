@@ -127,9 +127,15 @@ describe('SRD Coven Magic: the gate, the DC and the rest per spell', () => {
     const after = out.events.reduce(applyEvent, state);
     expect(out.castingId).not.toBeNull();
     expect(after.ongoing[out.castingId!]!.numbers.saveDc).toBe(11);
-    // "requiring no Material components" is the one clause the engine models
-    // nothing of, and says so.
-    expect(out.unverified.join(' ')).toContain('components');
+    // "requiring no Material components" is read now rather than confessed:
+    // the route waives the Material component, and the Verbal and Somatic
+    // ones the spell prints are still made — so a Counterspell may answer it.
+    // (E-L1)
+    expect(out.unverified.join(' ')).not.toContain('components');
+    const route = after.creatures[MOTHER]!.spellcasting.granted.find(
+      (grant) => grant.spellId === 'locate-object',
+    );
+    expect(route?.waives).toEqual(['material']);
   });
 
   it('refuses the same spell again before a Long Rest, and not another off the menu', () => {

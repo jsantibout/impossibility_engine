@@ -310,9 +310,10 @@ const NEEDS_A_DECISION: readonly string[] = [];
  *
  * G1 widened `TrackedAdjudication.why` to reach the item vocabulary, which is
  * what let Remove Curse be filed at all; the `end-attunement` effect is what
- * settled it. The spell is executed now — the Attunement the caster names is
- * broken, an object the target is not attuned to is refused before a slot is
- * spent — so it is in {@link EXECUTES} with the others, and this list is empty
+ * settled it, and `end-curses` has since taken its place (E-L1). The spell is
+ * executed now — the Attunement to a cursed item the caster names is broken,
+ * an object the target is not attuned to is refused before a slot is spent —
+ * so it is in {@link EXECUTES} with the others, and this list is empty
  * rather than gone: a record of a finding kept where the next reader will meet
  * it, exactly as {@link LIGHT} is.
  */

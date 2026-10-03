@@ -108,9 +108,32 @@ function settledThisTurn(
 export interface WardVerdict {
   /** Events to emit, whichever way the save went: the roll, and the ledger slot. */
   readonly events: readonly GameEvent[];
-  /** True when the attack is lost and no roll may be made. */
+  /** True when the attacker failed the save and must take its stated fallback. */
   readonly barred: boolean;
+  /** The ward that barred it, where one did — what a lost spell fizzles under. */
+  readonly by?: { readonly source: string; readonly label: string };
   readonly unverified: readonly string[];
+}
+
+/**
+ * What an attacker does if a ward turns it away — SRD Sanctuary: "either
+ * choose a new target or lose the attack or spell". The attacker's choice,
+ * stated up front because the engine aims nothing on anybody's behalf: a new
+ * creature to swing at or cast at instead, or `'lose'`. (E-L1, owner's ruling
+ * of 2026-10-03.)
+ */
+export type WardFallback = 'lose' | { readonly target: CharacterId };
+
+/**
+ * Whether targeting this creature would throw a ward's save for this attacker
+ * now — a ward stands on it that the attacker has not settled this turn. Pure,
+ * so the question of what the attacker does if turned away can be asked
+ * before the die. (E-L1)
+ */
+export function wardOwed(state: GameState, attacker: CharacterId, target: CharacterId): boolean {
+  return defensesOfKind(state, target, 'ward').some(
+    (ward) => settledThisTurn(state, attacker, ward.source) === null,
+  );
 }
 
 /**
@@ -123,11 +146,14 @@ export interface WardVerdict {
  * ## Where the two branches went
  *
  * The book gives the **attacker** a choice on a failure and the engine may
- * not choose targets for anybody. Owner's ruling, 2026-09-22: the attack is
- * lost, **nothing is spent**, and both of the book's branches stay reachable
- * — redirecting is a second command against a creature nobody warded, and
- * declining to issue one is losing the attack, which is what losing it looks
- * like at a table.
+ * not choose targets for anybody. **Owner's ruling of 2026-10-03, reversing
+ * that of 2026-09-22** ("the attack is lost, nothing is spent"): the cost is
+ * the book's. The attacker states its fallback before the die
+ * ({@link WardFallback}, asked through {@link wardOwed}), and on a failure
+ * the caller performs it — a lost attack spends that attack, a lost spell
+ * spends the action and the slot, and a new target is swung at or cast at
+ * in the same command. This function only rolls the save and says which ward
+ * barred it.
  *
  * ## Why it cannot simply refuse
  *
@@ -213,7 +239,7 @@ export function wardAgainst(
     // that stops a second one, so it is said out loud.
     if (current.combat === null) {
       unverified.push(
-        `${attacker} saved against the ward on ${target}, and there are no turns here to hold them to one save — a re-declared swing will be asked again`,
+        `${attacker} rolled a save against the ward on ${target}, and there are no turns here to hold them to one save — a re-declared swing or casting will be asked again`,
       );
     } else {
       mine.push({
@@ -231,7 +257,14 @@ export function wardAgainst(
     // thrown against a swing nobody is making. Nothing in the SRD puts two
     // Sanctuaries on one creature, and if a table does, the one that answered
     // is the one that answered.
-    if (!rolled.value.success) return ok({ events, barred: true, unverified });
+    if (!rolled.value.success) {
+      return ok({
+        events,
+        barred: true,
+        by: { source: ward.source, label: spellOfSource(ward.source) ?? 'a ward' },
+        unverified,
+      });
+    }
   }
 
   return ok({ events, barred: false, unverified });
