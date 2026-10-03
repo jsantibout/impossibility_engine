@@ -5958,6 +5958,13 @@ export const SILENT_IMAGE: SpellDefinition = {
  *
  * Note what 2024 changed: **there is no check at all** below the threshold.
  * The 2014 habit of rolling for everything is a different spell.
+ *
+ * **"Or magical effect" is reachable now** (E-L1). A creature and a declared
+ * object were always nameable; a spell that runs on nobody — a Fog Cloud, a
+ * Web — is named by its casting id (`CastSpellRequest.magicalEffect`) with no
+ * target beside it, refused unless it is running, on no creature and within
+ * the 120 feet, and ended by the same arithmetic. One that holds no place in
+ * the scene cannot be measured, and the casting says so.
  */
 export const DISPEL_MAGIC: SpellDefinition = {
   id: 'dispel-magic',
@@ -5969,9 +5976,6 @@ export const DISPEL_MAGIC: SpellDefinition = {
   range: { kind: 'ranged', feet: 120 },
   targets: { count: 1 },
   effects: [{ kind: 'dispel' }],
-  unmodelled: [
-    '"one creature, object, or magical effect" — only a creature can be named, because only a creature has a record to hand the engine; a spell running on nobody (an illusion, a wall) is reachable by no target',
-  ],
 };
 
 /**

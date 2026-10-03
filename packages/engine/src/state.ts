@@ -2107,6 +2107,13 @@ export interface PendingCasting {
    */
   readonly componentless?: true;
   /**
+   * The running casting this one was aimed at as a magical effect — SRD
+   * Dispel Magic's "Choose one creature, object, or magical effect". A
+   * declaration names it and the settlement takes no fresh request, so it is
+   * pinned beside the targets it stands in for. (E-L1)
+   */
+  readonly magicalEffect?: string;
+  /**
    * Where a teleporting spell puts its target.
    *
    * The fourth stated fact, beside the other three and for the same reason:

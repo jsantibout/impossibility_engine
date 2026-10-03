@@ -2969,6 +2969,13 @@ const CAST_SPELL = tool({
       .describe(
         'Which branch each creature runs, for the one spell that prints "(choose for each creature)" — Calm Emotions’ Immunity or indifference, chosen goblin by goblin. One entry per creature the casting catches: a caught creature left out is refused, and so is a creature the area did not reach. Refused on any spell that chooses once, where `option` is the word. Cannot be held: a declaration cannot record a choice for creatures it has not caught yet.',
       ),
+    magicalEffect: z
+      .string()
+      .min(1)
+      .optional()
+      .describe(
+        'A running spell to aim at as a magical effect, by its casting id (`cast:7`) — Dispel Magic’s "Choose one creature, object, or magical effect within range", for a spell that runs on nobody: a Fog Cloud, a Web. Send `targets` empty beside it. A spell that is on a creature is aimed at through that creature instead, and is refused here; so is one that is not running, one beyond the Range, and naming any on a spell that ends no spells.',
+      ),
     choiceByTarget: z
       .array(
         z.strictObject({
@@ -3191,6 +3198,8 @@ const CAST_SPELL = tool({
               args.optionByTarget.map((one) => [who(one.target), one.option]),
             ),
           }),
+      // The running casting a dispel is aimed at, by its id. (E-L1)
+      ...(args.magicalEffect === undefined ? {} : { magicalEffect: args.magicalEffect }),
       // The same pairs-to-map for the value chosen per creature.
       ...(args.choiceByTarget === undefined
         ? {}

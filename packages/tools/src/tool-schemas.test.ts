@@ -423,11 +423,12 @@ describe('toolSchemas', () => {
     // different ability for each target") and a sentence on `cast_spell.choice`
     // pointing at it, on both doors, +988 each. And `cast_spell.object` says
     // Remove Curse takes it or not, and only a cursed item (SRD Remove Curse's
-    // object form), +173 each.
+    // object form), +173 each. And `cast_spell.magicalEffect` (SRD Dispel
+    // Magic's "or magical effect", a running casting by its id), +501 each.
     expect(toolSchemas(player())).toHaveLength(100);
     expect(toolSchemas(dm())).toHaveLength(133);
-    expect(JSON.stringify(toolSchemas(player())).length).toBe(168714);
-    expect(JSON.stringify(toolSchemas(dm())).length).toBe(228419);
+    expect(JSON.stringify(toolSchemas(player())).length).toBe(169215);
+    expect(JSON.stringify(toolSchemas(dm())).length).toBe(228920);
   });
 });
 

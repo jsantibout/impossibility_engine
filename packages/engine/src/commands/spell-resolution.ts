@@ -76,11 +76,13 @@ import {
   type GameEvent,
   type GameState,
   isOn,
+  spellOn,
 } from '../events.js';
 import { ONGOING_RECORD_VERSION } from '../ongoing-compatibility.js';
 import {
   creaturesInArea,
   distanceBetween,
+  distanceToPoint,
   positionOf,
   snapToSpace,
   type Placement,
@@ -103,6 +105,7 @@ import {
   handedOver,
   onCaster,
   persists,
+  rangeFeetAt,
   untilDispelledAt,
   riderDuration,
   anchoredOnTarget,
@@ -254,6 +257,7 @@ import {
 } from './spell-effect-hit-points.js';
 import {
   resolveDispelEffect,
+  resolveDispelOnEffect,
   resolveEndCursesEffect,
   resolveInterruptCastingEffect,
 } from './spell-effect-magic.js';
@@ -699,6 +703,9 @@ export function resolveDeclaredCast(
       // And the object, read back the same way: a Remove Curse declared at the
       // cloak settles at the cloak and at no other thing in the pack.
       ...(pending.object === undefined ? {} : { object: pending.object }),
+      // And the magical effect, read back the same way: a Dispel Magic declared
+      // at the Fog Cloud settles at the Fog Cloud. (E-L1)
+      ...(pending.magicalEffect === undefined ? {} : { magicalEffect: pending.magicalEffect }),
       // The sixth, read back the same way. A Find Familiar declared as a Cat
       // settles as a Cat an hour later and as nothing else.
       ...(pending.form === undefined ? {} : { form: pending.form }),
@@ -1882,6 +1889,42 @@ export function castOrRelease(
           'not_cursed',
           `${definition.name} breaks the Attunement to a cursed magic item, and ${request.object} carries no curse`,
         );
+      }
+    }
+
+    // And the magical effect a dispel was aimed at, asked the same way (E-L1).
+    // SRD Dispel Magic: "Choose one creature, object, or magical effect
+    // within range." The casting has to be running; it has to be on no
+    // creature, because one that is on a creature is aimed at through the
+    // creature and the book's two halves — the whole casting or this hold on
+    // it — are that form's to decide; and the place it holds has to be within
+    // the Range. A casting that holds no place in the scene cannot be measured,
+    // and the table's word stands for the distance, said out loud.
+    if (request.magicalEffect !== undefined) {
+      const effect = state.ongoing[request.magicalEffect];
+      if (effect === undefined) {
+        return err('not_ongoing', `${request.magicalEffect} is not a spell that is still running`);
+      }
+      if (spellOn(state, effect).length > 0) {
+        return err(
+          'effect_on_a_creature',
+          `${effect.spell} (${effect.castingId}) is on ${spellOn(state, effect).join(', ')}; ${definition.name} is aimed at it through the creature`,
+        );
+      }
+      const reach = rangeFeetAt(definition, numbersAsCast().casterLevel);
+      if (effect.origin === undefined || state.scene === null || reach === null) {
+        unverified.push(
+          `${definition.name}: whether ${effect.spell} (${effect.castingId}) is within range is the table's — it holds no place in the scene the engine can measure`,
+        );
+      } else {
+        const away = distanceToPoint(state.scene, casterId, effect.origin);
+        if (!away.ok) return away;
+        if (away.value > reach) {
+          return err(
+            'out_of_range',
+            `${definition.name} reaches ${reach} feet; ${effect.spell} (${effect.castingId}) is ${away.value} away`,
+          );
+        }
       }
     }
 
@@ -3540,6 +3583,10 @@ function resolveOnTargets(
               // must not settle at the other one in the pack.
               ...(request.weapon === undefined ? {} : { weapon: request.weapon }),
               ...(request.object === undefined ? {} : { object: request.object }),
+              // And the magical effect a dispel was aimed at. (E-L1)
+              ...(request.magicalEffect === undefined
+                ? {}
+                : { magicalEffect: request.magicalEffect }),
               // The sixth: a Find Familiar declared as a Cat settles as a Cat.
               ...(request.form === undefined ? {} : { form: request.form }),
               // And the plane a message spell's recipient is on — SRD Sending —
@@ -3694,6 +3741,7 @@ function resolveOnTargets(
       ...(request.teleportTo === undefined ? {} : { teleportTo: request.teleportTo }),
       ...(request.weapon === undefined ? {} : { weapon: request.weapon }),
       ...(request.object === undefined ? {} : { object: request.object }),
+      ...(request.magicalEffect === undefined ? {} : { magicalEffect: request.magicalEffect }),
       ...(request.form === undefined ? {} : { form: request.form }),
       ...(request.otherPlane === undefined ? {} : { otherPlane: request.otherPlane }),
       ...(request.bonesAt === undefined ? {} : { bonesAt: request.bonesAt }),
@@ -4190,6 +4238,11 @@ export function resolveEffects(
      */
     readonly object?: string;
     /**
+     * The running casting a dispel was aimed at as a magical effect — see
+     * `CastSpellRequest.magicalEffect`. (E-L1)
+     */
+    readonly magicalEffect?: string;
+    /**
      * The stat block a summoning spell that leaves the form to its caster was
      * told to raise — see `EffectContext.form`. Pinned on a declaration for
      * the weapon's reason.
@@ -4304,6 +4357,7 @@ export function resolveEffects(
     ...(context.teleportTo === undefined ? {} : { teleportTo: context.teleportTo }),
     ...(context.weapon === undefined ? {} : { weapon: context.weapon }),
     ...(context.object === undefined ? {} : { object: context.object }),
+    ...(context.magicalEffect === undefined ? {} : { magicalEffect: context.magicalEffect }),
     ...(context.form === undefined ? {} : { form: context.form }),
     ...(context.otherPlane === undefined ? {} : { otherPlane: context.otherPlane }),
     ...(context.bonesAt === undefined ? {} : { bonesAt: context.bonesAt }),
@@ -4583,6 +4637,8 @@ export interface EffectRun {
   readonly teleportTo?: Placement;
   readonly weapon?: string;
   readonly object?: string;
+  /** The running casting a dispel was aimed at — see `CastSpellRequest.magicalEffect`. */
+  readonly magicalEffect?: string;
   readonly form?: string;
   readonly otherPlane?: true;
   readonly bonesAt?: readonly Placement[];
@@ -4894,11 +4950,26 @@ export function runEffects(
     ...(run.teleportTo === undefined ? {} : { teleportTo: run.teleportTo }),
     ...(run.weapon === undefined ? {} : { weapon: run.weapon }),
     ...(run.object === undefined ? {} : { object: run.object }),
+    ...(run.magicalEffect === undefined ? {} : { magicalEffect: run.magicalEffect }),
     ...(run.form === undefined ? {} : { form: run.form }),
     ...(run.otherPlane === undefined ? {} : { otherPlane: run.otherPlane }),
     ...(run.bonesAt === undefined ? {} : { bonesAt: run.bonesAt }),
     ...(run.answers === undefined ? {} : { answers: run.answers }),
   };
+
+  // **A dispel aimed at a magical effect runs once, at that casting** — SRD
+  // Dispel Magic's "or magical effect". The effect is on no creature, so the
+  // loop below has nobody to visit; the pre-flight has already refused a
+  // casting that is not running, one that is on a creature and one beyond the
+  // Range. (E-L1)
+  if (ctx.magicalEffect !== undefined) {
+    for (const effect of effects) {
+      if (effect.kind !== 'dispel') continue;
+      const done = resolveDispelOnEffect(ctx, ctx.magicalEffect, current);
+      if (!done.ok) return done;
+      current = done.value;
+    }
+  }
 
   // **A raising runs once, over the whole casting.** Its subjects are the
   // corpses named as targets *and* the bones stated as points, and a casting

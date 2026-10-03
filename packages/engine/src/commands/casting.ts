@@ -759,6 +759,8 @@ export interface CastingPlan {
   readonly subtle?: true;
   /** Made with no component left — see `PendingCasting.componentless`. (E-L1) */
   readonly componentless?: true;
+  /** The magical effect a dispel was aimed at — see `PendingCasting.magicalEffect`. (E-L1) */
+  readonly magicalEffect?: string;
   /**
    * Where a teleporting spell puts its target.
    *
@@ -1244,6 +1246,9 @@ function castSpellWith(
         ...(command.hold.componentless === undefined
           ? {}
           : { componentless: command.hold.componentless }),
+        ...(command.hold.magicalEffect === undefined
+          ? {}
+          : { magicalEffect: command.hold.magicalEffect }),
         // And where the teleport goes, which is the one fact a settlement
         // could not possibly work out again.
         ...(command.hold.teleportTo === undefined ? {} : { teleportTo: command.hold.teleportTo }),

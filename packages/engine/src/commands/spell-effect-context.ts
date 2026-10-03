@@ -339,6 +339,12 @@ export interface EffectContext {
    */
   readonly weapon?: string;
   /**
+   * The running casting a dispel was aimed at as a magical effect — SRD
+   * Dispel Magic's "Choose one creature, object, or magical effect". See
+   * `CastSpellRequest.magicalEffect`. (E-L1)
+   */
+  readonly magicalEffect?: string;
+  /**
    * The object an `end-curses` effect was aimed at, by catalogue id.
    *
    * {@link EffectContext.weapon}'s neighbour and its reading: stated at the

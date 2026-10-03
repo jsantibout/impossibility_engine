@@ -540,6 +540,18 @@ export interface CastSpellRequest extends CommandIdentity {
    */
   readonly choiceByTarget?: Readonly<Record<string, string>>;
   /**
+   * A running casting this one is aimed at as a **magical effect**, by its id.
+   *
+   * SRD Dispel Magic: "Choose one creature, object, **or magical effect**
+   * within range." A Fog Cloud or a Web runs on nobody, so no creature can be
+   * named to reach it; this names the casting itself. Only a spell that ends
+   * spells takes it, and with no target beside it; the casting must be running
+   * and on no creature (one that is on a creature is aimed at through the
+   * creature), and the place it holds within the Range — all asked before
+   * anything is spent. (E-L1)
+   */
+  readonly magicalEffect?: string;
+  /**
    * Which creatures the caster or their allies are fighting.
    *
    * SRD Charm Person: "One Humanoid you can see within range makes a Wisdom
@@ -1625,6 +1637,27 @@ export function declaredFacts(
     );
   }
 
+  // — a magical effect, named as the casting it is (E-L1) ————————————————
+  //
+  // SRD Dispel Magic's "or magical effect": only a spell that ends spells is
+  // aimed at one, and it is aimed at that instead of at a creature. Whether
+  // the casting is running, on nobody and in range needs the state, and is
+  // asked in `resolveSpell`'s pre-flight beside the object's.
+  if (request.magicalEffect !== undefined) {
+    if (!definition.effects.some((effect) => effect.kind === 'dispel')) {
+      return err(
+        'no_effect_clause',
+        `${definition.name} ends no spell, so a magical effect is not a thing it may be aimed at`,
+      );
+    }
+    if (request.targets.length > 0) {
+      return err(
+        'effect_and_target',
+        `${definition.name} is aimed at one creature, object or magical effect; name the effect or the target, not both`,
+      );
+    }
+  }
+
   // — which form a summons takes —————————————————————————————————————————
   //
   // The seventh stated fact, and the same two refusals. SRD Find Familiar:
@@ -2662,6 +2695,9 @@ export function namedTargets(
     // attack." The force appears whether or not anything is standing beside
     // it, and refusing that would be a rule the book does not have.
     if (definition.targets.optional === true) return ok([]);
+    // SRD Dispel Magic aimed at a magical effect names no creature: the
+    // casting it names stands where the target would. (E-L1)
+    if (request.magicalEffect !== undefined) return ok([]);
     // **A spell cast on its caster and nobody else names nobody else.** SRD
     // Produce Flame's flame "appears in your hand": `casterOnly` admits one
     // creature, so a casting that names none is cast on that one, and every

@@ -82,5 +82,19 @@ describe('cast_spell.choiceByTarget', () => {
       'refused',
     );
     expect((refused as { readonly code: string }).code).toBe('no_per_target_choice_clause');
+
+    // And `cast_spell.magicalEffect` (E-L1) reaches it the same way: a spell
+    // that ends no spells is refused for being aimed at one, which it could
+    // only be told if the field arrived.
+    const aimed = outcomeOf(
+      call('cast_spell', {
+        caster: 'ada',
+        spellId: 'sacred-flame',
+        targets: [],
+        magicalEffect: 'cast:1',
+      }),
+      'refused',
+    );
+    expect((aimed as { readonly code: string }).code).toBe('no_effect_clause');
   });
 });
