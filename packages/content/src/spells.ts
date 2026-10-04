@@ -12180,14 +12180,14 @@ const WARDED_AGAINST = [
  * block's line forces names it where that line already holds the target
  * (W8-S24).
  *
- * **Possession is handed over, and that reverses what this paragraph used to
- * say** (W8-S26). It read "can't be possessed" as a rule the engine would
- * execute the day it could; the owner ruled on 2026-09-24 that a possession is
- * a compulsion the table adjudicates for good — SRD Ghost's Possession files
- * who drives the body for the table, and only its saving throw is the
- * engine's — so the protection against one reads nothing the engine will ever
- * hold. The sentence goes over whole: its Charmed and Frightened halves are
- * the Immunity above whatever the table reads.
+ * **And possession is the engine's to refuse now** (M-MIND). W8-S26 handed
+ * "can't be possessed" over, because a possession was then the table's whole;
+ * the owner's ruling of 2026-09-24 leaves the table only the body being
+ * played, and SRD Ghost's Possession is now a fact the engine holds — the
+ * ghost inside the body, the body Incapacitated. So the ward is read where the
+ * possession is applied: `alsoPossession` on the Immunity, narrowed by the
+ * same six types, and `possessionWardedAgainst` is the reader. Nothing of the
+ * sentence is left to hand over.
  */
 export const PROTECTION_FROM_EVIL_AND_GOOD: SpellDefinition = {
   id: 'protection-from-evil-and-good',
@@ -12213,12 +12213,14 @@ export const PROTECTION_FROM_EVIL_AND_GOOD: SpellDefinition = {
         },
       },
     },
-    // "The target also can't be ... gain the Charmed or Frightened conditions
-    // from them" — the same six types, on the other reader.
+    // "The target also can't be possessed by or gain the Charmed or
+    // Frightened conditions from them" — the same six types, on the other
+    // reader, and the possession beside the two conditions (M-MIND).
     {
       kind: 'condition-immunity',
       conditions: ['charmed', 'frightened'],
       fromTypes: WARDED_AGAINST,
+      alsoPossession: true,
     },
     // "If the target is already possessed, Charmed, or Frightened by such a
     // creature, the target has Advantage on any new saving throw against the
@@ -12241,9 +12243,6 @@ export const PROTECTION_FROM_EVIL_AND_GOOD: SpellDefinition = {
     })),
   ],
   durationSeconds: 600,
-  dmDecides: [
-    "The target also can't be possessed by or gain the Charmed or Frightened conditions from them.",
-  ],
 };
 
 /**
@@ -15524,11 +15523,13 @@ export const MAGIC_CIRCLE: SpellDefinition = {
         // within the Cylinder."
         { kind: 'attack-mode', mode: 'disadvantage', attackerType: 'stated' },
         // "Targets within the Cylinder can't be possessed by or gain the
-        // Charmed or Frightened condition from the creature."
+        // Charmed or Frightened condition from the creature." The possession
+        // is read beside the two conditions (M-MIND).
         {
           kind: 'condition-immunity',
           conditions: ['charmed', 'frightened'],
           fromTypes: 'stated',
+          alsoPossession: true,
         },
       ],
     },
@@ -15558,6 +15559,7 @@ export const MAGIC_CIRCLE: SpellDefinition = {
           fromTypes: 'stated',
           outside: true,
           attackerInside: true,
+          alsoPossession: true,
         },
       ],
     },
@@ -15569,12 +15571,11 @@ export const MAGIC_CIRCLE: SpellDefinition = {
   // rather than increments, because the SRD prints a different table for every
   // spell that has one and no arithmetic produces them all.
   durationAtSlot: { 4: 7200, 5: 10800, 6: 14400, 7: 18000, 8: 21600, 9: 25200 },
-  // The possession, handed over with the sentence it is printed in (W8-S26):
-  // a possession is a compulsion the table adjudicates for good — the owner,
-  // 2026-09-24 — so protection against one reads nothing the engine will ever
-  // hold. The Charmed and Frightened halves are refused by the Immunity above
-  // whatever the table reads, and the sentence trips the condition marker on
-  // them; `ADJUDICATED` anchors the reading to it.
+  // **The possession is no longer handed over** (M-MIND): W8-S26 gave it to
+  // the table while a possession was the table's whole, and SRD Ghost's
+  // Possession is now a fact the engine holds — so "can't be possessed by" is
+  // `alsoPossession` on both branches' Immunity, read where the possession is
+  // applied, and the sentence is executed whole.
   //
   // **Interplanar travel is the save's other road, and the engine holds one
   // plane besides this one** (W9-S3): the barrier's save is rolled for a
@@ -15587,7 +15588,6 @@ export const MAGIC_CIRCLE: SpellDefinition = {
   // holds, and so is the table's in the book's own words.
   dmDecides: [
     'Glowing runes appear wherever the Cylinder intersects with the floor or other surface.',
-    "• Targets within the Cylinder can't be possessed by or gain the Charmed or Frightened condition from the creature.",
     'If the creature tries to use teleportation or interplanar travel to do so, it must first succeed on a Charisma saving throw.',
   ],
 };

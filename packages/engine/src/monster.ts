@@ -2904,6 +2904,13 @@ function printedCastLines(
           // And what the line's castings do without — the Dust Mephit's "no
           // spell components", the hags' "no Material components". (E-L1)
           ...(printed.waives === undefined ? {} : { waives: printed.waives }),
+          // The level and the span the line casts at — the Succubus's "(level
+          // 8 version)", the Sea Hag's "The spell's duration is 24 hours".
+          // (M-MIND)
+          ...(printed.castLevel === undefined ? {} : { castLevel: printed.castLevel }),
+          ...(printed.durationSeconds === undefined
+            ? {}
+            : { durationSeconds: printed.durationSeconds }),
         });
       }
     }

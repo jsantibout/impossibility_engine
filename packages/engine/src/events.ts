@@ -54,6 +54,7 @@ import type {
   ElsewhereDamage,
   ElsewhereEscape,
   ElsewhereKind,
+  ElsewherePossession,
   ElsewherePullOut,
   ElsewhereReturn,
 } from './elsewhere.js';
@@ -3312,6 +3313,14 @@ export type GameEvent =
       readonly escape?: ElsewhereEscape;
       readonly pullOut?: ElsewherePullOut;
       readonly noVerbalCasting?: true;
+      /**
+       * The creature goes inside its host as the body's possessor — SRD
+       * Ghost's Possession (M-MIND). The way out and the grace its ending buys,
+       * pinned for the reason `returns` is. Never carries `ended`, which the
+       * fold derives. Absent on every record written before, which fold as
+       * they always did.
+       */
+      readonly possesses?: Omit<ElsewherePossession, 'ended'>;
       readonly command?: CommandStamp;
     }
   /**

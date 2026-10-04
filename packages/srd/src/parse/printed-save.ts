@@ -1026,17 +1026,32 @@ const DOES_NOT_AVOID = new RegExp(
 /**
  * SRD Ghost's Possession: "_Failure:_ The target is possessed by the ghost; …"
  *
- * **A failure that is the whole compulsion.** Every sentence after it — who
- * drives the body, what the ghost can be targeted by, whose Speed it uses, how
- * long it lasts — is the possession, and the owner ruled a creature somebody
- * else is playing the table's. What is **not** filed is the day's grace the
- * ending buys: a later Possession would read it, and the moment it starts is
- * one only the table sees, so it is a debt the engine names rather than fiction
- * it may file.
+ * **Three sentences are the engine's facts of a possession, and the rest is
+ * the body somebody is playing** — M-MIND. The first says who goes where and
+ * what the target has ("the ghost disappears, and the target has the
+ * Incapacitated condition"); the lifetime ("until the body drops to 0 Hit
+ * Points or the ghost leaves as a Bonus Action") and the ending ("appears in
+ * an unoccupied space within 5 feet of the target, and the target is immune
+ * to this ghost's Possession for 24 hours") are the record's. Those three are
+ * read into a `possesses` clause, whole or not at all. What the possessor
+ * does with the body — who drives it, what reaches the ghost inside it, whose
+ * Speed and modifiers it uses — is the owner's compulsion ruling, and filed.
+ *
+ * "and loses control of its body" closes the first sentence and is read with
+ * it: the control is the next sentence's ("The ghost now controls the body"),
+ * which is filed, and the Incapacitated is what the engine holds of it.
  */
 const POSSESSED = /^The target is possessed by the [a-z' -]+; /;
-const IMMUNE_AFTERWARDS = new RegExp(
-  `immune to this [a-z' -]+${APOSTROPHE}s .+ for \\d+ (?:hour|minute)s?\\.$`,
+const POSSESSED_WHOLE = new RegExp(
+  '^The target is possessed by the [a-z\' -]+; the [a-z\' -]+ disappears, and the target has the ' +
+    '([A-Z][a-z]+) condition and loses control of its body\\.$',
+);
+const POSSESSION_LASTS = new RegExp(
+  '^The possession lasts until the body drops to 0 Hit Points or the [a-z\' -]+ leaves as a Bonus Action\\.$',
+);
+const POSSESSION_ENDS = new RegExp(
+  '^When the possession ends, the [a-z\' -]+ appears in an unoccupied space within (\\d+) feet of the target, ' +
+    `and the target is immune to this [a-z' -]+${APOSTROPHE}s (.+) for (\\d+) hours?\\.$`,
 );
 
 /**
@@ -2603,29 +2618,45 @@ function readSection(
 }
 
 /**
- * A failure that is **the whole compulsion** — see {@link POSSESSED} — or null
- * where the section is not one.
+ * A failure that is **a possession** — see {@link POSSESSED} — or null where
+ * the section is not one, or is one this does not read whole.
  *
- * Every sentence is filed, and the one about the day's grace the ending buys is
- * carried as owed. Nothing is read: the section spends nothing the engine could
- * apply, which `parsePrintedSave` admits only where the success buys something,
- * so the die is never thrown for nothing.
+ * The three sentences that are the record's are read into one `possesses`
+ * clause; every other sentence is the body somebody is playing, and filed.
+ * Any of the three missing, or printed in other words, refuses the reading,
+ * and the section goes to the sentence reader, which carries it as owed.
  */
 function readPossession(
   text: string,
-): { readonly filed: readonly PrintedHandover[]; readonly carried: readonly string[] } | null {
+): { readonly effect: PrintedSaveEffect; readonly filed: readonly PrintedHandover[] } | null {
   const sentences = text
     .split(/(?<=\.)\s+(?=[A-Z])/)
     .map((sentence) => sentence.trim())
     .filter((sentence) => sentence !== '');
   if (sentences.length === 0 || !POSSESSED.test(sentences[0]!)) return null;
+  const whole = POSSESSED_WHOLE.exec(sentences[0]!);
+  const condition = whole === null ? undefined : CONDITIONS[whole[1]!];
+  if (condition === undefined) return null;
+  let lasts = false;
+  let ends: RegExpExecArray | null = null;
   const filed: PrintedHandover[] = [];
-  const carried: string[] = [];
-  for (const sentence of sentences) {
-    if (IMMUNE_AFTERWARDS.test(sentence)) carried.push(sentence);
+  for (const sentence of sentences.slice(1)) {
+    if (POSSESSION_LASTS.test(sentence)) lasts = true;
+    else if (POSSESSION_ENDS.test(sentence)) ends = POSSESSION_ENDS.exec(sentence);
     else filed.push({ kind: 'a-compulsion-the-table-plays', sentence });
   }
-  return { filed, carried };
+  if (!lasts || ends === null) return null;
+  return {
+    effect: {
+      kind: 'possesses',
+      condition,
+      endsAtZeroHitPoints: true,
+      leavesAs: 'bonus-action',
+      appearsWithin: Number(ends[1]),
+      immunity: { line: ends[2]!, seconds: Number(ends[3]) * 3600 },
+    },
+    filed,
+  };
 }
 
 /**
@@ -3059,8 +3090,9 @@ export function parsePrintedSave(text: string): MonsterSave | null {
     sections.some((section) => section.kind === 'second-failure');
   // **Two failures read whole in shapes of their own** — W7-B13. A die the
   // engine throws and a table of rows it hands over (SRD Gibbering Mouther),
-  // and a failure that is the whole of a compulsion (SRD Ghost's Possession).
-  // Each is tried before the sentence reader, which would carry both as owed.
+  // and a failure that is a possession (SRD Ghost's — read into a `possesses`
+  // clause since M-MIND, with who drives the body filed). Each is tried
+  // before the sentence reader, which would carry both as owed.
   const table = graded ? null : readTable(failure.text);
   const possession = graded || table !== null ? null : readPossession(failure.text);
   const read: ReadSection =
@@ -3077,10 +3109,10 @@ export function parsePrintedSave(text: string): MonsterSave | null {
         ? {
             damage: null,
             plus: null,
-            effects: [],
-            handedOver: possession.carried,
+            effects: [possession.effect],
+            handedOver: [],
             filed: possession.filed,
-            readSomething: false,
+            readSomething: true,
           }
         : readSection(failure.text, { graded });
 
@@ -3131,11 +3163,12 @@ export function parsePrintedSave(text: string): MonsterSave | null {
   // this admits: the save is rolled at the moment the book says it is, and the
   // table it cannot hold is handed over at the instant the save fails.
   //
-  // **And a failure that files a compulsion** — W7-B13, SRD Ghost's
-  // Possession — is kept on the same terms from the other side: the failure is
-  // reported to the table rather than applied, so the die decides something
-  // only where the success buys something the engine keeps. That is checked
-  // below, once the success has been read.
+  // **And a failure that only files a compulsion** — W7-B13, which SRD
+  // Ghost's Possession was until M-MIND read the possession itself — is kept
+  // on the same terms from the other side: the failure is reported to the
+  // table rather than applied, so the die decides something only where the
+  // success buys something the engine keeps. That is checked below, once the
+  // success has been read.
   if (!read.readSomething && trigger === null && read.filed.length === 0) return null;
 
   // The sentences the head carried are filed where they are the table's for
@@ -3253,8 +3286,9 @@ export function parsePrintedSave(text: string): MonsterSave | null {
 
   // **A failure that only files, kept only where the success buys something**
   // — the other half of the rule above the success was read for. SRD Ghost's
-  // Possession: a failure hands the body to the table and a success buys a
-  // day's grace the engine keeps, so the throw decides something. A line whose
+  // Possession was the line it was written for (W7-B13): a failure that handed
+  // the body to the table and a success that bought a day's grace. M-MIND reads
+  // the failure too, and the rule stands for the next such line. A line whose
   // failure only files and whose success buys nothing is a die the engine
   // would throw for nobody, and stays prose.
   if (!read.readSomething && trigger === null && onSuccessEffects.length === 0) return null;

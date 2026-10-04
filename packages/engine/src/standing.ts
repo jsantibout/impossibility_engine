@@ -608,6 +608,12 @@ export type AreaConditionImmunityStanding = AreaSide & {
   readonly conditions: readonly ConditionName[];
   /** The causer's creature types the Immunity holds against; `'stated'` until the casting fills it. */
   readonly fromTypes?: readonly string[] | 'stated';
+  /**
+   * "can't be **possessed** by … the creature" as well — M-MIND. See
+   * `GrantedConditionImmunity.alsoPossession`, the same sentence on a creature
+   * rather than a place, and `possessionWardedAgainst`, which reads both.
+   */
+  readonly alsoPossession?: true;
 };
 
 /**
@@ -5006,6 +5012,43 @@ export function conditionImmunitiesOf(
     for (const condition of standing.conditions) names.add(condition);
   }
   return [...names].sort();
+}
+
+/**
+ * Whether this creature is warded against being **possessed** by that one —
+ * M-MIND.
+ *
+ * SRD Protection from Evil and Good: "The target also can't be possessed by or
+ * gain the Charmed or Frightened conditions from them." SRD Magic Circle:
+ * "Targets within the Cylinder can't be possessed by or gain the Charmed or
+ * Frightened condition from the creature." The same two hosts
+ * {@link conditionImmunitiesOf} reads, the same narrowing by the possessor's
+ * type through `typeMagicSees`, and the same direction where the possessor's
+ * type is unknown: a narrowed ward does not bite. SRD Ghost's Possession is
+ * the reader.
+ */
+export function possessionWardedAgainst(state: GameState, who: CharacterId, from: CharacterId): boolean {
+  const creature = state.creatures[who];
+  if (creature === undefined) return false;
+  const causer = state.creatures[from];
+  const causerType = causer === undefined ? null : typeMagicSees(causer);
+  const holds = (fromTypes: readonly string[] | 'stated' | undefined): boolean =>
+    fromTypes === undefined ||
+    (fromTypes !== 'stated' && causerType !== null && fromTypes.includes(causerType));
+  if (
+    creature.grantedConditionImmunities.some(
+      (granted) => granted.alsoPossession === true && holds(granted.fromTypes),
+    )
+  ) {
+    return true;
+  }
+  return areaStandingOn(state, who).some(
+    ({ standing, inside }) =>
+      standing.kind === 'condition-immunity' &&
+      standing.alsoPossession === true &&
+      holds(standing.fromTypes) &&
+      (standing.attackerInside !== true || inside.has(from)),
+  );
 }
 
 /**

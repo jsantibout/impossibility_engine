@@ -46,6 +46,7 @@ import {
   type ElsewhereDamage,
   type ElsewhereEscape,
   type ElsewhereKind,
+  type ElsewherePossession,
   type ElsewherePullOut,
   type ElsewhereReturn,
 } from '../elsewhere.js';
@@ -82,7 +83,15 @@ import {
 import { rollRecorded } from '../rolls.js';
 import type { CharacterSheet, StatedAction, StatedBonusAction } from '../character.js';
 import { wrongFormFor } from '../forms.js';
-import { describePerDay, describeRecharge, perDayTallyKey, statedActionOf, statedBonusActionOf } from '../monster.js';
+import {
+  describePerDay,
+  describeRecharge,
+  perDayTallyKey,
+  printedLineSource,
+  statedActionOf,
+  statedBonusActionOf,
+} from '../monster.js';
+import { schedule } from './conditions.js';
 import { tallied } from '../resources.js';
 import {
   anchorNeeded,
@@ -124,6 +133,8 @@ export interface Sending {
   readonly escape?: ElsewhereEscape;
   readonly pullOut?: ElsewherePullOut;
   readonly noVerbalCasting?: true;
+  /** The creature goes inside its host as the body's possessor — SRD Ghost's Possession (M-MIND). */
+  readonly possesses?: Omit<ElsewherePossession, 'ended'>;
 }
 
 /**
@@ -161,6 +172,7 @@ export function sendingEvents(
       ...(sending.escape === undefined ? {} : { escape: sending.escape }),
       ...(sending.pullOut === undefined ? {} : { pullOut: sending.pullOut }),
       ...(sending.noVerbalCasting === undefined ? {} : { noVerbalCasting: sending.noVerbalCasting }),
+      ...(sending.possesses === undefined ? {} : { possesses: sending.possesses }),
       ...(stamp === null ? {} : { command: stamp }),
     },
     ...(sending.conditions ?? []).map(
@@ -437,6 +449,12 @@ export interface ReturnOutcome {
  * Swallow's "can escape from the corpse"). A familiar is recalled by its
  * summoner, a Blink caster comes back at the start of their turn, and a
  * swallowed creature waits on the frog — none of those is this door.
+ *
+ * **A fourth, a possessor's** (M-MIND, SRD Ghost's Possession): "The
+ * possession lasts until the body drops to 0 Hit Points or the ghost leaves as
+ * a Bonus Action." A possession still standing is left by its possessor's own
+ * Bonus Action, spent here in a fight; one the body's fall ended is owed and
+ * costs nothing. Either way the body's day of grace is laid beside the return.
  */
 export function returnFromElsewhere(
   state: GameState,
@@ -471,6 +489,20 @@ export function returnFromElsewhere(
 
       const closed = wayBackClosed(state, who);
       if (closed !== null) return err('no_way_back', closed);
+
+      // **A possessor leaving a body that still stands spends what the line
+      // says it costs** — M-MIND, SRD Ghost: "or the ghost leaves as a Bonus
+      // Action". In a fight that is its Bonus Action, on its own turn, and it
+      // must be able to act; outside one there is no economy to spend. A
+      // possession the body's fall ended is owed, and costs nothing.
+      const leaving: GameEvent[] = [];
+      if (record.possesses !== undefined && record.possesses.ended !== true && state.combat !== null) {
+        const owed = mayAct(state, who, 'act');
+        if (owed !== null) return owed;
+        const spent = spendFor(state, who, record.possesses.leavesAs);
+        if (!spent.ok) return spent;
+        leaving.push(spent.value);
+      }
 
       const settled = settleReturn(state, who, command.to, (count, within, near) =>
         needsContext(
@@ -514,8 +546,15 @@ export function returnFromElsewhere(
         }
         rolled = save.value.events;
       }
+      const grace = possessionGrace(state, who);
+      if (!grace.ok) return grace;
       return ok({
-        events: [...rolled, ...returnEvents(state, who, settled.value.at, stamp)],
+        events: [
+          ...leaving,
+          ...rolled,
+          ...returnEvents(state, who, settled.value.at, stamp),
+          ...grace.value,
+        ],
         at: settled.value.at,
         unverified: settled.value.unverified,
         duplicate: false,
@@ -524,10 +563,46 @@ export function returnFromElsewhere(
   );
 }
 
+/**
+ * The day's grace a possession's ending buys the body — M-MIND, SRD Ghost:
+ * "When the possession ends, … the target is immune to this ghost's
+ * Possession for 24 hours."
+ *
+ * The same record the success's grace is (`line-immunity`): hung on the
+ * line's own `printed:` source on the host, under a `grants` deadline, so
+ * `forcePrintedSave` passes the body by for the day. Written at the return,
+ * which is where the ending is settled — beside the possessor's own Bonus
+ * Action, or the turn the body fell, which is refused to advance until the
+ * return is made. Nothing for a record that is not a possession, or whose host
+ * has gone.
+ */
+function possessionGrace(state: GameState, who: CharacterId): Result<readonly GameEvent[]> {
+  const record = state.creatures[who]?.elsewhere;
+  if (record?.possesses?.immunity === undefined || record.host === undefined) return ok([]);
+  if (state.creatures[record.host] === undefined) return ok([]);
+  const { line, seconds } = record.possesses.immunity;
+  const source = printedLineSource(who, line);
+  const timer = schedule(state, { kind: 'grants', on: record.host, source }, { kind: 'seconds', seconds });
+  if (!timer.ok) return timer;
+  return ok([
+    {
+      type: 'printed-line-immunity-granted',
+      id: record.host,
+      immunity: { source, by: who, line },
+    },
+    timer.value,
+  ]);
+}
+
 /** Why this creature may not come back by its own command, or null where it may. */
 function wayBackClosed(state: GameState, who: CharacterId): string | null {
   const record = state.creatures[who]?.elsewhere;
   if (record === null || record === undefined) return null;
+  // **A possessor's way out is its own** — M-MIND, SRD Ghost: "The possession
+  // lasts until the body drops to 0 Hit Points or the ghost leaves as a Bonus
+  // Action." Open either way: once the body has fallen it is owed, and while
+  // the possession stands the door charges the slot the line names.
+  if (record.possesses !== undefined) return null;
   if (record.kind === 'inside') {
     const host = record.host === undefined ? undefined : state.creatures[record.host];
     // **A hold that has ended opens the way** — W7-B10. SRD Shambling Mound's

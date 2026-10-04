@@ -4200,6 +4200,18 @@ interface Spender {
  */
 const owing = greased;
 
+/** B gone inside A as A's possessor — SRD Ghost's Possession's record (M-MIND). */
+const possessingA = (s: GameState): GameState =>
+  applyEvent(s, {
+    type: 'creature-sent-elsewhere',
+    id: B,
+    kind: 'inside',
+    host: A,
+    source: 'line:b/Possession',
+    returns: { within: 5, near: A },
+    possesses: { leavesAs: 'bonus-action' },
+  });
+
 const SPENDERS: readonly Spender[] = [
   { name: 'takeDash', run: (s) => takeDash(s, B, {}) },
   // The debt is checked before the moment, the line or the pool, so a
@@ -4232,6 +4244,11 @@ const SPENDERS: readonly Spender[] = [
   // And the two ways out of a creature — W7-B10 — refused for the debt before the record is read.
   { name: 'escapeFromInside', run: (s) => escapeFromInside(s, B, {}, supply()) },
   { name: 'pullOutOfCreature', run: (s) => pullOutOfCreature(s, B, { host: A }, supply()) },
+  // And a possessor leaving the body it holds, which spends its Bonus Action
+  // (M-MIND, SRD Ghost's Possession). B is laid inside A as a possessor for
+  // the run, so the road that spends is the one exercised; every other return
+  // spends nothing and is the settlement of a way back already open.
+  { name: 'returnFromElsewhere', run: (s) => returnFromElsewhere(possessingA(s), B, {}) },
   { name: 'takeDisengage', run: (s) => takeDisengage(s, B, {}) },
   // Movement rather than a slot, and guarded all the same: the debt is asked
   // before the Prone is, so a creature standing on its feet is still refused
