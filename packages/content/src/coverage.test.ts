@@ -585,6 +585,9 @@ describe('the bestiary row counts blocks, and the prose it cannot read', () => {
       // — read off the **name** like `recharge` and `perDay` beside it, and
       // changing what "read" counts for exactly as little.
       'forms',
+      // M-RISE: the Hit Points SRD Healing Touch restores, read out of the
+      // sentence.
+      'heals',
       'jumps',
       // What a legendary action does — SRD Unicorn's Charging Horn and
       // Shimmering Shield — read out of the sentence under that heading alone,
@@ -592,6 +595,10 @@ describe('the bestiary row counts blocks, and the prose it cannot read', () => {
       'legendary',
       'multiattack',
       'name',
+      // And the creature type a heading prints its line for — SRD Otherworldly
+      // Steed's "(Fiend Only)" — read off the **name** like `onlyInForms` and
+      // changing what "read" counts for exactly as little. (M-RISE)
+      'onlyAsType',
       'onlyInForms',
       'perDay',
       // What SRD Roper's Reel drags toward it, read out of the sentence.
@@ -599,6 +606,8 @@ describe('the bestiary row counts blocks, and the prose it cannot read', () => {
       // The move and the swing a blow on an already-Bloodied creature buys —
       // W7-B11, read out of the sentence like the moves above it, and out of the
       // trigger clause a `dashes` line has none of.
+      // And what SRD Create Specter raises out of a corpse. (M-RISE)
+      'raises',
       'rampages',
       'recharge',
       // The cloud a Reaction line releases — SRD Ink Cloud on both octopuses,
@@ -790,9 +799,10 @@ describe('the bestiary row counts blocks, and the prose it cannot read', () => {
    * turning into a list of things that used to be true.
    */
   it('names a line the bestiary prints, and no line that has been built', () => {
-    // Not empty, so the checks below read something; the count itself is the
-    // report's to say, and falls as lines are built.
-    expect(Object.keys(LINE_RESIDUE_SEAMS).length).toBeGreaterThan(0);
+    // **Empty since wave M** (M-MIND, M-REFLEX, M-MATTER and M-RISE built the
+    // last rows between them), so the walk below reads nothing today; it stays,
+    // so an entry written later is held to the catalogue the day it arrives.
+    expect(Object.keys(LINE_RESIDUE_SEAMS)).toEqual([]);
     const missing: string[] = [];
     const built: string[] = [];
     for (const [key, seam] of Object.entries(LINE_RESIDUE_SEAMS)) {
@@ -905,8 +915,13 @@ describe('the bestiary row counts blocks, and the prose it cannot read', () => {
    * handover — and was exempted by name so that its return to a number would
    * be a diff rather than a silence. It has returned: the two oozes that split
    * and the Goblin Boss's Redirect Attack are read as kinds with no seam
-   * behind them. So the exemption is gone and the guard is the plain one it
-   * was before — a predicate that goes quiet fails here.
+   * behind them. So the exemption went, and the guard was the plain one.
+   *
+   * **And it is back at zero, exempted by name again** (wave M): the splits are
+   * spent and M-REFLEX built Redirect Attack, so every trait kind the parser
+   * reads now has a reader or is a handover. Only that row may read 0, so a
+   * second predicate going quiet still fails here, and this row's return to a
+   * number is a diff.
    */
   it('ranks what the unread lines would need, and the report carries the ranking', () => {
     const report = readFileSync(
@@ -916,7 +931,11 @@ describe('the bestiary row counts blocks, and the prose it cannot read', () => {
 
     expect(bestiary.shapes.length).toBeGreaterThan(3);
     for (const shape of bestiary.shapes) {
-      expect(shape.blocks, shape.shape).toBeGreaterThan(0);
+      if (shape.shape === 'A trait shape nothing spends') {
+        expect(shape.blocks, shape.shape).toBe(0);
+      } else {
+        expect(shape.blocks, shape.shape).toBeGreaterThan(0);
+      }
       expect(shape.blocks, shape.shape).toBeLessThan(bestiary.carried);
       expect(shape.lines, shape.shape).toBeGreaterThanOrEqual(shape.blocks);
       expect(report).toContain(`| ${shape.shape} | ${shape.blocks} | ${shape.lines} |`);

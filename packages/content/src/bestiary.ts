@@ -74,13 +74,15 @@ import type { Monster } from '@ie/srd';
  * than swinging at a bonus nobody supplied. `bestiary.test.ts` holds the
  * Slam's transcription to `parseAttackLine`'s reading of the printed sentence.
  *
- * The three Bonus Actions and Life Bond are prose, for reasons the same test
- * pins: Fell Glare's span is "until the end of **your** next turn" — the
- * summoner's turn, which the save reader's span vocabulary (the target's or
- * the source's) cannot name — and the other three print no template at all.
- * The "(Fiend Only)" gates in the headings are read by nothing, and the
- * heading's "Recharges after a Long Rest" is a form the recharge reader does
- * not print for; both are the spell's `unmodelled`.
+ * **The three Bonus Actions and Life Bond execute too** (M-RISE), each
+ * transcribed as the parser's readers give it and held to them by the same
+ * test: Fell Glare's save, its span on the summoner's turn (`of: 'summoner'`)
+ * and its DC marked; Fey Step's teleport, which carries the rider because a
+ * teleported mount always does; Healing Touch's heal, its flat the casting's
+ * level under the Slam's own mark; Life Bond's trait, read where a spell's
+ * healing lands on the summoner. Each heading's "(Fiend Only)" is the type the
+ * caster chose (`onlyAsType`, read against the type the casting pinned), and
+ * "Recharges after a Long Rest" is the Long Rest alone.
  *
  * **The Challenge Rating is 0 and the XP is 0**, which is "None" as the schema
  * can hold it: `cr` is a number and the label is the book's word. The
@@ -134,6 +136,10 @@ export const OTHERWORLDLY_STEED: Monster = {
     {
       name: 'Life Bond',
       text: "When you regain Hit Points from a level 1+ spell, the steed regains the same number of Hit Points if you're within 5 feet of it.",
+      // What `parseTraitShape` reads out of the sentence (M-RISE): "you" is
+      // the summoner, and a spell's healing landing on them is read where a
+      // spell's healing lands.
+      trait: { kind: 'regains-what-its-summoner-regains-from-a-spell', minimumSpellLevel: 1, within: 5 },
     },
   ],
   actions: [
@@ -164,18 +170,48 @@ export const OTHERWORLDLY_STEED: Monster = {
       },
     },
   ],
+  // Each Bonus Action as the parser's readers give it (M-RISE), which
+  // `bestiary.test.ts` asserts reader by reader: the heading's type clause and
+  // its Long Rest recharge, and the line's save, teleport or heal.
   bonusActions: [
     {
       name: 'Fell Glare (Fiend Only; Recharges after a Long Rest)',
       text: '_Wisdom Saving Throw:_ DC equals your spell save DC, one creature within 60 feet the steed can see. _Failure:_ The target has the Frightened condition until the end of your next turn.',
+      save: {
+        ability: 'wis',
+        dc: 0,
+        dcFromSummoner: 'spell-save',
+        targets: 'one creature within 60 feet the steed can see',
+        onSuccess: 'none',
+        onFailure: [
+          {
+            kind: 'condition',
+            condition: 'frightened',
+            // "until the end of **your** next turn" — the summoner's.
+            lasts: { kind: 'turn', moment: 'end', of: 'summoner' },
+          },
+        ],
+        reach: { feet: 60, count: 1, seen: true },
+      },
+      recharge: { kind: 'long-rest' },
+      onlyAsType: ['Fiend'],
     },
     {
       name: 'Fey Step (Fey Only; Recharges after a Long Rest)',
       text: 'The steed teleports, along with its rider, to an unoccupied space of your choice up to 60 feet away from itself.',
+      // No sight clause; the rider goes with a teleported mount by the
+      // engine's own rule.
+      teleports: { feet: 60 },
+      recharge: { kind: 'long-rest' },
+      onlyAsType: ['Fey'],
     },
     {
       name: 'Healing Touch (Celestial Only; Recharges after a Long Rest)',
       text: "One creature within 5 feet of the steed regains a number of Hit Points equal to 2d8 plus the spell's level.",
+      // "plus the spell's level" — the casting's, written over the mark.
+      heals: { dice: '2d8', flat: 0, flatFromSlotLevel: true, within: 5 },
+      recharge: { kind: 'long-rest' },
+      onlyAsType: ['Celestial'],
     },
   ],
   reactions: [],

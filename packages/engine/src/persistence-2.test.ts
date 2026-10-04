@@ -889,6 +889,12 @@ const UNCOVERED_EVENT_TYPES: readonly string[] = [
   // Darkness, the Devil's Sight that pierces it, the patch gone the read
   // after its casting ends, and the Fog Cloud a Rogue Hides in.
   'light-declared',
+  // SRD Troll's Loathsome Limbs, M-RISE: a limb severed at a turn's end, and
+  // the Slashing a block counts over the turn that decides it. Neither log
+  // fights a troll, and both events are written only for a block whose trait
+  // reads them, so both fold to exactly the states they always did.
+  // `troll-limbs.test.ts` folds both and replays a severed limb byte for byte.
+  'limb-severed',
   // A harm that outlasts the fight — M-LINGER: the Death Dog's and the
   // Otyugh's Poisoned, the Mummy's and the Incubus's curse, and what each goes
   // on doing. Neither log lays one, and the field is absent on every creature
@@ -1081,6 +1087,8 @@ const UNCOVERED_EVENT_TYPES: readonly string[] = [
   // budget back to one next turn, and a log holding the extra action replayed
   // byte for byte.
   'turn-budget-granted',
+  // See `limb-severed` above. M-RISE.
+  'turn-damage-tallied',
   'turn-payout-granted',
   // The Attack action spent on an Unarmed Strike that threw no attack roll —
   // the Grapple and Shove options. Neither log was written when either option

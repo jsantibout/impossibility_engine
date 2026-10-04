@@ -1282,7 +1282,10 @@ describe('what a stat block’s sections print, and what is read', () => {
       // Giant Boar's Bloodied Fury, the Swarm of Insects' gated Spider Climb,
       // the two rest forms and the Troll Limb's Troll Spawn. The hags' Coven
       // Magic is read too, as a cast line, which this census does not count.
-      traits: { printed: 337, read: 293 },
+      // And one more with M-RISE: the Troll's Loathsome Limbs. (The Wraith's
+      // Create Specter is read too, as a raise, which this census does not
+      // count.)
+      traits: { printed: 337, read: 294 },
       // Fifty-three more than before the save template was read, and the
       // Clay Golem's Multiattack before them. Forty-seven more again with the
       // Spellcasting line, which is the book's third opening and is read

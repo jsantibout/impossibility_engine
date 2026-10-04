@@ -310,6 +310,9 @@ const KNOWN_EVENT_TYPES: readonly string[] = [
   'jump-allowance-spent',
   'landmark-added',
   'light-declared',
+  // SRD Troll's Loathsome Limbs: a limb severed, with its Exhaustion and the
+  // day's use. M-RISE.
+  'limb-severed',
   'lingering-harm-laid',
   // A spell that may not affect a creature again until it finishes a Long
   // Rest — SRD Prayer of Healing. E-L3.
@@ -390,6 +393,8 @@ const KNOWN_EVENT_TYPES: readonly string[] = [
   'time-advanced',
   'turn-advanced',
   'turn-budget-granted',
+  // The damage a block counts over a turn — SRD Loathsome Limbs. M-RISE.
+  'turn-damage-tallied',
   'turn-payout-granted',
   'unarmed-strike-made',
   'utilize-taken',

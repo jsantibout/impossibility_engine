@@ -293,7 +293,9 @@ describe('the ledger measures the three populations of the roadmap', () => {
    * would make the ledger read as finished sooner than it is.
    */
   it('names every handed-over line that matches no shape', () => {
-    expect(ledger.monsters.residue.length).toBeGreaterThan(0);
+    // **Empty since wave M**: every CR ≤ 5 line is read, so no handed-over line
+    // matches no shape. The walk stays for the line that joins it later.
+    expect(ledger.monsters.residue).toEqual([]);
     for (const line of ledger.monsters.residue) {
       expect(line.monster.length).toBeGreaterThan(0);
       expect(line.line.length).toBeGreaterThan(0);

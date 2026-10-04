@@ -123,6 +123,8 @@ import {
   takeLegendaryAction,
   takeSearch,
   takePrintedForm,
+  takePrintedHeal,
+  raisePrintedLine,
   takePrintedMove,
   takePrintedPlaneShift,
   takePrintedPull,
@@ -2955,6 +2957,117 @@ const SPLIT_PRINTED_LINE = tool({
 });
 
 /**
+ * Take the heal a creature's stat block prints — M-RISE.
+ *
+ * SRD Otherworldly Steed, Healing Touch (Celestial Only; Recharges after a
+ * Long Rest): "One creature within 5 feet of the steed regains a number of Hit
+ * Points equal to 2d8 plus the spell's level." The dice are the engine's, the
+ * flat is the level the casting that raised the steed wrote over the line, and
+ * the reach is measured.
+ *
+ * **Here and not on the model's surface**, by {@link TELEPORT_PRINTED_LINE}'s
+ * rule: whether a creature spends its Bonus Action, and on whom, is the choice
+ * of whoever is running it. What the call carries is one name.
+ */
+const HEAL_PRINTED_LINE = tool({
+  name: 'heal_printed_line',
+  description:
+    'Have the engine take the healing a creature’s stat block prints — the Otherworldly Steed’s Healing Touch. Name the heading as the block prints it and the creature it restores. The engine refuses a creature beyond the reach the line prints, a line printed for another creature type (Healing Touch is Celestial only: the type the caster chose for the steed), and a line already used and not yet back; it then spends whichever slot the heading names, rolls the dice, adds the number the casting supplied (the spell’s level) and heals. You state no number. `look` says which lines this door takes, under `engineHeals` on `printed.actions[]` and `printed.bonusActions[]`; a line it takes is refused by `take_printed_action` and `take_printed_bonus_action`.',
+  mutates: true,
+  selfAnswers: ['creature', 'position'],
+  input: z.strictObject({
+    who: creatureId.describe('Which creature is taking the line.'),
+    line: printedLineName,
+    target: creatureId.optional().describe('The creature the line restores. The engine asks where it is missing.'),
+  }),
+  run: (context, args) =>
+    settle(
+      context,
+      takePrintedHeal(
+        context.campaign.state(),
+        who(args.who),
+        {
+          line: args.line,
+          ...(args.target === undefined ? {} : { target: who(args.target) }),
+          ...identity(context),
+        },
+        context.campaign.supply(),
+      ),
+      (value) => value.events,
+      (value) => ({
+        ...lineTaken(
+          context,
+          ['stated-action-taken', 'stated-bonus-action-taken'],
+          value.duplicate,
+          args.who,
+        ),
+        healed: value.healed,
+      }),
+      (value) => value.unverified,
+    ),
+});
+
+/**
+ * Take the line a creature's stat block prints that raises a creature out of a
+ * corpse — M-RISE.
+ *
+ * SRD Wraith, Create Specter: "The wraith targets a Humanoid corpse within 10
+ * feet of itself that has been dead for no longer than 1 minute. The target's
+ * spirit rises as a **Specter** in the space of its corpse or in the nearest
+ * unoccupied space. The specter is under the wraith's control. The wraith can
+ * have no more than seven specters under its control at a time."
+ *
+ * **Here and not on the model's surface**, by {@link SPLIT_PRINTED_LINE}'s
+ * rule: whether the wraith spends its Action, on which corpse and under what
+ * name, is the choice of whoever runs it. Everything else is checked.
+ */
+const RAISE_PRINTED_LINE = tool({
+  name: 'raise_printed_line',
+  description:
+    'Have the engine take the line a creature’s stat block prints that raises a creature out of a corpse — the Wraith’s Create Specter. Name the heading, the corpse, and what to call the creature that rises. The engine refuses a creature that is not dead, a corpse of the wrong type (a Humanoid for the Wraith), one dead longer than the line allows (a minute), one beyond its reach (10 feet), a corpse something has already risen out of, and an eighth specter while seven stand under the creature’s control; it then spends the Action, raises the printed stat block in the corpse’s space or the nearest unoccupied one, on the creature’s side and under its control, and leaves the corpse where it lies. The new creature has no place in the order: roll its Initiative. You state no number. `look` says which lines this door takes, under `engineRaises` on `printed.actions[]`.',
+  mutates: true,
+  selfAnswers: ['creature', 'position'],
+  input: z.strictObject({
+    who: creatureId.describe('Which creature is taking the line.'),
+    line: printedLineName,
+    corpse: creatureId.optional().describe('The corpse the line targets. The engine asks where it is missing.'),
+    into: creatureId
+      .optional()
+      .describe('What to call the creature that rises. The engine asks where it is missing.'),
+  }),
+  run: (context, args) =>
+    settle(
+      context,
+      raisePrintedLine(
+        context.campaign.state(),
+        who(args.who),
+        {
+          line: args.line,
+          ...(args.corpse === undefined ? {} : { corpse: who(args.corpse) }),
+          ...(args.into === undefined ? {} : { into: who(args.into) }),
+          ...identity(context),
+        },
+        context.campaign.supply(),
+      ),
+      (value) => value.events,
+      (value) => ({
+        ...lineTaken(
+          context,
+          ['stated-action-taken', 'stated-bonus-action-taken'],
+          value.duplicate,
+          args.who,
+        ),
+        risen:
+          args.into === undefined ||
+          !value.events.some((event) => event.type === 'creature-added' && event.id === args.into)
+            ? null
+            : args.into,
+      }),
+      (value) => value.unverified,
+    ),
+});
+
+/**
  * Release the cloud a creature's printed Reaction releases — M-REFLEX.
  *
  * SRD Giant Octopus and SRD Octopus, Ink Cloud: "The octopus releases ink that
@@ -3070,6 +3183,8 @@ const ANSWER_DECLARED_ATTACK = tool({
 });
 
 export const DM_ONLY_TOOLS: readonly ToolDefinition[] = [
+  HEAL_PRINTED_LINE,
+  RAISE_PRINTED_LINE,
   SETTLE_BLOCK_DEADLINES,
   SETTLE_DAILY_TOLLS,
   SPLIT_PRINTED_LINE,

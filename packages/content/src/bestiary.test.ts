@@ -1,6 +1,15 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
-import { parseAttackLine, parseSaveLine, type Monster } from '@ie/srd';
+import {
+  parseAttackLine,
+  parseHealLine,
+  parseRecharge,
+  parseSaveLine,
+  parseTeleportLine,
+  parseTraitShape,
+  parseTypeQualification,
+  type Monster,
+} from '@ie/srd';
 import { OTHERWORLDLY_STEED, PHANTOM_STEED_BLOCK, SPELL_STAT_BLOCKS } from './bestiary.js';
 
 /**
@@ -125,9 +134,10 @@ describe('a stat block the book prints inside a spell', () => {
    * — and the parser reads exactly those words into marks; what is asserted
    * is that the transcription is byte for byte what `parseAttackLine` gives
    * for the printed sentence, so no reader's memory stands between the book
-   * and the catalogue. The three Bonus Actions and Life Bond are prose: Fell
-   * Glare's span is "until the end of **your** next turn", the summoner's,
-   * which the save reader cannot name, and the other three print no template.
+   * and the catalogue. The three Bonus Actions and Life Bond are held to the
+   * same readers (M-RISE): Fell Glare's save, its span on the summoner's turn;
+   * Fey Step's teleport; Healing Touch's heal, its flat the casting's level;
+   * Life Bond's trait; and each heading's type clause and Long Rest recharge.
    */
   it('carries the Otherworldly Steed’s printed lines as the parser reads them', () => {
     const slam = OTHERWORLDLY_STEED.actions.find((line) => line.name === 'Otherworldly Slam');
@@ -152,14 +162,21 @@ describe('a stat block the book prints inside a spell', () => {
       'Fey Step (Fey Only; Recharges after a Long Rest)',
       'Healing Touch (Celestial Only; Recharges after a Long Rest)',
     ]);
-    for (const line of [...OTHERWORLDLY_STEED.traits, ...OTHERWORLDLY_STEED.bonusActions]) {
+    const [lifeBond] = OTHERWORLDLY_STEED.traits;
+    expect(lifeBond!.trait).toEqual(parseTraitShape(lifeBond!.text));
+    expect(lifeBond!.trait).toBeDefined();
+    const [glare, step, touch] = OTHERWORLDLY_STEED.bonusActions;
+    expect(glare!.save).toEqual(parseSaveLine(glare!.text));
+    expect(glare!.save?.dcFromSummoner).toBe('spell-save');
+    expect(step!.teleports).toEqual(parseTeleportLine(step!.text));
+    expect(touch!.heals).toEqual(parseHealLine(touch!.text));
+    expect(touch!.heals?.flatFromSlotLevel).toBe(true);
+    for (const line of OTHERWORLDLY_STEED.bonusActions) {
       expect(line.attack, line.name).toBeUndefined();
-      expect(line.save, line.name).toBeUndefined();
-      // Prose because the parser reads nothing out of the sentence, not
-      // because the transcription chose to leave it: the same reader answers
-      // the same way for the printed text.
       expect(parseAttackLine(line.text), line.name).toBeNull();
-      expect(parseSaveLine(line.text), line.name).toBeNull();
+      expect(line.recharge, line.name).toEqual(parseRecharge(line.name));
+      expect(line.onlyAsType, line.name).toEqual(parseTypeQualification(line.name));
+      expect(line.recharge, line.name).toEqual({ kind: 'long-rest' });
     }
   });
 

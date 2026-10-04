@@ -27,6 +27,8 @@ import type {
   Armor,
   MonsterAttack,
   MonsterCastLine,
+  MonsterHeal,
+  MonsterRaise,
   MonsterForms,
   MonsterMultiattack,
   MonsterDash,
@@ -236,6 +238,15 @@ export interface StatedBonusAction {
    * Action in the book that prints the clause.
    */
   readonly onlyInForms?: readonly string[];
+  /** The creature types this line may be used as — see {@link StatedAction.onlyAsType}. (M-RISE) */
+  readonly onlyAsType?: readonly string[];
+  /**
+   * The Hit Points this line restores to a creature near its holder — SRD
+   * Otherworldly Steed's Healing Touch, the one such line in the book.
+   * `takePrintedHeal` is the door; its flat is the casting's level, written
+   * over the mark before the block was adapted. (M-RISE)
+   */
+  readonly heals?: MonsterHeal;
   /**
    * What this line drags toward its creature — see {@link StatedAction.pulls},
    * which this is the same field as. No SRD Bonus Action reaches the shape;
@@ -444,6 +455,25 @@ export interface StatedAction {
    * same words the block's own Shape-Shift prints its forms under.
    */
   readonly onlyInForms?: readonly string[];
+  /**
+   * The creature types this line may be used as, where its **heading** says so
+   * — M-RISE. SRD Otherworldly Steed's "(Fiend Only)", "(Fey Only)",
+   * "(Celestial Only)", read against the type the casting pinned on the
+   * creature. `wrongFormFor` reads it beside {@link onlyInForms}.
+   */
+  readonly onlyAsType?: readonly string[];
+  /**
+   * The creature this line raises out of a corpse, and how many its holder
+   * may control — SRD Wraith's Create Specter. `raisePrintedLine` is the
+   * door. (M-RISE)
+   */
+  readonly raises?: MonsterRaise;
+  /**
+   * The Hit Points this line restores to a creature near its holder — see
+   * {@link StatedBonusAction.heals}; on this section for the reason every
+   * field is on both: a heading says what a use costs. (M-RISE)
+   */
+  readonly heals?: MonsterHeal;
   /**
    * What must hold of this creature for the line to be taken at all, where its
    * **heading** says something.

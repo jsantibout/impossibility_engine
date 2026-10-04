@@ -399,10 +399,24 @@ export interface SummonBond {
 
 /** The terms of a controlled summons, as the log carries them — see {@link SummonBond.controlled}. */
 export interface ControlledBond {
-  /** The spell whose recasting renews the control, so the resolver finds this caster's own. */
+  /**
+   * The spell whose recasting renews the control, so the resolver finds this
+   * caster's own — or, for a control a **printed line** gave, that line's own
+   * source (`printedLineSource`): SRD Wraith's Create Specter, whose ceiling of
+   * seven is counted over the bonds that name it. No spell id is ever spelled
+   * that way, so a recast never mistakes one for its own. (M-RISE)
+   */
   readonly spell: string;
-  /** The clock reading the control lapses at: `state.elapsed` at the binding plus the printed span. */
-  readonly until: number;
+  /**
+   * The clock reading the control lapses at: `state.elapsed` at the binding
+   * plus the printed span.
+   *
+   * **Absent is a control that does not lapse** — SRD Wraith's Create
+   * Specter: "The specter is under the wraith's control", with no span at all.
+   * `lapseExpiredControl` already walks past a bond with nothing to run out.
+   * (M-RISE)
+   */
+  readonly until?: number;
   /**
    * What giving the creature an order costs and how far it reaches — SRD
    * Animate Dead's Bonus Action and sixty feet, pinned from the raise
@@ -953,6 +967,16 @@ export interface CreatureState {
    */
   readonly raisedFrom: CharacterId | null;
   /**
+   * The corpse whose **spirit** rose as this creature — M-RISE, SRD Wraith's
+   * Create Specter: "The target's spirit rises as a **Specter** in the space of
+   * its corpse". Not {@link raisedFrom}: the body does not walk, it stays
+   * lying where it fell, and a rite on the body is not refused because a
+   * spirit left it. Read by `raisePrintedLine`, which raises a spirit out of a
+   * corpse once. Absent on everything else, which is every log written before
+   * it.
+   */
+  readonly spiritOf?: CharacterId;
+  /**
    * What a feature made this thing to do, or null for everything that is not
    * such a thing — which is every creature in the book but one trait's.
    *
@@ -1029,6 +1053,27 @@ export interface CreatureState {
    * before it.
    */
   readonly blockReplacedAt?: number;
+  /**
+   * The damage this creature has taken in the turn in progress, by type —
+   * M-RISE, SRD Troll's Loathsome Limbs: "took 15+ Slashing damage during that
+   * turn". `turn` is `CombatState.turnsTaken` when it was counted, so a new
+   * turn starts the count afresh. Written only off `turn-damage-tallied`, which
+   * only a block that reads it is ever given; absent everywhere else, so both
+   * frozen fixtures fold unchanged.
+   */
+  readonly turnDamage?: {
+    readonly turn: number;
+    readonly byType: Readonly<Record<string, number>>;
+  };
+  /**
+   * How many of this creature's limbs are missing — M-RISE, SRD Troll's
+   * Loathsome Limbs: "The troll has 1 Exhaustion level for each missing limb,
+   * and it grows replacement limbs the next time it regains Hit Points." Raised
+   * by `limb-severed`, which adds the Exhaustion with it, and cleared by the
+   * fold on the next `healed` that moves the creature's Hit Points, which takes
+   * those levels back off. Absent is none.
+   */
+  readonly missingLimbs?: number;
   /**
    * The lines this creature's stat block prints a **recharge** on that it has
    * used and not got back, by the heading the block prints them under.

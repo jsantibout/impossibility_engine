@@ -449,7 +449,7 @@ const DAMAGE = new RegExp(
 );
 
 /** "until the start of its next turn", "until the end of the mephit's next turn". */
-const UNTIL_TURN = /^until the (start|end) of (its|the [a-z'-]+(?: [a-z'-]+)*'s) next turn$/;
+const UNTIL_TURN = /^until the (start|end) of (its|your|the [a-z'-]+(?: [a-z'-]+)*'s) next turn$/;
 /** "for 1 hour", "for 10 minutes". */
 const FOR_SPAN = /^for (\d+) (hour|minute)s?$/;
 const SPAN_SECONDS: Readonly<Record<string, number>> = { hour: 3600, minute: 60 };
@@ -1487,8 +1487,9 @@ const CONDITION_WITH_EARLY_ENDINGS = new RegExp(
  * Read one span, or null where the words are not a span this reader knows.
  *
  * "its" is the target's turn; a possessive naming the block's own creature —
- * "the mephit's", "the swarm's" — is the source's. Nothing the corpus prints in
- * this slot names a third creature.
+ * "the mephit's", "the swarm's" — is the source's. One line names a third
+ * creature: SRD Otherworldly Steed's Fell Glare, "until the end of **your**
+ * next turn", where "you" is the caster who raised the steed. (M-RISE)
  */
 function spanOf(words: string): PrintedSpan | null {
   const turn = UNTIL_TURN.exec(words);
@@ -1496,7 +1497,7 @@ function spanOf(words: string): PrintedSpan | null {
     return {
       kind: 'turn',
       moment: turn[1] as 'start' | 'end',
-      of: turn[2] === 'its' ? 'target' : 'source',
+      of: turn[2] === 'its' ? 'target' : turn[2] === 'your' ? 'summoner' : 'source',
     };
   }
   const span = FOR_SPAN.exec(words);

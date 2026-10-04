@@ -74,6 +74,38 @@ export function formWornBy(creature: CreatureState): string | null {
 }
 
 /**
+ * Why this creature may not use a line its heading prints for a creature
+ * type, or null where it may — M-RISE.
+ *
+ * SRD Otherworldly Steed's "Fell Glare (**Fiend Only**; …)": the type is the
+ * one SRD Find Steed's caster chose, which the casting pinned on the creature
+ * at the arrival, so it is read off the creature as it stands. A creature
+ * whose type nobody chose is refused — a steed walked in by hand is
+ * "Celestial, Fey, or Fiend", none of the three — which is the conservative
+ * reading {@link wrongFormFor} takes of a form nobody can be in.
+ *
+ * **Its own function as well as a clause of `wrongFormFor`**, because two of
+ * the doors that spend a steed's lines — `forcePrintedSave` and
+ * `takePrintedTeleport` — ask only this: asking the form gate there too would
+ * refuse lines the form gate has never been asked about (SRD Vampire's Bite,
+ * whose block's own Shape-Shift is refused whole). The M-RISE doors
+ * (`takePrintedHeal`, `raisePrintedLine`) are new and ask `wrongFormFor`, both
+ * gates.
+ */
+export function wrongTypeFor(
+  creature: CreatureState,
+  line: { readonly name: string; readonly onlyAsType?: readonly string[] },
+): string | null {
+  const types = line.onlyAsType;
+  if (types === undefined || types.length === 0) return null;
+  const held = creature.creatureType?.toLowerCase() ?? null;
+  if (held !== null && types.some((type) => type.toLowerCase() === held)) return null;
+  return `${line.name} is printed for a ${types.join(' or ')} only, and ${creature.id} is ${
+    creature.creatureType === null ? 'of no type anybody chose' : `a ${creature.creatureType}`
+  }`;
+}
+
+/**
  * Why this creature may not use a line its heading gates on a form, or null
  * where it may.
  *
@@ -92,8 +124,14 @@ export function formWornBy(creature: CreatureState): string | null {
  */
 export function wrongFormFor(
   creature: CreatureState,
-  line: { readonly name: string; readonly onlyInForms?: readonly string[] },
+  line: {
+    readonly name: string;
+    readonly onlyInForms?: readonly string[];
+    readonly onlyAsType?: readonly string[];
+  },
 ): string | null {
+  const wrongType = wrongTypeFor(creature, line);
+  if (wrongType !== null) return wrongType;
   const gate = line.onlyInForms;
   if (gate === undefined || gate.length === 0) return null;
   const worn = formWornBy(creature);

@@ -121,13 +121,14 @@ describe('a save line whose DC is the summoner’s', () => {
   });
 
   /**
-   * The limit, pinned so it is a fact rather than a surprise: SRD Fell Glare
-   * lasts "until the end of **your** next turn" — the summoner's, a third
-   * creature's turn the span vocabulary (`of: 'target' | 'source'`) cannot
-   * name. The line stays prose for the span, not for the DC, and the
-   * bestiary's transcription carries it that way.
+   * SRD Fell Glare lasts "until the end of **your** next turn" — the
+   * summoner's, a third creature's turn. It was the limit pinned here until
+   * M-RISE gave the span vocabulary `of: 'summoner'`; the line is read whole
+   * now, and `monster-rise.test.ts` holds the rest of the reading.
    */
-  it('cannot read Fell Glare, whose span is the summoner’s turn', () => {
-    expect(parseSaveLine(FELL_GLARE)).toBeNull();
+  it('reads Fell Glare, whose span is the summoner’s turn', () => {
+    expect(parseSaveLine(FELL_GLARE)?.onFailure).toEqual([
+      { kind: 'condition', condition: 'frightened', lasts: { kind: 'turn', moment: 'end', of: 'summoner' } },
+    ]);
   });
 });

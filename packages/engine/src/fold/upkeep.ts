@@ -26,6 +26,7 @@ import {
 import type { GameEvent } from '../events.js';
 import type { GameState } from '../state.js';
 import { releaseHitPointMaximum } from './release.js';
+import { rechargeOfLine } from '../monster.js';
 import {
   CorruptLogError,
   creatureOf,
@@ -130,9 +131,20 @@ export function applyUpkeep({ state, next }: Applying, event: UpkeepEvent): Game
           //
           // The other two tags are left alone. Dawn is not a rest, and
           // `special` is a recovery a feature spelled out for itself.
-          ...(event.recovers === 'short-rest' || event.recovers === 'long-rest'
+          ...(event.recovers === 'long-rest'
             ? { expendedLines: [] }
-            : {}),
+            : event.recovers === 'short-rest'
+              ? {
+                  // **Except a line printed on the Long Rest alone** — SRD
+                  // Otherworldly Steed's "Recharges after a Long Rest"
+                  // (M-RISE). Read off the sheet the arrival pinned, so the
+                  // fold opens no catalogue; a Long Rest emits both tags and
+                  // the second clears it.
+                  expendedLines: creature.expendedLines.filter(
+                    (line) => rechargeOfLine(creature.sheet, line)?.kind === 'long-rest',
+                  ),
+                }
+              : {}),
         },
         creature,
       );

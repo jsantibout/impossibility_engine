@@ -284,6 +284,18 @@ export interface ObservedPrintedLine {
    * Stride.
    */
   readonly engineTreeStrides: boolean;
+  /**
+   * Whether `heal_printed_line` will take this line: Hit Points the engine
+   * rolls for one creature within the reach the line prints — SRD Otherworldly
+   * Steed's Healing Touch. (M-RISE)
+   */
+  readonly engineHeals: boolean;
+  /**
+   * Whether `raise_printed_line` will take this line: a creature risen from a
+   * corpse the engine checks, under the holder's control — SRD Wraith's Create
+   * Specter. (M-RISE)
+   */
+  readonly engineRaises: boolean;
   /** See {@link ObservedPrintedAttack.usesLeft}. */
   readonly usesLeft: number | null;
   /**
@@ -816,6 +828,8 @@ function printedBlock(
     readonly jumps?: StatedAction['jumps'];
     readonly dashes?: StatedAction['dashes'];
     readonly treeStride?: StatedAction['treeStride'];
+    readonly heals?: StatedAction['heals'];
+    readonly raises?: StatedAction['raises'];
   }): ObservedPrintedLine => ({
     name: one.name,
     text: one.text,
@@ -850,6 +864,9 @@ function printedBlock(
     engineGrantsJump: one.jumps !== undefined,
     engineGrantsMove: one.dashes !== undefined,
     engineTreeStrides: one.treeStride !== undefined,
+    // And the two M-RISE doors, off the pinned records they read.
+    engineHeals: one.heals !== undefined,
+    engineRaises: one.raises !== undefined,
     usesLeft: usesLeftOf(resources, one),
     catches: catchOf(one.save),
   });

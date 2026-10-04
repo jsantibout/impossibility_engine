@@ -329,9 +329,10 @@ export function resolveRaiseEffect(
   const { name, events, outcomes, unverified, casterId } = ctx;
   const { definition, castingId } = ctx.casting();
   let current = world;
+  const until = current.elapsed + effect.controlSeconds;
   const controlled: ControlledBond = {
     spell: definition.id,
-    until: current.elapsed + effect.controlSeconds,
+    until,
     // And what an order costs and how far it reaches, pinned on the bond —
     // see `commandSummons`.
     ...(effect.commandedWith === undefined ? {} : { commanded: effect.commandedWith }),
@@ -344,7 +345,7 @@ export function resolveRaiseEffect(
 
     const bond = body.summonedBy;
     if (bond != null && bond.by === casterId && bond.controlled?.spell === definition.id) {
-      const renewed: GameEvent = { type: 'summons-control-renewed', id: target, by: casterId, until: controlled.until };
+      const renewed: GameEvent = { type: 'summons-control-renewed', id: target, by: casterId, until };
       events.push(renewed);
       current = applyEvent(current, renewed);
       outcomes.push({ target, affected: true });

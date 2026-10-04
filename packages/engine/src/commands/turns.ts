@@ -106,6 +106,8 @@ import {
 } from './rolls.js';
 import { resolveEffects } from './spell-resolution.js';
 import { settleDeferredRiders } from './spell-effect-riders.js';
+import { sharesOfSpellHealing } from './spell-effect-hit-points.js';
+import { severedLimbsAt } from './printed-rise.js';
 import { type SpellTargetOutcome } from './targeting.js';
 import { grapplerOf, grapplesOn, attachmentsOf } from './unarmed.js';
 import { attachedTo, type CommandStamp, limbsToRegrow } from '../state.js';
@@ -805,8 +807,23 @@ function settleTurnPayouts(
           healCreature(current, target, rolled, {}, payout.source)
         : grantTemporaryHpTo(current, target, rolled);
     if (!paid.ok) return paid;
+    const hpBefore = current.creatures[target]?.vitals.hp ?? 0;
     events.push(...paid.value);
     current = paid.value.reduce(applyEvent, current);
+
+    // SRD Otherworldly Steed's Life Bond, on the other road a spell's healing
+    // lands by: a running casting's payout is Hit Points regained from that
+    // spell, at the level it was cast. A printed hold's payout is no spell.
+    // (M-RISE)
+    const record = payout.payout === 'healing' ? castingIdOf(payout.source) : null;
+    const castAt = record === null ? undefined : current.ongoing[record]?.level;
+    if (castAt !== undefined) {
+      const regained = (current.creatures[target]?.vitals.hp ?? hpBefore) - hpBefore;
+      const shared = sharesOfSpellHealing(current, target, regained, castAt, unverified);
+      if (!shared.ok) return shared;
+      events.push(...shared.value);
+      current = shared.value.reduce(applyEvent, current);
+    }
   }
 
   // A log that does not say how far the generator moved is a log that rewinds
@@ -2587,7 +2604,16 @@ export function resolveTurn(
     const owedNow = owedRefusal(state, currentCombatant(state.combat).id);
     if (owedNow !== null) return owedNow;
 
+    // **SRD Troll's Loathsome Limbs**: "If the troll ends any turn Bloodied and
+    // took 15+ Slashing damage during that turn" — the end of *this* turn,
+    // before the order moves, so a limb cut as the troll's own turn ends is
+    // seated after it in time to take the next one. See `severedLimbsAt`.
+    // (M-RISE)
+    const severed = severedLimbsAt(state, supply);
+    if (!severed.ok) return severed;
+
     const advanced: GameEvent[] = [
+      ...severed.value,
       { type: 'turn-advanced', ...(stamp === null ? {} : { command: stamp }) },
     ];
     let after = advanced.reduce(applyEvent, state);

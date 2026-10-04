@@ -163,7 +163,9 @@ describe('the residue, named with its seams', () => {
     const lines = ledger.monsters.residue.filter(
       (one) => one.section === 'action' || one.section === 'bonus action',
     );
-    expect(lines.length).toBeGreaterThan(0);
+    // **Empty since wave M**, with `LINE_RESIDUE_SEAMS` beside it; the walk
+    // stays so a line that joins the residue is named in the same commit.
+    expect(lines).toEqual([]);
     const unnamed = lines
       .map((one) => {
         const block = SRD_CONTENT.monsters.find((monster) => monster.name === one.monster)!;
@@ -186,8 +188,10 @@ describe('the residue, named with its seams', () => {
     const end = source.indexOf('export const HANDOVER_TRAIT_KINDS');
     expect(start).toBeGreaterThan(0);
     const note = source.slice(start, end);
+    // **Empty since M-RISE**, when the Otherworldly Steed's Life Bond — the last
+    // trait the residue listed — was built. The walk stays, so a trait that
+    // joins the residue must be named in the note in the same commit.
     const traits = ledger.monsters.residue.filter((one) => one.section === 'trait');
-    expect(traits.length).toBeGreaterThan(0);
     const unnamed = traits
       .filter((one) => !note.includes(one.line))
       .map((one) => `${one.monster}/${one.line}`);

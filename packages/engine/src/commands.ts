@@ -448,3 +448,11 @@ export {
   setScene,
 } from './commands/scene.js';
 export type { CombatEnding } from './commands/scene.js';
+// M-RISE: a printed line that restores a creature, and one that raises one.
+export { raisePrintedLine, takePrintedHeal } from './commands/printed-rise.js';
+export type {
+  PrintedHealCommand,
+  PrintedHealOutcome,
+  PrintedRaiseCommand,
+  PrintedRaiseOutcome,
+} from './commands/printed-rise.js';

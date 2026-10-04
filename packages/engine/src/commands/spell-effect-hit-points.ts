@@ -16,6 +16,8 @@ import { scaledDiceFor, scaledFlatFor } from '../spell-definitions.js';
 import { castingHealingBonus, sheetAsItStands } from '../standing.js';
 import { healingRuleOf, maximisedHealing } from '../vitals.js';
 import { grantTemporaryHpTo, healCreature } from './creatures.js';
+import { distanceBetween } from '../positioning.js';
+import { printedLineSource, printedSummonerShare, SUMMONERS_SHARE } from '../monster.js';
 import { rollSpellDice } from './rolls.js';
 import { type EffectContext, type EffectOfKind } from './spell-effect-context.js';
 
@@ -146,12 +148,83 @@ export function resolveHealEffect(
 
   events.push(...healed.value);
   current = healed.value.reduce(applyEvent, current);
+  const regained = (current.creatures[target]?.vitals.hp ?? before) - before;
   outcomes.push({
     target,
-    healed: (current.creatures[target]?.vitals.hp ?? before) - before,
+    healed: regained,
     affected: true,
   });
+
+  // SRD Otherworldly Steed's Life Bond — "When you regain Hit Points from a
+  // level 1+ spell" — asked here, where a spell's healing lands. A conferral
+  // is no spell, and a feature's healing comes through another door. (M-RISE)
+  const spellLevel = ctx.origin.kind === 'casting' ? ctx.origin.definition.level : null;
+  if (spellLevel !== null) {
+    const shared = sharesOfSpellHealing(current, target, regained, spellLevel, ctx.unverified);
+    if (!shared.ok) return shared;
+    events.push(...shared.value);
+    current = shared.value.reduce(applyEvent, current);
+  }
   return ok(current);
+}
+
+/**
+ * What a summoner's healing from a spell gives the creatures that share it —
+ * SRD Otherworldly Steed's Life Bond: "When you regain Hit Points from a level
+ * 1+ spell, the steed regains the same number of Hit Points if you're within 5
+ * feet of it." (M-RISE)
+ *
+ * **The same number the summoner regained**, after their maximum: a Paladin at
+ * full who is healed regains nothing, and nothing is shared. The creatures are
+ * the ones whose bond names the healed creature as summoner and whose block
+ * prints the trait — read off the sheet the arrival pinned, never a book. A
+ * pair whose distance nobody can measure shares nothing and the caller is told.
+ *
+ * **Asked on three roads**: a spell's `heal` effect here, SRD Vampiric
+ * Touch's drain (`spell-effect-rolls.ts`), and a running casting's healing
+ * payout at a turn boundary (`turns.ts`). **Not asked** on two, each an owner
+ * question rather than an oversight: the Hit Point Dice SRD Prayer of
+ * Healing's Short Rest benefits spend (Hit Points regained from the dice, by a
+ * spell's leave), and a Goodberry berry eaten later (an item's conferral, of a
+ * berry a level 1 spell made).
+ *
+ * Walked in key order, so two readers of one state heal in one order.
+ */
+export function sharesOfSpellHealing(
+  state: GameState,
+  healed: CharacterId,
+  regained: number,
+  spellLevel: number,
+  unverified: string[],
+): Result<readonly GameEvent[]> {
+  if (regained <= 0) return ok([]);
+  const events: GameEvent[] = [];
+  let current = state;
+  for (const key of Object.keys(state.creatures).sort()) {
+    const bonded = current.creatures[key];
+    if (bonded === undefined || bonded.vitals.dead || bonded.summonedBy?.by !== healed) continue;
+    const share = printedSummonerShare(bonded.sheet);
+    if (share === null || spellLevel < share.minimumSpellLevel) continue;
+    const apart = current.scene === null ? null : distanceBetween(current.scene, healed, key as CharacterId);
+    if (apart === null || !apart.ok) {
+      unverified.push(
+        `${key} regains what ${healed} regains from a spell while within ${share.within} feet of them, and nobody has placed both; nothing was shared`,
+      );
+      continue;
+    }
+    if (apart.value > share.within) continue;
+    const shared = healCreature(
+      current,
+      key as CharacterId,
+      regained,
+      {},
+      printedLineSource(key as CharacterId, SUMMONERS_SHARE),
+    );
+    if (!shared.ok) return shared;
+    events.push(...shared.value);
+    current = shared.value.reduce(applyEvent, current);
+  }
+  return ok(events);
 }
 
 /**

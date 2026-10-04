@@ -197,8 +197,11 @@ describe('toolSchemas', () => {
     // a strong current dispersed the ink — and two more on the DM's alone,
     // `release_printed_cloud` and `answer_declared_attack`.
     // And one on each for M-HOLD, `detach_creature`.
+    // And two on the DM's alone for M-RISE: `heal_printed_line` (SRD
+    // Otherworldly Steed's Healing Touch) and `raise_printed_line` (SRD
+    // Wraith's Create Specter).
     expect(toolSchemas(player())).toHaveLength(103);
-    expect(toolSchemas(dm())).toHaveLength(143);
+    expect(toolSchemas(dm())).toHaveLength(145);
     // Re-pinned 2026-09-24 for the printed-lines track, which opened one door
     // on the DM's surface alone: `teleport_printed_line` takes the teleport a
     // stat block prints, at the distance the block prints, to a space the DM
@@ -501,10 +504,13 @@ describe('toolSchemas', () => {
     // SRD Stirge's "take an action to detach", the attach's own check and
     // reach — W7-B10's named gap, which a darkmantle's smothering made
     // urgent). 102 → 103 and 142 → 143 tools; +1,090 bytes on each.
+    // M-RISE (2026-10-03), on the DM's alone: `heal_printed_line` and
+    // `raise_printed_line`, two new doors, 143 → 145 tools and +2,732 bytes.
+    // The player's door is untouched.
     expect(toolSchemas(player())).toHaveLength(103);
-    expect(toolSchemas(dm())).toHaveLength(143);
+    expect(toolSchemas(dm())).toHaveLength(145);
     expect(JSON.stringify(toolSchemas(player())).length).toBe(181498);
-    expect(JSON.stringify(toolSchemas(dm())).length).toBe(252263);
+    expect(JSON.stringify(toolSchemas(dm())).length).toBe(254995);
   });
 });
 
