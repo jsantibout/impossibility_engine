@@ -345,7 +345,14 @@ describe('what a code-run monster reads off look to rank its lines', () => {
     expect(dog.riderApplied).toBe('none');
     expect(dog.riderReads).toEqual([]);
 
-    expect(attackOf('darkmantle', 'Crush').riderApplied).toBe('part');
+    // The Darkmantle's Crush was the CR ≤ 5 example of a rider read in part
+    // until M-HOLD read its suffocation; the Bone Devil's sting still is.
+    expect(attackOf('darkmantle', 'Crush').riderApplied).toBe('whole');
+    // Large, so it stands ten feet off rather than five.
+    const sting = blockOf(pair('a-bone-devil', 'bone-devil', 10), 'beast').attacks.find(
+      (one) => one.name === 'Infernal Sting',
+    )!;
+    expect(sting.riderApplied).toBe('part');
 
     // A line that prints no rider at all reads null rather than `whole`.
     const fist = attackOf('ape', 'Fist');
@@ -371,7 +378,9 @@ describe('what a code-run monster reads off look to rank its lines', () => {
       none: count('none'),
       damageAlone: attacks.filter((one) => one.riderReads.length === 1 && one.riderReads[0] === 'damage')
         .length,
-    }).toEqual({ lines: 104, whole: 96, part: 3, none: 5, damageAlone: 15 });
+      // M-HOLD read the last clause of the three CR ≤ 5 riders read in part —
+      // the Rug's and the Darkmantle's suffocation, the Roper's regrowth.
+    }).toEqual({ lines: 104, whole: 99, part: 0, none: 5, damageAlone: 15 });
   });
 
   it('says who each kind of line catches, off the pinned record the doors read', () => {

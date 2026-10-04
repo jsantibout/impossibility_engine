@@ -72,7 +72,6 @@ import { type Content } from '../content.js';
 import { type SpellDefinition } from '../spell-definitions.js';
 import {
   canSee,
-  defensesOf,
   effectiveConditions,
   rollModesFor,
   isBloodied,
@@ -100,10 +99,12 @@ import {
   adjustmentsFor,
   dealSpellDamage,
   heldDamageTotal,
+  holdHalvedDefenses,
   printedTypeTriggers,
   repeatsRaisedByDamage,
   reactionContributions,
   rollsIssuedSince,
+  shareWithTheHeld,
   siegeDoubling,
   spendReactionCost,
   standingReductionOf,
@@ -112,6 +113,7 @@ import {
 import { type RollElection } from '../rolls.js';
 import { applyHitRider } from './hit-riders.js';
 import { completeIfSettled, pendingCastingsOf } from './holds.js';
+import { holdBindsOn } from './unarmed.js';
 import {
   forcePrintedSaveOn,
   type PrintedSaveOnACreature,
@@ -643,7 +645,17 @@ export function settleDamage(
     )) {
       adjustments[type] = (adjustments[type] ?? 0) + extra;
     }
-    const applied = applyDamage(pending.components, defensesOf(state, pending.target), adjustments);
+    // **And what a hold binds the defender with** — SRD Animated Rug of
+    // Smothering's "the rug halves the damage it takes (round down), and the
+    // target takes the same amount of damage". The same two functions the
+    // unheld road asks, for the Siege Monster's reason above: the halving is
+    // the blow's, not the road's. W7-B10 named this road's absence; M-HOLD.
+    const binding = holdBindsOn(state, pending.target);
+    const applied = applyDamage(
+      pending.components,
+      holdHalvedDefenses(state, pending.target, pending.components, binding),
+      adjustments,
+    );
 
     const dealt = resolveDamage(
       state,
@@ -662,6 +674,20 @@ export function settleDamage(
       supply,
     );
     if (!dealt.ok) return dealt;
+
+    // "…and the target takes the same amount of damage" — the share, dealt
+    // after the holder's own and in the world it left. (M-HOLD)
+    const sharing = shareWithTheHeld(
+      dealt.value.events.reduce(applyEvent, state),
+      pending.target,
+      binding,
+      damageTakenIn(dealt.value.events, applied.total),
+      pending.source,
+      pending.components,
+      pending.by ?? undefined,
+      supply,
+    );
+    if (!sharing.ok) return sharing;
 
     // **And what the blow's own type set off on the creature it landed on.**
     // SRD Lightning Absorption, SRD Aversion to Fire and SRD Freeze are read
@@ -688,7 +714,7 @@ export function settleDamage(
     // nothing, and a creature it killed is not asked to save.
     const issuedBeforeRaised = supply.issuer.count;
     const raised = repeatsRaisedByDamage(
-      [...dealt.value.events, ...triggered.events].reduce(applyEvent, state),
+      [...dealt.value.events, ...sharing.value.events, ...triggered.events].reduce(applyEvent, state),
       pending.target,
       supply,
     );
@@ -703,7 +729,7 @@ export function settleDamage(
       pending.by === null
         ? { events: [], unverified: [] }
         : wearTheWeapon(
-            [...events, ...dealt.value.events, ...triggered.events].reduce(applyEvent, state),
+            [...events, ...dealt.value.events, ...sharing.value.events, ...triggered.events].reduce(applyEvent, state),
             pending.by,
             pending.target,
             pending.contactWeapon,
@@ -714,6 +740,7 @@ export function settleDamage(
     const all = [
       ...events,
       ...dealt.value.events,
+      ...sharing.value.events,
       ...triggered.events,
       ...worn.events,
       ...raised.value.events,
@@ -726,6 +753,7 @@ export function settleDamage(
     // same way, beside an Undead Fortitude thrown against a blow with no type.
     const unverified: string[] = [
       ...dealt.value.unverified,
+      ...sharing.value.unverified,
       ...triggered.unverified,
       ...worn.unverified,
       ...raised.value.unverified,

@@ -2062,6 +2062,11 @@ const CONFERRED_EFFECT_KINDS: ReadonlySet<string> = new Set([
   'attack-rider',
   'condition-immunity',
   'turn-payout',
+  // SRD Potion of Water Breathing: "You can breathe underwater for 24 hours"
+  // — a grant sourced to the conferral, so its day is the conferral's own
+  // `grants` timer, and in {@link CONFERRED_GRANT_KINDS} below for that
+  // reason. (M-HOLD)
+  'breathes-water',
   // SRD Open Hand Technique's Addle: "The target can't make Opportunity
   // Attacks until the start of its next turn." A rule about the *target's*
   // turn, which a casting already hangs — `actionRulesOn` merges what a
@@ -2093,6 +2098,7 @@ const CONFERRED_GRANT_KINDS: ReadonlySet<string> = new Set([
   'condition-immunity',
   'turn-payout',
   'action-rule',
+  'breathes-water',
 ]);
 
 /**

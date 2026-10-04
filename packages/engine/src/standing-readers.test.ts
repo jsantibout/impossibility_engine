@@ -8,6 +8,7 @@ import { createRng, type Rng } from './dice.js';
 import { createRollIssuer } from './rolls.js';
 import { fold, type GameEvent, type GameState } from './events.js';
 import { declaredCasting } from './spellcasting.js';
+import { breathesWater } from './hazards.js';
 import {
   addCreature,
   equipItem,
@@ -212,6 +213,21 @@ describe('a Speed a worn item grants', () => {
     const cloaked = worn(TABLE, WIZARD, 'cloak-of-the-manta-ray');
     expect(speedOf(fold('seed', cloaked), WIZARD, 'swim')).toBe(0);
     expect(speedOf(fold('seed', attuned(cloaked, WIZARD, 'cloak-of-the-manta-ray')), WIZARD, 'swim')).toBe(60);
+  });
+
+  /**
+   * "While wearing this cloak, you can breathe underwater" — M-HOLD. The one
+   * rule that asks is SRD Whelm's "unless it can breathe water", so the cloak's
+   * gills are a standing grant the same bracket withholds; and SRD Necklace of
+   * Adaptation's "breathe normally in any environment" answers the same
+   * question the same way.
+   */
+  it('lets the manta cloak’s and the adaptation necklace’s attuned wearer breathe water, and nobody else', () => {
+    const cloaked = worn(TABLE, WIZARD, 'cloak-of-the-manta-ray');
+    expect(breathesWater(fold('seed', TABLE), WIZARD)).toBe(false);
+    expect(breathesWater(fold('seed', cloaked), WIZARD)).toBe(false);
+    expect(breathesWater(fold('seed', attuned(cloaked, WIZARD, 'cloak-of-the-manta-ray')), WIZARD)).toBe(true);
+    expect(breathesWater(fold('seed', wornAndAttuned(TABLE, WIZARD, 'necklace-of-adaptation')), WIZARD)).toBe(true);
   });
 
   /** Two Speeds in one mode are two Speeds, and the creature uses the higher. */

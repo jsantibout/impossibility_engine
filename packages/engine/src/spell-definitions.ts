@@ -3688,6 +3688,20 @@ export type SpellEffect =
    */
   | { readonly kind: 'fall-ward' }
   /**
+   * The casting lets its target breathe water — M-HOLD. SRD *Water
+   * Breathing*: "This spell grants up to ten willing creatures of your choice
+   * within range the ability to breathe underwater until the spell ends." SRD
+   * *Alter Self*'s Aquatic Adaptation: "You can breathe underwater".
+   *
+   * **No number, for the fall ward's reason**: what it says is that the
+   * creature breathes, not how well. Read by the one rule the engine holds that
+   * asks — SRD Water Elemental's Whelm, "is suffocating unless it can breathe
+   * water" (`breathesWater`) — and sourced to the casting, so the casting
+   * ending is the gills going. Nothing in the engine holds water to be under,
+   * which is why this is that exception and nothing more.
+   */
+  | { readonly kind: 'breathes-water' }
+  /**
    * The casting buys its target a jump, and fixes what it costs — SRD *Jump*:
    * "Once on each of its turns until the spell ends, that creature can jump up
    * to 30 feet by spending 10 feet of movement."
@@ -9315,6 +9329,8 @@ export function numbersRead(definition: SpellDefinition): NumbersRead {
       // and neither is the caster's: thirty feet and ten are the book's, and
       // are the same numbers in a Barbarian's hand.
       case 'fall-ward':
+      // And the gills, which carry no number at all either. (M-HOLD)
+      case 'breathes-water':
       case 'jump-allowance':
       case 'attack-rider':
       // The ability it may pin is not one of these three: it is an *ability*

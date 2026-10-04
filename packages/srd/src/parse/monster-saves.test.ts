@@ -433,7 +433,7 @@ describe('the clauses a failure prints besides the damage', () => {
     const line = parseSaveLine(
       "_Strength Saving Throw:_ DC 15, each creature in the elemental's space. _Failure:_ 22 (4d8 + 4) Bludgeoning damage. If the target is a Large or smaller creature, it has the Grappled condition (escape DC 14). Until the grapple ends, the target has the Restrained condition, is drowning slowly, and takes 9 (2d8) Bludgeoning damage at the start of each of the elemental's turns. _Success:_ Half damage only.",
     );
-    expect(line?.onFailure[0]).not.toHaveProperty('suffocates');
+    expect(line?.onFailure?.[0]).not.toHaveProperty('suffocates');
     expect(line?.handedOver).toEqual(['Until the grapple ends, the target is drowning slowly.']);
   });
 

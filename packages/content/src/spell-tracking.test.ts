@@ -927,6 +927,11 @@ describe('a tracked spell may not hide a rule the engine owns', () => {
     // barrier, the ward and the ending are executed all the same, off the
     // Emanation the record pins where it rose.
     'tiny-hut',
+    // And SRD Water Breathing's paragraph is breathing underwater, which no
+    // marker knows the word for — yet the one rule that asks, SRD Water
+    // Elemental's Whelm ("is suffocating unless it can breathe water"),
+    // reads the `breathes-water` the casting hangs. (M-HOLD)
+    'water-breathing',
   ];
 
   it('finds every clean paragraph outside the executed bucket', () => {

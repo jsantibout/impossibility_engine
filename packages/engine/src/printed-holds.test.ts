@@ -36,6 +36,7 @@ import {
   resolveMove,
   resolveTurn,
   setScene,
+  settleDamage,
 } from './commands.js';
 import { hasCondition } from './conditions.js';
 import { createRng, type Rng } from './dice.js';
@@ -172,6 +173,43 @@ describe("the Animated Rug of Smothering's hold", () => {
     expect(
       struck.events.some(
         (e) => e.type === 'damage-taken' && e.id === BREN && e.source?.includes(`${BEAST}'s hold`) === true && e.source.includes('Greatsword'),
+      ),
+    ).toBe(true);
+  });
+
+  /**
+   * W7-B10's named gap: "a blow held open by a Reaction and landed through
+   * `settleDamage` neither halves nor shares the Rug's damage." It is the same
+   * blow by another road, so it halves and shares the same — M-HOLD.
+   */
+  it('halves and shares a blow a Reaction held open, exactly as one nobody answered', () => {
+    const table = field('animated-rug-of-smothering');
+    table.log.push(...unwrap(swing(table, 'Smother', { hold: true }), 'the smother').events);
+    const rugHp = table.state.creatures[BEAST]!.vitals.hp;
+    const brenHp = table.state.creatures[BREN]!.vitals.hp;
+    // Sable's greatsword, rolled and held open for a Reaction nobody takes.
+    table.log.push({
+      type: 'damage-rolled',
+      damage: {
+        target: BEAST,
+        by: SABLE,
+        source: 'Greatsword',
+        components: [{ source: 'Greatsword', type: 'slashing', roll: null, flat: 13, total: 13 }],
+        critical: false,
+        fromAttack: true,
+        reductions: [],
+        offers: [],
+      },
+    });
+    const settled = unwrap(settleDamage(table.state, table.supply()), 'the settlement');
+    table.log.push(...settled.events);
+    const state = table.state;
+    // "halves the damage it takes (round down)" — and the target takes the same.
+    expect(rugHp - state.creatures[BEAST]!.vitals.hp).toBe(6);
+    expect(brenHp - state.creatures[BREN]!.vitals.hp).toBe(6);
+    expect(
+      settled.events.some(
+        (e) => e.type === 'damage-taken' && e.id === BREN && e.source?.includes(`${BEAST}'s hold`) === true,
       ),
     ).toBe(true);
   });

@@ -3290,14 +3290,10 @@ export const TRACKED_ADJUDICATED: Readonly<Record<string, readonly TrackedAdjudi
       note: 'the same reading as Comprehend Languages: the sheet records the languages a character knows and nothing in play reads them, so understanding and being understood have no reader. **P3-S6 read this spell to the end**: every printed sentence is the table’s or the engine’s, so what the table is left with is in the definition’s `dmDecides` rather than in `unmodelled` — handed over whole, and no clause of it is expressible with the kinds the engine has today.',
     },
   ],
-  'water-breathing': [
-    {
-      marker: null,
-      clause: 'the ability to breathe underwater until the spell ends',
-      why: 'table',
-      note: 'suffocation is not modelled, so breathing underwater lifts a rule the engine does not apply. **P3-S6 read this spell to the end**: every printed sentence is the table’s or the engine’s, so what the table is left with is in the definition’s `dmDecides` rather than in `unmodelled` — handed over whole, and no clause of it is expressible with the kinds the engine has today.',
-    },
-  ],
+  // **Water Breathing left this map in M-HOLD**, by being executed: the
+  // entry said suffocation was not modelled, and the Water Elemental's Whelm
+  // — "is suffocating unless it can breathe water" — now reads the breathing
+  // the spell grants (`breathes-water`).
   'water-walk': [
     {
       marker: null,
@@ -5137,13 +5133,8 @@ export const ITEM_BLOCKED_ON: Readonly<Record<string, ItemEntry>> = {
   'potion-of-poison': ['damage-with-neither-an-attack-roll-nor-a-save'],
   'potion-of-resistance': ['a-version-of-an-item-the-book-leaves-to-the-gm'],
   'potion-of-vitality': ['an-exhaustion-level-a-spell-changes', 'healing-modified-by-an-effect'],
-  'potion-of-water-breathing': [
-    {
-      clause: 'You can breathe underwater for 24 hours',
-      why: 'table',
-      note: 'breathing is not modelled — nothing drowns, nothing suffocates and no rule asks — so this is a fact the table keeps, and a record carrying it would carry nothing else.',
-    },
-  ],
+  // Potion of Water Breathing left this map in M-HOLD: it is a conferral of
+  // `breathes-water` for its day, read by the Water Elemental's Whelm.
   'ring-of-djinni-summoning': [
     'a-stat-block-created-mid-fight',
     'a-concentration-with-no-casting-behind-it',

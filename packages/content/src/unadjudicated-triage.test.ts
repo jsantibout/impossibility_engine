@@ -146,7 +146,8 @@ const HANDOVERS: readonly string[] = [
   'speak-with-animals',
   'speak-with-dead',
   'tongues',
-  'water-breathing',
+  // Water Breathing stood here until M-HOLD built suffocation, and is in
+  // {@link EXECUTES} now.
   'water-walk',
 ];
 
@@ -262,6 +263,11 @@ const EXECUTES: readonly string[] = [
   // when the spell ends are the `elsewhere` effect, and what is left for the
   // table is the rope and the portal as things.
   'rope-trick',
+  // Water Breathing moved here off {@link HANDOVERS} in M-HOLD: the reading
+  // filed it as fiction because "suffocation is not modelled", and it is now
+  // — SRD Water Elemental's Whelm reads the `breathes-water` the casting
+  // hangs. What is left for the table is that the targets still breathe air.
+  'water-breathing',
   // Both directions of ground are written — `AreaTerrain.clears` and a branch's
   // own terrain over an immobile Emanation — so the debt this list filed is paid.
   'speak-with-plants',

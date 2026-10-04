@@ -3960,14 +3960,14 @@ export interface PrintedHeldObject {
  *
  * Three flags for the one sentence in the book that prints them, and every
  * one read where the fact is asked: the line is refused at the swing while
- * the hold stands, and the halving and the sharing are both read in
- * `dealSpellDamage`, the seam every **unheld** blow lands through — the
- * halving as a Resistance to each type in the blow, the sharing as the same
- * amount dealt again to whoever is held. A blow a Reaction held open lands
- * through `settleDamage` instead and neither halves nor shares: a gap, named
- * beside the seam in `commands/damage.ts`. Derived off the sheet and the
- * standing hold rather than pinned, because a grapple is a condition instance
- * and a timer and has no record of its own to carry a clause.
+ * the hold stands, and the halving and the sharing are both read where a blow
+ * lands — the halving as a Resistance to each type in the blow, the sharing as
+ * the same amount dealt again to whoever is held — by `holdHalvedDefenses` and
+ * `shareWithTheHeld` in `commands/damage.ts`, which `dealSpellDamage` and
+ * `settleDamage` both ask, so a blow a Reaction held open halves and shares
+ * like any other (M-HOLD). Derived off the sheet and the standing hold rather
+ * than pinned, because a grapple is a condition instance and a timer and has
+ * no record of its own to carry a clause.
  */
 export interface PrintedWhileHolding {
   /** "the rug can't take this action". */
