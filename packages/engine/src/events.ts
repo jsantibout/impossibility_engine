@@ -1727,6 +1727,45 @@ export type GameEvent =
       readonly level: number;
       readonly command?: CommandStamp;
     }
+  /**
+   * Damage of one type that landed on a creature whose block counts it over a
+   * turn — M-RISE, SRD Troll's Loathsome Limbs: "If the troll ends any turn
+   * Bloodied and took 15+ Slashing damage **during that turn**".
+   *
+   * **Written only for a creature whose block reads it**, by
+   * `printedTypeTriggers` beside the blow — the road both damage funnels share
+   * — so every other log is byte for byte what it was. The fold adds the
+   * amount to `CreatureState.turnDamage` for the turn in progress and starts
+   * afresh on a new one; the turn's end reads it.
+   */
+  | {
+      readonly type: 'turn-damage-tallied';
+      readonly id: CharacterId;
+      readonly damageType: string;
+      readonly amount: number;
+    }
+  /**
+   * One of a creature's limbs severed, and the creature it became — M-RISE,
+   * SRD Troll's Loathsome Limbs.
+   *
+   * **One event for the three things the fold derives from it**, on
+   * `damage-taken.floor.spent`'s reasoning: the missing limb is counted
+   * (`CreatureState.missingLimbs`), its level of Exhaustion is added ("The troll
+   * has 1 Exhaustion level for each missing limb") with Exhaustion 6's death,
+   * and one of the day's uses is tallied under `tally` on the `dawn` clock. The
+   * limb itself arrives beside this on the ordinary `creature-added`, and the
+   * regrowth — "the next time it regains Hit Points" — is the fold's on the
+   * next `healed` that moves the creature's Hit Points.
+   */
+  | {
+      readonly type: 'limb-severed';
+      readonly id: CharacterId;
+      /** The creature the limb became. */
+      readonly limb: CharacterId;
+      /** The tally the day's uses are counted under. */
+      readonly tally: string;
+      readonly command?: CommandStamp;
+    }
   // — what a creature owns ———————————————————
   /**
    * Items arriving or leaving, by catalogue id.

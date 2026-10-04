@@ -894,6 +894,27 @@ export interface CreatureState {
    */
   readonly blockReplacedAt?: number;
   /**
+   * The damage this creature has taken in the turn in progress, by type —
+   * M-RISE, SRD Troll's Loathsome Limbs: "took 15+ Slashing damage during that
+   * turn". `turn` is `CombatState.turnsTaken` when it was counted, so a new
+   * turn starts the count afresh. Written only off `turn-damage-tallied`, which
+   * only a block that reads it is ever given; absent everywhere else, so both
+   * frozen fixtures fold unchanged.
+   */
+  readonly turnDamage?: {
+    readonly turn: number;
+    readonly byType: Readonly<Record<string, number>>;
+  };
+  /**
+   * How many of this creature's limbs are missing — M-RISE, SRD Troll's
+   * Loathsome Limbs: "The troll has 1 Exhaustion level for each missing limb,
+   * and it grows replacement limbs the next time it regains Hit Points." Raised
+   * by `limb-severed`, which adds the Exhaustion with it, and cleared by the
+   * fold on the next `healed` that moves the creature's Hit Points, which takes
+   * those levels back off. Absent is none.
+   */
+  readonly missingLimbs?: number;
+  /**
    * The lines this creature's stat block prints a **recharge** on that it has
    * used and not got back, by the heading the block prints them under.
    *

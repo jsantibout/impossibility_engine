@@ -34,6 +34,7 @@ import {
   hasPrintedTrait,
   printedAbsorption,
   printedLineSource,
+  printedLimbSevering,
   printedRegeneration,
   printedTypeAversion,
   printedTypeSlow,
@@ -369,6 +370,22 @@ export function printedTypeTriggers(
     } else {
       events.push(timer.value);
     }
+  }
+
+  // SRD Troll's Loathsome Limbs: "took 15+ Slashing damage **during that
+  // turn**". "Took", so what landed — the amount the defences left — and
+  // counted over the turn, so two blows of eight are sixteen: the fold adds it
+  // to the turn in progress and the turn's end reads it. Only in a fight,
+  // because outside one there is no turn for the count to be about. (M-RISE)
+  const severing = printedLimbSevering(sheet);
+  const slashed = severing === null ? 0 : (byType[severing.damageType] ?? 0);
+  if (severing !== null && slashed > 0 && state.combat !== null) {
+    events.push({
+      type: 'turn-damage-tallied',
+      id: target,
+      damageType: severing.damageType,
+      amount: slashed,
+    });
   }
 
   return { events, unverified };

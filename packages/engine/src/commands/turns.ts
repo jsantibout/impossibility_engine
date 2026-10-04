@@ -104,6 +104,7 @@ import {
 import { resolveEffects } from './spell-resolution.js';
 import { settleDeferredRiders } from './spell-effect-riders.js';
 import { sharesOfSpellHealing } from './spell-effect-hit-points.js';
+import { severedLimbsAt } from './printed-rise.js';
 import { type SpellTargetOutcome } from './targeting.js';
 import { grapplerOf, grapplesOn, attachmentsOf } from './unarmed.js';
 import { attachedTo, type CommandStamp } from '../state.js';
@@ -2518,7 +2519,16 @@ export function resolveTurn(
     const owedNow = owedRefusal(state, currentCombatant(state.combat).id);
     if (owedNow !== null) return owedNow;
 
+    // **SRD Troll's Loathsome Limbs**: "If the troll ends any turn Bloodied and
+    // took 15+ Slashing damage during that turn" — the end of *this* turn,
+    // before the order moves, so a limb cut as the troll's own turn ends is
+    // seated after it in time to take the next one. See `severedLimbsAt`.
+    // (M-RISE)
+    const severed = severedLimbsAt(state, supply);
+    if (!severed.ok) return severed;
+
     const advanced: GameEvent[] = [
+      ...severed.value,
       { type: 'turn-advanced', ...(stamp === null ? {} : { command: stamp }) },
     ];
     let after = advanced.reduce(applyEvent, state);

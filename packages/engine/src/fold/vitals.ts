@@ -67,6 +67,8 @@ export const VITALS_EVENTS = [
   'creature-woken',
   'condition-removed',
   'exhaustion-set',
+  'turn-damage-tallied',
+  'limb-severed',
   'creature-died',
   'creature-revived',
   'hit-point-maximum-raised',
@@ -345,7 +347,74 @@ function reduceVitals({ state, next }: Applying, event: VitalsEvent): GameState 
 
     case 'healed': {
       const creature = creatureOf(state, event, event.id);
-      return withCreature(next, event.id, { vitals: heal(creature.vitals, event.amount) }, creature);
+      const vitals = heal(creature.vitals, event.amount);
+      // SRD Troll's Loathsome Limbs: "it grows replacement limbs the next time
+      // it regains Hit Points" — and the Exhaustion "for each missing limb"
+      // goes with them. Derived from the heal that moved the Hit Points, which
+      // is every heal whoever sent it; a heal at the maximum regains nothing
+      // and grows nothing. (M-RISE)
+      const missing = creature.missingLimbs ?? 0;
+      if (missing > 0 && vitals.hp > creature.vitals.hp) {
+        const { missingLimbs: _gone, ...regrown } = creature;
+        void _gone;
+        const conditions = setExhaustion(
+          creature.conditions,
+          Math.max(0, creature.conditions.exhaustion - missing),
+        );
+        return {
+          ...next,
+          creatures: { ...next.creatures, [event.id]: { ...regrown, vitals, conditions } },
+        };
+      }
+      return withCreature(next, event.id, { vitals }, creature);
+    }
+
+    case 'turn-damage-tallied': {
+      const creature = creatureOf(state, event, event.id);
+      // A count for the turn in progress; outside a fight there is no turn for
+      // it to be about, and the command writes none. (M-RISE)
+      const turn = state.combat?.turnsTaken;
+      if (turn === undefined) {
+        throw new CorruptLogError(event, 'damage counted over a turn with no fight running');
+      }
+      const held = creature.turnDamage?.turn === turn ? creature.turnDamage.byType : {};
+      return withCreature(
+        next,
+        event.id,
+        {
+          turnDamage: {
+            turn,
+            byType: sortedRecord({
+              ...held,
+              [event.damageType]: (held[event.damageType] ?? 0) + event.amount,
+            }),
+          },
+        },
+        creature,
+      );
+    }
+
+    case 'limb-severed': {
+      const creature = creatureOf(state, event, event.id);
+      if (state.creatures[event.limb] === undefined) {
+        throw new CorruptLogError(event, `${event.limb} has not arrived to be the severed limb`);
+      }
+      // "The troll has 1 Exhaustion level for each missing limb" — and
+      // Exhaustion 6 kills, as `exhaustion-set` already says. (M-RISE)
+      const conditions = setExhaustion(creature.conditions, creature.conditions.exhaustion + 1);
+      const vitals =
+        conditions.exhaustion >= 6 ? { ...creature.vitals, hp: 0, dead: true } : creature.vitals;
+      return withCreature(
+        next,
+        event.id,
+        {
+          conditions,
+          vitals,
+          missingLimbs: (creature.missingLimbs ?? 0) + 1,
+          resources: must(event, tally(creature.resources, event.tally, 'dawn')),
+        },
+        creature,
+      );
     }
 
     case 'temporary-hp-granted': {

@@ -1653,6 +1653,45 @@ export const printedSummonerShare = (
 };
 
 /**
+ * SRD Troll's Loathsome Limbs: the damage that severs a limb, the block it
+ * becomes and the day's uses — or null for every block that prints none.
+ * (M-RISE)
+ *
+ * "If the troll ends any turn Bloodied and took 15+ Slashing damage during that
+ * turn, one of the troll's limbs is severed, falls into the troll's space, and
+ * becomes a **Troll Limb**." Read by the blow, which counts the turn's damage
+ * of the type (`printedTypeTriggers`), and by the end of every turn, which
+ * severs (`severedLimbsAt`).
+ */
+export const printedLimbSevering = (
+  sheet: CharacterSheet,
+): {
+  readonly damageType: string;
+  readonly atLeast: number;
+  readonly block: string;
+  readonly perDay: number | null;
+} | null => {
+  for (const trait of sheet.stated?.traits ?? []) {
+    if (trait.kind === 'severs-a-limb') {
+      return {
+        damageType: trait.damageType,
+        atLeast: trait.atLeast,
+        block: trait.block,
+        perDay: trait.perDay ?? null,
+      };
+    }
+  }
+  return null;
+};
+
+/**
+ * The tally a severed limb's day is counted under — the rule's own words, for
+ * {@link REGENERATION}'s reason, on the `dawn` clock every printed per-day
+ * limit is on. (M-RISE)
+ */
+export const SEVERED_LIMB_TALLY = perDayTallyKey('a severed limb');
+
+/**
  * What a share of a summoner's healing is recorded under — the rule's own
  * words rather than a catalogue name, for {@link REGENERATION}'s reason.
  * (M-RISE)

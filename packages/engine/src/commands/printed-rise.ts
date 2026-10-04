@@ -23,14 +23,16 @@ import { type CommandIdentity, once } from '../idempotency.js';
 import { spendAction, spendBonusAction } from '../combat.js';
 import { type StatedAction, type StatedBonusAction } from '../character.js';
 import { wrongFormFor } from '../forms.js';
-import { actionRulesOn, requirementsHold } from '../standing.js';
+import { actionRulesOn, isBloodied, requirementsHold } from '../standing.js';
 import { applyEvent, type CommandStamp, type GameEvent, type GameState } from '../events.js';
 import { distanceBetween } from '../positioning.js';
 import {
   describePerDay,
   describeRecharge,
   perDayTallyKey,
+  printedLimbSevering,
   printedLineSource,
+  SEVERED_LIMB_TALLY,
   statedActionOf,
   statedBonusActionOf,
 } from '../monster.js';
@@ -325,6 +327,92 @@ export function takePrintedHeal(
       return ok({ events, healed: after - before, unverified: [], duplicate: false });
     },
   );
+}
+
+/**
+ * The limbs that fall as the turn in progress ends — SRD Troll's Loathsome
+ * Limbs (4/Day). M-RISE.
+ *
+ * > If the troll ends any turn Bloodied and took 15+ Slashing damage during
+ * > that turn, one of the troll's limbs is severed, falls into the troll's
+ * > space, and becomes a **Troll Limb**. The limb acts immediately after the
+ * > troll's turn. The troll has 1 Exhaustion level for each missing limb, and
+ * > it grows replacement limbs the next time it regains Hit Points.
+ *
+ * **Any turn, so every holder is asked at every turn's end**, and asked
+ * *before* the order moves on: a limb cut at the end of the troll's own turn is
+ * seated straight after it and so takes the very next turn, which is "acts
+ * immediately after the troll's turn" read for the one case where the two
+ * could come apart. The turn's damage is the fold's count
+ * (`CreatureState.turnDamage`) for this turn and no other.
+ *
+ * **What it writes is what already exists.** The limb arrives through
+ * `summonCreature` — the block the trait names, on the holder's side and its
+ * Initiative, seated after it — stands in the holder's space (placed, then
+ * dropped into the occupied space as a fall rather than a move of its own:
+ * `forced`), and `limb-severed` counts the limb, its Exhaustion and the day's
+ * use. Nobody names the limb, because nobody decides to sever it: its id is
+ * the holder's own with the first free ordinal, which a replay derives the same.
+ * The regrowth is the fold's, at the next heal.
+ *
+ * A generator is not needed, but a catalogue is — the limb's block is read out
+ * of content — so a turn's end that owes a limb and has no `Supply` refuses
+ * `limb_owed` rather than advancing past the sentence.
+ */
+export function severedLimbsAt(
+  state: GameState,
+  supply: Supply | undefined,
+): Result<readonly GameEvent[]> {
+  if (state.combat === null) return ok([]);
+  const turn = state.combat.turnsTaken;
+  const events: GameEvent[] = [];
+  let current = state;
+  const land = (more: readonly GameEvent[]): void => {
+    events.push(...more);
+    current = more.reduce(applyEvent, current);
+  };
+
+  for (const key of Object.keys(state.creatures).sort()) {
+    const holder = current.creatures[key];
+    if (holder === undefined || holder.vitals.dead) continue;
+    const severing = printedLimbSevering(holder.sheet);
+    if (severing === null || !isBloodied(holder)) continue;
+    const took = holder.turnDamage?.turn === turn ? (holder.turnDamage.byType[severing.damageType] ?? 0) : 0;
+    if (took < severing.atLeast) continue;
+    if (severing.perDay !== null && tallied(holder.resources, SEVERED_LIMB_TALLY) >= severing.perDay) {
+      continue;
+    }
+    if (supply === undefined) {
+      return err(
+        'limb_owed',
+        `${key} ends this turn Bloodied having taken ${took} ${severing.damageType} damage, and a limb falls; ending the turn needs the catalogue to raise it`,
+      );
+    }
+    const who = key as CharacterId;
+    let ordinal = 1;
+    while (current.creatures[`${key}-limb-${ordinal}`] !== undefined) ordinal += 1;
+    const limb = `${key}-limb-${ordinal}` as CharacterId;
+    const rung = current.combat?.order.find((one) => one.id === who);
+
+    const raised = summonCreature(current, supply.content, {
+      id: limb,
+      monsterId: severing.block,
+      by: who,
+      ...(rung === undefined ? {} : { initiative: rung.initiative, after: who }),
+    });
+    if (!raised.ok) return raised;
+    land(raised.value.events);
+
+    if (current.scene?.positions[who] !== undefined) {
+      const placed = placeCreatureInScene(current, limb, { from: { creature: who }, feet: 0 });
+      if (!placed.ok) return placed;
+      land(placed.value);
+      // "falls into the troll's space" — a fall, not a move the limb makes.
+      land([{ type: 'creature-moved', id: limb, placement: { from: { creature: who }, feet: 0 }, forced: true }]);
+    }
+    land([{ type: 'limb-severed', id: who, limb, tally: SEVERED_LIMB_TALLY }]);
+  }
+  return ok(events);
 }
 
 export interface PrintedRaiseCommand extends CommandIdentity {
