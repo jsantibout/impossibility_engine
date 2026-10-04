@@ -238,6 +238,13 @@ export interface ObservedPrintedLine {
    */
   readonly engineMakesThePull: boolean;
   /**
+   * Whether `touch_printed_line` will take this line — a touch on a declared
+   * object whose legality the engine checks and whose cube it destroys where
+   * the table says the cube is the whole thing. SRD Rust Monster's Destroy
+   * Metal reads `true`. (M-MATTER)
+   */
+  readonly engineMakesTheTouch: boolean;
+  /**
    * Whether the engine will take a grappled creature inside this one on this
    * line, or the sentence is the caller's to adjudicate. SRD Giant Frog's
    * Swallow reads `true`.
@@ -803,6 +810,7 @@ function printedBlock(
     readonly teleports?: StatedAction['teleports'];
     readonly forms?: StatedAction['forms'];
     readonly pulls?: StatedAction['pulls'];
+    readonly touchesObject?: StatedAction['touchesObject'];
     readonly swallows?: StatedAction['swallows'];
     readonly shiftsPlane?: StatedAction['shiftsPlane'];
     readonly jumps?: StatedAction['jumps'];
@@ -830,6 +838,9 @@ function printedBlock(
     formsOffered: (one.forms?.forms ?? []).map((form) => form.name),
     // And the same, one door along, for `pull_printed_line`.
     engineMakesThePull: one.pulls !== undefined,
+    // And for `touch_printed_line`, off the record `takePrintedTouch` reads.
+    // (M-MATTER)
+    engineMakesTheTouch: one.touchesObject !== undefined,
     // And the two roads into the second place, off the same pinned records
     // `swallow_printed_line` and `shift_plane_printed_line` read.
     engineSwallows: one.swallows !== undefined,

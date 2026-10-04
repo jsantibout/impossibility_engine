@@ -632,14 +632,19 @@ describe('reading a printed rider as a sequence', () => {
     expect(read.handedOver).toEqual([]);
   });
 
-  /** The reader's own refusals, unchanged: a sentence it cannot read is the DM's. */
+  /**
+   * The reader's own refusals, unchanged: a sentence it cannot read is the
+   * DM's. SRD Barbed Devil's Hurl Flame catches only a flammable object, which
+   * the engine holds no record of. (The Mummy's curse was this example until
+   * M-LINGER read it.)
+   */
   it('still refuses what it never read', () => {
-    const mummy =
-      "If the target is a creature, it is cursed. While cursed, the target can't regain Hit Points.";
-    const read = readPrintedRiders(mummy);
+    const flame =
+      "If the target is a flammable object that isn't being worn or carried, it starts burning.";
+    const read = readPrintedRiders(flame);
     expect(read.riders).toEqual([]);
-    expect(read.handedOver).toHaveLength(2);
-    expect(readPrintedRider(mummy)).toBeNull();
+    expect(read.handedOver).toHaveLength(1);
+    expect(readPrintedRider(flame)).toBeNull();
   });
 });
 

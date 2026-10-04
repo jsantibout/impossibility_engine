@@ -80,7 +80,11 @@ type GrantFamily = Exclude<
   // Nothing ends it — the book prints no ending — and the one thing that
   // shares its source is the day's grace a made save buys against the same
   // line, whose `grants` deadline must not take a curse away with it.
-  'initiativeBonuses' | 'curses'
+  // **And `lingering`** — M-LINGER. A harm carries a source and is not a
+  // grant: it ends with the curse or the condition instance it names, by
+  // `dropHostlessHarms`, and what it hung under that source (a healing rule,
+  // the Otyugh's lowered maximum) are the grants, released there.
+  'initiativeBonuses' | 'curses' | 'lingering'
 >;
 
 /** What a creature is carrying, by family. */

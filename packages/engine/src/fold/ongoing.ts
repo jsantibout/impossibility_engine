@@ -392,6 +392,28 @@ export function applyOngoing({ state, next, legacy }: Applying, event: OngoingEv
           `${event.id} is already concentrating on ${creature.concentration.castingId}`,
         );
       }
+      // **A line held under Concentration switches its feature on in the same
+      // breath** — M-REFLEX. Two events would leave a moment, between them,
+      // with one half standing and `settleConcentratedFeatures` ending it.
+      if (event.feature === true) {
+        if (creature.activeFeatures.includes(event.castingId)) {
+          throw new CorruptLogError(event, `${event.id} is already in ${event.castingId}`);
+        }
+        return withCreature(
+          next,
+          event.id,
+          {
+            concentration: {
+              castingId: event.castingId,
+              spell: event.spell,
+              level: event.level,
+              feature: true,
+            },
+            activeFeatures: [...creature.activeFeatures, event.castingId].sort(),
+          },
+          creature,
+        );
+      }
       return withCreature(
         next,
         event.id,

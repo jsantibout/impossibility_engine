@@ -9,6 +9,7 @@ import { declaredCasting } from './spellcasting.js';
 import { checkSpellDefinitionValue } from './spell-schema.js';
 import { durationSecondsAt } from './spell-definitions.js';
 import { remaining } from './resources.js';
+import { possessionWardedAgainst } from './standing.js';
 import { lift } from './commands/spell-effect-movement.js';
 import {
   addCreature,
@@ -381,6 +382,37 @@ describe('SRD Magic Circle: "can’t … gain the Charmed or Frightened conditio
     const game = new Game().draw();
     expect(game.frighten(FIEND)).toBe('immune');
     expect(game.frighten(BANDIT)).toBeNull();
+  });
+});
+
+/**
+ * "Targets within the Cylinder **can't be possessed by** … the creature" — the
+ * third thing the sentence refuses, read since SRD Ghost's Possession became a
+ * fact the engine holds (M-MIND). `ghost-possession.test.ts` drives a
+ * possession into the ward a creature holds; this is the place's.
+ */
+describe('SRD Magic Circle: "can’t be possessed by … the creature"', () => {
+  it('wards the cleric inside against the Fiend and not against the Humanoid', () => {
+    const state = new Game().draw().state;
+    expect(possessionWardedAgainst(state, CLERIC, FIEND)).toBe(true);
+    expect(possessionWardedAgainst(state, CLERIC, BANDIT)).toBe(false);
+    // Before the circle, nothing wards anybody.
+    expect(possessionWardedAgainst(new Game().state, CLERIC, FIEND)).toBe(false);
+  });
+
+  it('cast outward, wards the cleric outside against the Fiend held inside', () => {
+    const game = new Game('inside east').draw('outward');
+    // The cleric outside her own circle, by the position change the reverse
+    // test above writes.
+    game.push([
+      {
+        type: 'creature-moved',
+        id: CLERIC,
+        placement: { from: { creature: BANDIT }, feet: 10, bearing: 270 },
+      },
+    ]);
+    expect(possessionWardedAgainst(game.state, CLERIC, FIEND)).toBe(true);
+    expect(possessionWardedAgainst(game.state, CLERIC, BANDIT)).toBe(false);
   });
 });
 

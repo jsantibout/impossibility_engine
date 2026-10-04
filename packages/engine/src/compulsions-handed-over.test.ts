@@ -206,7 +206,7 @@ describe("the ghost's Possession: the save and the day's grace are the engine's,
     return { before, out };
   };
 
-  it('rolls the Charisma save and spends the recharge, and hands the possession over on a failure', () => {
+  it('rolls the Charisma save and spends the recharge, and hands the body over on a failure', () => {
     const seed = seedWhere((s) => {
       const { out } = possess(s);
       return out.ok && savedAgainst(out.value.events, TOUGH, LINE) === false;
@@ -225,22 +225,24 @@ describe("the ghost's Possession: the save and the day's grace are the engine's,
       done.events.some((e) => e.type === 'roll-recorded' && e.label === `Charisma save vs ${LINE}`),
     ).toBe(true);
     const state = done.events.reduce(applyEvent, before);
-    // Nothing the possession describes is applied: no Incapacitated, no ghost
-    // gone. The body is the table's.
-    expect(state.creatures[TOUGH]!.conditions.conditions).toEqual([]);
+    // **The possession is the engine's facts now** (M-MIND): the ghost is
+    // inside the body and the body is Incapacitated. `ghost-possession.test.ts`
+    // drives the rest of it.
+    expect(state.creatures[TOUGH]!.conditions.conditions).toEqual(['incapacitated']);
+    expect(state.creatures[MONSTER]!.elsewhere).toMatchObject({ kind: 'inside', host: TOUGH });
 
-    // The table's half, under the mark and in the book's words.
+    // The table's half — who drives the body — under the mark and in the
+    // book's words.
     const filed = handedOverIn(done.unverified);
-    expect(filed).toHaveLength(5);
-    expect(filed[0]).toBe(
-      'The target is possessed by the ghost; the ghost disappears, and the target has the Incapacitated condition and loses control of its body.',
-    );
-    expect(filed[4]).toBe(
-      'The possession lasts until the body drops to 0 Hit Points or the ghost leaves as a Bonus Action.',
-    );
-    // And the ending's day's grace is still owed — said, unmarked, as a debt.
-    expect(owedIn(done.unverified).join(' ')).toContain('When the possession ends');
-    expect(handedOverIn(done.unverified).join(' ')).not.toContain('When the possession ends');
+    expect(filed).toEqual([
+      'The ghost now controls the body, but the target retains awareness.',
+      "The ghost's game statistics are the same, except it uses the possessed target's Speed, as well as the target's Strength, Dexterity, and Constitution modifiers.",
+    ]);
+    // The ending is the engine's now, and the one sentence still owed is the
+    // exception to "can't be targeted" — said, unmarked, as a debt.
+    const owed = owedIn(done.unverified).join(' ');
+    expect(owed).not.toContain('When the possession ends');
+    expect(owed).toContain('except ones that specifically target Undead');
   });
 
   it("keeps a day's grace on a success, and the next Possession passes the target by", () => {

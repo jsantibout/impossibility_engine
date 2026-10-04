@@ -554,10 +554,10 @@ describe('a trait a turn boundary owes', () => {
   /**
    * And the Fire Elemental's, whose sentence ends "Creatures and flammable
    * objects in the Emanation start burning". The burning is the glossary's and
-   * the engine lights it on a creature (W7-B12); the objects half is owed, so
-   * the sentence rides beside the kind as residue.
+   * the engine lights it on a creature (W7-B12) and on a declared object whose
+   * substance takes light (M-MATTER), so the sentence is consumed whole.
    */
-  it('reads the aura whose sentence sets the room alight, and owes the room', () => {
+  it('reads the aura whose sentence sets the room alight, and owes nothing of it', () => {
     expect(traitOf('fire-elemental', 'Fire Aura')).toEqual({
       kind: 'damages-creatures-in-an-emanation',
       moment: 'end',
@@ -567,7 +567,6 @@ describe('a trait a turn boundary owes', () => {
       chosen: false,
       unlessIncapacitated: false,
       ignites: true,
-      handedOver: ['Creatures and flammable objects in the Emanation start burning.'],
     });
   });
 

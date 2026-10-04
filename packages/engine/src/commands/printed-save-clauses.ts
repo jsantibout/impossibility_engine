@@ -70,7 +70,7 @@ import { filedFor, reportFiled } from './filed-handovers.js';
 import { insideRoomOf, isWoundSource, printedLineSource, woundSource } from '../monster.js';
 import { sendingEvents } from './elsewhere.js';
 import { grapplesOn } from './unarmed.js';
-import { evadesHalfDamage, sheetAsItStands } from '../standing.js';
+import { evadesHalfDamage, possessionWardedAgainst, sheetAsItStands } from '../standing.js';
 import { dropToZero } from '../vitals.js';
 import { applyConditionTo, schedule } from './conditions.js';
 import { ZERO_HIT_POINTS, unknownCreature } from './command.js';
@@ -83,8 +83,9 @@ import { shoveAwayFrom } from './spell-effect-movement.js';
 import { conditionLanding } from './spell-effect-riders.js';
 import { escapeCheck, grappleSource } from './unarmed.js';
 import { printedObjectId, raisePrintedObject } from './objects.js';
-import { heldByObjectSource } from '../state.js';
+import { heldByObjectSource, lingeringSource } from '../state.js';
 import { breathTakenBy } from '../hazards.js';
+import { lingeringHarmEvents } from './lingering.js';
 
 export interface PrintedClausesLanded {
   readonly events: readonly GameEvent[];
@@ -746,6 +747,52 @@ export function applyPrintedClauses(
               };
         const repeat: RepeatSave | undefined =
           clause.repeats === undefined ? undefined : repeatOf(deeper);
+        // **A failure on a creature this line has already poisoned is a
+        // subsequent one** — M-LINGER, SRD Death Dog: "_First Failure:_ The
+        // target has the Poisoned condition. … _Subsequent Failures:_ The
+        // Poisoned target's Hit Point maximum decreases by 5 (1d10)." A second
+        // bite subjects the target to the same effect, and the effect's second
+        // failure is the rung, not a second Poisoned: so the Poisoned is left
+        // standing, its toll's clock untouched, and the maximum pays.
+        const harmHost = conditionInstanceId(clause.condition, conditionSource);
+        const lingeringAlready =
+          clause.lingers?.tolls?.repeatsSave === true &&
+          (current.creatures[target]?.lingering ?? []).some(
+            (held) => held.host.kind === 'condition' && held.host.instance === harmHost,
+          );
+        if (lingeringAlready) {
+          const decreases = clause.lingers!.tolls!.decreases;
+          if (decreases !== undefined) {
+            const issuedBefore = supply.issuer.count;
+            const rolled = rollRecorded(supply.issuer, supply.rng, decreases.dice);
+            if (!rolled.ok) return rolled;
+            const lost = rolled.value.total + decreases.flat;
+            land([
+              {
+                type: 'roll-recorded',
+                who: target,
+                label: `${line}: a subsequent failure (${decreases.dice})`,
+                natural: rolled.value.total,
+                total: lost,
+                contributions: [],
+                outcome: `Hit Point maximum decreases by ${lost}`,
+              },
+              { type: 'rolls-issued', count: supply.issuer.count - issuedBefore, rng: supply.rng.snapshot() },
+              ...(lost > 0
+                ? [
+                    {
+                      type: 'hit-point-maximum-adjusted' as const,
+                      id: target,
+                      adjustment: { source: `${lingeringSource({ kind: 'condition', instance: harmHost })}:use-${useTag}`, amount: -lost },
+                    },
+                  ]
+                : []),
+            ]);
+          }
+          landedInstances.set(clause.condition, harmHost);
+          conditions.push(clause.condition);
+          break;
+        }
         const landed = conditionLanding(
           applyConditionTo(
             current,
@@ -840,6 +887,23 @@ export function applyPrintedClauses(
           ]);
         }
         landedInstances.set(clause.condition, conditionInstanceId(clause.condition, conditionSource));
+        // **What the condition goes on doing after the fight** — M-LINGER, SRD
+        // Death Dog: the Long Rest's maximum withheld, and the line's own save
+        // thrown again every 24 hours. Hosted by the instance just landed, so
+        // a cure or the made save takes it away; the save is this line's.
+        if (clause.lingers !== undefined) {
+          land(
+            lingeringHarmEvents(
+              current,
+              target,
+              { kind: 'condition', instance: harmHost },
+              source,
+              line,
+              clause.lingers,
+              { ability: save.ability, dc: save.dc },
+            ),
+          );
+        }
         // **A hold that puts its target inside the holder** — W7-B10. SRD
         // Shambling Mound's Engulf: "The target is pulled into the shambling
         // mound's space and has the Grappled condition." The second place,
@@ -971,6 +1035,92 @@ export function applyPrintedClauses(
           ]);
         }
         conditions.push(...(clause.whileInside ?? []));
+        break;
+      }
+
+      case 'possesses': {
+        // SRD Ghost's Possession — M-MIND: "The target is possessed by the
+        // ghost; the ghost disappears, and the target has the Incapacitated
+        // condition and loses control of its body."
+        //
+        // **The engine's facts of it, and not who plays the body.** The
+        // possessor goes inside the target — the second place's `inside`, the
+        // target its host — under the line's own elsewhere source, and the
+        // target has the condition under that same source, so the possession's
+        // ending lifts it: the body's fall, derived (`endFallenPossessions`),
+        // or the possessor's own Bonus Action at `returnFromElsewhere`, which
+        // also lays the day's grace the record pins. What the possessor does
+        // with the body is filed for the table and reported beside this.
+        //
+        // **A ward the book says keeps a possessor out is read first** — SRD
+        // Protection from Evil and Good's "can't be possessed by … them", SRD
+        // Magic Circle's "can't be possessed by … the creature". The die was
+        // thrown and failed; the ward is why nothing came of it, and the caller
+        // is told.
+        if (possessionWardedAgainst(current, target, source)) {
+          unverified.push(
+            `${target} is warded against being possessed by ${source}, and ${line}'s failure took nothing`,
+          );
+          break;
+        }
+        const possessing = printedElsewhereSource(source, line);
+        const sent = sendingEvents(
+          current,
+          source,
+          {
+            kind: 'inside',
+            host: target,
+            source: possessing,
+            // "the ghost appears in an unoccupied space within 5 feet of the
+            // target" — measured from the body, wherever it has walked to.
+            returns: { within: clause.appearsWithin, near: target },
+            possesses: {
+              leavesAs: clause.leavesAs,
+              // The grace is hung on the full heading the success's is, so
+              // `forcePrintedSave` reads one record whichever way it came —
+              // and only where the sentence names this line, the check
+              // `line-immunity` makes for the same reason.
+              ...(line.startsWith(clause.immunity.line)
+                ? { immunity: { line, seconds: clause.immunity.seconds } }
+                : {}),
+            },
+          },
+          null,
+        );
+        if (!sent.ok) {
+          if (sent.code !== 'already_elsewhere') return sent;
+          unverified.push(`${source} is already elsewhere and did not possess ${target}`);
+          break;
+        }
+        land(sent.value);
+        if (!line.startsWith(clause.immunity.line)) {
+          unverified.push(
+            `${line} says its ending makes the target immune to "${clause.immunity.line}", which is not this line — no grace will be granted`,
+          );
+        }
+        const landed = conditionLanding(
+          applyConditionTo(
+            current,
+            target,
+            clause.condition,
+            possessing,
+            [],
+            undefined,
+            undefined,
+            {},
+            undefined,
+            undefined,
+            {},
+            source,
+          ),
+        );
+        if (!landed.ok) return landed;
+        if (!landed.value.landed) {
+          immuneTo.push(clause.condition);
+          break;
+        }
+        land(landed.value.events);
+        conditions.push(clause.condition);
         break;
       }
 

@@ -70,6 +70,8 @@ export type { AddCreatureOutcome, DamageCommand, Summons } from './commands/crea
 // A body that becomes another block — at a rest, or on a day's die (W7-B12).
 export { blockDeadlinesDue, settleBlockDeadlines, takeRestForm } from './commands/become-block.js';
 export type { BlockDeadlinesSettled, RestFormCommand } from './commands/become-block.js';
+export { dailyTollsDue, settleDailyTolls } from './commands/lingering.js';
+export type { DailyTollsSettled, TollSupply } from './commands/lingering.js';
 export { applyConditionTo, liftConditionFrom, whyCondition } from './commands/conditions.js';
 export { declareObject } from './commands/objects.js';
 export type { ObjectDeclaration } from './commands/objects.js';
@@ -81,6 +83,7 @@ export type {
   DismantleDeviceCommand,
 } from './commands/devices.js';
 export {
+  clearObscurement,
   declareContact,
   declareCreatureType,
   declareDamageType,
@@ -267,8 +270,10 @@ export type {
 } from './commands/elsewhere.js';
 export {
   declineDamageReaction,
+  declineDeclaredAttack,
   declineTestReaction,
   reactionOpportunities,
+  redirectDeclaredAttack,
   resolveTest,
   settleDamage,
   settleTest,
@@ -276,6 +281,7 @@ export {
   takeDamageReaction,
   takeDamageResponse,
   takeTestReaction,
+  takeTurnEndReaction,
 } from './commands/reactions.js';
 export type {
   AttackReactionCommand,
@@ -371,6 +377,7 @@ export {
   takeInfluence,
   takePrintedForm,
   takePrintedPull,
+  takePrintedTouch,
   takeLegendaryAction,
   takePrintedTeleport,
   takeReady,
@@ -405,6 +412,8 @@ export type {
   PrintedFormOutcome,
   PrintedPullCommand,
   PrintedPullOutcome,
+  PrintedTouchCommand,
+  PrintedTouchOutcome,
   LegendaryActionCommand,
   LegendaryActionOutcome,
   PrintedTeleportCommand,

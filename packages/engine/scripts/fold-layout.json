@@ -28,6 +28,7 @@
     "GrantedLift",
     "BorrowedSenses",
     "GrantedJump",
+    "PendingSwing",
     "PendingAttack",
     "PendingMove",
     "PendingCasting",
@@ -41,6 +42,12 @@
     "itemInstanceFor",
     "itemInstanceNumber",
     "PrintedCurse",
+    "LingeringHost",
+    "LingeringAmount",
+    "LingeringToll",
+    "LongRestToll",
+    "LingeringHarm",
+    "lingeringSource",
     "AbilityLowering",
     "EquippedItem",
     "AttunedItem",
@@ -146,6 +153,7 @@
     "allyOfCaster",
     "EndingFact",
     "isBodyArmor",
+    "attackRollMadeBy",
     "endingFactsOf",
     "subjectOf",
     "casterOutsideArea",
@@ -267,6 +275,7 @@
     "applyElsewhere",
     "withoutHung",
     "freeTheSwallowedOfTheDead",
+    "endFallenPossessions",
     "holdsSomebodyInside"
   ],
   "fold/features.ts": [
@@ -274,6 +283,7 @@
     "FeaturesEvent",
     "isFeaturesEvent",
     "applyFeatures",
+    "settleConcentratedFeatures",
     "resized"
   ],
   "fold/holds.ts": [
@@ -290,7 +300,10 @@
     "applyGrants",
     "detachTheDead",
     "letTheHeldBreathe",
-    "holdStillStands"
+    "holdStillStands",
+    "hostStands",
+    "lapseCurses",
+    "dropHostlessHarms"
   ],
   "fold/rolls.ts": [
     "ROLLS_EVENTS",

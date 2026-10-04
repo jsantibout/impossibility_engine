@@ -168,6 +168,12 @@ export const TAKEN_BY: Readonly<Record<FeatureReactionWindow, string>> = {
   'damage-rolled': 'take_damage_reaction',
   'damaged-by-creature': 'take_damage_response',
   'test-rolled': 'take_test_reaction',
+  // SRD Octopus's Ink Cloud, the one Reaction the book prints at a turn's end:
+  // a stat block's, so it is the DM's door that answers it. (M-REFLEX)
+  'creature-ended-turn': 'release_printed_cloud',
+  // SRD Goblin Boss's Redirect Attack, the one Reaction the book prints to an
+  // attack before its die: a stat block's, answered at the DM's door. (M-REFLEX)
+  'attack-declared': 'answer_declared_attack',
 };
 
 /**

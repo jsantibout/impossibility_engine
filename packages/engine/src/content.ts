@@ -4841,6 +4841,16 @@ export function checkContent(input: ContentInput): readonly ContentProblem[] {
         reason: 'a substance is a metal or it is not; write true or false, or leave it out',
       });
     }
+    // And whether it takes light, which "a flammable object … starts
+    // burning" reads off a declared object, on the same rule. (M-MATTER)
+    const flammable = (material as { readonly flammable?: unknown }).flammable;
+    if (flammable !== undefined && typeof flammable !== 'boolean') {
+      problems.push({
+        field: `objectMaterials[${material.id}].flammable`,
+        code: 'malformed_field',
+        reason: 'a substance takes light or it does not; write true or false, or leave it out',
+      });
+    }
     if (!Number.isInteger(material.armorClass) || material.armorClass < 1) {
       problems.push({
         field: `objectMaterials[${material.id}].armorClass`,
@@ -6175,6 +6185,33 @@ export function checkContent(input: ContentInput): readonly ContentProblem[] {
         reason: 'an item is metal or it is not; write true or false, or leave it out where the book does not say',
       });
     }
+    // The ammunition a launcher fires, which SRD Corrosive Form destroys a
+    // piece of: a reference, so it must reach a row, and a row that is
+    // ammunition — a bow that "fires" a longsword is a link nothing could
+    // spend. (M-MATTER)
+    const fires = (item as { readonly firesAmmunition?: unknown }).firesAmmunition;
+    if (fires !== undefined) {
+      const round = typeof fires === 'string' ? itemOf.get(fires) : undefined;
+      if (typeof fires !== 'string') {
+        problems.push({
+          field: `items[${item.id}].firesAmmunition`,
+          code: 'malformed_field',
+          reason: 'the ammunition a weapon fires is named by its item id',
+        });
+      } else if (round === undefined) {
+        problems.push({
+          field: `items[${item.id}].firesAmmunition`,
+          code: 'unknown_item',
+          reason: `${item.id} fires ${fires}, which this content does not hold`,
+        });
+      } else if (round.kind !== 'ammunition') {
+        problems.push({
+          field: `items[${item.id}].firesAmmunition`,
+          code: 'not_ammunition',
+          reason: `${item.id} fires ${fires}, which is ${round.kind} and not ammunition`,
+        });
+      }
+    }
     // A catalogue with no spells at all judges nothing about which spells an
     // item casts, on the same rule `byClass` already follows above: a fixture
     // that holds only items is not a catalogue whose wands cast nothing.
@@ -6828,6 +6865,10 @@ function parseItem(value: unknown): Result<CatalogueItem> {
     ...(value['cursed'] === undefined ? {} : { cursed: value['cursed'] as true }),
     // And the material mark beside it, on the same rule. (E-L1)
     ...(value['metal'] === undefined ? {} : { metal: value['metal'] as boolean }),
+    // And the ammunition a launcher fires, on the same rule. (M-MATTER)
+    ...(value['firesAmmunition'] === undefined
+      ? {}
+      : { firesAmmunition: value['firesAmmunition'] as string }),
     // Carried as given and judged by `checkContent`, which is the one gate
     // both the typed and the untyped path pass through — so a homebrew magic
     // item gets exactly the answers a transcribed one would.
@@ -6897,6 +6938,8 @@ function parseObjectMaterial(value: unknown): Result<ObjectMaterial> {
     armorClass: s.int(value, 'armorClass'),
     // Carried as given and judged by `checkContent`. (E-L1)
     ...(value['metal'] === undefined ? {} : { metal: value['metal'] as boolean }),
+    // And the flammability mark, on the same rule. (M-MATTER)
+    ...(value['flammable'] === undefined ? {} : { flammable: value['flammable'] as boolean }),
   };
   const problems = [...s.problems()];
 

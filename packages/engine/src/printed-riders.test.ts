@@ -970,13 +970,18 @@ describe('the reader claims only the sentences it can execute', () => {
     // Half-Dragon's Claw, whose amount is read and whose type is the DM's.
     // And two that set a creature alight — SRD Fire Elemental's Burn and SRD
     // Magmin's Touch — where the hazard is the whole of the rule and the 1d4
-    // is the glossary's. SRD Barbed Devil's Hurl Flame is **not** among them:
-    // its sentence catches only a flammable object, and is still the table's.
+    // is the glossary's. And two more that set only a flammable object
+    // alight (M-MATTER): the Hurl Flame the Barbed Devil and a second devil
+    // print, read now that a declared object's substance says whether it
+    // takes light.
     // And one more with the Roper's Tentacle — W7-B10 — whose whole hit is an
     // ungated grapple, read now that a hit with no damage is an attack.
     // And one more with the Merfolk Skirmisher's Ocean Spear — W7-B13 — whose
     // returning spear is filed off the rider at ingest, leaving the Speed cut
     // as one sentence this reader has always held.
-    expect(read).toBe(78);
+    // And one more with the Otyugh's Bite — M-LINGER — whose five sentences
+    // are one rule, a Poisoned whose ending is the save a Long Rest throws,
+    // and are read whole as the one shape they are; and two more for M-MATTER.
+    expect(read).toBe(81);
   });
 });

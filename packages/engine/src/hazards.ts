@@ -270,6 +270,22 @@ export const breathTakenBy = (
   hazard: { hazard: 'suffocating', lit, while: [hold] },
 });
 
+/**
+ * What lighting a **declared object** reports, beside the mark — M-MATTER.
+ *
+ * SRD Burning's 1d4 falls due "at the start of each of its turns", and an
+ * object takes none: `declare_object` says so in as many words and the turn
+ * order holds only what fights. So the mark stands on the object — a Sleet
+ * Storm douses it as it douses a creature — and the die never falls due on
+ * its own. **The literal reading, taken and said rather than guessed past**:
+ * the book prints no moment for a thing with no turns, and whether a burning
+ * door is eaten at the top of each round, on the turn of whoever lit it, or
+ * only when the table says is an owner's question. Until it is answered, the
+ * table rolls the fire through the door that rolls damage it has ruled.
+ */
+export const objectHasNoTurnToBurnAt = (thing: string): string =>
+  `${thing} is burning; the glossary's 1d4 Fire falls due at the start of each of its turns, and an object takes no turns — when the fire eats it is the table's to rule, and the engine rolls it when asked`;
+
 /** Whether this creature is caught in a named hazard. */
 export const caughtIn = (state: GameState, who: CharacterId, hazard: HazardName): boolean =>
   hazardsOn(state, who).some((one) => one.hazard === hazard);

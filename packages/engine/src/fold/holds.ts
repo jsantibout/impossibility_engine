@@ -22,6 +22,9 @@ export const HOLDS_EVENTS = [
   'movement-completed',
   'attack-landed',
   'attack-damage-dealt',
+  'attack-declared',
+  'declared-attack-answered',
+  'declared-attack-thrown',
   'damage-rolled',
   'damage-reaction-answered',
   'damage-settled',
@@ -127,6 +130,56 @@ export function applyHolds({ state, next }: Applying, event: HoldsEvent): GameSt
         throw new CorruptLogError(event, 'no attack is being held');
       }
       return { ...next, pendingAttack: null };
+    }
+
+    // **A swing declared and held before its die** — M-REFLEX, SRD Goblin
+    // Boss's Redirect Attack. See `PendingSwing`.
+    case 'attack-declared': {
+      if (state.pendingSwing !== undefined) {
+        throw new CorruptLogError(event, 'a declared attack is already being held');
+      }
+      return {
+        ...next,
+        pendingSwing: {
+          attacker: event.attacker,
+          weapon: event.weapon,
+          ...(event.action === undefined ? {} : { action: event.action }),
+          declaredAt: event.target,
+          target: event.target,
+          offers: event.offers,
+          answered: false,
+        },
+      };
+    }
+
+    case 'declared-attack-answered': {
+      const waiting = state.pendingSwing;
+      if (waiting === undefined) throw new CorruptLogError(event, 'no declared attack is waiting');
+      if (waiting.answered) throw new CorruptLogError(event, 'the declared attack has been answered');
+      if (event.reactor !== waiting.declaredAt) {
+        throw new CorruptLogError(event, `${event.reactor} is not the creature the attack was declared at`);
+      }
+      if (event.redirectedTo !== undefined && !waiting.offers.some(offerAnswered(event))) {
+        throw new CorruptLogError(event, `${event.reactor} was offered nothing that turns the attack`);
+      }
+      return {
+        ...next,
+        pendingSwing: {
+          ...waiting,
+          target: event.redirectedTo ?? waiting.target,
+          answered: true,
+        },
+      };
+    }
+
+    case 'declared-attack-thrown': {
+      const waiting = state.pendingSwing;
+      if (waiting === undefined || !waiting.answered || waiting.attacker !== event.attacker) {
+        throw new CorruptLogError(event, `${event.attacker} has no answered declared attack to throw`);
+      }
+      const rest = { ...next };
+      delete (rest as { pendingSwing?: unknown }).pendingSwing;
+      return rest;
     }
 
     case 'damage-rolled': {

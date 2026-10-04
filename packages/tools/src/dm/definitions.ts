@@ -84,7 +84,7 @@
  * them. That is a claim a directory can carry and a boolean cannot.
  */
 
-import { type CharacterId, type ConditionName, ok, type Result } from '@ie/shared';
+import { type CharacterId, type ConditionName, err, ok, type Result } from '@ie/shared';
 import type { D20TestResult, Duration, ModeSource, PrintedAim, TestResolution } from '@ie/engine';
 import {
   applyConditionTo,
@@ -101,13 +101,17 @@ import {
   declarePlants,
   declareObject,
   declareWayInHeight,
+  declineDeclaredAttack,
   forcePrintedSave,
   liftConditionFrom,
   loseItems,
   printedLineCatch,
   printedSaveOf,
+  reactionFeatureOf,
+  redirectDeclaredAttack,
   resolveDamage,
   settleBlockDeadlines,
+  settleDailyTolls,
   takeDamageResponse,
   takeRestForm,
   resolveFall,
@@ -122,12 +126,14 @@ import {
   takePrintedMove,
   takePrintedPlaneShift,
   takePrintedPull,
+  takePrintedTouch,
   takePrintedSwallow,
   takePrintedTeleport,
   type Placement,
   takeStatedAction,
   takeStatedBonusAction,
   takeStudy,
+  takeTurnEndReaction,
   triggerGlyph,
 } from '@ie/engine';
 import { z } from 'zod';
@@ -2329,6 +2335,61 @@ const PULL_PRINTED_LINE = tool({
 });
 
 /**
+ * Touch an object with the line a creature's stat block prints, and destroy
+ * the cube of it the line names — M-MATTER.
+ *
+ * SRD Rust Monster, Destroy Metal: "The rust monster touches a nonmagical
+ * metal object within 5 feet of itself that isn't being worn or carried. The
+ * touch destroys a 1-foot Cube of the object."
+ *
+ * **Here and not on the model's surface, for the reason every printed-line
+ * door is**, and it takes one decision besides the object: whether the cube is
+ * the whole of the thing. A declared object has a size and no shape — a lock
+ * and a bottle are both Tiny — so that is the table's to say, and the engine
+ * destroys the object where it is.
+ */
+const TOUCH_PRINTED_LINE = tool({
+  name: 'touch_printed_line',
+  description:
+    'Have the engine take the touch a creature’s stat block prints on an object — the Rust Monster’s Destroy Metal. Name the heading as the block prints it and the declared object it touches. The engine checks the touch: the object is a declared one (a thing nobody wears or carries — a creature is refused), still standing, within the reach the line prints, and of the substance it names (an object whose material is not metal is refused; one whose material nobody has recorded goes ahead, with that said). Say whether the cube the touch destroys is the whole of the object — a lock is, an iron gate is not; the engine asks when you leave it out. Where it is, the object is destroyed; where it is not, the object stands. The engine spends whichever slot the heading names, along with any recharge or daily limit. `look` says which lines can be taken this way, under `engineMakesTheTouch` on `printed.actions[]`.',
+  mutates: true,
+  selfAnswers: ['creature'],
+  input: z.strictObject({
+    who: creatureId.describe('Which creature is taking the line.'),
+    line: printedLineName,
+    object: creatureId.describe('The declared object the line touches.'),
+    wholeObject: z
+      .boolean()
+      .optional()
+      .describe(
+        'Whether the cube the touch destroys is the whole of the object — a lock or a dagger lying loose is, a gate or a statue is not. Yours to say; leave it out and the engine asks.',
+      ),
+  }),
+  run: (context, args) =>
+    settle(
+      context,
+      takePrintedTouch(context.campaign.state(), who(args.who), {
+        line: args.line,
+        object: who(args.object),
+        ...(args.wholeObject === undefined ? {} : { wholeObject: args.wholeObject }),
+        ...identity(context),
+      }),
+      (value) => value.events,
+      (value) => ({
+        ...lineTaken(
+          context,
+          ['stated-action-taken', 'stated-bonus-action-taken'],
+          value.duplicate,
+          args.who,
+        ),
+        object: args.object,
+        destroyed: value.destroyed,
+      }),
+      (value) => value.unverified,
+    ),
+});
+
+/**
  * Take one of the legendary actions a creature's stat block prints.
  *
  * SRD *Monsters*: "Immediately after another creature's turn, the unicorn can
@@ -2798,6 +2859,40 @@ const SETTLE_BLOCK_DEADLINES = tool({
 });
 
 /**
+ * Throw the toll a harm that outlasts the fight owes when its day is up —
+ * M-LINGER.
+ *
+ * SRD Mummy, Rotting Fist: "its Hit Point maximum decreases by 10 (3d6) every
+ * 24 hours that elapse." SRD Death Dog, Bite: "it repeats the save every 24
+ * hours that elapse, ending the effect on itself on a success. _Subsequent
+ * Failures:_ The Poisoned target's Hit Point maximum decreases by 5 (1d10)."
+ *
+ * **{@link SETTLE_BLOCK_DEADLINES}' shape, and on the DM's door for its
+ * reason**: nothing else runs the clock outside a fight. The engine hangs the
+ * toll on the curse or the poison when the blow lands, owes it once the clock
+ * has passed a period, and refuses to end a turn or a rest while one is owed;
+ * this is the call that throws it. It takes nothing: the period, the dice and
+ * the save are the line's, and the engine throws.
+ */
+const SETTLE_DAILY_TOLLS = tool({
+  name: 'settle_daily_tolls',
+  description:
+    'Throw the toll a curse or a poison that outlasts the fight takes every 24 hours — a mummy’s curse takes 3d6 off the Hit Point maximum each day, a death dog’s poison repeats its save each day and costs 1d10 of the maximum on a failure. The engine hangs the toll when the blow lands and owes it once the clock has passed a day; `end_turn` and `end_rest` refuse while one is owed, and this call throws every period that is due, in order. You state nothing: the dice and the save are the line’s. Nothing due is not a refusal — the call simply does nothing.',
+  mutates: true,
+  input: z.strictObject({}),
+  run: (context) =>
+    settle(
+      context,
+      settleDailyTolls(context.campaign.state(), context.campaign.supply(), identity(context)),
+      (value) => value.events,
+      (value) => ({
+        thrown: value.events.filter((event) => event.type === 'daily-toll-paid').length,
+        duplicate: value.duplicate,
+      }),
+    ),
+});
+
+/**
  * Split a creature whose printed Reaction splits it — W7-B12.
  *
  * SRD Black Pudding and SRD Ochre Jelly, Split: "_Trigger:_ While the pudding
@@ -2859,9 +2954,127 @@ const SPLIT_PRINTED_LINE = tool({
     ),
 });
 
+/**
+ * Release the cloud a creature's printed Reaction releases — M-REFLEX.
+ *
+ * SRD Giant Octopus and SRD Octopus, Ink Cloud: "The octopus releases ink that
+ * fills a 10-foot Cube centered on itself, and the octopus moves up to its Swim
+ * Speed. The Cube is Heavily Obscured for 1 minute or until a strong current or
+ * similar effect disperses the ink."
+ *
+ * **Here and not on the model's surface**, by {@link SPLIT_PRINTED_LINE}'s rule:
+ * whether a creature spends its Reaction is the choice of whoever is running
+ * it. One tool for both triggers, because the book prints one response: the
+ * engine reads which window the feature answers and checks that one. What the
+ * call carries is the one fact the engine cannot hold — whether the octopus is
+ * underwater — and where it swims; the Cube, the minute and the Speed are the
+ * line's.
+ */
+const RELEASE_PRINTED_CLOUD = tool({
+  name: 'release_printed_cloud',
+  description:
+    'Have a creature take the Reaction its stat block prints to release a cloud — the Giant Octopus’s and the Octopus’s Ink Cloud. `options` lists it, under the feature id, when its trigger has just happened: a blow landing on the giant octopus, or another creature ending its turn within 5 feet of the octopus. Both are taken only underwater, which the engine cannot see: say `underwater`, and it asks when you have not. The engine spends the Reaction and the day’s use, fills the Cube centred on the creature with Heavily Obscured ink for a minute, and moves the creature to `moveTo` if you give one, up to the Speed the line names. A strong current that disperses the ink early is yours to say, with `clear_obscurement`. You state no number.',
+  mutates: true,
+  selfAnswers: ['creature'],
+  input: z.strictObject({
+    who: creatureId.describe('The creature releasing the cloud.'),
+    feature: z.string().min(1).describe('The feature id, from `options`, e.g. giant-octopus:ink-cloud-1-day.'),
+    underwater: z
+      .boolean()
+      .optional()
+      .describe('Whether the creature is underwater, which the line’s trigger requires. The engine asks where it is missing.'),
+    moveTo: placementSchema
+      .optional()
+      .describe('Where the creature moves as part of the Reaction, up to the Speed the line names. Absent is no move.'),
+  }),
+  run: (context, args) => {
+    const command = {
+      feature: args.feature,
+      ...(args.underwater === undefined ? {} : { underwater: args.underwater }),
+      ...(args.moveTo === undefined ? {} : { moveTo: placementFrom(args.moveTo) }),
+      ...identity(context),
+    };
+    const state = context.campaign.state();
+    const atTurnEnd = reactionFeatureOf(state, who(args.who), args.feature, 'creature-ended-turn') !== null;
+    return settle(
+      context,
+      atTurnEnd
+        ? takeTurnEndReaction(state, who(args.who), command, context.campaign.supply())
+        : takeDamageResponse(state, who(args.who), command, context.campaign.supply()),
+      (value) => value.events,
+      (value) => ({
+        released: args.who,
+        moved: args.moveTo !== undefined && value.events.some((event) => event.type === 'creature-moved'),
+        duplicate: value.duplicate,
+      }),
+      (value) => value.unverified,
+    );
+  },
+});
+
+/**
+ * Answer an attack declared at a creature that may turn it aside — M-REFLEX.
+ *
+ * SRD Goblin Boss, Redirect Attack: "The goblin chooses a Small or Medium ally
+ * within 5 feet of itself. The goblin and that ally swap places, and the ally
+ * becomes the target of the attack instead."
+ *
+ * **Here and not on the model's surface**, by {@link SPLIT_PRINTED_LINE}'s rule:
+ * whether the goblin spends its Reaction, and on whom, is the choice of whoever
+ * is running it — the book gives the goblin the choice of ally. The attacker
+ * then sends its attack again, at the creature it declared it at, and the
+ * engine throws it at whoever is now the target.
+ */
+const ANSWER_DECLARED_ATTACK = tool({
+  name: 'answer_declared_attack',
+  description:
+    'Answer an attack that came back `declared` because its target may turn it on somebody else — the Goblin Boss’s Redirect Attack. `options` lists the Reaction under the feature id while the attack waits. Name an `ally` to take it: the engine spends the Reaction, swaps the two creatures’ places and makes the ally the target; it refuses a creature on another side, out of reach or of a size the line does not name, and asks when nobody has said whose side the ally is on. Or `decline` to let the attack come. Either way the attacker then sends the same attack again and the engine throws it. You state no number.',
+  mutates: true,
+  selfAnswers: ['creature'],
+  input: z.strictObject({
+    who: creatureId.describe('The creature the attack was declared at.'),
+    feature: z
+      .string()
+      .min(1)
+      .optional()
+      .describe('The feature id, from `options`, e.g. goblin-boss:redirect-attack. Required with `ally`.'),
+    ally: creatureId.optional().describe('The ally who takes the attack instead.'),
+    decline: z.literal(true).optional().describe('Let the attack come at the creature it was declared at.'),
+  }),
+  run: (context, args) => {
+    const state = context.campaign.state();
+    if (args.decline === true) {
+      return settleEvents(
+        context,
+        declineDeclaredAttack(state, who(args.who), { ...identity(context) }),
+        { declined: args.who },
+      );
+    }
+    if (args.ally === undefined || args.feature === undefined) {
+      return settleEvents(
+        context,
+        err('bad_answer', 'name the `feature` and the `ally` who takes the attack, or `decline` it'),
+        { redirected: args.who },
+      );
+    }
+    return settleEvents(
+      context,
+      redirectDeclaredAttack(state, who(args.who), {
+        feature: args.feature,
+        ally: who(args.ally),
+        ...identity(context),
+      }),
+      { redirected: args.who, to: args.ally },
+    );
+  },
+});
+
 export const DM_ONLY_TOOLS: readonly ToolDefinition[] = [
   SETTLE_BLOCK_DEADLINES,
+  SETTLE_DAILY_TOLLS,
   SPLIT_PRINTED_LINE,
+  RELEASE_PRINTED_CLOUD,
+  ANSWER_DECLARED_ATTACK,
   TAKE_REST_FORM,
   SHIFT_PLANE_PRINTED_LINE,
   SWALLOW_PRINTED_LINE,
@@ -2885,6 +3098,7 @@ export const DM_ONLY_TOOLS: readonly ToolDefinition[] = [
   LOSE_ITEMS,
   MOVE_PRINTED_LINE,
   PULL_PRINTED_LINE,
+  TOUCH_PRINTED_LINE,
   RESOLVE_FALL,
   ROLL_IMPROVISED_DAMAGE,
   RULE_CONDITION,

@@ -44,7 +44,7 @@ import type { GrantedSize } from './size.js';
 import type { CreatureHazard, HazardName } from './hazards.js';
 import type { D20TestResult } from './checks.js';
 import type { GrantedDamageReduction } from './damage-reduction.js';
-import type { GrantedReaction, ReactionWindow } from './reactions.js';
+import type { GrantedReaction, ReactionOffer, ReactionWindow } from './reactions.js';
 import type { ActiveBonus, ModeSource } from './bonuses.js';
 import { type SpellcastingState } from './spellcasting.js';
 import type { RestBenefit, RestKind } from './rest.js';
@@ -54,6 +54,7 @@ import type {
   ElsewhereDamage,
   ElsewhereEscape,
   ElsewhereKind,
+  ElsewherePossession,
   ElsewherePullOut,
   ElsewhereReturn,
 } from './elsewhere.js';
@@ -100,6 +101,7 @@ import {
 import type {
   AbilityLowering,
   BlockDeadline,
+  LingeringHarm,
   PrintedCurse,
   Attachment,
   BorrowedSenses,
@@ -876,6 +878,41 @@ export type GameEvent =
       readonly type: 'printed-curse-laid';
       readonly id: CharacterId;
       readonly curse: PrintedCurse;
+    }
+
+  /**
+   * A harm that outlasts the fight landed on a creature — M-LINGER.
+   *
+   * SRD Death Dog's Poisoned, SRD Mummy's and SRD Incubus's curses, SRD
+   * Otyugh's Poisoned: what each goes on doing after the fight, hosted by the
+   * curse or the condition instance it lives exactly as long as. See
+   * `LingeringHarm`. **The whole record is on the event** — the toll's period,
+   * its dice and its save — so the fold opens no stat block, and a second
+   * landing under the same host replaces the first.
+   */
+  | {
+      readonly type: 'lingering-harm-laid';
+      readonly id: CharacterId;
+      readonly harm: LingeringHarm;
+    }
+
+  /**
+   * One period of a harm's toll settled — M-LINGER. SRD Mummy's "every 24
+   * hours that elapse", SRD Death Dog's repeat save.
+   *
+   * What the period cost is written beside it — the dice, a lowered maximum,
+   * a condition ended — and this is the count: the fold moves the harm's
+   * `paid` on by one and refuses a day out of order, because a toll paid
+   * twice is a maximum lowered twice for one day.
+   */
+  | {
+      readonly type: 'daily-toll-paid';
+      readonly id: CharacterId;
+      /** The harm's source. */
+      readonly source: string;
+      /** Which period this was, counting from 1. */
+      readonly day: number;
+      readonly command?: CommandStamp;
     }
 
   /**
@@ -2712,6 +2749,14 @@ export type GameEvent =
       readonly castingId: string;
       readonly spell: string;
       readonly level: number;
+      /**
+       * A stat block's line held under Concentration rather than a casting —
+       * see `Concentration.feature`. `castingId` is then the line's feature
+       * key, and the fold switches that feature on with the Concentration, in
+       * one event, so neither half is ever standing without the other.
+       * Additive; absent on every event before M-REFLEX.
+       */
+      readonly feature?: true;
     }
   /**
    * Concentration ending by choice or by a failed save.
@@ -2859,6 +2904,14 @@ export type GameEvent =
       /** What it earned, which is not always what was attempted. */
       readonly benefit: RestBenefit;
       readonly interrupted?: string;
+      /**
+       * A Short Rest finished and paid nothing, and the line that said so —
+       * SRD Incubus's Restless Touch: "Until the curse ends, the target gains
+       * no benefit from finishing Short Rests." (M-LINGER) `benefit` is `none`
+       * beside it; this is the reason, for the log. Absent on every rest
+       * nothing denied.
+       */
+      readonly deniedBy?: string;
       /**
        * The one event a settlement always emits, whatever the rest earned, so
        * the stamp rides here rather than on a Hit Die a short rest happened to
@@ -3362,6 +3415,14 @@ export type GameEvent =
       readonly escape?: ElsewhereEscape;
       readonly pullOut?: ElsewherePullOut;
       readonly noVerbalCasting?: true;
+      /**
+       * The creature goes inside its host as the body's possessor — SRD
+       * Ghost's Possession (M-MIND). The way out and the grace its ending buys,
+       * pinned for the reason `returns` is. Never carries `ended`, which the
+       * fold derives. Absent on every record written before, which fold as
+       * they always did.
+       */
+      readonly possesses?: Omit<ElsewherePossession, 'ended'>;
       readonly command?: CommandStamp;
     }
   /**
@@ -3459,6 +3520,40 @@ export type GameEvent =
       readonly type: 'attack-landed';
       readonly attack: PendingAttack;
       readonly command?: CommandStamp;
+    }
+  /**
+   * An attack declared at a creature that may turn it aside, held before its
+   * d20 is thrown — M-REFLEX, SRD Goblin Boss's Redirect Attack. See
+   * `PendingSwing`. Nothing is spent: the swing is made when the attacker
+   * makes it again, after the target has answered.
+   */
+  | {
+      readonly type: 'attack-declared';
+      readonly attacker: CharacterId;
+      readonly target: CharacterId;
+      /** What the swing is made with — see `PendingSwing.weapon`. */
+      readonly weapon: string | null;
+      readonly action?: string;
+      readonly offers: readonly ReactionOffer[];
+      readonly command?: CommandStamp;
+    }
+  /**
+   * The declared swing's target has answered: turned it on an ally, or let it
+   * come. The swap of places and the Reaction spent are their own events
+   * beside this one. (M-REFLEX)
+   */
+  | {
+      readonly type: 'declared-attack-answered';
+      readonly reactor: CharacterId;
+      /** The ally it now goes to, where the reactor turned it; absent is a decline. */
+      readonly redirectedTo?: CharacterId;
+      readonly feature?: string;
+      readonly command?: CommandStamp;
+    }
+  /** The declared swing thrown, which closes the hold. (M-REFLEX) */
+  | {
+      readonly type: 'declared-attack-thrown';
+      readonly attacker: CharacterId;
     }
   /**
    * A move was declared and provoked somebody, so it is waiting.
@@ -3953,6 +4048,23 @@ export type GameEvent =
       readonly region: TerrainRegion;
       readonly degree: ObscurementDegree;
       readonly source?: string;
+      /**
+       * The timer it lapses with — see `LatticePatch.lapsesWith`. SRD Ink
+       * Cloud's "Heavily Obscured for 1 minute", laid by no casting. Additive;
+       * absent everywhere before M-REFLEX.
+       */
+      readonly lapsesWith?: string;
+      readonly command?: CommandStamp;
+    }
+  /**
+   * A patch of obscured air gone, because the table says so — SRD Ink Cloud's
+   * "or until a strong current or similar effect disperses the ink". Only a
+   * patch no casting holds up: a casting's fog ends with its casting.
+   * (M-REFLEX)
+   */
+  | {
+      readonly type: 'obscurement-cleared';
+      readonly patch: string;
       readonly command?: CommandStamp;
     }
   | {

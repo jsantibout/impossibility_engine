@@ -2369,6 +2369,11 @@ describe('every spell this batch added is cast for real', () => {
     // is the DM's to state — the gate, and a second hand on the knight's
     // breastplate (E-L1, the owner's answers of 2026-10-03). Nothing is left.
     'heat-metal',
+    // And the ward, whose one handed-over sentence was "can't be possessed by
+    // … them" while a possession was the table's whole: SRD Ghost's
+    // Possession is a fact the engine holds now, and the ward refuses it
+    // (`alsoPossession`). Nothing is left over. (M-MIND)
+    'protection-from-evil-and-good',
     // The fifth, and it prints nothing the engine leaves alone: the die that
     // rides later blows, the ability the caster names, the slot table, and the
     // Bonus Action that curses a new creature once the first one drops.

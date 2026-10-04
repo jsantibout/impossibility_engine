@@ -155,16 +155,17 @@ describe('SRD Fire Elemental, Fire Aura: the damage, and the burning it lights',
     expect(caughtIn(after, ELEMENTAL, 'burning')).toBe(false);
   });
 
-  it('says the flammable objects in the Emanation are the table’s', () => {
+  /**
+   * The objects half is read too since M-MATTER: a declared object whose
+   * substance takes light is lit beside the creatures (see
+   * `flammable-objects.test.ts`), so nothing of the sentence goes to the
+   * table — at the turn or at the arrival.
+   */
+  it('hands nothing of the burning sentence to the table', () => {
     const turned = unwrap(resolveTurn(at(around()), supply()), 'the turn');
-    expect(turned.unverified.some((note) => note.includes('flammable objects'))).toBe(true);
-  });
-
-  it('tells the table at arrival which half of the burning sentence is its own', () => {
+    expect(turned.unverified.some((note) => note.includes('flammable objects'))).toBe(false);
     const arrived = unwrap(addCreature(fold(SEED, []), SRD_CONTENT, ELEMENTAL, 'fire-elemental'), 'arrival');
-    const note = arrived.unverified.find((line) => line.includes('flammable objects'));
-    expect(note).toContain('the engine lights the creatures');
-    expect(note).not.toContain('the engine does not apply that');
+    expect(arrived.unverified.some((line) => line.includes('flammable objects'))).toBe(false);
   });
 
   it('lights nobody where the aura prints no burning — the azer’s', () => {

@@ -14,6 +14,7 @@ import {
   parseSaveLine,
   parseSwallowLine,
   parseTeleportLine,
+  parseTouchLine,
   parseTreeStrideLine,
 } from './monsters.js';
 import type { Monster } from '../schemas.js';
@@ -98,11 +99,27 @@ describe('a line that casts', () => {
         "The vampire casts _Command_, requiring no spell components and using Charisma as the spellcasting ability (spell save DC 17). The vampire can't take this action again until the start of its next turn.",
       ),
     ).toBeNull();
-    // SRD Succubus: the spell's name is not italicised, so a bare word in that
-    // position is not something the grammar can tell from prose.
+    // **SRD Succubus's Charm left this list by being read** (M-MIND): its
+    // spell is printed without italics, which is typesetting, and a bare name
+    // is read only where it is the whole menu and the SRD's own index holds
+    // it. What stays refused is a bare word the index does not know.
     expect(
       parseCastLine(
-        'The succubus casts Dominate Person (level 8 version), requiring no spell components and using Charisma as the spellcasting ability (spell save DC 15).',
+        'The succubus casts Domination Most Foul (level 8 version), requiring no spell components and using Charisma as the spellcasting ability (spell save DC 15).',
+      ),
+    ).toBeNull();
+    // A level printed over a menu of two: which of them is cast at it is a
+    // sentence the book never wrote, so the line stays prose.
+    expect(
+      parseCastLine(
+        'The priest casts _Bless_ or _Cure Wounds_ (level 2 version), using the same spellcasting ability as Spellcasting.',
+      ),
+    ).toBeNull();
+    // A duration sentence with one more sentence after it — SRD Vampire's
+    // Charm, whose Bite and ending are a second and third rule.
+    expect(
+      parseCastLine(
+        "The vampire casts _Charm Person_, requiring no spell components and using Charisma as the spellcasting ability (spell save DC 17). The spell's duration is 24 hours. The Charmed target is a willing recipient of the vampire's Bite.",
       ),
     ).toBeNull();
     // SRD Pit Fiend's Hellfire Spellcasting: one spell cast twice, replaceable.
@@ -126,6 +143,59 @@ describe('a line that casts', () => {
         'The cultist casts the _Hex of the Nine_ spell, using the same spellcasting ability as Spellcasting.',
       ),
     ).toBeNull();
+  });
+
+  /**
+   * SRD Succubus's Charm: "The succubus casts Dominate Person **(level 8
+   * version)**, requiring no spell components …". SRD Sea Hag's Illusory
+   * Appearance: "The hag casts _Disguise Self_, using Constitution as the
+   * spellcasting ability (spell save DC 13). **The spell's duration is 24
+   * hours.**" — M-MIND.
+   *
+   * Two clauses a cast line prints about **this** casting of the spell and not
+   * about the spell: the level it is cast at, which a slot would otherwise
+   * say, and a span over the one the spell prints. Each is a field, and the
+   * casting pipeline reads both.
+   */
+  it('reads the level a line casts at and the duration it prints over the spell’s', () => {
+    expect(
+      parseCastLine(
+        'The succubus casts Dominate Person (level 8 version), requiring no spell components and using Charisma as the spellcasting ability (spell save DC 15).',
+      ),
+    ).toEqual({
+      spells: ['dominate-person'],
+      ability: 'cha',
+      saveDc: 15,
+      castLevel: 8,
+      waives: ['material', 'somatic', 'verbal'],
+    });
+    expect(
+      parseCastLine(
+        "The hag casts _Disguise Self_, using Constitution as the spellcasting ability (spell save DC 13). The spell's duration is 24 hours.",
+      ),
+    ).toEqual({ spells: ['disguise-self'], ability: 'con', saveDc: 13, durationSeconds: 86400 });
+    expect(lineOf('succubus', 'Charm').casts).toEqual({
+      spells: ['dominate-person'],
+      ability: 'cha',
+      saveDc: 15,
+      castLevel: 8,
+      waives: ['material', 'somatic', 'verbal'],
+    });
+    expect(lineOf('sea-hag', 'Illusory Appearance').casts).toEqual({
+      spells: ['disguise-self'],
+      ability: 'con',
+      saveDc: 13,
+      durationSeconds: 86400,
+    });
+    // The same sentence on a block above level-5 reach is the same sentence:
+    // SRD Ice Devil's Ice Wall is read by the same grammar.
+    expect(lineOf('ice-devil', 'Ice Wall (Recharge 6)').casts).toEqual({
+      spells: ['wall-of-ice'],
+      ability: 'int',
+      saveDc: 17,
+      castLevel: 8,
+      waives: ['material', 'somatic', 'verbal'],
+    });
   });
 
   it('refuses the Spellcasting line itself, which is another opening', () => {
@@ -585,6 +655,9 @@ describe('the corpus', () => {
       // W7-B12: the three hags' Coven Magic, a trait whose price is a Long
       // Rest per spell and whose gate is two allies within thirty feet.
       'green-hag/Coven Magic',
+      // M-MIND: a cast line's level, read where it prints one — the Succubus's
+      // Charm and, by the same grammar, the Ice Devil's wall.
+      'ice-devil/Ice Wall (Recharge 6)',
       'ice-mephit/Fog Cloud (1/Day)',
       'imp/Invisibility',
       'mage/Misty Step (3/Day)',
@@ -595,8 +668,11 @@ describe('the corpus', () => {
       'priest/Divine Aid (3/Day)',
       'quasit/Invisibility',
       'sea-hag/Coven Magic',
+      // M-MIND: Disguise Self with the span the line prints over the spell's.
+      'sea-hag/Illusory Appearance',
       'sprite/Invisibility',
       'stone-golem/Slow (Recharge 5–6)',
+      'succubus/Charm',
       // W7-B11: the menu of two, the ability borrowed off the block's own
       // Spellcasting line, and the target the touch clause fixes to somebody
       // other than the caster.
@@ -1233,16 +1309,22 @@ describe('the honesty pass: compulsions and fiction filed apart from the residue
       onSuccess: 'none',
       onSuccessEffects: [{ kind: 'line-immunity', line: 'Possession', seconds: 86400 }],
     });
-    // The failure spends nothing the engine could apply: the whole of it is the
-    // possession, filed as the compulsion it is and reported on a failure.
-    expect(save?.onFailure).toBeUndefined();
-    expect(save?.forTheTable).toEqual([
+    // **The possession is the engine's facts now** — M-MIND. Who goes where and
+    // what the target has, how long it lasts, and what its ending buys: the
+    // ghost inside the body, the Incapacitated for exactly that long, the two
+    // endings, the five feet and the day's grace.
+    expect(save?.onFailure).toEqual([
       {
-        kind: compulsion,
-        on: 'failure',
-        sentence:
-          'The target is possessed by the ghost; the ghost disappears, and the target has the Incapacitated condition and loses control of its body.',
+        kind: 'possesses',
+        condition: 'incapacitated',
+        endsAtZeroHitPoints: true,
+        leavesAs: 'bonus-action',
+        appearsWithin: 5,
+        immunity: { line: 'Possession', seconds: 86400 },
       },
+    ]);
+    // What the possessor does with the body is filed as the compulsion it is.
+    expect(save?.forTheTable).toEqual([
       {
         kind: compulsion,
         on: 'failure',
@@ -1252,26 +1334,15 @@ describe('the honesty pass: compulsions and fiction filed apart from the residue
         kind: compulsion,
         on: 'failure',
         sentence:
-          "The ghost can't be targeted by any attack, spell, or other effect, except ones that specifically target Undead.",
-      },
-      {
-        kind: compulsion,
-        on: 'failure',
-        sentence:
           "The ghost's game statistics are the same, except it uses the possessed target's Speed, as well as the target's Strength, Dexterity, and Constitution modifiers.",
       },
-      {
-        kind: compulsion,
-        on: 'failure',
-        sentence:
-          'The possession lasts until the body drops to 0 Hit Points or the ghost leaves as a Bonus Action.',
-      },
     ]);
-    // **The ending's immunity stays owed.** A later Possession would read it,
-    // and the moment it starts is one only the table sees — so it is a debt the
-    // engine names rather than fiction it may file.
+    // **And one sentence is owed.** The engine executes "can't be targeted" —
+    // a possessor inside its host is reached by nothing — and the exception,
+    // "except ones that specifically target Undead", is a rule SRD Turn Undead
+    // reads and cannot reach a ghost with no position. A debt, not fiction.
     expect(save?.handedOver).toEqual([
-      "When the possession ends, the ghost appears in an unoccupied space within 5 feet of the target, and the target is immune to this ghost's Possession for 24 hours.",
+      "The ghost can't be targeted by any attack, spell, or other effect, except ones that specifically target Undead.",
     ]);
   });
 
@@ -1526,15 +1597,32 @@ describe('the honesty pass: compulsions and fiction filed apart from the residue
   });
 
   /**
-   * **Not filed, and that is the reading** — W7-B13, after review. The cube the
-   * touch destroys is fiction, but the touch is legality — a reach, a thing
-   * that is nonmagical metal, a thing nobody is wearing — and a line filed
-   * whole would pass that as fiction too. It stays prose and owed, with its
-   * seam in `LINE_RESIDUE_SEAMS`.
+   * **Read, not filed** — M-MATTER. W7-B13 left the line prose because the
+   * touch is legality — a reach, a thing that is nonmagical metal, a thing
+   * nobody is wearing — and a line filed whole would pass that as fiction.
+   * A declared object pins whether it is metal now (E-L1), so the touch is a
+   * shape `takePrintedTouch` checks, and the cube is the question it asks.
    */
-  it("leaves the rust monster's Destroy Metal prose, because its touch is legality", () => {
+  it("reads the rust monster's Destroy Metal as a touch on a metal object", () => {
     const line = lineOf('rust-monster', 'Destroy Metal') as Record<string, unknown>;
-    expect(Object.keys(line).sort()).toEqual(['name', 'text']);
+    expect(line['touchesObject']).toEqual({
+      within: 5,
+      material: 'metal',
+      cubeFeet: 1,
+      // Filed for the case the cube is not the whole object: the hole it
+      // leaves in a gate is the table's map, and the gate stands.
+      forTheTable: [
+        { kind: 'a-hole-eaten-through-the-world', sentence: 'The touch destroys a 1-foot Cube of the object.' },
+      ],
+    });
+  });
+
+  it('reads no touch where the sentence names another substance', () => {
+    expect(
+      parseTouchLine(
+        "The rust monster touches a nonmagical wooden object within 5 feet of itself that isn't being worn or carried. The touch destroys a 1-foot Cube of the object.",
+      ),
+    ).toBeNull();
   });
 
   it('files only the book’s own words, and never a sentence it also carries as owed', () => {
@@ -1559,6 +1647,7 @@ describe('the honesty pass: compulsions and fiction filed apart from the residue
           ...(line.attack?.forTheTable ?? []),
           ...(line.attack?.riderSave?.forTheTable ?? []),
           ...(trait?.forTheTable ?? []),
+          ...(line.touchesObject?.forTheTable ?? []),
         ].map((one) => one.sentence);
         const flat = line.text
           .replace(/\s*<br>\s*/g, ' ')
@@ -1609,7 +1698,7 @@ describe('regeneration, forms, coven magic and splits — W7-B12', () => {
     });
   });
 
-  it("reads the fire elemental's Fire Aura and the burning it lights, and owes the flammable objects", () => {
+  it("reads the fire elemental's Fire Aura and the burning it lights, objects and all", () => {
     expect(lineOf('fire-elemental', 'Fire Aura').trait).toEqual({
       kind: 'damages-creatures-in-an-emanation',
       moment: 'end',
@@ -1618,25 +1707,26 @@ describe('regeneration, forms, coven magic and splits — W7-B12', () => {
       damageType: 'fire',
       chosen: false,
       unlessIncapacitated: false,
+      // A declared object's substance says whether it takes light (M-MATTER),
+      // so the objects half is read with the creatures' and nothing is owed.
       ignites: true,
-      // A declared object has nothing on it that takes light — the Barbed
-      // Devil's Hurl Flame seam — so the sentence is owed, not filed.
-      handedOver: ['Creatures and flammable objects in the Emanation start burning.'],
     });
     // The azer's aura prints no such sentence and lights nobody.
     expect(lineOf('azer-sentinel', 'Fire Aura').trait).not.toHaveProperty('ignites');
   });
 
-  it("reads the black pudding's Corrosive Form: the acid back, the weapon worn down, the rest said", () => {
+  /**
+   * M-MATTER: the ammunition sentence is a field the blow reads, and the
+   * Mending sentence is consumed — SRD Mending's `repairs` lifts the very
+   * `weapon-penalised` record this trait writes, so nothing is owed.
+   */
+  it("reads the black pudding's Corrosive Form: the acid back, the weapon and the ammunition", () => {
     expect(lineOf('black-pudding', 'Corrosive Form').trait).toEqual({
       kind: 'corrodes-what-hits-it',
       meleeHitterTakes: { dice: '1d8', damageType: 'acid' },
       weaponPenalty: 1,
       weaponDestroyedAt: 5,
-      handedOver: [
-        'Nonmagical ammunition is destroyed immediately after hitting the pudding and dealing any damage.',
-        'The penalty can be removed by casting the _Mending_ spell on the weapon.',
-      ],
+      destroysAmmunition: true,
       forTheTable: [
         {
           kind: 'a-hole-eaten-through-the-world',
@@ -1651,10 +1741,7 @@ describe('regeneration, forms, coven magic and splits — W7-B12', () => {
       kind: 'corrodes-what-hits-it',
       weaponPenalty: 1,
       weaponDestroyedAt: 5,
-      handedOver: [
-        'Nonmagical ammunition is destroyed immediately after hitting the ooze and dealing any damage.',
-        'The penalty can be removed by casting the _Mending_ spell on the weapon.',
-      ],
+      destroysAmmunition: true,
       forTheTable: [
         {
           kind: 'a-hole-eaten-through-the-world',

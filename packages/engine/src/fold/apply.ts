@@ -67,13 +67,25 @@ import { applyCasting, isCastingEvent } from './casting.js';
 import { applyOngoing, isOngoingEvent } from './ongoing.js';
 import { applyTimers, isTimersEvent } from './timers.js';
 import { applyCombat, isCombatEvent } from './combat.js';
-import { applyElsewhere, freeTheSwallowedOfTheDead, isElsewhereEvent } from './elsewhere.js';
+import { applyElsewhere, endFallenPossessions, freeTheSwallowedOfTheDead, isElsewhereEvent } from './elsewhere.js';
 import { applyScene, isSceneEvent, layBodiesWhereWalkersFell } from './scene.js';
-import { applyFeatures, isFeaturesEvent, resized } from './features.js';
+import {
+  applyFeatures,
+  isFeaturesEvent,
+  resized,
+  settleConcentratedFeatures,
+} from './features.js';
 import { overriddenSizeOf, printedSizeOf, printsASize } from '../size.js';
 import { applyHolds, isHoldsEvent } from './holds.js';
 import { applyInventory, isInventoryEvent, withEquipment } from './inventory.js';
-import { applyGrants, detachTheDead, isGrantsEvent, letTheHeldBreathe } from './grants.js';
+import {
+  applyGrants,
+  detachTheDead,
+  dropHostlessHarms,
+  isGrantsEvent,
+  lapseCurses,
+  letTheHeldBreathe,
+} from './grants.js';
 import { applyRolls, isRollsEvent } from './rolls.js';
 import { applyDeferred, isDeferredEvent } from './deferred.js';
 
@@ -347,8 +359,22 @@ function applyEventUnder(state: GameState, event: GameEvent, legacy: Content | n
     // an explicit ending — because what this puts back is a sheet a feature
     // was holding up, and it has to see the feature gone first. The size an
     // activation prints is settled after the shape for the same reason.
+    // **A line held under Concentration and the Concentration holding it, kept
+    // in step** — M-REFLEX. After every pass that ends either half — a broken
+    // Concentration and an arrived deadline are both inside — and before the
+    // turn's start is reached, which reads the conditions this may lift. See
+    // `settleConcentratedFeatures`.
+    settleConcentratedFeatures(
     settleSizes(
     settleShapes(
+    // **A harm whose host has gone, and a curse whose day or maker has** —
+    // M-LINGER. Beside the bond below and for its reason: a clock or a death
+    // ends a thing nothing downstream reads but the maximum, which is settled
+    // outermost. The curse first, so a lapse takes its harm in the same event;
+    // both after every pass that can end a condition, so a cure does too. See
+    // `lapseCurses` and `dropHostlessHarms`.
+    dropHostlessHarms(
+    lapseCurses(
     // A control the clock has outrun ends here, and the creature stays: SRD
     // Animate Dead's day. Beside the shapes rather than among the drops,
     // because nothing downstream reads the bond and nothing about the
@@ -376,6 +402,10 @@ function applyEventUnder(state: GameState, event: GameEvent, legacy: Content | n
       // edge and not the corpse.
       layBodiesWhereWalkersFell(
       state,
+      // SRD Ghost's Possession ends when the body drops to 0 Hit Points —
+      // the same falling edge one relation along: the possessor is inside the
+      // body. See `endFallenPossessions`. (M-MIND)
+      endFallenPossessions(
       freeTheSwallowedOfTheDead(
       dropOrphanedAreaEffects(
         dropStrandedDamage(
@@ -454,11 +484,16 @@ function applyEventUnder(state: GameState, event: GameEvent, legacy: Content | n
       ),
       ),
       ),
+      ),
+    ),
+    ),
     ),
     ),
     ),
     // The world before this event, so the pass sees an override leave.
     state,
+    ),
+    event,
     ),
     ),
     ),

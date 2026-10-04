@@ -402,7 +402,7 @@ const STARTS_ITS_TURN = /starts its turn/;
  * line at {@link deepenBy}.
  */
 const SECTION =
-  /_(Failure or Success|Failure by \d+ or More|First Failure|Second Failure|Third Failure|Failure|Success):_\s*/g;
+  /_(Failure or Success|Failure by \d+ or More|First Failure|Second Failure|Third Failure|Subsequent Failures|Failure|Success):_\s*/g;
 
 /** "Failure by 5 or More": the margin at or beyond which the deeper list bites. */
 const BY_MARGIN = /^Failure by (\d+) or More$/;
@@ -647,6 +647,29 @@ const SPEED_CUT = /^[Tt]he target's Speed decreases by (\d+) feet (until .+)$/;
  */
 const HP_MAX_CUT =
   /^[Tt]he target's Hit Point maximum decreases by an amount equal to the ([A-Z][a-z]+ )?damage taken(, and the [a-z' -]+ regains Hit Points equal to that amount)?$/;
+
+/**
+ * SRD Death Dog: "While Poisoned, the target's Hit Point maximum doesn't
+ * return to normal when finishing a Long Rest, and it repeats the save every
+ * 24 hours that elapse, ending the effect on itself on a success." — M-LINGER.
+ *
+ * A sentence about the condition the clause before it imposed, naming it,
+ * and two rules it carries while it stands: the Long Rest's maximum withheld,
+ * and the line's own save thrown again every period. The period is in hours
+ * because that is the only unit the book prints here.
+ */
+const LINGERS_WHILE = new RegExp(
+  `^While ([A-Z][a-z]+), the target${APOSTROPHE}s Hit Point maximum doesn${APOSTROPHE}t return to normal when finishing a Long Rest, and it repeats the save every (\\d+) hours that elapse, ending the effect on itself on a success$`,
+);
+
+/**
+ * SRD Death Dog: "_Subsequent Failures:_ The Poisoned target's Hit Point
+ * maximum decreases by 5 (1d10)." — M-LINGER. The rung a toll's failed save
+ * costs, about the condition the toll is carried by.
+ */
+const SUBSEQUENT_DECREASE = new RegExp(
+  `^The ([A-Z][a-z]+) target${APOSTROPHE}s Hit Point maximum decreases by (\\d+) \\((\\d+d\\d+)(?: \\+ (\\d+))?\\)\\.?$`,
+);
 /**
  * The two ways the book writes a held creature's breath — M-HOLD.
  *
@@ -1043,17 +1066,45 @@ const DOES_NOT_AVOID = new RegExp(
 /**
  * SRD Ghost's Possession: "_Failure:_ The target is possessed by the ghost; …"
  *
- * **A failure that is the whole compulsion.** Every sentence after it — who
- * drives the body, what the ghost can be targeted by, whose Speed it uses, how
- * long it lasts — is the possession, and the owner ruled a creature somebody
- * else is playing the table's. What is **not** filed is the day's grace the
- * ending buys: a later Possession would read it, and the moment it starts is
- * one only the table sees, so it is a debt the engine names rather than fiction
- * it may file.
+ * **Three sentences are the engine's facts of a possession, and the rest is
+ * the body somebody is playing** — M-MIND. The first says who goes where and
+ * what the target has ("the ghost disappears, and the target has the
+ * Incapacitated condition"); the lifetime ("until the body drops to 0 Hit
+ * Points or the ghost leaves as a Bonus Action") and the ending ("appears in
+ * an unoccupied space within 5 feet of the target, and the target is immune
+ * to this ghost's Possession for 24 hours") are the record's. Those three are
+ * read into a `possesses` clause, whole or not at all. What the possessor
+ * does with the body — who drives it, whose Speed and modifiers it uses — is
+ * the owner's compulsion ruling, and filed. What reaches the ghost inside it
+ * is not: see {@link UNTARGETABLE_BUT_BY_A_TYPE}, carried as owed.
+ *
+ * "and loses control of its body" closes the first sentence and is read with
+ * it: the control is the next sentence's ("The ghost now controls the body"),
+ * which is filed, and the Incapacitated is what the engine holds of it.
  */
 const POSSESSED = /^The target is possessed by the [a-z' -]+; /;
-const IMMUNE_AFTERWARDS = new RegExp(
-  `immune to this [a-z' -]+${APOSTROPHE}s .+ for \\d+ (?:hour|minute)s?\\.$`,
+/**
+ * "The ghost can't be targeted by any attack, spell, or other effect, except
+ * ones that specifically target Undead." — **carried as owed, not filed**
+ * (M-MIND's review). The engine executes the first half: a possessor is inside
+ * its host and nothing reaches it. The exception is a rule a later effect
+ * reads — SRD Turn Undead names Undead within 30 feet, and cannot catch a ghost
+ * that has no position — so it is a debt with a seam (an effect narrowed to a
+ * creature type reaching a possessor at its host's place), not fiction.
+ */
+const UNTARGETABLE_BUT_BY_A_TYPE = new RegExp(
+  `^The [a-z' -]+ can${APOSTROPHE}t be targeted by any attack, spell, or other effect, except ones that specifically target [A-Z][a-z]+\\.$`,
+);
+const POSSESSED_WHOLE = new RegExp(
+  '^The target is possessed by the [a-z\' -]+; the [a-z\' -]+ disappears, and the target has the ' +
+    '([A-Z][a-z]+) condition and loses control of its body\\.$',
+);
+const POSSESSION_LASTS = new RegExp(
+  '^The possession lasts until the body drops to 0 Hit Points or the [a-z\' -]+ leaves as a Bonus Action\\.$',
+);
+const POSSESSION_ENDS = new RegExp(
+  '^When the possession ends, the [a-z\' -]+ appears in an unoccupied space within (\\d+) feet of the target, ' +
+    `and the target is immune to this [a-z' -]+${APOSTROPHE}s (.+) for (\\d+) hours?\\.$`,
 );
 
 /**
@@ -2262,6 +2313,30 @@ function readClause(clause: string, into: Scratch, where: Reading): boolean {
     return true;
   }
 
+  // SRD Death Dog — M-LINGER: what the Poisoned before it goes on doing after
+  // the fight. Onto the condition it names and only one that prints no span
+  // of its own, because the toll's made save is the whole of its ending; a
+  // condition already timed would end twice.
+  const lingering = LINGERS_WHILE.exec(words);
+  if (lingering !== null) {
+    const named = CONDITIONS[lingering[1]!];
+    if (named === undefined) return false;
+    return amendCondition(
+      into.effects,
+      (effect) => effect.condition === named,
+      (last) =>
+        last.lasts !== undefined || last.repeats !== undefined || last.lingers !== undefined
+          ? null
+          : {
+              ...last,
+              lingers: {
+                withholdsMaximum: true,
+                tolls: { everySeconds: Number(lingering[2]) * 3600, repeatsSave: true },
+              },
+            },
+    );
+  }
+
   if (REPEATS_AFTER.test(words) || REPEATS_BEFORE.test(words)) {
     // Onto the condition where there is one, and otherwise onto every mode and
     // penalty the failure hung with no lifetime yet — see `amendRepeatable`.
@@ -2625,29 +2700,52 @@ function readSection(
 }
 
 /**
- * A failure that is **the whole compulsion** — see {@link POSSESSED} — or null
- * where the section is not one.
+ * A failure that is **a possession** — see {@link POSSESSED} — or null where
+ * the section is not one, or is one this does not read whole.
  *
- * Every sentence is filed, and the one about the day's grace the ending buys is
- * carried as owed. Nothing is read: the section spends nothing the engine could
- * apply, which `parsePrintedSave` admits only where the success buys something,
- * so the die is never thrown for nothing.
+ * The three sentences that are the record's are read into one `possesses`
+ * clause; every other sentence is the body somebody is playing, and filed.
+ * Any of the three missing, or printed in other words, refuses the reading,
+ * and the section goes to the sentence reader, which carries it as owed.
  */
 function readPossession(
   text: string,
-): { readonly filed: readonly PrintedHandover[]; readonly carried: readonly string[] } | null {
+): {
+  readonly effect: PrintedSaveEffect;
+  readonly filed: readonly PrintedHandover[];
+  readonly carried: readonly string[];
+} | null {
   const sentences = text
     .split(/(?<=\.)\s+(?=[A-Z])/)
     .map((sentence) => sentence.trim())
     .filter((sentence) => sentence !== '');
   if (sentences.length === 0 || !POSSESSED.test(sentences[0]!)) return null;
+  const whole = POSSESSED_WHOLE.exec(sentences[0]!);
+  const condition = whole === null ? undefined : CONDITIONS[whole[1]!];
+  if (condition === undefined) return null;
+  let lasts = false;
+  let ends: RegExpExecArray | null = null;
   const filed: PrintedHandover[] = [];
   const carried: string[] = [];
-  for (const sentence of sentences) {
-    if (IMMUNE_AFTERWARDS.test(sentence)) carried.push(sentence);
+  for (const sentence of sentences.slice(1)) {
+    if (POSSESSION_LASTS.test(sentence)) lasts = true;
+    else if (POSSESSION_ENDS.test(sentence)) ends = POSSESSION_ENDS.exec(sentence);
+    else if (UNTARGETABLE_BUT_BY_A_TYPE.test(sentence)) carried.push(sentence);
     else filed.push({ kind: 'a-compulsion-the-table-plays', sentence });
   }
-  return { filed, carried };
+  if (!lasts || ends === null) return null;
+  return {
+    effect: {
+      kind: 'possesses',
+      condition,
+      endsAtZeroHitPoints: true,
+      leavesAs: 'bonus-action',
+      appearsWithin: Number(ends[1]),
+      immunity: { line: ends[2]!, seconds: Number(ends[3]) * 3600 },
+    },
+    filed,
+    carried,
+  };
 }
 
 /**
@@ -2681,13 +2779,24 @@ function readTable(
 }
 
 /** Which of the book's headings a section was printed under. */
-type SectionKind = 'failure' | 'first-failure' | 'second-failure' | 'by-margin' | 'success' | 'either';
+type SectionKind =
+  | 'failure'
+  | 'first-failure'
+  | 'second-failure'
+  | 'subsequent-failures'
+  | 'by-margin'
+  | 'success'
+  | 'either';
 
 const KINDS: Readonly<Record<string, SectionKind>> = {
   Failure: 'failure',
   'First Failure': 'first-failure',
   'Second Failure': 'second-failure',
   'Third Failure': 'second-failure',
+  // SRD Death Dog — M-LINGER: the rung every failed toll after the first
+  // costs. Not a deepening: the condition stays, and what the rung names is
+  // an amount the maximum loses each time. See {@link SUBSEQUENT_DECREASE}.
+  'Subsequent Failures': 'subsequent-failures',
   'Failure or Success': 'either',
   Success: 'success',
 };
@@ -3081,8 +3190,9 @@ export function parsePrintedSave(text: string): MonsterSave | null {
     sections.some((section) => section.kind === 'second-failure');
   // **Two failures read whole in shapes of their own** — W7-B13. A die the
   // engine throws and a table of rows it hands over (SRD Gibbering Mouther),
-  // and a failure that is the whole of a compulsion (SRD Ghost's Possession).
-  // Each is tried before the sentence reader, which would carry both as owed.
+  // and a failure that is a possession (SRD Ghost's — read into a `possesses`
+  // clause since M-MIND, with who drives the body filed). Each is tried
+  // before the sentence reader, which would carry both as owed.
   const table = graded ? null : readTable(failure.text);
   const possession = graded || table !== null ? null : readPossession(failure.text);
   const read: ReadSection =
@@ -3099,10 +3209,10 @@ export function parsePrintedSave(text: string): MonsterSave | null {
         ? {
             damage: null,
             plus: null,
-            effects: [],
+            effects: [possession.effect],
             handedOver: possession.carried,
             filed: possession.filed,
-            readSomething: false,
+            readSomething: true,
           }
         : readSection(failure.text, { graded });
 
@@ -3153,11 +3263,12 @@ export function parsePrintedSave(text: string): MonsterSave | null {
   // this admits: the save is rolled at the moment the book says it is, and the
   // table it cannot hold is handed over at the instant the save fails.
   //
-  // **And a failure that files a compulsion** — W7-B13, SRD Ghost's
-  // Possession — is kept on the same terms from the other side: the failure is
-  // reported to the table rather than applied, so the die decides something
-  // only where the success buys something the engine keeps. That is checked
-  // below, once the success has been read.
+  // **And a failure that only files a compulsion** — W7-B13, which SRD
+  // Ghost's Possession was until M-MIND read the possession itself — is kept
+  // on the same terms from the other side: the failure is reported to the
+  // table rather than applied, so the die decides something only where the
+  // success buys something the engine keeps. That is checked below, once the
+  // success has been read.
   if (!read.readSomething && trigger === null && read.filed.length === 0) return null;
 
   // The sentences the head carried are filed where they are the table's for
@@ -3236,6 +3347,40 @@ export function parsePrintedSave(text: string): MonsterSave | null {
       // a table with no antecedent names neither the condition it ends nor the
       // rung it was printed under.
       handedOver.push(...deepened.carried.map((sentence) => `_Second Failure:_ ${sentence}`));
+    } else if (section.kind === 'subsequent-failures') {
+      // **The rung a toll's failure costs** — M-LINGER, SRD Death Dog: "The
+      // Poisoned target's Hit Point maximum decreases by 5 (1d10)." About the
+      // condition the first rung imposed and told to repeat its save every
+      // period, and onto nothing else: a rung that finds no such toll names a
+      // failure nothing ever throws, and the line is refused whole rather
+      // than kept with a rung missing.
+      const rung = SUBSEQUENT_DECREASE.exec(section.text);
+      const named = rung === null ? undefined : CONDITIONS[rung[1]!];
+      if (rung === null || named === undefined) return null;
+      const amended = [...onFailure];
+      const hung = amendCondition(
+        amended,
+        (effect) =>
+          effect.condition === named &&
+          effect.lingers?.tolls?.repeatsSave === true &&
+          effect.lingers.tolls.decreases === undefined,
+        (last) => ({
+          ...last,
+          lingers: {
+            ...last.lingers,
+            tolls: {
+              ...last.lingers!.tolls!,
+              decreases: {
+                dice: rung[3]!,
+                flat: rung[4] === undefined ? 0 : Number(rung[4]),
+                average: Number(rung[2]),
+              },
+            },
+          },
+        }),
+      );
+      if (!hung) return null;
+      onFailure = amended;
     } else if (section.kind === 'by-margin') {
       // **A rung that imposes states the whole failure; a rung that names one
       // states an addition.** SRD Homunculus writes its deeper rung out in
@@ -3275,8 +3420,9 @@ export function parsePrintedSave(text: string): MonsterSave | null {
 
   // **A failure that only files, kept only where the success buys something**
   // — the other half of the rule above the success was read for. SRD Ghost's
-  // Possession: a failure hands the body to the table and a success buys a
-  // day's grace the engine keeps, so the throw decides something. A line whose
+  // Possession was the line it was written for (W7-B13): a failure that handed
+  // the body to the table and a success that bought a day's grace. M-MIND reads
+  // the failure too, and the rule stands for the next such line. A line whose
   // failure only files and whose success buys nothing is a die the engine
   // would throw for nobody, and stays prose.
   if (!read.readSomething && trigger === null && onSuccessEffects.length === 0) return null;

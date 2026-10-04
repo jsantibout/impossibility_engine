@@ -1214,7 +1214,8 @@ describe('the lines the reader does not reach', () => {
     ).toBeNull();
     // **And a failure that only files needs a success that buys something** —
     // W7-B13: the Possession with its day's grace struck out is a throw that
-    // decides only what the table is told.
+    // decides only what the table is told. (M-MIND: and its first sentence cut
+    // short is not the possession the reader reads, so nothing is read of it.)
     expect(
       parseSaveLine(
         '_Charisma Saving Throw:_ DC 13, one Humanoid the ghost can see within 5 feet. _Failure:_ The target is possessed by the ghost; the ghost disappears. _Success:_ Nothing happens.',
@@ -1399,11 +1400,10 @@ describe('the corpus, so a format change is a failing test rather than a smaller
         expect(save.damage.type).toMatch(/^[a-z]+$/);
         continue;
       }
-      // **The one line whose failure the engine spends nothing of** — SRD
-      // Ghost's Possession, W7-B13 — is read because its success buys a day's
-      // grace the engine keeps, and its failure is the possession filed for
-      // the table. (SRD Gibbering Mouther's d8 stood here before; the die is
-      // the engine's now and the rows are filed.)
+      // **A line whose failure the engine spends nothing of** is read only
+      // where its success buys something the engine keeps and its failure is
+      // filed for the table. SRD Ghost's Possession stood here until M-MIND
+      // read the possession itself; SRD Gibbering Mouther's d8 before it.
       if (save.onFailure === undefined) {
         expect(save.onSuccessEffects?.length ?? 0, line.name).toBeGreaterThan(0);
         expect(save.forTheTable?.length ?? 0, line.name).toBeGreaterThan(0);
@@ -1640,8 +1640,10 @@ describe('who a spent line catches', () => {
     }
     // The counts the corpus held before I-E9, pinned: reading who a line
     // catches gains and loses no line its save, and hands nothing new over.
-    // M-HOLD read the suffocation off two of the fifteen — SRD Gelatinous
-    // Cube's Engulf and SRD Water Elemental's Whelm — and nothing else moved.
+    // M-MIND: the Ghost's Possession reads its ending, and still hands one
+    // sentence over — the exception to "can't be targeted" — so the counts
+    // stand. M-HOLD read the suffocation off two of the fifteen — SRD
+    // Gelatinous Cube's Engulf and SRD Water Elemental's Whelm.
     expect({ save, handed, filed }).toEqual({ save: 151, handed: 13, filed: 8 });
   });
 });
