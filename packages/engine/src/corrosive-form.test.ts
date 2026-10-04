@@ -37,6 +37,8 @@ import {
   settleDamage,
 } from './commands.js';
 import { createCharacter, type CharacterChoices } from './creation.js';
+import { extendContent } from './content.js';
+import type { CatalogueItem } from './catalogue.js';
 import { spellSlotKey } from './resources.js';
 import { declaredCasting } from './spellcasting.js';
 import { createRng, type Rng } from './dice.js';
@@ -527,6 +529,40 @@ describe('SRD Corrosive Form: the acid back, and the weapon worn down', () => {
       const hit = swing(state, 'shortbow');
       expect(hit.events.some((event) => event.type === 'items-lost')).toBe(false);
       expect(hit.unverified.join(' ')).toContain('carries no Arrows');
+    });
+
+    it('says so where the launcher fires nothing the catalogue names, and destroys nothing', () => {
+      // A homebrew launcher with no ammunition link: the sentence is not
+      // executed, and the caller hears it rather than nothing.
+      const held = [
+        {
+          type: 'damage-rolled' as const,
+          damage: {
+            target: OOZE,
+            by: BREN,
+            source: 'Shortbow',
+            components: [{ source: 'Shortbow', type: 'piercing', roll: null, flat: 4, total: 4 }],
+            critical: false,
+            fromAttack: true,
+            reductions: [],
+            offers: [],
+            firedFrom: 'thornbow',
+          },
+        },
+      ].reduce(applyEvent, quivered('black-pudding'));
+      const unlinked = Object.fromEntries(
+        Object.entries(SRD_CONTENT.item('shortbow')!).filter(([key]) => key !== 'firesAmmunition'),
+      ) as unknown as CatalogueItem;
+      const thornbow = unwrap(
+        extendContent(SRD_CONTENT, { items: [{ ...unlinked, id: 'thornbow', name: 'Thornbow' }] }),
+        'thornbow',
+      );
+      const settled = unwrap(
+        settleDamage(held, { ...supply(), content: thornbow }),
+        'the settlement',
+      );
+      expect(arrowsOn(settled.events.reduce(applyEvent, held))).toBe(20);
+      expect(settled.unverified.join(' ')).toContain('fires no ammunition the catalogue names');
     });
 
     it('eats the arrow on the road a Reaction held open, once the settlement has dealt the damage', () => {

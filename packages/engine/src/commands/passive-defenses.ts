@@ -613,9 +613,23 @@ export function eatTheAmmunition(
   if (holder === undefined || state.creatures[attacker] === undefined) return nothing;
   if (printedCorrosion(holder.sheet)?.destroysAmmunition !== true) return nothing;
 
-  const fires = content.item(launcher)?.firesAmmunition;
-  const round = fires === undefined ? null : content.item(fires);
-  if (fires === undefined || round === null || isMagicalItem(round)) return nothing;
+  const bow = content.item(launcher);
+  // Only a weapon with the Ammunition property looses a piece; a Dart thrown
+  // is itself the thing that touched, and is the weapon's sentence.
+  if (bow?.weapon?.ammunitionRange == null) return nothing;
+  const fires = bow.firesAmmunition;
+  if (fires === undefined) {
+    // A launcher nobody has linked to what it fires — a homebrew bow — leaves
+    // the sentence unexecuted, and says so rather than going quiet.
+    return {
+      events: [],
+      unverified: [
+        `${attacker}'s ${bow.name} fires no ammunition the catalogue names, and ${target} destroys the nonmagical piece that hit it — which piece is the table's to strike off; nothing was destroyed`,
+      ],
+    };
+  }
+  const round = content.item(fires);
+  if (round === null || isMagicalItem(round)) return nothing;
 
   const quiver = carrying(state, attacker).find((line) => line.id === fires && line.quantity > 0);
   if (quiver === undefined) {

@@ -3312,6 +3312,13 @@ export function takePrintedTouch(
           : []),
       ];
 
+      // **Where the object stands, the hole is the table's**: the cube out of a
+      // gate is a change to the map the table is drawing, filed by the line
+      // for this case and reported under the handover mark.
+      if (!command.wholeObject) {
+        unverified.push(...reportFiled(`${id}'s ${line.name} on ${thing.name}`, filedFor(printed.forTheTable, 'use')));
+      }
+
       return ok({
         events,
         object: command.object,

@@ -2002,7 +2002,7 @@ export const HANDOVER_LINE_KINDS: Readonly<Record<string, string>> = {
   'a-body-absorbed':
     'SRD Gibbering Mouther\'s Bite: "Its body is then absorbed into the mouther, leaving only equipment behind." The death is executed; what the corpse looks like afterwards is narration, in the family of SRD Cone of Cold\'s frozen statue. A revival that needs the body is the table\'s to refuse, as it is for every body destroyed off the page — the engine keeps no body apart from the creature\'s record.',
   'a-hole-eaten-through-the-world':
-    'SRD Black Pudding\'s and SRD Gray Ooze\'s Corrosive Form: "In 1 minute, the pudding can eat through 2 feet of nonmagical wood or metal." — W7-B12. A hole left in a wall is SRD Tunneler\'s tunnel by another means: a change to the map the table is drawing, and the engine draws none. The scene holds no nonmagical wall of wood or metal between two places for a hole to open — the barriers that block passage are the ones a casting raises, and a wall the table describes has no record a move is refused by — so no rule reads the hole afterwards, and a declared object the ooze destroys is destroyed through the door that damages one. The day a described wall blocks passage, this sentence is a debt and leaves this list.',
+    'SRD Black Pudding\'s and SRD Gray Ooze\'s Corrosive Form: "In 1 minute, the pudding can eat through 2 feet of nonmagical wood or metal." — W7-B12. A hole left in a wall is SRD Tunneler\'s tunnel by another means: a change to the map the table is drawing, and the engine draws none. The scene holds no nonmagical wall of wood or metal between two places for a hole to open — the barriers that block passage are the ones a casting raises, and a wall the table describes has no record a move is refused by — so no rule reads the hole afterwards, and a declared object the ooze destroys is destroyed through the door that damages one. The day a described wall blocks passage, this sentence is a debt and leaves this list. And SRD Rust Monster\'s Destroy Metal — M-MATTER: "The touch destroys a 1-foot Cube of the object." The touch is checked and the cube is asked about by the door that takes the line: where the table says the cube is the whole of the thing — a lock, a dagger lying loose — the engine destroys it, and nothing is filed. Where it is not, the sentence is filed here for the same reason: a declared object is a substance, a size and Hit Points with no shape, the SRD maps no volume to Hit Points, so the cube out of a gate is a hole in the map the table is drawing and no rule reads it afterwards.',
 };
 
 /**
@@ -2044,6 +2044,9 @@ export const filedHandoversOf = (
     ...(attack?.forTheTable ?? []),
     ...(attack?.riderSave?.forTheTable ?? []),
     ...((line.trait as Filed | undefined)?.forTheTable ?? []),
+    // A touch's cube where the object stands — SRD Rust Monster's Destroy
+    // Metal (M-MATTER).
+    ...((line.touchesObject as Filed | undefined)?.forTheTable ?? []),
   ];
 };
 
@@ -2443,8 +2446,9 @@ export const MONSTER_LINE_SHAPES: readonly (readonly [
  * checked by `takePrintedTouch` — a declared object nobody wears or carries,
  * within the printed reach, of the printed substance — and the cube is the
  * question the door asks, whether it is the whole of the thing, destroying the
- * thing where it is. Nothing of it is filed: a hole in a gate is the object
- * standing, which is the engine's answer and not the table's.
+ * thing where it is. Where it is not, the object stands at its Hit Points and
+ * the cube is filed for the table (`a-hole-eaten-through-the-world`, on the
+ * touch's own `forTheTable`): a hole in a gate is the map the table is drawing.
  *
  * Keyed `<block id>/<heading>`, because two blocks print one heading over two
  * rules and the pair is what a reader needs.

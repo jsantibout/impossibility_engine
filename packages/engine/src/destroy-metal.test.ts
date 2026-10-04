@@ -47,6 +47,7 @@ import {
 import { createCharacter, type CharacterChoices } from './creation.js';
 import { extendContent, type Content } from './content.js';
 import { fold, type GameEvent, type GameState } from './events.js';
+import { dmDecisionsIn as marked } from './spell-definitions.js';
 
 const id = (s: string) => asCharacterId(s);
 const SEED = 'rust';
@@ -246,6 +247,14 @@ describe('SRD Rust Monster, Destroy Metal: what the touch does', () => {
     expect(table.state.creatures[GATE]!.vitals.dead).toBe(false);
     expect(table.state.creatures[GATE]!.vitals.hp).toBe(before);
     expect(actionLeft(table.state)).toBe(false);
+    // And the hole it leaves is handed to the table, under the handover mark,
+    // naming whose line it is — the sentence the line files for this case.
+    expect(marked(out.unverified)).toEqual(['The touch destroys a 1-foot Cube of the object.']);
+  });
+
+  it('files nothing where the cube was the whole of the object, because the engine destroyed it', () => {
+    const out = unwrap(touch(smithy().state, LOCK, true), 'the touch');
+    expect(marked(out.unverified)).toEqual([]);
   });
 
   it('goes ahead on a substance nobody has said is metal, and says so', () => {

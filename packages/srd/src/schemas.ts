@@ -2249,6 +2249,14 @@ export const MonsterTouchSchema = z.object({
   material: z.literal('metal'),
   /** "destroys a **1**-foot Cube of the object". */
   cubeFeet: z.number().int().min(1),
+  /**
+   * The cube sentence, filed for the table **for the case it is not the whole
+   * object** (`a-hole-eaten-through-the-world`): a hole in a gate is a change to
+   * the map the table is drawing, and the object stands. Where the table says
+   * the cube is the whole of the thing, the engine destroys it, and nothing is
+   * filed — the door reports this only when the object stands.
+   */
+  forTheTable: ForTheTableSchema.optional(),
 });
 export type MonsterTouch = z.infer<typeof MonsterTouchSchema>;
 

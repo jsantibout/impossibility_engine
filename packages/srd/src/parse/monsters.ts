@@ -2643,7 +2643,7 @@ export function parsePullLine(text: string): MonsterPull | null {
  */
 const TOUCH_LINE = new RegExp(
   `^The ${SUBJECT} touches a nonmagical metal object within (\\d+) feet of itself that isn['’]t being worn or carried\\. ` +
-    `The touch destroys a (\\d+)-foot Cube of the object\\.$`,
+    `(The touch destroys a (\\d+)-foot Cube of the object\\.)$`,
 );
 
 /** The object this line touches and eats a cube of, or null for every other line. */
@@ -2653,7 +2653,9 @@ export function parseTouchLine(text: string): MonsterTouch | null {
   const checked = MonsterTouchSchema.safeParse({
     within: Number(matched[1]!),
     material: 'metal',
-    cubeFeet: Number(matched[2]!),
+    cubeFeet: Number(matched[3]!),
+    // The cube where it is not the whole of the thing — see the schema.
+    forTheTable: [{ kind: 'a-hole-eaten-through-the-world', sentence: matched[2]! }],
   });
   return checked.success ? checked.data : null;
 }

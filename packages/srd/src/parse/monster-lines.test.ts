@@ -1535,7 +1535,16 @@ describe('the honesty pass: compulsions and fiction filed apart from the residue
    */
   it("reads the rust monster's Destroy Metal as a touch on a metal object", () => {
     const line = lineOf('rust-monster', 'Destroy Metal') as Record<string, unknown>;
-    expect(line['touchesObject']).toEqual({ within: 5, material: 'metal', cubeFeet: 1 });
+    expect(line['touchesObject']).toEqual({
+      within: 5,
+      material: 'metal',
+      cubeFeet: 1,
+      // Filed for the case the cube is not the whole object: the hole it
+      // leaves in a gate is the table's map, and the gate stands.
+      forTheTable: [
+        { kind: 'a-hole-eaten-through-the-world', sentence: 'The touch destroys a 1-foot Cube of the object.' },
+      ],
+    });
   });
 
   it('reads no touch where the sentence names another substance', () => {
@@ -1568,6 +1577,7 @@ describe('the honesty pass: compulsions and fiction filed apart from the residue
           ...(line.attack?.forTheTable ?? []),
           ...(line.attack?.riderSave?.forTheTable ?? []),
           ...(trait?.forTheTable ?? []),
+          ...(line.touchesObject?.forTheTable ?? []),
         ].map((one) => one.sentence);
         const flat = line.text
           .replace(/\s*<br>\s*/g, ' ')
