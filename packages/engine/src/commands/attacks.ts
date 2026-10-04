@@ -948,10 +948,15 @@ function printedRiderOnASwing(
         // hand SRD asks it for — the grapple is made and the limit is the DM's.
         // **Except where the limbs are counted things** — SRD Roper's "one of
         // six tentacles", each a thing the hit raises and the cap the reader
-        // set from the count. That cap is enforced at the swing, so telling
-        // the table it is theirs would be the engine disowning a rule it
-        // keeps. (M-HOLD)
-        if (rider.withLimbs !== undefined && (rider.heldByObject === undefined || rider.capacity === undefined)) {
+        // set from the count, and destroyed ones counted against it until
+        // they grow back. That cap is enforced at the swing, so telling the
+        // table it is theirs would be the engine disowning a rule it keeps. A
+        // limb that does not grow back is not counted once destroyed, so it
+        // keeps the sentence. (M-HOLD)
+        if (
+          rider.withLimbs !== undefined &&
+          (rider.heldByObject?.regrows === undefined || rider.capacity === undefined)
+        ) {
           unverified.push(
             `${printed.name} grapples ${target} from ${rider.withLimbs}, and the engine holds no record of limbs; how many creatures ${attacker} can hold at once is the table's`,
           );

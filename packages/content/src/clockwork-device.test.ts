@@ -3,6 +3,7 @@ import { asCharacterId, isErr, expect as unwrap, type CharacterId } from '@ie/sh
 import {
   activateDevice,
   armorClassOf,
+  breathTakenBy,
   createCharacter,
   createDevice,
   damageCreature,
@@ -248,6 +249,27 @@ describe('SRD Rock Gnome: a clockwork device with statistics of its own', () => 
     });
     expect(isErr(refused)).toBe(true);
     if (isErr(refused)) expect(refused.code).toBe('no_such_function');
+  });
+
+  /**
+   * The ten minutes are the clock's, and the clock does not run past a held
+   * breath with no turns to charge its Exhaustion at — `advanceTime`'s rule,
+   * at the other door that moves the clock. (M-HOLD)
+   */
+  it('refuses the making while somebody held without breath would run out of it', () => {
+    const smothered: readonly GameEvent[] = [
+      ...field(),
+      { type: 'condition-applied', id: THUG, condition: 'grappled', source: 'grapple:rug' },
+      breathTakenBy(THUG, 'Smother', { by: 'grapple', source: 'grapple:rug' }),
+    ];
+    const refused = createDevice(fold('seed', smothered), NIM, {
+      feature: LINEAGE,
+      device: BIRD,
+      name: 'a tin bird',
+      function: IGNITE,
+      placement: { from: { creature: NIM }, feet: 5, bearing: 0 },
+    });
+    expect(isErr(refused) && refused.code).toBe('suffocating_outside_a_fight');
   });
 
   it('refuses a fourth device while three stand', () => {

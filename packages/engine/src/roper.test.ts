@@ -256,6 +256,41 @@ describe("the Roper's tentacle, destroyed and grown back", () => {
   });
 });
 
+describe("a swung tentacle, hacked off and grown back", () => {
+  /** The limb a real Tentacle hit raises knows whose it is and that it grows back. */
+  it('raises the limb as the roper’s own, and takes it away at the roper’s next start once destroyed', () => {
+    const table = cavern();
+    table.log.push(...unwrap(swing(table, 'Tentacle', BREN), 'the tentacle').events);
+    const [limb] = tentaclesOf(table.state);
+    expect(table.state.creatures[limb!]!.limbOf).toEqual({ holder: ROPER, regrows: 'start-of-holders-next-turn' });
+    table.do('the tentacle is hacked', (s) => damageCreature(s, limb!, { amount: 10, source: 'a sword' }));
+    expect(table.state.creatures[limb!]!.vitals.dead).toBe(true);
+    // Still gone through Bren's and Sable's turns.
+    endTurn(table, 'roper is done');
+    endTurn(table, 'bren is done');
+    expect(table.state.creatures[limb!]).toBeDefined();
+    endTurn(table, 'sable is done');
+    expect(table.state.creatures[limb!]).toBeUndefined();
+  });
+
+  /** A fight opening on the roper's turn is one of its starts, by the second door. */
+  it('grows a limb back at the start a new fight opens on', () => {
+    const table = cavern();
+    table.log.push(...unwrap(swing(table, 'Tentacle', BREN), 'the tentacle').events);
+    const [limb] = tentaclesOf(table.state);
+    table.do('the tentacle is hacked', (s) => damageCreature(s, limb!, { amount: 10, source: 'a sword' }));
+    table.log.push({ type: 'combat-ended' });
+    expect(table.state.creatures[limb!]).toBeDefined();
+    table.do('a second fight', (s) =>
+      beginCombat(s, [
+        { id: ROPER, initiative: 20, speed: 10 },
+        { id: BREN, initiative: 10, speed: 30 },
+      ]),
+    );
+    expect(table.state.creatures[limb!]).toBeUndefined();
+  });
+});
+
 describe('a grapple made at reach and measured at five feet', () => {
   it("keeps a plain grapple's range at five feet", () => {
     const table = cavern();

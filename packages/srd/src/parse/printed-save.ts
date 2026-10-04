@@ -648,6 +648,22 @@ const SPEED_CUT = /^[Tt]he target's Speed decreases by (\d+) feet (until .+)$/;
 const HP_MAX_CUT =
   /^[Tt]he target's Hit Point maximum decreases by an amount equal to the ([A-Z][a-z]+ )?damage taken(, and the [a-z' -]+ regains Hit Points equal to that amount)?$/;
 /**
+ * The two ways the book writes a held creature's breath — M-HOLD.
+ *
+ * SRD Gelatinous Cube: "An engulfed target **is suffocating**"; SRD Water
+ * Elemental: "the target … **is suffocating unless it can breathe water**".
+ * The glossary's Suffocation hazard, executed by the engine for exactly the
+ * hold's lifetime; the second wording carries the one exception the book
+ * prints. Matched whole, so a third wording is carried rather than guessed.
+ */
+const SUFFOCATION_WORDS: Readonly<Record<string, 'always' | 'unless-it-breathes-water'>> = {
+  'is suffocating': 'always',
+  'is suffocating unless it can breathe water': 'unless-it-breathes-water',
+};
+/** {@link SUFFOCATION_WORDS} looked up as an own key and nothing inherited, or undefined. */
+const suffocationOf = (words: string): 'always' | 'unless-it-breathes-water' | undefined =>
+  Object.hasOwn(SUFFOCATION_WORDS, words) ? SUFFOCATION_WORDS[words] : undefined;
+/**
  * SRD Water Elemental's Whelm: "Until the grapple ends, the target has the
  * Restrained condition, is suffocating unless it can breathe water, and takes
  * 9 (2d8) Bludgeoning damage at the start of each of the elemental's turns."
@@ -664,23 +680,6 @@ const HP_MAX_CUT =
  * halves this reads, and the whole is anchored, so anything else between them
  * refuses the sentence and it is carried entire.
  */
-/**
- * The two ways the book writes a held creature's breath — M-HOLD.
- *
- * SRD Gelatinous Cube: "An engulfed target **is suffocating**"; SRD Water
- * Elemental: "the target … **is suffocating unless it can breathe water**".
- * The glossary's Suffocation hazard, executed by the engine for exactly the
- * hold's lifetime; the second wording carries the one exception the book
- * prints. Matched whole, so a third wording is carried rather than guessed.
- */
-const SUFFOCATION_WORDS: Readonly<Record<string, 'always' | 'unless-it-breathes-water'>> = {
-  'is suffocating': 'always',
-  'is suffocating unless it can breathe water': 'unless-it-breathes-water',
-};
-/** {@link SUFFOCATION_WORDS} looked up as an own key and nothing inherited, or undefined. */
-const suffocationOf = (words: string): 'always' | 'unless-it-breathes-water' | undefined =>
-  Object.hasOwn(SUFFOCATION_WORDS, words) ? SUFFOCATION_WORDS[words] : undefined;
-
 const HELD_AND_PAID = new RegExp(
   // **Two conditions where the book prints two** — W7-B10: SRD Shambling
   // Mound's "has the Blinded and Restrained conditions, and it takes 10 (3d6)

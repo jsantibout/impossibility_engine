@@ -708,6 +708,11 @@ export const VERIFIED_SPELLS: readonly string[] = [
   // three endings — the cleric at 0, the pair past sixty feet, a recast on
   // either end.
   'warding-bond',
+  // `water-breathing.test.ts` (engine): the druid and a willing friend
+  // breathing water off one casting and neither a day later; and
+  // `printed-save-effects.test.ts`, a whelmed knight breathing again by it.
+  // (M-HOLD)
+  'water-breathing',
   'web',
   'wind-walk',
   // `barriers.test.ts` and `wall-template.test.ts`: the path pinned on the
@@ -1726,10 +1731,14 @@ export const TRAIT_KINDS_WITH_A_READER: readonly string[] = [
   // SRD Amphibious and SRD Water Breathing, whose reader is `breathesWater`
   // for the one rule that asks: SRD Water Elemental's Whelm, "is suffocating
   // unless it can breathe water". (M-HOLD) What is left of each sentence is
-  // fiction about a place the scene does not hold — Limited Amphibiousness's
-  // four hours out of the water, and "only underwater" — because nothing here
-  // is underwater or out of it: no rule could read either, and the table
-  // decides where a sahuagin or an octopus has been.
+  // the other half of the same hazard — Limited Amphibiousness's "must be
+  // submerged at least once every 4 hours to avoid suffocating outside
+  // water", and "only underwater", which is Suffocation once out of it. The
+  // rule exists now; what does not is any fact that a creature is underwater
+  // or out of water — a hold is the only thing that takes a breath here
+  // (`BreathTaken` is a grapple, an attach or an inside) — so that half waits
+  // on a place the scene does not hold, and is a question put to the
+  // coordinator rather than filed as fiction.
   'breathes-air-and-water',
   'breathes-only-water',
   // SRD Succubus Form and Incubus Form, whose reader is `takeRestForm`, and
