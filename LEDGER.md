@@ -42,11 +42,11 @@ for exactly this reason.
 
 | Ledger | Size | Waits on an engine shape | Waits on a definition | Waits on none | Read to the end, handed over whole |
 |---|---|---|---|---|---|
-| Spells in reach, not executed | 0 spells | 0 | 0 | 0 | 33 |
+| Spells in reach, not executed | 0 spells | 0 | 0 | 0 | 32 |
 | Features manual, or a pool with nothing to buy | 0 features | 0 | 0 | 0 | 0 |
 | Items a level 1–5 party can buy | 157 items | 0 | 0 | 157 | 0 |
-| Glossary general rules nothing executes | 23 rules | 0 | 0 | 23 | 0 |
-| CR ≤ 5 stat-block items handed over or unapplied | 20 items | on 26 of 244 blocks | 0 | 218 blocks already clean | 0 |
+| Glossary general rules nothing executes | 24 rules | 0 | 0 | 24 | 0 |
+| CR ≤ 5 stat-block items handed over or unapplied | 1 items | on 3 of 244 blocks | 0 | 241 blocks already clean | 0 |
 
 ## 1. Spells in reach the engine does not resolve
 
@@ -82,7 +82,7 @@ reading, or one the existing kinds already say and nobody has written — and
 both are work, which is why they are no longer printed as finished business.
 
 
-#### Read to the end, handed over whole — 33
+#### Read to the end, handed over whole — 32
 
 Somebody read every printed sentence of each of these against the
 definition and the blocker map, and every clause left is the table’s to
@@ -121,7 +121,6 @@ being asked for — which is the whole of what these spells are.
 - **Meld into Stone** (level 3) — tracked
 - **Speak with Dead** (level 3) — tracked
 - **Tongues** (level 3) — tracked
-- **Water Breathing** (level 3) — tracked
 - **Water Walk** (level 3) — tracked
 
 Listed by spell level, then name.
@@ -206,9 +205,9 @@ so none of them waits on reach: every one is in it.
 
 ## 5. CR ≤ 5 stat-block lines handed over or unapplied
 
-244 of the 332 carried stat blocks are CR ≤ 5. They print 743 lines, of which the parser reads 729 and hands over 14. Reading is not spending: a further 5 of the read attack lines carry a printed rider nothing applies, and 1 read trait lines state a mechanic no engine reader asks for. So the population is 20 items over 244 blocks — 218 of which already carry none of them.
+244 of the 332 carried stat blocks are CR ≤ 5. They print 743 lines, of which the parser reads 742 and hands over 1. Reading is not spending: a further 0 of the read attack lines carry a printed rider nothing applies, and 0 read trait lines state a mechanic no engine reader asks for. So the population is 1 items over 244 blocks — 241 of which already carry none of them.
 
-**A third answer, counted apart from both:** 77 of the read trait lines are sentences the engine reads and **hands to the table**, and will never execute — the breathing traits, the telepathies, the other planes, the substances this world holds none of, and the GM's own choices: sentences that say what a creature is and name nothing any rule consults. What is **not** among them is the other half of the residue below, where a sentence states a mechanic the engine has no seam for — an Amorphous squeezing through an inch, a Web Walker ignoring a web — because calling one of those fiction would retire a debt by renaming it. They are neither spent nor waiting, so they are not among the 20 above and do not keep a block off the clean list. `HANDOVER_TRAIT_KINDS` holds the reason per kind, and `coverage.test.ts` pins that none of them has a reader after all.
+**A third answer, counted apart from both:** 47 of the read trait lines are sentences the engine reads and **hands to the table**, and will never execute — the telepathies, the other planes, the substances this world holds none of, and the GM's own choices: sentences that say what a creature is and name nothing any rule consults. What is **not** among them is the other half of the residue below, where a sentence states a mechanic the engine has no seam for — an Amorphous squeezing through an inch, a Web Walker ignoring a web — because calling one of those fiction would retire a debt by renaming it. They are neither spent nor waiting, so they are not among the 1 above and do not keep a block off the clean list. `HANDOVER_TRAIT_KINDS` holds the reason per kind, and `coverage.test.ts` pins that none of them has a reader after all.
 
 **A block is the unit that matters and a line is the unit that is counted.**
 A block with four unapplied lines is one fight that does not run, not four,
@@ -217,15 +216,15 @@ overlap: one sentence can force a save and recharge.
 
 | Shape | Lines | Blocks | Three example blocks |
 |---|---|---|---|
-| A hit whose line says more than the engine applies | 8 | 8 | Animated Rug of Smothering (CR 2) / Smother; Barbed Devil (CR 5) / Hurl Flame; Darkmantle (CR 0.5) / Crush |
-| A use the block limits per day | 5 | 5 | Darkmantle (CR 0.5) / Darkness Aura (1/Day); Night Hag (CR 5) / Nightmare Haunting (1/Day; Requires Soul Bag); Troll (CR 5) / Loathsome Limbs (4/Day) |
-| An effect a hit buys | 5 | 5 | Barbed Devil (CR 5) / Hurl Flame; Death Dog (CR 1) / Bite; Incubus (CR 4) / Restless Touch |
-| A save whose line says more than the engine spends | 4 | 4 | Gelatinous Cube (CR 2) / Engulf; Ghost (CR 4) / Possession (Recharge 6); Harpy (CR 1) / Luring Song |
-| A trait whose heading says more than the engine spends | 4 | 4 | Black Pudding (CR 4) / Corrosive Form; Fire Elemental (CR 5) / Fire Aura; Gray Ooze (CR 0.5) / Corrosive Form |
-| A save a line forces | 1 | 1 | Otherworldly Steed (CR 0) / Fell Glare (Fiend Only; Recharges after a Long Rest) |
-| A trait shape nothing spends | 1 | 1 | Goblin Boss (CR 1) / Redirect Attack |
+| A save whose line says more than the engine spends | 2 | 2 | Ghost (CR 4) / Possession (Recharge 6); Harpy (CR 1) / Luring Song |
+| A trait whose heading says more than the engine spends | 1 | 1 | Night Hag (CR 5) / Soul Bag |
+| A use the block limits per day | 1 | 1 | Night Hag (CR 5) / Nightmare Haunting (1/Day; Requires Soul Bag) |
 | A creature that casts | 0 | 0 | — |
+| A hit whose line says more than the engine applies | 0 | 0 | — |
 | A recharge | 0 | 0 | — |
+| A save a line forces | 0 | 0 | — |
+| A trait shape nothing spends | 0 | 0 | — |
+| An effect a hit buys | 0 | 0 | — |
 | How many attacks the Attack action holds | 0 | 0 | — |
 
 **Two of those rows are an effect nobody applies and an economy that is
@@ -234,7 +233,7 @@ line, carried onto the sheet, asked at the turn boundary and spent by
 `takeStatedAction`; what is unapplied on such a line is what it *does*.
 A brief quoting those rows should say so.
 
-### Handed-over lines matching no enumerated shape — 8
+### Handed-over lines matching no enumerated shape — 0
 
 A debt nobody has given an id to is still a debt, so these are named here
 rather than dropped. They carry no parsed structure at all, which is why no
@@ -242,31 +241,26 @@ predicate reaches them and why classifying them is a reading of English
 rather than a derivation — the roadmap keeps that reading in prose, and the
 ledger keeps the list.
 
-- Otherworldly Steed (CR 0) [bonus action] Fey Step (Fey Only; Recharges after a Long Rest)
-- Otherworldly Steed (CR 0) [bonus action] Healing Touch (Celestial Only; Recharges after a Long Rest)
-- Otherworldly Steed (CR 0) [trait] Life Bond
-- Rust Monster (CR 0.5) [action] Destroy Metal
-- Sea Hag (CR 2) [action] Illusory Appearance
-- Succubus (CR 4) [action] Charm
-- Will-o'-Wisp (CR 2) [bonus action] Vanish
-- Wraith (CR 5) [action] Create Specter
 
-### Read to the end, filed for the table — 21
+### Read to the end, filed for the table — 24
 
 Every sentence of each of these lines is either spent by the engine or
 **filed** as the table’s under a reason `HANDOVER_LINE_KINDS` argues: a
 compulsion the owner ruled the table’s (2026-09-24), or fiction no rule
 reads afterwards. They are finished business, so they are not among the
-20 items above and keep no block off the clean list; they are
+1 items above and keep no block off the clean list; they are
 listed because a count with no list behind it is the silently-missing entry
 this report refuses. A line that files a sentence and still owes another is
 not here — it is a debt, and the rows above count it.
 
 - Basilisk (CR 3) [bonus action] Petrifying Gaze (Recharge 4–6) — a-reflection-nothing-holds
+- Black Pudding (CR 4) [trait] Corrosive Form — a-hole-eaten-through-the-world
 - Flesh Golem (CR 5) [trait] Berserk — a-compulsion-the-table-plays
 - Gibbering Mouther (CR 2) [action] Bite — a-body-absorbed
 - Gibbering Mouther (CR 2) [trait] Gibbering — a-compulsion-the-table-plays
+- Gray Ooze (CR 0.5) [trait] Corrosive Form — a-hole-eaten-through-the-world
 - Merfolk Skirmisher (CR 0.125) [action] Ocean Spear — a-weapon-that-returns-to-the-hand
+- Rust Monster (CR 0.5) [action] Destroy Metal — a-hole-eaten-through-the-world
 - Salamander (CR 5) [action] Flame Spear — a-weapon-that-returns-to-the-hand
 - Shadow (CR 0.5) [action] Draining Swipe — a-corpse-that-rises-later
 - Steam Mephit (CR 0.25) [action] Steam Breath (Recharge 6) — water-nothing-holds

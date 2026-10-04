@@ -28,7 +28,7 @@ than to the table.
 
 | Parsed | Tracked | Executed | of which partial | Verified |
 |---|---|---|---|---|
-| 339 | 143 (42.2%) | 192 (56.6%) | 25 | 166 (49.0%) |
+| 339 | 142 (41.9%) | 193 (56.9%) | 25 | 167 (49.3%) |
 
 A **tracked** spell is not a half-finished executed one. Disguise Self will
 never be executed, because what the caster looks like is not arithmetic;
@@ -224,6 +224,7 @@ a plain statement of what the table decides.
 - **Vicious Mockery** (cantrip) — verified
 - **Vitriolic Sphere** (level 4) — verified
 - **Warding Bond** (level 2) — verified
+- **Water Breathing** (level 3) — verified
 - **Web** (level 2) — verified
 - **Weird** (level 9) — untested, partial — a clause the engine owns is still unbuilt
 - **Wind Walk** (level 6) — verified, partial — a clause the engine owns is still unbuilt
@@ -387,7 +388,6 @@ every casting; only one of them is waiting for anything.
 - **Wall of Ice** (level 6) — 5 noted
 - **Wall of Stone** (level 5) — 4 noted
 - **Wall of Thorns** (level 6) — 4 noted
-- **Water Breathing** (level 3) — 0 noted, 1 read, 2 handed to the DM
 - **Water Walk** (level 3) — 0 noted, 1 read, 3 handed to the DM
 - **Word of Recall** (level 6) — 2 noted
 
@@ -682,7 +682,7 @@ is where a figure like that belongs.
 
 | Parsed | Transcribed | Instances | of which complete | of which partial |
 |---|---|---|---|---|
-| 258 | 110 | 278 | 225 | 53 |
+| 258 | 111 | 279 | 226 | 53 |
 
 | Records handing printed text to the DM |
 |---|
@@ -704,7 +704,7 @@ inventing a column that nothing checks.
 | Category | Parsed | Transcribed | Instances | Complete | Partial |
 |---|---|---|---|---|---|
 | Armor | 19 | 12 | 64 | 59 | 5 |
-| Potions | 24 | 12 | 15 | 10 | 5 |
+| Potions | 24 | 13 | 16 | 11 | 5 |
 | Rings | 22 | 7 | 7 | 5 | 2 |
 | Rods | 7 | 2 | 2 | 1 | 1 |
 | Scrolls | 1 | 0 | 0 | 0 | 0 |
@@ -781,6 +781,7 @@ how many of those still carry a clause the engine does not say.
 - **Potion of Invisibility** (Potions) — 1 recorded, complete
 - **Potion of Invulnerability** (Potions) — 1 recorded, complete
 - **Potion of Speed** (Potions) — 1 recorded, complete
+- **Potion of Water Breathing** (Potions) — 1 recorded, complete
 - **Potions of Healing** (Potions) — 4 recorded, complete
 - **Quarterstaff of the Acrobat** (Weapons) — 1 recorded, 1 partial
 - **Ring of Animal Influence** (Rings) — 1 recorded, 1 partial
@@ -851,7 +852,7 @@ entry of "Magic Items A–Z" is in exactly one of them.
 
 | Parsed | Transcribed | Blocked | Ready | Fiction | Unread |
 |---|---|---|---|---|---|
-| 258 | 110 | 142 | 0 | 4 | 2 |
+| 258 | 111 | 142 | 0 | 3 | 2 |
 
 **Unread is the honest default**, not a backlog nobody got to. An entry
 whose blocker cannot be named from something this repository has already
@@ -962,7 +963,7 @@ stopped having to be handed:
 
 | Parsed | Carried | Attacking | Defence entries | of which qualified | of which unread | Printed lines | of which read |
 |---|---|---|---|---|---|---|---|
-| 330 | 332 | 329 | 723 | 2 | 3 | 1335 | 1167 |
+| 330 | 332 | 329 | 723 | 2 | 5 | 1335 | 1181 |
 
 **A stat block used to arrive as a body rather than as an actor.**
 `adaptMonster` has always carried across everything the block states as a
@@ -1021,10 +1022,10 @@ fact the book wrote for a person.
 
 | Line | Printed | Read |
 |---|---|---|
-| Traits | 338 | 296 |
-| Actions | 813 | 794 |
-| Bonus actions | 78 | 62 |
-| Reactions | 24 | 13 |
+| Traits | 338 | 298 |
+| Actions | 813 | 800 |
+| Bonus actions | 78 | 66 |
+| Reactions | 24 | 15 |
 | Legendary actions | 82 | 2 |
 
 **What the rest would need, ranked by the blocks it would free.** Each
@@ -1041,15 +1042,15 @@ and a bite whose hit buys a save.
 | Shape | Blocks | Lines |
 |---|---|---|
 | A save a line forces | 128 | 188 |
-| A recharge | 83 | 83 |
-| A hit whose line says more than the engine applies | 28 | 29 |
-| An effect a hit buys | 24 | 25 |
-| A save whose line says more than the engine spends | 15 | 15 |
-| A use the block limits per day | 14 | 14 |
-| A trait whose heading says more than the engine spends | 4 | 4 |
+| A recharge | 82 | 82 |
+| A hit whose line says more than the engine applies | 19 | 20 |
+| An effect a hit buys | 16 | 17 |
+| A save whose line says more than the engine spends | 13 | 13 |
+| A use the block limits per day | 10 | 10 |
 | A creature that casts | 1 | 1 |
-| A trait shape nothing spends | 1 | 1 |
+| A trait whose heading says more than the engine spends | 1 | 1 |
 | How many attacks the Attack action holds | 1 | 1 |
+| A trait shape nothing spends | 0 | 0 |
 
 **A printed line reaches the Attack action and nothing else.** An
 opportunity attack and a readied strike both name a weapon and have
@@ -1085,22 +1086,22 @@ never added.
 | 2 | 53 | 53 | 211 | 57 | 154 |
 | 3 | 91 | 91 | 345 | 74 | 271 |
 | 4 | 104 | 104 | 345 | 74 | 271 |
-| 5 | 120 | 120 | 481 | 103 | 378 |
-| 6 | 132 | 127 | 481 | 103 | 378 |
-| 7 | 144 | 133 | 562 | 146 | 416 |
-| 8 | 156 | 145 | 562 | 146 | 416 |
-| 9 | 165 | 149 | 668 | 215 | 451 |
-| 10 | 176 | 153 | 668 | 215 | 451 |
-| 11 | 183 | 155 | 727 | 251 | 472 |
-| 12 | 195 | 167 | 727 | 251 | 472 |
-| 13 | 200 | 168 | 784 | 297 | 483 |
-| 14 | 211 | 174 | 784 | 297 | 483 |
-| 15 | 218 | 177 | 821 | 318 | 498 |
-| 16 | 230 | 189 | 821 | 318 | 498 |
-| 17 | 235 | 189 | 859 | 353 | 499 |
-| 18 | 245 | 191 | 859 | 353 | 499 |
-| 19 | 257 | 203 | 859 | 353 | 499 |
-| 20 | 269 | 207 | 859 | 353 | 499 |
+| 5 | 120 | 120 | 481 | 100 | 381 |
+| 6 | 132 | 127 | 481 | 100 | 381 |
+| 7 | 144 | 133 | 562 | 143 | 419 |
+| 8 | 156 | 145 | 562 | 143 | 419 |
+| 9 | 165 | 149 | 668 | 211 | 455 |
+| 10 | 176 | 153 | 668 | 211 | 455 |
+| 11 | 183 | 155 | 727 | 247 | 476 |
+| 12 | 195 | 167 | 727 | 247 | 476 |
+| 13 | 200 | 168 | 784 | 293 | 487 |
+| 14 | 211 | 174 | 784 | 293 | 487 |
+| 15 | 218 | 177 | 821 | 314 | 502 |
+| 16 | 230 | 189 | 821 | 314 | 502 |
+| 17 | 235 | 189 | 859 | 349 | 503 |
+| 18 | 245 | 191 | 859 | 349 | 503 |
+| 19 | 257 | 203 | 859 | 349 | 503 |
+| 20 | 269 | 207 | 859 | 349 | 503 |
 
 The totals are every path added together, so a spell on two class lists is
 counted once for each path that can reach it — the row is the book at that
@@ -1163,9 +1164,9 @@ something other than its heading.
 |---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
 | Bard (College of Lore) | 23/10/33 | 23/10/33 | 41/15/56 | 41/15/56 | 54/19/73 | 54/19/73 | 59/24/83 | 59/24/83 | 62/37/100 | 62/37/100 | 63/43/108 | 63/43/108 | 65/52/119 | 65/52/119 | 68/55/125 | 68/55/125 | 68/60/130 | 68/60/130 | 68/60/130 | 68/60/130 |
 | Cleric (Life Domain) | 17/5/22 | 17/5/22 | 32/7/39 | 32/7/39 | 45/13/58 | 45/13/58 | 46/21/67 | 46/21/67 | 50/30/80 | 50/30/80 | 53/38/91 | 53/38/91 | 54/45/99 | 54/45/99 | 55/49/104 | 55/49/104 | 55/54/109 | 55/54/109 | 55/54/109 | 55/54/109 |
-| Druid (Circle of the Land) | 21/8/29 | 21/8/29 | 39/11/50 | 39/11/50 | 49/14/63 | 49/14/63 | 56/25/81 | 56/25/81 | 60/36/96 | 60/36/96 | 64/42/106 | 64/42/106 | 65/47/112 | 65/47/112 | 68/52/120 | 68/52/120 | 68/56/124 | 68/56/124 | 68/56/124 | 68/56/124 |
+| Druid (Circle of the Land) | 21/8/29 | 21/8/29 | 39/11/50 | 39/11/50 | 50/13/63 | 50/13/63 | 57/24/81 | 57/24/81 | 61/35/96 | 61/35/96 | 65/41/106 | 65/41/106 | 66/46/112 | 66/46/112 | 69/51/120 | 69/51/120 | 69/55/124 | 69/55/124 | 69/55/124 | 69/55/124 |
 | Paladin (Oath of Devotion) | 9/4/13 | 9/4/13 | 9/4/13 | 9/4/13 | 19/5/24 | 19/5/24 | 19/5/24 | 19/5/24 | 24/6/30 | 24/6/30 | 24/6/30 | 24/6/30 | 25/9/34 | 25/9/34 | 25/9/34 | 25/9/34 | 25/13/38 | 25/13/38 | 25/13/38 | 25/13/38 |
-| Ranger (Hunter) | 9/4/13 | 9/4/13 | 9/4/13 | 9/4/13 | 21/7/28 | 21/7/28 | 21/7/28 | 21/7/28 | 30/10/40 | 30/10/40 | 30/10/40 | 30/10/40 | 33/12/45 | 33/12/45 | 33/12/45 | 33/12/45 | 33/15/48 | 33/15/48 | 33/15/48 | 33/15/48 |
-| Sorcerer (Draconic Sorcery) | 29/8/37 | 29/8/37 | 54/10/64 | 54/10/64 | 70/15/85 | 70/15/85 | 80/18/98 | 80/18/98 | 85/25/110 | 85/25/110 | 91/30/121 | 91/30/121 | 92/37/129 | 92/37/129 | 95/40/135 | 95/40/135 | 95/44/140 | 95/44/140 | 95/44/140 | 95/44/140 |
+| Ranger (Hunter) | 9/4/13 | 9/4/13 | 9/4/13 | 9/4/13 | 21/7/28 | 21/7/28 | 21/7/28 | 21/7/28 | 31/9/40 | 31/9/40 | 31/9/40 | 31/9/40 | 34/11/45 | 34/11/45 | 34/11/45 | 34/11/45 | 34/14/48 | 34/14/48 | 34/14/48 | 34/14/48 |
+| Sorcerer (Draconic Sorcery) | 29/8/37 | 29/8/37 | 54/10/64 | 54/10/64 | 71/14/85 | 71/14/85 | 81/17/98 | 81/17/98 | 86/24/110 | 86/24/110 | 92/29/121 | 92/29/121 | 93/36/129 | 93/36/129 | 96/39/135 | 96/39/135 | 96/43/140 | 96/43/140 | 96/43/140 | 96/43/140 |
 | Warlock (Fiend Patron) | 13/6/19 | 13/6/19 | 23/6/29 | 23/6/29 | 32/8/40 | 32/8/40 | 36/9/45 | 36/9/45 | 37/15/52 | 37/15/52 | 37/15/52 | 37/15/52 | 37/15/52 | 37/15/52 | 37/15/52 | 37/15/52 | 37/15/52 | 37/15/52 | 37/15/52 | 37/15/52 |
-| Wizard (Evoker) | 33/12/45 | 33/12/45 | 64/17/81 | 64/17/81 | 88/22/110 | 88/22/110 | 99/37/136 | 99/37/136 | 103/56/160 | 103/56/160 | 110/67/179 | 110/67/179 | 112/80/194 | 112/80/194 | 117/86/206 | 117/86/206 | 118/96/218 | 118/96/218 | 118/96/218 | 118/96/218 |
+| Wizard (Evoker) | 33/12/45 | 33/12/45 | 64/17/81 | 64/17/81 | 89/21/110 | 89/21/110 | 100/36/136 | 100/36/136 | 104/55/160 | 104/55/160 | 111/66/179 | 111/66/179 | 113/79/194 | 113/79/194 | 118/85/206 | 118/85/206 | 119/95/218 | 119/95/218 | 119/95/218 | 119/95/218 |
