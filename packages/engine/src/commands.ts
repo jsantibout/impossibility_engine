@@ -81,6 +81,7 @@ export type {
   DismantleDeviceCommand,
 } from './commands/devices.js';
 export {
+  clearObscurement,
   declareContact,
   declareCreatureType,
   declareDamageType,
@@ -267,8 +268,10 @@ export type {
 } from './commands/elsewhere.js';
 export {
   declineDamageReaction,
+  declineDeclaredAttack,
   declineTestReaction,
   reactionOpportunities,
+  redirectDeclaredAttack,
   resolveTest,
   settleDamage,
   settleTest,
@@ -276,6 +279,7 @@ export {
   takeDamageReaction,
   takeDamageResponse,
   takeTestReaction,
+  takeTurnEndReaction,
 } from './commands/reactions.js';
 export type {
   AttackReactionCommand,

@@ -2573,10 +2573,12 @@ function printedSucceedInsteadReaction(
  * them (Parry), and one answers a hit by using another line of its own block
  * (Reflexive Antennae). The two Splits are a fifth, since W7-B12: a Reaction at
  * `damaged-by-creature` whose response is two creatures of the holder's own
- * block. Of the rest, the Goblin Boss's Redirect Attack is read as a *kind*
- * nothing spends, and the others are each a different sentence, from an
- * octopus's ink to the Stone Giant's deflection. Those stay prose and stay on
- * the ledger, named there rather than argued about here.
+ * block. Since M-REFLEX, two more: the two octopuses' Ink Cloud, a Reaction at
+ * `damaged-by-creature` or at `creature-ended-turn` that releases a cloud, and
+ * the Goblin Boss's Redirect Attack, a Reaction at `attack-declared` that turns
+ * a swing before its die. The others are each a different sentence, such as
+ * the Stone Giant's deflection; those stay prose and stay on the ledger, named
+ * there rather than argued about here.
  *
  * **And a fourth shape that is not printed under that heading at all** — SRD
  * Legendary Resistance, printed under **Traits**, which answers the
@@ -2620,6 +2622,68 @@ function printedSplitReaction(monster: Monster, line: MonsterLine): ReactionFeat
   };
 }
 
+/**
+ * SRD Giant Octopus and SRD Octopus, Ink Cloud, onto the sheet as the Reaction
+ * it is — M-REFLEX.
+ *
+ * "_Trigger:_ The octopus takes damage while underwater." is a blow that has
+ * landed, the window SRD Retaliation and SRD Split answer; "A creature ends its
+ * turn within 5 feet of the octopus while underwater." is the turn boundary,
+ * measured to the creature whose turn it was. The response's numbers ride the
+ * effect as the line printed them, and the day's use is the heading's pool.
+ */
+function printedCloudReaction(monster: Monster, line: MonsterLine): ReactionFeature | null {
+  const cloud = line.releasesCloud;
+  if (cloud === undefined) return null;
+  const turnEnd = cloud.trigger.kind === 'creature-ends-turn-within' ? cloud.trigger.feet : null;
+  return {
+    feature: printedTraitKey(monster.id, line.name),
+    name: line.name,
+    window: turnEnd === null ? 'damaged-by-creature' : 'creature-ended-turn',
+    // Printed under Reactions, with no word saying it is free.
+    costsReaction: true,
+    pool: line.perDay === undefined ? null : printedLinePoolKey(line.name),
+    reach: turnEnd === null ? { kind: 'self' } : { kind: 'within', feet: turnEnd },
+    does: {
+      kind: 'release-cloud',
+      cubeFeet: cloud.cubeFeet,
+      degree: cloud.degree,
+      lastsSeconds: cloud.lastsMinutes * 60,
+      ...(cloud.underwater === undefined ? {} : { underwater: true as const }),
+      ...(cloud.movesUpTo === undefined ? {} : { movesUpTo: cloud.movesUpTo }),
+      ...(cloud.dispersedBy === undefined ? {} : { dispersedBy: cloud.dispersedBy }),
+      ...(turnEnd === null ? {} : { withinFeet: turnEnd }),
+    },
+  };
+}
+
+/**
+ * SRD Goblin Boss, Redirect Attack, onto the sheet as the Reaction it is —
+ * M-REFLEX.
+ *
+ * "_Trigger:_ A creature the goblin can see makes an attack roll against it.
+ * _Response:_ The goblin chooses a Small or Medium ally within 5 feet of
+ * itself. The goblin and that ally swap places, and the ally becomes the
+ * target of the attack instead." The trigger is `attack-declared`, the instant
+ * before the die; "can see" is `requiresSight`; the sizes and the reach ride
+ * the effect as the line printed them.
+ */
+function printedRedirectReaction(monster: Monster, line: MonsterLine): ReactionFeature | null {
+  const trait = line.trait;
+  if (trait?.kind !== 'swaps-places-with-an-ally-to-take-an-attack') return null;
+  return {
+    feature: printedTraitKey(monster.id, line.name),
+    name: line.name,
+    window: 'attack-declared',
+    // Printed under Reactions, with no word saying it is free.
+    costsReaction: true,
+    pool: line.perDay === undefined ? null : printedLinePoolKey(line.name),
+    reach: { kind: 'self' },
+    ...(trait.seesAttacker ? { requiresSight: true as const } : {}),
+    does: { kind: 'redirect-attack', allySizes: trait.allySizes, withinFeet: trait.withinFeet },
+  };
+}
+
 function printedReactions(monster: Monster): {
   readonly reactions: readonly ReactionFeature[];
   readonly pools: readonly PoolDeclaration[];
@@ -2638,7 +2702,9 @@ function printedReactions(monster: Monster): {
       printedRollAddendReaction(monster, line) ??
       printedAcAddendReaction(monster, line) ??
       printedLineUseReaction(monster, line) ??
-      printedSplitReaction(monster, line);
+      printedSplitReaction(monster, line) ??
+      printedCloudReaction(monster, line) ??
+      printedRedirectReaction(monster, line);
     if (reaction === null) continue;
     reactions.push(reaction);
     if (reaction.pool !== null) {
@@ -3041,6 +3107,11 @@ export function adaptMonster(printed: Monster, id: CharacterId): AdaptedMonster 
       ...(line.dashes === undefined ? {} : { dashes: line.dashes }),
       ...(line.rampages === undefined ? {} : { rampages: line.rampages }),
       ...(line.togglesLight === undefined ? {} : { togglesLight: line.togglesLight }),
+      // And an effect kept up under Concentration, with the key it runs under —
+      // SRD Darkmantle's Darkness Aura. (M-REFLEX)
+      ...(line.concentrates === undefined
+        ? {}
+        : { concentrates: { ...line.concentrates, feature: printedTraitKey(monster.id, line.name) } }),
       ...(line.treeStride === undefined ? {} : { treeStride: line.treeStride }),
       // And the forms the heading gates the line to, where it names any.
       ...(line.onlyInForms === undefined ? {} : { onlyInForms: [...line.onlyInForms] }),
@@ -3104,6 +3175,11 @@ export function adaptMonster(printed: Monster, id: CharacterId): AdaptedMonster 
     ...(line.rampages === undefined ? {} : { rampages: line.rampages }),
     // **The one line in the book is printed here** — W7-B11.
     ...(line.togglesLight === undefined ? {} : { togglesLight: line.togglesLight }),
+    // And an effect kept up under Concentration — SRD Will-o'-Wisp's Vanish is
+    // printed here. (M-REFLEX)
+    ...(line.concentrates === undefined
+      ? {}
+      : { concentrates: { ...line.concentrates, feature: printedTraitKey(monster.id, line.name) } }),
     ...(line.treeStride === undefined ? {} : { treeStride: line.treeStride }),
     // And the forms the heading gates it to: SRD Weretiger's Prowl is the one
     // Bonus Action in the book that prints the clause.

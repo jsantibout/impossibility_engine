@@ -84,7 +84,7 @@
  * them. That is a claim a directory can carry and a boolean cannot.
  */
 
-import { type CharacterId, type ConditionName, ok, type Result } from '@ie/shared';
+import { type CharacterId, type ConditionName, err, ok, type Result } from '@ie/shared';
 import type { D20TestResult, Duration, ModeSource, PrintedAim, TestResolution } from '@ie/engine';
 import {
   applyConditionTo,
@@ -101,11 +101,14 @@ import {
   declarePlants,
   declareObject,
   declareWayInHeight,
+  declineDeclaredAttack,
   forcePrintedSave,
   liftConditionFrom,
   loseItems,
   printedLineCatch,
   printedSaveOf,
+  reactionFeatureOf,
+  redirectDeclaredAttack,
   resolveDamage,
   settleBlockDeadlines,
   takeDamageResponse,
@@ -128,6 +131,7 @@ import {
   takeStatedAction,
   takeStatedBonusAction,
   takeStudy,
+  takeTurnEndReaction,
   triggerGlyph,
 } from '@ie/engine';
 import { z } from 'zod';
@@ -2859,9 +2863,126 @@ const SPLIT_PRINTED_LINE = tool({
     ),
 });
 
+/**
+ * Release the cloud a creature's printed Reaction releases — M-REFLEX.
+ *
+ * SRD Giant Octopus and SRD Octopus, Ink Cloud: "The octopus releases ink that
+ * fills a 10-foot Cube centered on itself, and the octopus moves up to its Swim
+ * Speed. The Cube is Heavily Obscured for 1 minute or until a strong current or
+ * similar effect disperses the ink."
+ *
+ * **Here and not on the model's surface**, by {@link SPLIT_PRINTED_LINE}'s rule:
+ * whether a creature spends its Reaction is the choice of whoever is running
+ * it. One tool for both triggers, because the book prints one response: the
+ * engine reads which window the feature answers and checks that one. What the
+ * call carries is the one fact the engine cannot hold — whether the octopus is
+ * underwater — and where it swims; the Cube, the minute and the Speed are the
+ * line's.
+ */
+const RELEASE_PRINTED_CLOUD = tool({
+  name: 'release_printed_cloud',
+  description:
+    'Have a creature take the Reaction its stat block prints to release a cloud — the Giant Octopus’s and the Octopus’s Ink Cloud. `options` lists it, under the feature id, when its trigger has just happened: a blow landing on the giant octopus, or another creature ending its turn within 5 feet of the octopus. Both are taken only underwater, which the engine cannot see: say `underwater`, and it asks when you have not. The engine spends the Reaction and the day’s use, fills the Cube centred on the creature with Heavily Obscured ink for a minute, and moves the creature to `moveTo` if you give one, up to the Speed the line names. A strong current that disperses the ink early is yours to say, with `clear_obscurement`. You state no number.',
+  mutates: true,
+  selfAnswers: ['creature'],
+  input: z.strictObject({
+    who: creatureId.describe('The creature releasing the cloud.'),
+    feature: z.string().min(1).describe('The feature id, from `options`, e.g. giant-octopus:ink-cloud-1-day.'),
+    underwater: z
+      .boolean()
+      .optional()
+      .describe('Whether the creature is underwater, which the line’s trigger requires. The engine asks where it is missing.'),
+    moveTo: placementSchema
+      .optional()
+      .describe('Where the creature moves as part of the Reaction, up to the Speed the line names. Absent is no move.'),
+  }),
+  run: (context, args) => {
+    const command = {
+      feature: args.feature,
+      ...(args.underwater === undefined ? {} : { underwater: args.underwater }),
+      ...(args.moveTo === undefined ? {} : { moveTo: placementFrom(args.moveTo) }),
+      ...identity(context),
+    };
+    const state = context.campaign.state();
+    const atTurnEnd = reactionFeatureOf(state, who(args.who), args.feature, 'creature-ended-turn') !== null;
+    return settle(
+      context,
+      atTurnEnd
+        ? takeTurnEndReaction(state, who(args.who), command, context.campaign.supply())
+        : takeDamageResponse(state, who(args.who), command, context.campaign.supply()),
+      (value) => value.events,
+      (value) => ({
+        released: args.who,
+        moved: args.moveTo !== undefined && value.events.some((event) => event.type === 'creature-moved'),
+        duplicate: value.duplicate,
+      }),
+      (value) => value.unverified,
+    );
+  },
+});
+
+/**
+ * Answer an attack declared at a creature that may turn it aside — M-REFLEX.
+ *
+ * SRD Goblin Boss, Redirect Attack: "The goblin chooses a Small or Medium ally
+ * within 5 feet of itself. The goblin and that ally swap places, and the ally
+ * becomes the target of the attack instead."
+ *
+ * **Here and not on the model's surface**, by {@link SPLIT_PRINTED_LINE}'s rule:
+ * whether the goblin spends its Reaction, and on whom, is the choice of whoever
+ * is running it — the book gives the goblin the choice of ally. The attacker
+ * then sends its attack again, at the creature it declared it at, and the
+ * engine throws it at whoever is now the target.
+ */
+const ANSWER_DECLARED_ATTACK = tool({
+  name: 'answer_declared_attack',
+  description:
+    'Answer an attack that came back `declared` because its target may turn it on somebody else — the Goblin Boss’s Redirect Attack. `options` lists the Reaction under the feature id while the attack waits. Name an `ally` to take it: the engine spends the Reaction, swaps the two creatures’ places and makes the ally the target; it refuses a creature on another side, out of reach or of a size the line does not name, and asks when nobody has said whose side the ally is on. Or `decline` to let the attack come. Either way the attacker then sends the same attack again and the engine throws it. You state no number.',
+  mutates: true,
+  selfAnswers: ['creature'],
+  input: z.strictObject({
+    who: creatureId.describe('The creature the attack was declared at.'),
+    feature: z
+      .string()
+      .min(1)
+      .optional()
+      .describe('The feature id, from `options`, e.g. goblin-boss:redirect-attack. Required with `ally`.'),
+    ally: creatureId.optional().describe('The ally who takes the attack instead.'),
+    decline: z.literal(true).optional().describe('Let the attack come at the creature it was declared at.'),
+  }),
+  run: (context, args) => {
+    const state = context.campaign.state();
+    if (args.decline === true) {
+      return settleEvents(
+        context,
+        declineDeclaredAttack(state, who(args.who), { ...identity(context) }),
+        { declined: args.who },
+      );
+    }
+    if (args.ally === undefined || args.feature === undefined) {
+      return settleEvents(
+        context,
+        err('bad_answer', 'name the `feature` and the `ally` who takes the attack, or `decline` it'),
+        { redirected: args.who },
+      );
+    }
+    return settleEvents(
+      context,
+      redirectDeclaredAttack(state, who(args.who), {
+        feature: args.feature,
+        ally: who(args.ally),
+        ...identity(context),
+      }),
+      { redirected: args.who, to: args.ally },
+    );
+  },
+});
+
 export const DM_ONLY_TOOLS: readonly ToolDefinition[] = [
   SETTLE_BLOCK_DEADLINES,
   SPLIT_PRINTED_LINE,
+  RELEASE_PRINTED_CLOUD,
+  ANSWER_DECLARED_ATTACK,
   TAKE_REST_FORM,
   SHIFT_PLANE_PRINTED_LINE,
   SWALLOW_PRINTED_LINE,

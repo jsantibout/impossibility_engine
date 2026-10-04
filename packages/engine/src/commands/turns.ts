@@ -2376,6 +2376,16 @@ export function resolveTurn(
       );
     }
 
+    // A swing declared and not thrown — M-REFLEX, SRD Redirect Attack. Its
+    // target may have spent a Reaction and changed places for it, so the turn
+    // does not move on around it.
+    if (state.pendingSwing !== undefined) {
+      return err(
+        'attack_declared',
+        `${state.pendingSwing.attacker} has declared an attack at ${state.pendingSwing.declaredAt} that is not yet thrown; settle it before the turn moves on`,
+      );
+    }
+
     // Damage that has been rolled and not dealt is the newest debt of this
     // shape, and the loudest one to get wrong: advancing past it would leave a
     // creature un-hit by a blow that had already landed, with the roll sitting

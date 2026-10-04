@@ -1462,6 +1462,10 @@ export interface StatBlockLine {
   readonly rampages?: unknown;
   /** The light a use switches on and the next switches off — SRD Ignited Illumination. */
   readonly togglesLight?: unknown;
+  /** An effect a line keeps up under Concentration — SRD Vanish, SRD Darkness Aura. (M-REFLEX) */
+  readonly concentrates?: unknown;
+  /** The cloud a Reaction line releases — SRD Ink Cloud. (M-REFLEX) */
+  readonly releasesCloud?: unknown;
   /** The step between two trees a line makes — SRD Dryad's Tree Stride. */
   readonly treeStride?: unknown;
   /** The flat addend a Reaction line puts on somebody's D20 Test. */
@@ -1543,6 +1547,10 @@ export const isReadLine = (line: StatBlockLine): boolean =>
   // use switches on — W7-B11.
   line.rampages !== undefined ||
   line.togglesLight !== undefined ||
+  // And an effect kept up under Concentration, and the cloud a Reaction
+  // releases — M-REFLEX.
+  line.concentrates !== undefined ||
+  line.releasesCloud !== undefined ||
   line.addsToRoll !== undefined ||
   line.addsToAc !== undefined ||
   line.usesLine !== undefined ||
@@ -1695,6 +1703,15 @@ export const hasHandedOverRider = (line: StatBlockLine): boolean => {
  * | SRD Succubus Form and Incubus Form (W7-B12) | `takeRestForm`, the DM's door at the instant a Long Rest ends, through `stat-block-replaced` |
  * | SRD Troll Spawn (W7-B12) | `addCreature`'s arrival, which hangs the day, and `settleBlockDeadlines`, which throws the d12; the turn refuses to advance while one is owed |
  * | SRD Split (W7-B12) | `adaptMonster`, as a Reaction at `damaged-by-creature` that `takeDamageResponse` performs through `summonCreature` and `removeCreatureEverywhere` |
+ * | SRD Redirect Attack (M-REFLEX) | `adaptMonster`, as a Reaction at `attack-declared`: `swingAt` holds a swing before its die where `declaredAttackOffers` finds the target can answer and an ally to take it, `redirectDeclaredAttack` swaps the two and re-aims the hold, and the attacker's same swing is thrown at the ally |
+ *
+ * **Redirect Attack's one residue, stated where it is counted** (M-REFLEX): a
+ * swing made *inside* another command's resolution — an Opportunity Attack,
+ * a Retaliation, a readied swing, a Cleave, a legendary action's attack, all
+ * `free` — opens no `attack-declared` window, because the command making it is
+ * itself settling something and would finish around a swing not yet thrown.
+ * The goblin redirects the attacks a creature makes on its own and not those;
+ * the day a nested swing can be held, the narrowing in `swingAt` comes out.
  *
  * **And four readers widened in W7-B12 without a new kind**: Vampire Spawn's
  * Sunlight is `disadvantage-in-sunlight` with `hurtAtTurnStart`, burnt by
@@ -1765,6 +1782,10 @@ export const TRAIT_KINDS_WITH_A_READER: readonly string[] = [
   // SRD Split, whose reader is the Reaction the adapter compiles and
   // `takeDamageResponse` performs. (W7-B12)
   'splits-into-two-creatures',
+  // SRD Redirect Attack, whose reader is the Reaction the adapter compiles at
+  // `attack-declared`, which `swingAt` holds and `redirectDeclaredAttack`
+  // answers. (M-REFLEX)
+  'swaps-places-with-an-ally-to-take-an-attack',
   'takes-a-named-action-as-a-bonus-action',
   'undead-fortitude',
 ];
@@ -1821,7 +1842,6 @@ export const TRAIT_KINDS_WITH_A_READER: readonly string[] = [
  *
  * | Lines | The one seam each waits on |
  * |---|---|
- * | Redirect Attack | a Reaction window on **being attacked**, before the roll is decided, whose response retargets the attack at somebody else. Every window the engine holds opens on a hit, and nothing can re-aim an attack that has been declared |
  * | Otherworldly Steed's Life Bond | a trigger on the **rider's** healing that nothing raises: "When you regain Hit Points from a level 1+ spell, the steed regains the same number of Hit Points if you're within 5 feet of it." A heal landing is a moment the engine has; a watcher on another creature's heal is not. See `missing-shapes.ts`, where the steed's spell names this line |
  *
  * **Fourteen lines left this table in W7-B12, and two more left the row
@@ -1854,12 +1874,12 @@ export const TRAIT_KINDS_WITH_A_READER: readonly string[] = [
  * the movement command now, and `drags-for-free` is its exemption, on the
  * reader roster.
  *
- * **Redirect Attack is read as a *kind* and still unspent** — Split was the
- * other until W7-B12 — which is the one thing that makes it look different
- * from the rest of this paragraph: a sentence with a kind is off the residue
- * list below and onto {@link UNEXECUTED_TRAIT_SHAPE}, where it is counted as the
- * debt it is. The table above is the reason each waits, whichever list the
- * line is on.
+ * **Redirect Attack left this table in M-REFLEX**, by the seam its row named: a
+ * Reaction window on being attacked before the die (`attack-declared`), whose
+ * answer swaps the goblin and its ally and re-aims the declared swing. It was
+ * read as a kind and unspent, as Split was until W7-B12; both are on the reader
+ * roster now, and the narrowing it keeps — a swing made inside another
+ * command's resolution is not held — is written out beside its row there.
  */
 export const HANDOVER_TRAIT_KINDS: Readonly<Record<string, string>> = {
   'a-heading-over-the-lines-that-follow':
@@ -2196,6 +2216,25 @@ export const isExecutedLine = (line: StatBlockLine): boolean =>
   // to, and the spender flips `activeFeatures`. No patch is written: `lightAt`
   // derives it off the sheet on every read.
   line.togglesLight !== undefined ||
+  // **And an effect kept up under Concentration is spent** — M-REFLEX. The
+  // spender names the line's feature on `CreatureState.concentration`, the
+  // fold switches it on with it, and `settleConcentratedFeatures` ends it by
+  // every road a Concentration ends and by the two deeds SRD Vanish prints;
+  // the conditions are hung under its key and the darkness and the withheld
+  // Illumination are derived off it by `carriedLight`, at the heading's price.
+  line.concentrates !== undefined ||
+  // **And a cloud a Reaction releases is spent** — M-REFLEX. SRD Ink Cloud is
+  // a Reaction at the window its trigger names — a blow landing
+  // (`takeDamageResponse`) or another creature's turn ending close by
+  // (`takeTurnEndReaction`) — which lays the Cube as an obscurement patch with
+  // a minute of its own, moves the creature up to the Speed the line names,
+  // and asks the table the one fact the engine holds no record of: whether it
+  // is underwater. The current that disperses it early is the table's, through
+  // `clearObscurement`. One narrowing, the one SRD Split's "is subjected to
+  // Lightning or Slashing damage" already lives with at the same window: a
+  // blow is a `damage-taken` with a dealer, so damage nobody dealt — a fall, a
+  // trap the DM applies — opens no window for the giant octopus.
+  line.releasesCloud !== undefined ||
   // **SRD Parry, executed at the window SRD *Shield* already answered.** The
   // number goes onto the Armour Class the held attack was measured against and
   // the hit is re-decided, which is the whole of what the sentence says — so
@@ -2411,8 +2450,9 @@ export const MONSTER_LINE_SHAPES: readonly (readonly [
  * **Read against the book, not against a summary.** Three of the entries below
  * correct a claim that had been made about them from a heading alone: the
  * Magmin's block prints no `sheds-light` trait for its Bonus Action to toggle,
- * the Wisp's Vanish is Concentration on something that is not a spell, and the
- * Succubus's Charm is a **cast** line at a fixed level rather than a save.
+ * the Wisp's Vanish is Concentration on something that is not a spell (built
+ * since, in M-REFLEX), and the Succubus's Charm is a **cast** line at a fixed
+ * level rather than a save.
  *
  * **The Ettercap's Reel and the Roper's Tentacle left this table in W7-B10**:
  * a printed pull may say which hold it reads (`MonsterPull.of:
@@ -2425,15 +2465,19 @@ export const MONSTER_LINE_SHAPES: readonly (readonly [
  * rules and the pair is what a reader needs.
  *
  * **Lines only.** A trait's residue is the table in {@link HANDOVER_TRAIT_KINDS}'
- * own note — Redirect Attack and Life Bond, now that W7-B12 has built Coven
- * Magic, Regeneration and the rest — and keeping the two apart is what stops one sentence being
+ * own note — Life Bond, now that W7-B12 has built Coven Magic, Regeneration
+ * and the rest and M-REFLEX has built Redirect Attack — and keeping the two apart is what stops one sentence being
  * answered for twice in two places that could come to disagree.
  */
 export const LINE_RESIDUE_SEAMS: Readonly<Record<string, string>> = {
   'rust-monster/Destroy Metal':
     'a touch whose **legality** is a record the engine does not keep, around an effect that is fiction. "The rust monster touches a nonmagical metal object within 5 feet of itself that isn\'t being worn or carried. The touch destroys a 1-foot Cube of the object." The cube is narration — a declared object has no shape a cubic foot could be taken from — but the touch names a reach, a thing that is nonmagical metal and a thing nobody is wearing, and the hand-over door has no field to name the object, nor any record whether a substance is metal or a thing magical. Filed whole it would pass that legality as fiction (W7-B13\'s review), so the line stays owed: the day the door can name a declared object and the object says what it is made of, the touch is checked and the cube is filed.',
-  'will-o-wisp/Vanish':
-    'Concentration on something that is not a casting. "The wisp and its light have the Invisible condition until the wisp\'s Concentration ends on this effect, which ends early immediately after the wisp makes an attack roll or uses Consume Life." Every clause but the first is machinery the engine holds — the condition, the trigger that ends it, the light — and all of it hangs off `CreatureState.concentration`, which only a casting may occupy.',
+  // **The Wisp's Vanish left this table in M-REFLEX**, by the seam its row
+  // named: `CreatureState.concentration` may now hold a stat block's line as a
+  // running feature (`Concentration.feature`), and `settleConcentratedFeatures`
+  // ends the line by every road a Concentration ends and by the two deeds the
+  // sentence prints. The Darkmantle's Darkness Aura went with it on the same
+  // seam, from the per-day economy row.
   'succubus/Charm':
     'a cast line at a **fixed level**. "The succubus casts Dominate Person (level 8 version), requiring no spell components and using Charisma as the spellcasting ability (spell save DC 15)" is the book\'s cast template with one clause the reader has no field for, and `parseCastLine` refuses it whole rather than casting the spell at its own level. `a-duration-the-slot-changes` is the shape beside it; what this needs is a slot level a printed route states. The reader half is one clause; the other half is the casting pipeline taking a level from a route rather than from a slot — the level a casting is paid at is decided in `spell-resolution.ts`, which a stat block\'s own track does not hold (W7-B13 stopped here and said so).',
   'wraith/Create Specter':

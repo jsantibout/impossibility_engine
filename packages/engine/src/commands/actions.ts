@@ -624,6 +624,53 @@ function grantsOfPrintedLine(
     }
   }
 
+  // **An effect kept up under Concentration** — M-REFLEX. SRD Will-o'-Wisp's
+  // Vanish: "The wisp and its light have the Invisible condition until the
+  // wisp's Concentration ends on this effect"; SRD Darkmantle's Darkness Aura:
+  // "This effect lasts while the darkmantle maintains Concentration on it, up to
+  // 10 minutes." The Concentration names the line's feature, and the fold
+  // switches the feature on with it in one event; what the effect does while it
+  // runs is derived off that feature (the darkness laid, the Illumination
+  // withheld) or hung under its key (the conditions), and every road out of the
+  // Concentration takes it away — see `settleConcentratedFeatures`.
+  const held = line.concentrates;
+  if (held !== undefined) {
+    const holder = state.creatures[id];
+    // SRD Concentration: "Starting another effect that requires Concentration"
+    // ends the one already held — the reading `resolveCast` takes of a spell.
+    if (holder?.concentration != null) {
+      events.push({
+        type: 'concentration-ended',
+        id,
+        castingId: holder.concentration.castingId,
+        reason: 'another-concentration-effect',
+      });
+    }
+    events.push({
+      type: 'concentration-started',
+      id,
+      castingId: held.feature,
+      spell: line.name,
+      level: 0,
+      feature: true,
+    });
+    for (const condition of held.conditions ?? []) {
+      events.push({ type: 'condition-applied', id, condition, source: held.feature });
+    }
+    if (held.upToMinutes !== undefined) {
+      const deadline = schedule(
+        state,
+        { kind: 'feature', on: id, feature: held.feature },
+        { kind: 'seconds', seconds: held.upToMinutes * 60 },
+      );
+      if (!deadline.ok) return deadline;
+      events.push(deadline.value);
+    }
+    unverified.push(
+      `${line.name}: ${id} is concentrating on it, and it ends the moment that Concentration does`,
+    );
+  }
+
   return ok({
     events,
     unverified,
@@ -631,7 +678,8 @@ function grantsOfPrintedLine(
       line.jumps !== undefined ||
       line.dashes !== undefined ||
       line.rampages !== undefined ||
-      line.togglesLight !== undefined,
+      line.togglesLight !== undefined ||
+      line.concentrates !== undefined,
   });
 }
 

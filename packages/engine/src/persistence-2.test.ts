@@ -505,6 +505,12 @@ const UNCOVERED_EVENT_TYPES: readonly string[] = [
   // what it offers to 10, a target wearing nothing, and the Mending sentence
   // handed back.
   'armor-penalised',
+  // A swing declared and held before its die, for a target that may turn it on
+  // an ally — SRD Goblin Boss's Redirect Attack (M-REFLEX). Neither log was
+  // written when a window opened before an attack roll, and both fold to the
+  // states they always did with no swing held; `redirect-attack.test.ts`
+  // declares, answers and throws one end to end.
+  'attack-declared',
   'attack-rider-granted',
   'attuned',
   'attunement-ended',
@@ -708,6 +714,9 @@ const UNCOVERED_EVENT_TYPES: readonly string[] = [
   // the two exceptions read off the attacker, the ward that loses a swing and
   // spends nothing, and the flames that answer a melee blow from inside five
   // feet and stay cold for one an illusion took.
+  // M-REFLEX: the declared swing's answer and its throw, beside `attack-declared`.
+  'declared-attack-answered',
+  'declared-attack-thrown',
   'decoy-destroyed',
   // A failed save's riders owed to the target's next turn, and the debt paid
   // as that turn begins — SRD Command's "follow the command on its next
@@ -893,6 +902,10 @@ const UNCOVERED_EVENT_TYPES: readonly string[] = [
   // it may still not end in, a grant nothing handed over, and the turn
   // boundary that takes what is left of it away.
   'movement-granted',
+  // M-REFLEX: the table's word that a patch nothing casts has cleared — SRD
+  // Ink Cloud's current. Neither log holds an ink cloud; `ink-cloud.test.ts`
+  // drives it.
+  'obscurement-cleared',
   'obscurement-declared',
   'passive-defense-granted',
   // Where the table says normal plants grow, or that nothing does — SRD Plant

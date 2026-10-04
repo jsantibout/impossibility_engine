@@ -33,6 +33,10 @@ import {
   type MonsterRampage,
   MonsterLightToggleSchema,
   type MonsterLightToggle,
+  MonsterConcentrationSchema,
+  type MonsterConcentration,
+  MonsterCloudSchema,
+  type MonsterCloud,
   type MonsterJump,
   type MonsterTreeStride,
   type MonsterForm,
@@ -1321,6 +1325,24 @@ const SPLIT = new RegExp(
     `Hit Points are divided evenly between the new ${SUBJECT} \\(round down\\)\\.$`,
 );
 
+/**
+ * SRD Goblin Boss, Redirect Attack: "_Trigger:_ A creature the goblin can see
+ * makes an attack roll against it. _Response:_ The goblin chooses a Small or
+ * Medium ally within 5 feet of itself. The goblin and that ally swap places,
+ * and the ally becomes the target of the attack instead."
+ *
+ * Read whole, with its two sizes and its reach carried as printed, so a block
+ * that named another size or another distance is read as what it says rather
+ * than as the goblin's. (M-REFLEX)
+ */
+const REDIRECT_ATTACK = new RegExp(
+  `^_Trigger:_ A creature ${SUBJECT} can see makes an attack roll against it\\. ` +
+    `_Response:_ ${SUBJECT} chooses a (Tiny|Small|Medium|Large|Huge|Gargantuan) or ` +
+    `(Tiny|Small|Medium|Large|Huge|Gargantuan) ally within (\\d+) feet of itself\\. ` +
+    `${SUBJECT} and that ally swap places, and the ally becomes the target of the attack ` +
+    `instead\\.$`,
+);
+
 /** The types a sentence lists with "or" and commas, lower-cased, or null if any is not a type. */
 const damageTypesOf = (printed: string): string[] | null => {
   const types = printed.split(/, or |, | or /).map((word) => damageTypeOf(word));
@@ -1503,18 +1525,9 @@ const HANDOVERS: readonly (readonly [RegExp, MonsterTrait['kind']])[] = [
   // SRD Vampire Weakness: a heading, and a rule of nothing on its own.
   [new RegExp(`^${SUBJECT} has these weaknesses:$`), 'a-heading-over-the-lines-that-follow'],
 
-  // SRD Goblin Boss, Redirect Attack. Read whole, and every clause of it is
-  // why: the window is a swing **before** the roll is decided, and the
-  // response swaps two creatures' spaces and re-aims the attack.
-  [
-    new RegExp(
-      `^_Trigger:_ A creature ${SUBJECT} can see makes an attack roll against it\\. ` +
-        `_Response:_ ${SUBJECT} chooses a Small or Medium ally within \\d+ feet of itself\\. ` +
-        `${SUBJECT} and that ally swap places, and the ally becomes the target of the attack ` +
-        `instead\\.$`,
-    ),
-    'swaps-places-with-an-ally-to-take-an-attack',
-  ],
+  // SRD Goblin Boss, Redirect Attack, left this table in M-REFLEX: its sizes,
+  // its reach and its sight clause are read by {@link REDIRECT_ATTACK} and the
+  // Reaction spends them.
 
   // SRD Black Pudding and SRD Ochre Jelly, Split, left this table in W7-B12:
   // the gate and both triggers are read by {@link SPLIT} and the Reaction
@@ -2030,6 +2043,16 @@ export function parseTraitShape(text: string): MonsterTrait | null {
         damageTypes,
       };
     }
+  }
+
+  const redirect = REDIRECT_ATTACK.exec(text);
+  if (redirect !== null) {
+    return {
+      kind: 'swaps-places-with-an-ally-to-take-an-attack',
+      allySizes: [redirect[1]!.toLowerCase(), redirect[2]!.toLowerCase()] as CreatureSize[],
+      withinFeet: Number(redirect[3]),
+      seesAttacker: true,
+    };
   }
 
   // Last, because every sentence above states a mechanic and these state
@@ -2830,6 +2853,101 @@ export function parseLightToggleLine(text: string): MonsterLightToggle | null {
   const checked = MonsterLightToggleSchema.safeParse({
     brightRadiusFeet: Number(matched[1]),
     dimBeyondFeet: Number(matched[2]),
+  });
+  return checked.success ? checked.data : null;
+}
+
+/**
+ * SRD Will-o'-Wisp, Vanish: "The wisp and its light have the Invisible
+ * condition until the wisp's Concentration ends on this effect, which ends
+ * early immediately after the wisp makes an attack roll or uses Consume Life."
+ *
+ * Anchored end to end. The condition is one word the glossary names, the light
+ * is optional, and the early ending is read only in the two forms the book
+ * prints it in — an attack roll, and a named line of the same block — so a
+ * sentence that ended it on anything else stays prose. (M-REFLEX)
+ */
+const CONCENTRATED_CONDITION = new RegExp(
+  `^The ${SUBJECT}?( and its light)? ha(?:s|ve) the (\\w+) condition until the ${SUBJECT}${APOSTROPHE}s ` +
+    `Concentration ends on this effect(?:, which ends early immediately after the ${SUBJECT} ` +
+    `(makes an attack roll)(?: or uses ([A-Z][A-Za-z' -]*[A-Za-z]))?)?\\.$`,
+);
+
+/**
+ * SRD Darkmantle, Darkness Aura: "Magical Darkness fills a 15-foot Emanation
+ * originating from the darkmantle. This effect lasts while the darkmantle
+ * maintains Concentration on it, up to 10 minutes. Darkvision can't penetrate
+ * this area, and no light can illuminate it."
+ *
+ * Every sentence anchored, because the last one is what makes this darkness
+ * different from SRD *Darkness*'s: that one admits magical light and this one
+ * admits none. (M-REFLEX)
+ */
+const CONCENTRATED_DARKNESS = new RegExp(
+  `^Magical Darkness fills a (\\d+)-foot Emanation originating from the ${SUBJECT}\\. ` +
+    `This effect lasts while the ${SUBJECT} maintains Concentration on it, up to (\\d+) minutes\\. ` +
+    `Darkvision can${APOSTROPHE}t penetrate this area, and no light can illuminate it\\.$`,
+);
+
+/** The effect a line keeps up under Concentration, or null for every other line. */
+export function parseConcentrationLine(text: string): MonsterConcentration | null {
+  const sentence = oneLine(text);
+  const held = CONCENTRATED_CONDITION.exec(sentence);
+  if (held !== null) {
+    const [, light, condition, attackRoll, uses] = held;
+    const checked = MonsterConcentrationSchema.safeParse({
+      conditions: [condition!.toLowerCase()],
+      ...(light === undefined ? {} : { withItsLight: true }),
+      ...(attackRoll === undefined
+        ? {}
+        : {
+            endsAfter: {
+              attackRoll: true,
+              ...(uses === undefined ? {} : { lines: [uses] }),
+            },
+          }),
+    });
+    return checked.success ? checked.data : null;
+  }
+  const dark = CONCENTRATED_DARKNESS.exec(sentence);
+  if (dark !== null) {
+    const checked = MonsterConcentrationSchema.safeParse({
+      darkness: { emanationFeet: Number(dark[1]) },
+      upToMinutes: Number(dark[2]),
+    });
+    return checked.success ? checked.data : null;
+  }
+  return null;
+}
+
+/**
+ * SRD Giant Octopus and SRD Octopus, Ink Cloud: the two triggers the book
+ * prints and the one response, anchored end to end. (M-REFLEX)
+ */
+const RELEASES_CLOUD = new RegExp(
+  `^_Trigger:_ (?:The ${SUBJECT} (takes damage)|A creature ends its turn within (\\d+) feet of the ${SUBJECT}) ` +
+    `while underwater\\. _Response:_ The ${SUBJECT} releases ink that fills a (\\d+)-foot Cube ` +
+    `centered on itself, and the ${SUBJECT} moves up to its (Swim )?Speed\\. ` +
+    `The Cube is (Lightly|Heavily) Obscured for (\\d+) minutes? or until ` +
+    `(a strong current or similar effect) disperses the ink\\.$`,
+);
+
+/** The cloud a Reaction line releases, or null for every other line. */
+export function parseCloudLine(text: string): MonsterCloud | null {
+  const matched = RELEASES_CLOUD.exec(oneLine(text));
+  if (matched === null) return null;
+  const [, damaged, feet, cube, swim, degree, minutes, dispersal] = matched;
+  const checked = MonsterCloudSchema.safeParse({
+    trigger:
+      damaged === undefined
+        ? { kind: 'creature-ends-turn-within', feet: Number(feet) }
+        : { kind: 'takes-damage' },
+    underwater: true,
+    cubeFeet: Number(cube),
+    degree: degree!.toLowerCase(),
+    lastsMinutes: Number(minutes),
+    dispersedBy: dispersal,
+    movesUpTo: swim === undefined ? 'walk' : 'swim',
   });
   return checked.success ? checked.data : null;
 }
@@ -3878,6 +3996,10 @@ function parseFeatures(
       const rampages = parseRampageLine(text);
       // And the light a use switches on and the next switches off — W7-B11.
       const togglesLight = parseLightToggleLine(text);
+      // And an effect a line keeps up under Concentration, and the cloud a
+      // Reaction releases — M-REFLEX.
+      const concentrates = parseConcentrationLine(text);
+      const releasesCloud = parseCloudLine(text);
       const treeStride = parseTreeStrideLine(text);
       const addsToRoll = parseRollAddendLine(text);
       // The Reactions section's other two templates, read off the sentence for
@@ -3914,6 +4036,8 @@ function parseFeatures(
         ...(dashes === null ? {} : { dashes }),
         ...(rampages === null ? {} : { rampages }),
         ...(togglesLight === null ? {} : { togglesLight }),
+        ...(concentrates === null ? {} : { concentrates }),
+        ...(releasesCloud === null ? {} : { releasesCloud }),
         ...(treeStride === null ? {} : { treeStride }),
         ...(addsToRoll === null ? {} : { addsToRoll }),
         ...(addsToAc === null ? {} : { addsToAc }),

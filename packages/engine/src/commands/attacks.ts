@@ -93,7 +93,7 @@ import {
   sizeAtMost,
   type Point,
 } from '../positioning.js';
-import { type ReactionOffer } from '../reactions.js';
+import { declaredAttackOffers, type ReactionOffer } from '../reactions.js';
 import {
   castOnAHit,
   durationSecondsAt,
@@ -1711,6 +1711,16 @@ export interface AttackResolution {
    * a hit on the creature behind it.
    */
   readonly deflected?: true;
+  /**
+   * The swing was declared and is held before its die, because its target may
+   * turn it on somebody else — M-REFLEX, SRD Goblin Boss's Redirect Attack.
+   * `attack` is null and nothing is spent: the target answers
+   * (`redirectDeclaredAttack` or `declineDeclaredAttack`), and then the
+   * attacker makes the same swing again, naming the creature it declared it
+   * at, and it is thrown at whoever is then its target. Absent on every swing
+   * that was thrown.
+   */
+  readonly declared?: { readonly awaiting: CharacterId };
   /** True when this command id had already been applied; `events` is empty. */
   readonly duplicate: boolean;
 }
@@ -1985,6 +1995,11 @@ function swingAt(
   command: AttackCommand,
   supply: Supply,
   stamp: CommandStamp | null,
+  /**
+   * This is the declared swing being thrown, at the target its declaration
+   * settled on — so no window is opened for it a second time. (M-REFLEX)
+   */
+  throwingDeclared = false,
 ): Result<AttackResolution> {
   {
     if (state.pendingAttack !== null) {
@@ -1992,6 +2007,41 @@ function swingAt(
         'attack_pending',
         `${state.pendingAttack.attacker} has a hit whose damage is still unrolled; settle it first`,
       );
+    }
+
+    // — a swing declared and held for its target's answer — M-REFLEX ————————
+    //
+    // SRD Goblin Boss, Redirect Attack: "the ally becomes the target of the
+    // attack instead." The attacker makes the swing it declared, naming the
+    // creature it declared it at, and it is thrown at whoever the answer left
+    // as its target — the ally, or the creature itself. Nothing else swings
+    // while one is held: the fight waits for it, as it waits for a held hit.
+    const declared = state.pendingSwing;
+    if (declared !== undefined && !throwingDeclared) {
+      if (declared.attacker !== id) {
+        return err(
+          'attack_declared',
+          `${declared.attacker} has declared an attack at ${declared.declaredAt} that is not yet thrown; settle it first`,
+        );
+      }
+      if (!declared.answered) {
+        return err(
+          'attack_declared',
+          `${declared.declaredAt} has not yet answered the attack ${id} declared at it`,
+        );
+      }
+      if (command.target !== declared.declaredAt && command.target !== declared.target) {
+        return err(
+          'attack_declared',
+          `${id} declared its attack at ${declared.declaredAt}, and that is the attack it makes now`,
+        );
+      }
+      const thrown = swingAt(state, id, { ...command, target: declared.target }, supply, stamp, true);
+      if (!thrown.ok) return thrown;
+      return ok({
+        ...thrown.value,
+        events: [{ type: 'declared-attack-thrown', attacker: id }, ...thrown.value.events],
+      });
     }
 
     // A second swing while the first one's damage is held would roll damage into
@@ -2404,6 +2454,7 @@ function swingAt(
         { ...command, target: fallback.target, ifWarded: 'lose' },
         supply,
         stamp,
+        throwingDeclared,
       );
       if (!next.ok) return next;
       return ok({
@@ -2416,6 +2467,47 @@ function swingAt(
     // "Lose the attack": the swing is spent below, as any swing is, and no
     // roll is made. (Owner's ruling of 2026-10-03.)
     const lostToWard = ward.value.barred;
+
+    // — the target's answer before the die — M-REFLEX ———————————————————————
+    //
+    // SRD Goblin Boss, Redirect Attack: "_Trigger:_ A creature the goblin can
+    // see makes an attack roll against it. _Response:_ … the ally becomes the
+    // target of the attack instead." After the ward, because targeting is
+    // asked first and a swing the ward turned away is made at nobody here;
+    // before anything is spent and before the die, because what the answer
+    // changes is whom the die is thrown at. Held only where the target holds
+    // something that could answer it and somebody stands to take the swing —
+    // see `declaredAttackOffers` — so every other swing is thrown as it always
+    // was.
+    //
+    // **Not on a swing made inside another resolution** (`free`): an
+    // Opportunity Attack, a Retaliation, a readied swing, a Cleave. Each is
+    // made by a command that is itself settling something — a move it holds,
+    // a Reaction it has spent — and a second hold inside it would have that
+    // command finish around a swing that has not been thrown. The residue is
+    // stated where the line is counted, in `coverage-data.ts`.
+    if (!lostToWard && !throwingDeclared && command.free !== true) {
+      const answers = declaredAttackOffers(state, command.target, id);
+      if (answers.offers.length > 0) {
+        return ok({
+          events: [
+            ...ward.value.events,
+            { type: 'rolls-issued', count: supply.issuer.count - issuedBefore, rng: supply.rng.snapshot() },
+            {
+              type: 'attack-declared',
+              attacker: id,
+              target: command.target,
+              offers: answers.offers,
+              ...(stamp === null ? {} : { command: stamp }),
+            },
+          ],
+          attack: null,
+          declared: { awaiting: command.target },
+          unverified: [...ward.value.unverified, ...answers.unverified],
+          duplicate: false,
+        });
+      }
+    }
 
     // — the action it costs —————————————————————————————————————————————————
     //

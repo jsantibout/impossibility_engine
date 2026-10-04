@@ -391,6 +391,11 @@ export function moveWithin(
     if (state.pendingAttack !== null) {
       return err('attack_pending', 'a hit is waiting for its damage; settle it first');
     }
+    // And a swing declared and not thrown — M-REFLEX. Its answer may already
+    // have moved two creatures, and the swing is measured from where they are.
+    if (state.pendingSwing !== undefined) {
+      return err('attack_declared', 'a declared attack is waiting to be thrown; settle it first');
+    }
     // Walking on out of an area that has already caught you would leave the
     // engine owing a save against a Web the mover is no longer standing in.
     //

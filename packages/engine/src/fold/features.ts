@@ -10,8 +10,12 @@
 import type { CharacterId } from '@ie/shared';
 import type { CreatureSize } from '@ie/srd';
 import { READY } from '../actions.js';
+import { concentratedLines } from '../character.js';
+import { removeConditionInstance } from '../conditions.js';
 import type { GameEvent } from '../events.js';
-import type { GameState } from '../state.js';
+import type { CreatureState, GameState } from '../state.js';
+import { type TimedEffect, timerKey } from '../timers.js';
+import { attackRollMadeBy } from './endings.js';
 import {
   CorruptLogError,
   creatureOf,
@@ -152,6 +156,107 @@ export function applyFeatures({ state, next }: Applying, event: FeaturesEvent): 
   }
 
   return unhandledEvent(event);
+}
+
+/**
+ * A stat block's line held under Concentration, kept in step with the
+ * Concentration that holds it up — M-REFLEX.
+ *
+ * SRD Will-o'-Wisp's Vanish: "The wisp and its light have the Invisible
+ * condition until the wisp's Concentration ends on this effect, which ends
+ * early immediately after the wisp makes an attack roll or uses Consume Life."
+ * SRD Darkmantle's Darkness Aura: "This effect lasts while the darkmantle
+ * maintains Concentration on it, up to 10 minutes."
+ *
+ * **Derived, and the reason is the number of doors.** A Concentration ends by
+ * a failed save, the Incapacitated condition, a death, a second Concentration
+ * and a dismissal, and each of them reaches `releaseCasting` knowing nothing of
+ * features; a feature ends by its deadline (`expireEffects`) and by an ending
+ * somebody states. Every one of them takes away one half of the pair, and this
+ * takes away the other, so no road out of either can leave a Darkness standing
+ * with nobody concentrating on it or a Concentration held on nothing.
+ *
+ * **And the two early endings the line prints**, read off this one event: an
+ * attack roll its holder made — the reading SRD Invisibility's clause is given
+ * (`attackRollMadeBy`) — and a use of a line the record names, which is the
+ * `stated-action-taken` or `stated-bonus-action-taken` every door that spends a
+ * printed line writes.
+ *
+ * What goes with the feature: the Concentration, the conditions the spender
+ * hung under the feature's key, and the deadline that would have ended it. The
+ * light it laid and the light it withheld are derived off `activeFeatures`, so
+ * they go by themselves.
+ */
+export function settleConcentratedFeatures(state: GameState, event: GameEvent): GameState {
+  let anyHeld = false;
+  for (const key in state.creatures) {
+    const creature = state.creatures[key];
+    if (creature === undefined) continue;
+    if (creature.activeFeatures.length > 0 || creature.concentration?.feature === true) {
+      anyHeld = true;
+      break;
+    }
+  }
+  if (!anyHeld) return state;
+
+  const attacker = attackRollMadeBy(state, event);
+  const used =
+    event.type === 'stated-action-taken' || event.type === 'stated-bonus-action-taken'
+      ? { who: event.id, line: event.line }
+      : null;
+
+  let creatures: Record<string, CreatureState> | null = null;
+  let timers: Record<string, TimedEffect> | null = null;
+  for (const key of Object.keys(state.creatures).sort()) {
+    const creature = state.creatures[key];
+    if (creature === undefined) continue;
+    const lines = concentratedLines(creature.sheet);
+    if (lines.length === 0) continue;
+
+    let updated = creature;
+    for (const { concentrates } of lines) {
+      const feature = concentrates.feature;
+      const held =
+        updated.concentration?.feature === true && updated.concentration.castingId === feature;
+      const endedByDeed =
+        (concentrates.endsAfter?.attackRoll === true && attacker === creature.id) ||
+        (used !== null &&
+          used.who === creature.id &&
+          (concentrates.endsAfter?.lines ?? []).some(
+            (line) => line.toLowerCase() === used.line.toLowerCase(),
+          ));
+      const running = updated.activeFeatures.includes(feature) && held && !endedByDeed;
+      if (running) continue;
+
+      const doomed = updated.conditions.instances.filter((instance) => instance.source === feature);
+      if (!updated.activeFeatures.includes(feature) && !held && doomed.length === 0) continue;
+
+      let conditions = updated.conditions;
+      for (const instance of doomed) conditions = removeConditionInstance(conditions, instance.id);
+      updated = {
+        ...updated,
+        activeFeatures: updated.activeFeatures.filter((f) => f !== feature),
+        conditions,
+        ...(held ? { concentration: null } : {}),
+      };
+      const deadline = timerKey({ kind: 'feature', on: creature.id, feature });
+      if ((timers ?? state.timers)[deadline] !== undefined) {
+        timers ??= { ...state.timers };
+        delete timers[deadline];
+      }
+    }
+    if (updated !== creature) {
+      creatures ??= { ...state.creatures };
+      creatures[key] = updated;
+    }
+  }
+
+  if (creatures === null && timers === null) return state;
+  return {
+    ...state,
+    ...(creatures === null ? {} : { creatures }),
+    ...(timers === null ? {} : { timers }),
+  };
 }
 
 /**

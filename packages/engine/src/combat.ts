@@ -1492,6 +1492,17 @@ export interface CombatState {
   readonly turnsTaken: number;
   /** Turns begun and ended, per combatant, for turn-anchored durations. */
   readonly turnCounts: Readonly<Record<string, TurnCount>>;
+  /**
+   * Who ended the last turn to end, and which turn that was (its
+   * {@link turnsTaken} number) — M-REFLEX.
+   *
+   * SRD Octopus, Ink Cloud: "A creature **ends its turn** within 5 feet of the
+   * octopus". `turnCounts` says how many turns each combatant has ended and
+   * not which ended last, and the order cannot say it either once somebody
+   * joins or leaves; so the boundary records it as it is crossed. Absent until
+   * the first turn of a fight ends. Read by `turnEndWindowOpen`.
+   */
+  readonly endedLast?: { readonly who: CharacterId; readonly turn: number };
 }
 
 /**
@@ -1623,11 +1634,14 @@ export function advanceTurn(state: CombatState): CombatState {
   // Whoever was acting has finished. Counted before the move, because "the end
   // of your next turn" is a moment in its own right, a full round after "the
   // start of your next turn".
-  const ended = bumped(state.turnCounts, currentCombatant(state).id, 'ended');
+  const ender = currentCombatant(state).id;
+  const ended = bumped(state.turnCounts, ender, 'ended');
 
   return beginTurn({
     ...state,
     turnCounts: ended,
+    // And who it was, for a Reaction to a turn ending — see `endedLast`.
+    endedLast: { who: ender, turn: state.turnsTaken },
     turnIndex: wrapped ? 0 : next,
     round: wrapped ? state.round + 1 : state.round,
     turnsTaken: state.turnsTaken + 1,
