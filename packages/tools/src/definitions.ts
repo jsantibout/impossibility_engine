@@ -172,6 +172,7 @@ import {
   declareEnding,
   exposeToFire,
   declareLight,
+  clearObscurement,
   declareObscurement,
   declareFalling,
   moveCastLight,
@@ -1173,7 +1174,7 @@ const DISMISS_STRANDED_SUMMONS = tool({
 const RETURN_FROM_ELSEWHERE = tool({
   name: 'return_from_elsewhere',
   description:
-    'Bring a creature back into the scene from wherever a spell or a stat-block line sent it — the Ethereal Plane, an extradimensional space, another creature’s gullet — once the way back is open: the casting that sent it has ended, the Rope Trick is still hanging to climb down, or the creature that swallowed it has died. Name the space it stands in, measured from a landmark or a creature; the engine checks it against the rule pinned when the creature left (how far from the space it left or from the creature the rule names, whether it must be one the creature can see) and refuses one too far, one somebody is standing in, or one outside the scene. Omit the space and the engine takes the one space that qualifies, or asks which. Coming back from the Ethereal Plane into a barrier that demands a saving throw of interplanar travel — SRD Magic Circle’s Cylinder — the engine rolls the save first, and on a failure the creature stays away and may be sent again to another space. `end_turn` refuses while a creature is stranded elsewhere by a casting that has ended, and names it.',
+    'Bring a creature back into the scene from wherever a spell or a stat-block line sent it — the Ethereal Plane, an extradimensional space, another creature’s gullet — once the way back is open: the casting that sent it has ended, the Rope Trick is still hanging to climb down, or the creature that swallowed it has died. A creature possessing another (SRD Ghost) comes back here too: by its own choice on its own turn, which spends its Bonus Action, or owed once the body has dropped to 0 Hit Points; either way the possession’s Incapacitated is gone and the body gets the day’s immunity the line prints. Name the space it stands in, measured from a landmark or a creature; the engine checks it against the rule pinned when the creature left (how far from the space it left or from the creature the rule names, whether it must be one the creature can see) and refuses one too far, one somebody is standing in, or one outside the scene. Omit the space and the engine takes the one space that qualifies, or asks which. Coming back from the Ethereal Plane into a barrier that demands a saving throw of interplanar travel — SRD Magic Circle’s Cylinder — the engine rolls the save first, and on a failure the creature stays away and may be sent again to another space. `end_turn` refuses while a creature is stranded elsewhere by a casting or a possession that has ended, and names it.',
   mutates: true,
   selfAnswers: ['position'],
   input: z.object({
@@ -2265,6 +2266,31 @@ const MOVE_CAST_LIGHT = tool({
 });
 
 /**
+ * And the patch of obscured air gone again — M-REFLEX.
+ *
+ * SRD Ink Cloud: "Heavily Obscured for 1 minute **or until a strong current or
+ * similar effect disperses the ink**." The engine holds no water and no
+ * current, so the table's word is the ending; the same word clears a fog bank
+ * the table declared. A patch a running spell holds up is refused: it ends
+ * with its casting.
+ */
+const CLEAR_OBSCUREMENT = tool({
+  name: 'clear_obscurement',
+  description:
+    'Say that a patch of obscured air has cleared — the fog burnt off, the smoke blew away, a strong current dispersed an octopus’s ink. Name the patch as `observe` or the call that made it reports it. A patch a running spell holds up (a Fog Cloud) is refused: it ends when that spell ends.',
+  mutates: true,
+  input: z.object({
+    patch: z.string().min(1).describe('The name of the patch, as reported, e.g. the fog bank.'),
+  }),
+  run: (context, args) =>
+    settleEvents(
+      context,
+      clearObscurement(context.campaign.state(), args.patch, { ...identity(context) }),
+      { cleared: 'obscurement', patch: args.patch },
+    ),
+});
+
+/**
  * And the half of obscurement that is not about the light at all.
  *
  * A record of its own beside the light because SRD Fog Cloud makes its Sphere
@@ -2766,7 +2792,7 @@ const ATTACK = tool({
   // own route questions. (E-L1)
   selfAnswers: ['route'],
   description:
-    'Attack with a weapon, or with an attack the creature’s own stat block prints. The engine derives everything: the target’s Armour Class, reach and range, advantage and disadvantage, proficiency, the damage dice, and the target’s defences. You name who swings at whom and with what — a catalogue `weapon`, or an `action` by its printed name, never both.',
+    'Attack with a weapon, or with an attack the creature’s own stat block prints. The engine derives everything: the target’s Armour Class, reach and range, advantage and disadvantage, proficiency, the damage dice, and the target’s defences. You name who swings at whom and with what — a catalogue `weapon`, or an `action` by its printed name, never both. A swing at a creature that may turn it on somebody else before the die (a goblin boss’s Redirect Attack) comes back `declared` with no roll: its target answers with `answer_declared_attack`, and then you send this same attack again, at the same target, under a new call.',
   mutates: true,
   input: z.object({
     attacker: creatureId,
@@ -2897,6 +2923,9 @@ const ATTACK = tool({
         // back with no roll that is neither a miss nor a retry. (E-L1)
         ...(value.warded === true ? { warded: true } : {}),
         ...(value.fizzled === true ? { fizzled: true } : {}),
+        // Held before the die for the target's answer — M-REFLEX, SRD Redirect
+        // Attack. The same swing is sent again once it has answered.
+        ...(value.declared === undefined ? {} : { declared: { awaiting: value.declared.awaiting } }),
         ...(value.damage === undefined ? {} : { damageDealt: value.damage }),
         ...(value.reactions === undefined
           ? {}
@@ -6638,6 +6667,7 @@ export const TOOLS: readonly ToolDefinition[] = [
   DECLARE_LIGHT,
   MOVE_CAST_LIGHT,
   DECLARE_OBSCUREMENT,
+  CLEAR_OBSCUREMENT,
   DECLARE_SIDE,
   DECLARE_SIGHT,
   DECLINE_DAMAGE_REACTION,

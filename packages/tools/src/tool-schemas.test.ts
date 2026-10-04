@@ -190,11 +190,17 @@ describe('toolSchemas', () => {
     // And one on each for E-L2, `expose_to_fire`.
     // And one on the DM's alone for E-L2's owner rulings, `declare_plants`.
     // And one on the DM's alone for E-L1, `declare_contact`.
+    // And one on the DM's alone for M-LINGER, `settle_daily_tolls` — the toll
+    // a curse or a poison that outlasts the fight takes every 24 hours.
+    // And one on the DM's alone for M-MATTER, `touch_printed_line`.
+    // And one on each for M-REFLEX, `clear_obscurement` — the table's word that
+    // a strong current dispersed the ink — and two more on the DM's alone,
+    // `release_printed_cloud` and `answer_declared_attack`.
     // And two on the DM's alone for M-RISE: `heal_printed_line` (SRD
     // Otherworldly Steed's Healing Touch) and `raise_printed_line` (SRD
     // Wraith's Create Specter).
-    expect(toolSchemas(player())).toHaveLength(101);
-    expect(toolSchemas(dm())).toHaveLength(139);
+    expect(toolSchemas(player())).toHaveLength(102);
+    expect(toolSchemas(dm())).toHaveLength(144);
     // Re-pinned 2026-09-24 for the printed-lines track, which opened one door
     // on the DM's surface alone: `teleport_printed_line` takes the teleport a
     // stat block prints, at the distance the block prints, to a space the DM
@@ -474,13 +480,32 @@ describe('toolSchemas', () => {
     // And `declare_contact.item` on the DM's alone — a second hand on a thing a
     // creature wears or wields (the owner's ruling, applied 2026-10-03) — with
     // the description and `object` saying so, +445. No tool added.
+    // And for M-MIND, `return_from_elsewhere`'s description: a creature
+    // possessing another (SRD Ghost) leaves by it, spending its Bonus Action,
+    // or is owed it once the body drops to 0 Hit Points, and `end_turn` refuses
+    // past a possession that has ended. One tool both doors publish: +300
+    // bytes on each, and no tool added.
+    // And M-LINGER: `settle_daily_tolls` on the DM's alone — the toll a curse
+    // or a poison that outlasts the fight takes every 24 hours, a settlement
+    // that takes nothing. 137 → 138 tools on the DM's door, +675 bytes; the
+    // player's door is unmoved.
+    // And for M-MATTER, on the DM's alone: `touch_printed_line` (SRD Rust
+    // Monster's Destroy Metal — the declared object it touches and whether the
+    // cube is the whole of it), a new door. 137 → 138 tools; +1,603 bytes on
+    // the DM's door, none on the player's.
+    // M-REFLEX (2026-10-03): `clear_obscurement` on both doors, and one more
+    // sentence on `attack` saying a swing at a goblin boss may come back
+    // `declared` — 101 → 102 tools and +780 bytes on the player's. On the DM's
+    // the same, plus `release_printed_cloud` (SRD Ink Cloud) and
+    // `answer_declared_attack` (SRD Redirect Attack): 137 → 140 tools and
+    // +3,937 bytes.
     // M-RISE (2026-10-03), on the DM's alone: `heal_printed_line` and
-    // `raise_printed_line`, two new doors, 137 → 139 tools and +2,732 bytes.
+    // `raise_printed_line`, two new doors, 142 → 144 tools and +2,732 bytes.
     // The player's door is untouched.
-    expect(toolSchemas(player())).toHaveLength(101);
-    expect(toolSchemas(dm())).toHaveLength(139);
-    expect(JSON.stringify(toolSchemas(player())).length).toBe(179328);
-    expect(JSON.stringify(toolSchemas(dm())).length).toBe(247390);
+    expect(toolSchemas(player())).toHaveLength(102);
+    expect(toolSchemas(dm())).toHaveLength(144);
+    expect(JSON.stringify(toolSchemas(player())).length).toBe(180408);
+    expect(JSON.stringify(toolSchemas(dm())).length).toBe(253905);
   });
 });
 

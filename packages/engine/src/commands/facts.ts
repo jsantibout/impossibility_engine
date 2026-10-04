@@ -24,6 +24,7 @@ import {
   DIFFICULT_TERRAIN,
   declareDifficultPatch,
   declareLightPatch,
+  clearObscuringPatch,
   declareObscuringPatch,
   dispelOnPinning,
   lightDispelledBy,
@@ -660,6 +661,31 @@ export function moveCastLight(
     for (const effectKey of [...glows].sort()) events.push({ type: 'effect-dispelled', effectKey });
     if (itself) events.push({ type: 'spell-ended', castingId, on: null, reason: 'dispelled' });
     return ok(events);
+  });
+}
+
+/**
+ * Say that a patch of obscured air has cleared — M-REFLEX.
+ *
+ * SRD Ink Cloud: "The Cube is Heavily Obscured for 1 minute **or until a strong
+ * current or similar effect disperses the ink**." The engine holds no water and
+ * no current; the table does, and this is its word that one came. The same door
+ * serves the fog bank the sun burnt off. A patch a casting holds up is refused:
+ * it ends with its casting, by the doors a casting ends through.
+ */
+export function clearObscurement(
+  state: GameState,
+  patch: string,
+  command: CommandIdentity = {},
+): Result<GameEvent[]> {
+  return once(state, `clear-obscurement:${patch}`, { ...command }, () => [], (stamp) => {
+    const scene = sceneFor(state, patch, `the air over ${patch} to clear`);
+    if (!scene.ok) return scene;
+    const cleared = clearObscuringPatch(scene.value, patch);
+    if (!cleared.ok) return cleared;
+    return ok([
+      { type: 'obscurement-cleared', patch, ...(stamp === null ? {} : { command: stamp }) },
+    ]);
   });
 }
 

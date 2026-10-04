@@ -2,6 +2,7 @@ import { readFileSync, readdirSync } from 'node:fs';
 import { BACKGROUNDS, FIGHTING_STYLE_FEATS, ORIGIN_FEATS, SPECIES, SRD_CONTENT } from '@ie/content';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
+import type { CreatureSize } from '@ie/srd';
 import { linesOf } from '../../../test-support/lines.js';
 import {
   asCharacterId,
@@ -47,6 +48,7 @@ import {
   dismissStrandedSummons,
   dismountRider,
   settleBlockDeadlines,
+  settleDailyTolls,
   takeRestForm,
   endCombat,
   joinCombat,
@@ -146,6 +148,10 @@ import {
   takeDamageReaction,
   takeAttackReaction,
   takeDamageResponse,
+  takeTurnEndReaction,
+  redirectDeclaredAttack,
+  declineDeclaredAttack,
+  clearObscurement,
   takeOpportunityAttack,
   takeItemUp,
   takeReady,
@@ -154,6 +160,7 @@ import {
   takeLegendaryAction,
   takePrintedForm,
   takePrintedPull,
+  takePrintedTouch,
   takePrintedTeleport,
   takePrintedHeal,
   raisePrintedLine,
@@ -183,10 +190,12 @@ import {
   useRecovery,
   useSelfHeal,
 } from './commands.js';
+import { printedTraitKey } from './monster.js';
 // Not a command, and therefore not on the barrel — the low-level half beneath
 // `resolveSpell`, kept here so the `mayAct` guard it gained stays exercised.
 import { resolveCast } from './commands/casting.js';
 import { conditionInstanceId } from './conditions.js';
+import { OBJECT_CREATURE_TYPE, objectSheet } from './objects.js';
 import { beginRest, endRest, SHORT_REST } from './rest.js';
 import { hitDieKey } from './resources.js';
 import { extendContent, type Content } from './content.js';
@@ -704,6 +713,39 @@ const PULLING: readonly GameEvent[] = SETUP.map((event) =>
     ? { ...event, sheet: sheet({ stated: { unreadActions: [PULLING_LINE] } }) }
     : event,
 );
+
+/**
+ * The same invented line with the book's touch template read off it, and an
+ * iron lock five feet off for it to touch — M-MATTER. A retry that was not
+ * guarded would spend a second Action and destroy the lock a second time.
+ */
+const TOUCHING_LINE: StatedAction = {
+  ...PRINTED_LINE,
+  touchesObject: { within: 5, material: 'metal', cubeFeet: 1 },
+};
+const LOCK = id('lock');
+
+/** The same world again, with that line under Actions and the lock beside A. */
+const TOUCHING: readonly GameEvent[] = [
+  ...SETUP.slice(0, -1).map((event) =>
+    event.type === 'creature-added' && event.id === A
+      ? { ...event, sheet: sheet({ stated: { unreadActions: [TOUCHING_LINE] } }) }
+      : event,
+  ),
+  {
+    type: 'creature-added',
+    id: LOCK,
+    name: 'the iron lock',
+    sheet: objectSheet(19),
+    maxHp: 5,
+    diesAtZero: true,
+    creatureType: OBJECT_CREATURE_TYPE,
+    size: 'tiny',
+    material: { id: 'iron', metal: true, flammable: false },
+  },
+  { type: 'creature-placed', id: LOCK, placement: { from: { creature: A }, feet: 5, bearing: 180 } },
+  SETUP[SETUP.length - 1]!,
+];
 
 /**
  * The same invented line with the book's cast template read off it.
@@ -1464,6 +1506,76 @@ const tested = (): readonly GameEvent[] => {
       'test',
     ).events,
   ];
+};
+
+/**
+ * M-REFLEX: an octopus of the stated block at the landmark, beside B, in a
+ * fight B's turn opens — the world both Ink Clouds are taken in.
+ */
+const INK_OCTOPUS = id('an-octopus');
+const reef = (block: string, size: CreatureSize): readonly GameEvent[] => [
+  ...unwrap(addCreature(fold('s', []), SRD_CONTENT, INK_OCTOPUS, block), 'the octopus').events,
+  added(B, 'foes'),
+  { type: 'scene-set', extent: { width: 300, depth: 300, height: 40 } },
+  { type: 'landmark-added', name: 'here', at: { x: 100, y: 100, z: 0 } },
+  { type: 'creature-placed', id: INK_OCTOPUS, placement: { from: { landmark: 'here' }, feet: 0, size } },
+  {
+    type: 'creature-placed',
+    id: B,
+    // Beside the octopus, whose footprint is its size's.
+    placement: { from: { landmark: 'here' }, feet: size === 'large' ? 10 : 5, bearing: 90 },
+  },
+  {
+    type: 'combat-started',
+    combatants: [
+      { id: B, initiative: 20, speed: 30 },
+      { id: INK_OCTOPUS, initiative: 5, speed: 10 },
+    ],
+  },
+];
+
+/** M-REFLEX: B's blow has just landed on a giant octopus. */
+const inkedGiant = (): readonly GameEvent[] => [
+  ...reef('giant-octopus', 'large'),
+  { type: 'damage-taken', id: INK_OCTOPUS, amount: 3, by: B },
+];
+
+/** M-REFLEX: B's turn has just ended beside an octopus. */
+const inkedSmall = (): readonly GameEvent[] => [...reef('octopus', 'small'), { type: 'turn-advanced' }];
+
+/**
+ * M-REFLEX: B has declared a swing at a goblin boss with a goblin of its own
+ * side beside it — SRD Redirect Attack's window, held before the die.
+ */
+const BOSS = id('a-boss');
+const BOSS_ALLY = id('a-goblin');
+const declaredAtBoss = (): readonly GameEvent[] => {
+  const log: readonly GameEvent[] = [
+    ...unwrap(addCreature(fold('s', []), SRD_CONTENT, BOSS, 'goblin-boss'), 'the boss').events,
+    ...unwrap(addCreature(fold('s', []), SRD_CONTENT, BOSS_ALLY, 'goblin-warrior'), 'the goblin')
+      .events,
+    added(B, 'foes'),
+    { type: 'scene-set', extent: { width: 300, depth: 300, height: 40 } },
+    { type: 'landmark-added', name: 'here', at: { x: 100, y: 100, z: 0 } },
+    { type: 'creature-placed', id: BOSS, placement: { from: { landmark: 'here' }, feet: 0 } },
+    { type: 'creature-placed', id: B, placement: { from: { creature: BOSS }, feet: 5, bearing: 270 } },
+    { type: 'creature-placed', id: BOSS_ALLY, placement: { from: { creature: BOSS }, feet: 5, bearing: 90 } },
+    { type: 'creature-side-declared', id: BOSS, side: 'goblins' },
+    { type: 'creature-side-declared', id: BOSS_ALLY, side: 'goblins' },
+    {
+      type: 'combat-started',
+      combatants: [
+        { id: B, initiative: 20, speed: 30 },
+        { id: BOSS, initiative: 10, speed: 30 },
+        { id: BOSS_ALLY, initiative: 5, speed: 30 },
+      ],
+    },
+  ];
+  const swing = unwrap(
+    resolveAttack(fold('s', log), B, { target: BOSS, weapon: null }, supply()),
+    'the declared swing',
+  );
+  return [...log, ...swing.events];
 };
 
 /** A has just been hurt by B, who is standing next to them. */
@@ -2313,6 +2425,32 @@ const LIMB_DUE: readonly GameEvent[] = [
   { type: 'time-advanced', seconds: 24 * 3600, reason: 'a day' },
 ];
 
+/**
+ * A knight a mummy cursed a day ago, its first toll owed — M-LINGER. The two
+ * records the hit lays, written as the hit writes them, and the day.
+ */
+const TOLL_DUE: readonly GameEvent[] = [
+  ...unwrap(addCreature(fold('s', []), SRD_CONTENT, id('a-cursed'), 'knight'), 'the knight').events,
+  {
+    type: 'printed-curse-laid',
+    id: id('a-cursed'),
+    curse: { source: 'printed:a-mummy:Rotting Fist', by: id('a-mummy'), line: 'Rotting Fist' },
+  },
+  {
+    type: 'lingering-harm-laid',
+    id: id('a-cursed'),
+    harm: {
+      source: 'lingering:printed:a-mummy:Rotting Fist',
+      by: id('a-mummy'),
+      line: 'Rotting Fist',
+      host: { kind: 'curse', source: 'printed:a-mummy:Rotting Fist' },
+      withholdsMaximum: true,
+      tolls: { from: 0, everySeconds: 24 * 3600, paid: 0, decreases: { dice: '3d6', flat: 0 } },
+    },
+  },
+  { type: 'time-advanced', seconds: 24 * 3600, reason: 'a day' },
+];
+
 const GUARDED: readonly Guarded[] = [
   {
     // The making itself, which is the retry question `addCreature` asks with a
@@ -2373,6 +2511,13 @@ const GUARDED: readonly Guarded[] = [
     name: 'settleBlockDeadlines',
     log: LIMB_DUE,
     run: (s, commandId) => settleBlockDeadlines(s, supply(), { commandId }),
+  },
+  {
+    // M-LINGER: a second throw of the day's 3d6 is a maximum lowered twice for
+    // one day, which is the one thing a retry must never be.
+    name: 'settleDailyTolls',
+    log: TOLL_DUE,
+    run: (s, commandId) => settleDailyTolls(s, supply(), { commandId }),
   },
   {
     name: 'summonCreature',
@@ -2539,6 +2684,16 @@ const GUARDED: readonly Guarded[] = [
     name: 'takePrintedPull',
     log: PULLING,
     run: (s, commandId) => takePrintedPull(s, A, { line: PULLING_LINE.name, commandId }),
+  },
+  /**
+   * And the touch on an object (M-MATTER). A retry that was not guarded would
+   * spend a second Action, or be refused as touching a lock already gone.
+   */
+  {
+    name: 'takePrintedTouch',
+    log: TOUCHING,
+    run: (s, commandId) =>
+      takePrintedTouch(s, A, { line: TOUCHING_LINE.name, object: LOCK, wholeObject: true, commandId }),
   },
   /**
    * The legendary door, on the moment just after B's turn began with nothing
@@ -3244,6 +3399,67 @@ const GUARDED: readonly Guarded[] = [
     log: stung(),
     run: (s, commandId) =>
       takeDamageResponse(s, A, { feature: 'test:riposte', weapon: 'mace', commandId }, supply()),
+  },
+  /**
+   * M-REFLEX. SRD Giant Octopus's Ink Cloud through the same door, and the
+   * Octopus's at the turn boundary: a retry is the same cloud, and a second
+   * run past the guard would spend a Reaction and a day's use that are gone.
+   */
+  {
+    name: 'takeDamageResponse (ink)',
+    log: inkedGiant(),
+    run: (s, commandId) =>
+      takeDamageResponse(
+        s,
+        INK_OCTOPUS,
+        { feature: printedTraitKey('giant-octopus', 'Ink Cloud (1/Day)'), underwater: true, commandId },
+        supply(),
+      ),
+  },
+  {
+    name: 'takeTurnEndReaction',
+    log: inkedSmall(),
+    run: (s, commandId) =>
+      takeTurnEndReaction(
+        s,
+        INK_OCTOPUS,
+        { feature: printedTraitKey('octopus', 'Ink Cloud (1/Day)'), underwater: true, commandId },
+        supply(),
+      ),
+  },
+  /**
+   * M-REFLEX. SRD Goblin Boss's answer to a declared swing: a retry is the same
+   * answer, and one past the guard would be refused for an answer already
+   * given — or, worse, swap the two goblins back.
+   */
+  {
+    name: 'redirectDeclaredAttack',
+    log: declaredAtBoss(),
+    run: (s, commandId) =>
+      redirectDeclaredAttack(s, BOSS, {
+        feature: printedTraitKey('goblin-boss', 'Redirect Attack'),
+        ally: BOSS_ALLY,
+        commandId,
+      }),
+  },
+  {
+    name: 'declineDeclaredAttack',
+    log: declaredAtBoss(),
+    run: (s, commandId) => declineDeclaredAttack(s, BOSS, { commandId }),
+  },
+  /** M-REFLEX. The table's current: a retry clears nothing a second time. */
+  {
+    name: 'clearObscurement',
+    log: [
+      ...SETUP,
+      {
+        type: 'obscurement-declared',
+        patch: 'the smoke',
+        region: { origin: { space: { x: 100, y: 100, z: 0 } }, shape: { kind: 'sphere', radius: 20 } },
+        degree: 'heavily',
+      },
+    ],
+    run: (s, commandId) => clearObscurement(s, 'the smoke', { commandId }),
   },
   {
     name: 'takeAttackReaction',
@@ -4259,6 +4475,18 @@ interface Spender {
  */
 const owing = greased;
 
+/** B gone inside A as A's possessor — SRD Ghost's Possession's record (M-MIND). */
+const possessingA = (s: GameState): GameState =>
+  applyEvent(s, {
+    type: 'creature-sent-elsewhere',
+    id: B,
+    kind: 'inside',
+    host: A,
+    source: 'line:b/Possession',
+    returns: { within: 5, near: A },
+    possesses: { leavesAs: 'bonus-action' },
+  });
+
 const SPENDERS: readonly Spender[] = [
   { name: 'takeDash', run: (s) => takeDash(s, B, {}) },
   // The debt is checked before the moment, the line or the pool, so a
@@ -4291,6 +4519,11 @@ const SPENDERS: readonly Spender[] = [
   // And the two ways out of a creature — W7-B10 — refused for the debt before the record is read.
   { name: 'escapeFromInside', run: (s) => escapeFromInside(s, B, {}, supply()) },
   { name: 'pullOutOfCreature', run: (s) => pullOutOfCreature(s, B, { host: A }, supply()) },
+  // And a possessor leaving the body it holds, which spends its Bonus Action
+  // (M-MIND, SRD Ghost's Possession). B is laid inside A as a possessor for
+  // the run, so the road that spends is the one exercised; every other return
+  // spends nothing and is the settlement of a way back already open.
+  { name: 'returnFromElsewhere', run: (s) => returnFromElsewhere(possessingA(s), B, {}) },
   { name: 'takeDisengage', run: (s) => takeDisengage(s, B, {}) },
   // Movement rather than a slot, and guarded all the same: the debt is asked
   // before the Prone is, so a creature standing on its feet is still refused
@@ -4467,6 +4700,14 @@ const SPENDERS: readonly Spender[] = [
     run: (s) => takePrintedPull(s, B, { line: 'A Printed Line' }),
   },
   /**
+   * And the door that touches an object (M-MATTER), refused for the same debt
+   * before the line, the object or the reach are looked at.
+   */
+  {
+    name: 'takePrintedTouch',
+    run: (s) => takePrintedTouch(s, B, { line: 'A Printed Line', object: A, wholeObject: true }),
+  },
+  /**
    * And the sixth door on one line, which spends the same slot through the
    * casting the route opens — and is refused for the same debt before the
    * line, the menu or the targets are looked at, like its siblings.
@@ -4579,6 +4820,10 @@ const UNGUARDED_ON_PURPOSE: Readonly<Record<string, string>> = {
   takeDamageReaction: 'a Reaction, and it closes a window somebody else opened',
   takeTestReaction: 'a Reaction, and it closes a window somebody else opened',
   takeDamageResponse: 'a Reaction, and it closes a window somebody else opened',
+  takeTurnEndReaction:
+    'a Reaction (M-REFLEX, SRD Octopus’s Ink Cloud), answering another creature’s turn ending, so it is taken on a turn that is not the reactor’s',
+  redirectDeclaredAttack:
+    'a Reaction (M-REFLEX, SRD Goblin Boss’s Redirect Attack), answering an attack somebody else declared, so it is taken on the attacker’s turn',
   resolveAttackDamage:
     'the settlement of an attack already made — a guard here would strand the held roll',
   settleDamage:
@@ -4992,6 +5237,10 @@ const OPEN_TO_THE_DEAD: Readonly<Record<string, string>> = {
   takeDamageReaction: 'a Reaction closing a window, refused a corpse at `spendReactionCost` as `takeAttackReaction` is',
   takeTestReaction: 'a Reaction closing a window, refused a corpse at `spendReactionCost` as `takeAttackReaction` is',
   takeDamageResponse: 'a Reaction closing a window, refused a corpse at `spendReactionCost` as `takeAttackReaction` is',
+  takeTurnEndReaction:
+    'a Reaction answering a turn’s end (M-REFLEX), refused a corpse at `spendReactionCost` as `takeAttackReaction` is',
+  redirectDeclaredAttack:
+    'a Reaction answering a declared swing (M-REFLEX), refused a corpse at `spendReactionCost` as `takeAttackReaction` is',
   resolveFall:
     'the ground: a fall happens to a corpse as to anyone, and the one thing it spends is a Reaction a living faller elects to land with',
   resolveTest:

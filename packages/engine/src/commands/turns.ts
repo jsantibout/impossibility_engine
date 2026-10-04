@@ -51,7 +51,8 @@ import {
   type TimedEffect,
 } from '../timers.js';
 import { applyEvent, type GameEvent, type GameState } from '../events.js';
-import { HAZARD_RULES, hazardSource } from '../hazards.js';
+import { HAZARD_RULES, hazardSource, objectHasNoTurnToBurnAt } from '../hazards.js';
+import { OBJECT_CREATURE_TYPE, takesLight, unsaidFlammability } from '../objects.js';
 import { type CommandIdentity, once } from '../idempotency.js';
 import {
   LEGENDARY_POOL,
@@ -68,6 +69,7 @@ import { filedFor, reportFiled } from './filed-handovers.js';
 import { settleStartOfTurnTraitDice } from './turn-start-dice.js';
 import { settleStartOfTurnBody } from './turn-start-body.js';
 import { blockDeadlinesDue } from './become-block.js';
+import { dailyTollsDue } from './lingering.js';
 import { needsCasterSheet, statedChoice, statedDamageType } from '../spell-definitions.js';
 import {
   type OwedMoment,
@@ -339,26 +341,31 @@ function settlePrintedBoundaryDamage(
       current = hurt.value.events.reduce(applyEvent, current);
       unverified.push(...hurt.value.unverified);
 
-      // SRD Fire Elemental: "Creatures … in the Emanation start burning." The
-      // glossary's Burning, lit on every creature the line caught that the
-      // damage left alive — the hazard the hit riders light and the start of
-      // its turn collects. (W7-B12)
-      if (line.ignites && current.creatures[victim]?.vitals.dead === false) {
-        const lit: GameEvent = {
-          type: 'hazard-caught',
-          id: victim,
-          hazard: { hazard: 'burning', lit: `an emanation from ${who}` },
-        };
-        events.push(lit);
-        current = applyEvent(current, lit);
+      // SRD Fire Elemental: "Creatures and flammable objects in the Emanation
+      // start burning." The glossary's Burning, lit on every creature the line
+      // caught that the damage left alive — the hazard the hit riders light
+      // and the start of its turn collects (W7-B12) — and on every declared
+      // object it caught whose substance takes light (M-MATTER). A stone
+      // pillar stands unlit; a substance nobody has said of is said.
+      const caught = current.creatures[victim];
+      if (!line.ignites || caught === undefined || caught.vitals.dead) continue;
+      const isObject = caught.creatureType === OBJECT_CREATURE_TYPE;
+      if (isObject) {
+        const lights = takesLight(current, victim);
+        if (lights === null) {
+          unverified.push(unsaidFlammability(`${who}'s emanation`, caught.name));
+          continue;
+        }
+        if (!lights) continue;
       }
-    }
-    // And the other half of that sentence, which the engine cannot light: a
-    // declared object has nothing on it that takes a flame.
-    if (line.ignites) {
-      unverified.push(
-        `${who}'s emanation sets "flammable objects in the Emanation" burning; the engine lights the creatures and the objects are the table's`,
-      );
+      const lit: GameEvent = {
+        type: 'hazard-caught',
+        id: victim,
+        hazard: { hazard: 'burning', lit: `an emanation from ${who}` },
+      };
+      events.push(lit);
+      current = applyEvent(current, lit);
+      if (isObject) unverified.push(objectHasNoTurnToBurnAt(caught.name));
     }
   }
 
@@ -2393,6 +2400,17 @@ export function resolveTurn(
       );
     }
 
+    // A swing declared and not yet answered — M-REFLEX, SRD Redirect Attack.
+    // Its target owes the answer, so the turn does not move on around it. One
+    // already answered and never thrown lapses at the boundary instead: the
+    // attacker made no attack (see `PendingSwing`).
+    if (state.pendingSwing !== undefined && !state.pendingSwing.answered) {
+      return err(
+        'attack_declared',
+        `${state.pendingSwing.declaredAt} has not yet answered the attack ${state.pendingSwing.attacker} declared at it; settle it before the turn moves on`,
+      );
+    }
+
     // Damage that has been rolled and not dealt is the newest debt of this
     // shape, and the loudest one to get wrong: advancing past it would leave a
     // creature un-hit by a blow that had already landed, with the roll sitting
@@ -2497,17 +2515,31 @@ export function resolveTurn(
       );
     }
 
+    // **A lingering harm's toll the clock has passed** — M-LINGER, SRD Mummy's
+    // "every 24 hours that elapse" and SRD Death Dog's repeat save. The same
+    // kind of debt as the limb's day just above, settled by
+    // `settleDailyTolls`, which throws the dice.
+    const tolling = dailyTollsDue(state);
+    if (tolling.length > 0) {
+      return err(
+        'daily_toll_owed',
+        `${tolling.join(', ')} ${tolling.length === 1 ? 'owes' : 'owe'} the toll a lingering harm takes every period; settleDailyTolls throws it before the turn moves on`,
+      );
+    }
+
     // **A creature elsewhere whose casting has ended.** SRD Rope Trick's
     // "drops out when the spell ends", SRD Blink's "when the spell ends if
     // you are on the Ethereal Plane, you return": the casting ends in the
     // fold, which may choose no space, so the return is a debt of exactly
     // `summons_stranded`'s kind — derived from the world as it stands, and
-    // settled by `returnFromElsewhere` naming where the creature lands.
+    // settled by `returnFromElsewhere` naming where the creature lands. And
+    // SRD Ghost's possession of a body that has dropped to 0 Hit Points, whose
+    // ghost "appears in an unoccupied space within 5 feet" (M-MIND).
     const away = strandedElsewhere(state);
     if (away.length > 0) {
       return err(
         'elsewhere_stranded',
-        `${away.join(', ')} ${away.length === 1 ? 'is' : 'are'} still elsewhere under a casting that has ended; returnFromElsewhere brings ${away.length === 1 ? 'it' : 'them'} back before the turn moves on`,
+        `${away.join(', ')} ${away.length === 1 ? 'is' : 'are'} still elsewhere under a casting or a possession that has ended; returnFromElsewhere brings ${away.length === 1 ? 'it' : 'them'} back before the turn moves on`,
       );
     }
 

@@ -22,11 +22,14 @@ import { asCharacterId, type CharacterId, expect as unwrap } from '@ie/shared';
 import {
   addCreature,
   addSceneLandmark,
+  advanceTime,
   beginCombat,
   declareCreatureSide,
   equipItem,
+  pendingCastingsOf,
   placeCreatureInScene,
   resolveAttack,
+  resolveDeclaredCast,
   resolveMove,
   resolveSpell,
   resolveTurn,
@@ -34,6 +37,8 @@ import {
   settleDamage,
 } from './commands.js';
 import { createCharacter, type CharacterChoices } from './creation.js';
+import { extendContent } from './content.js';
+import type { CatalogueItem } from './catalogue.js';
 import { spellSlotKey } from './resources.js';
 import { declaredCasting } from './spellcasting.js';
 import { createRng, type Rng } from './dice.js';
@@ -450,10 +455,162 @@ describe('SRD Corrosive Form: the acid back, and the weapon worn down', () => {
     });
   });
 
-  it('asks nothing of a ranged hit, which touches the ooze with nothing the engine tracks', () => {
+  it('neither burns the archer nor wears the bow, because the arrow is what touched', () => {
     const state = beside('black-pudding', 'shortbow');
     const hit = swing(state, 'shortbow');
     expect(acidTo(hit.events)).toHaveLength(0);
     expect(penaltyOn(hit.events.reduce(applyEvent, state), 'shortbow')).toBe(0);
+  });
+
+  /**
+   * **The two sentences W7-B12 left owed** — M-MATTER.
+   *
+   * "Nonmagical ammunition is destroyed immediately after hitting the pudding
+   * and dealing any damage." The engine spends no ammunition on an ordinary
+   * shot (STATUS), and that is not this sentence: this one destroys the piece
+   * that touched the ooze, out of the archer's own inventory, through the door
+   * a corroded weapon already leaves by. Which piece a launcher fires is
+   * content's (`CatalogueItem.firesAmmunition`), and "nonmagical" is read off
+   * that item's record as the weapon's is.
+   *
+   * "The penalty can be removed by casting the _Mending_ spell on the weapon."
+   * SRD Mending's `repairs` lifts exactly the `weapon-penalised` record this
+   * trait writes.
+   */
+  describe('the ammunition it eats, and the Mending that lifts the wear (M-MATTER)', () => {
+    /** Bren beside the ooze, bow drawn, with a quiver of twenty. */
+    const quivered = (block: string, arrows = 20): GameState =>
+      [
+        {
+          type: 'items-gained' as const,
+          id: BREN,
+          items: [{ id: 'arrows', quantity: arrows }],
+          source: 'the test',
+        },
+      ].reduce(applyEvent, beside(block, 'shortbow'));
+
+    const arrowsOn = (state: GameState): number =>
+      state.creatures[BREN]!.inventory.find((line) => line.id === 'arrows')?.quantity ?? 0;
+
+    it('destroys the one arrow that hit the pudding and dealt it damage', () => {
+      const state = quivered('black-pudding');
+      const hit = swing(state, 'shortbow');
+      expect(hit.events.some((event) => event.type === 'damage-taken' && event.id === OOZE)).toBe(true);
+      expect(arrowsOn(hit.events.reduce(applyEvent, state))).toBe(19);
+      expect(
+        hit.events.some(
+          (event) =>
+            event.type === 'items-lost' &&
+            event.id === BREN &&
+            event.items.some((line) => line.id === 'arrows' && line.quantity === 1),
+        ),
+      ).toBe(true);
+    });
+
+    it('eats the gray ooze’s arrow too', () => {
+      const state = quivered('gray-ooze');
+      const hit = swing(state, 'shortbow');
+      expect(arrowsOn(hit.events.reduce(applyEvent, state))).toBe(19);
+    });
+
+    it('destroys nothing where the shot dealt the pudding no damage', () => {
+      // "immediately after hitting the pudding **and dealing any damage**".
+      const immune = applyEvent(quivered('black-pudding'), {
+        type: 'damage-defense-granted',
+        id: OOZE,
+        defense: { source: 'the test', damageTypes: ['piercing'], defense: 'immune' },
+      });
+      const hit = swing(immune, 'shortbow');
+      expect(arrowsOn(hit.events.reduce(applyEvent, immune))).toBe(20);
+    });
+
+    it('says so where the archer carries none of what the bow fires, and destroys nothing', () => {
+      const state = beside('black-pudding', 'shortbow');
+      const hit = swing(state, 'shortbow');
+      expect(hit.events.some((event) => event.type === 'items-lost')).toBe(false);
+      expect(hit.unverified.join(' ')).toContain('carries no Arrows');
+    });
+
+    it('says so where the launcher fires nothing the catalogue names, and destroys nothing', () => {
+      // A homebrew launcher with no ammunition link: the sentence is not
+      // executed, and the caller hears it rather than nothing.
+      const held = [
+        {
+          type: 'damage-rolled' as const,
+          damage: {
+            target: OOZE,
+            by: BREN,
+            source: 'Shortbow',
+            components: [{ source: 'Shortbow', type: 'piercing', roll: null, flat: 4, total: 4 }],
+            critical: false,
+            fromAttack: true,
+            reductions: [],
+            offers: [],
+            firedFrom: 'thornbow',
+          },
+        },
+      ].reduce(applyEvent, quivered('black-pudding'));
+      const unlinked = Object.fromEntries(
+        Object.entries(SRD_CONTENT.item('shortbow')!).filter(([key]) => key !== 'firesAmmunition'),
+      ) as unknown as CatalogueItem;
+      const thornbow = unwrap(
+        extendContent(SRD_CONTENT, { items: [{ ...unlinked, id: 'thornbow', name: 'Thornbow' }] }),
+        'thornbow',
+      );
+      const settled = unwrap(
+        settleDamage(held, { ...supply(), content: thornbow }),
+        'the settlement',
+      );
+      expect(arrowsOn(settled.events.reduce(applyEvent, held))).toBe(20);
+      expect(settled.unverified.join(' ')).toContain('fires no ammunition the catalogue names');
+    });
+
+    it('eats the arrow on the road a Reaction held open, once the settlement has dealt the damage', () => {
+      const held = [
+        {
+          type: 'damage-rolled' as const,
+          damage: {
+            target: OOZE,
+            by: BREN,
+            source: 'Shortbow',
+            components: [{ source: 'Shortbow', type: 'piercing', roll: null, flat: 4, total: 4 }],
+            critical: false,
+            fromAttack: true,
+            reductions: [],
+            offers: [],
+            firedFrom: 'shortbow',
+          },
+        },
+      ].reduce(applyEvent, quivered('black-pudding'));
+      const settled = unwrap(settleDamage(held, supply()), 'the settlement');
+      expect(arrowsOn(settled.events.reduce(applyEvent, held))).toBe(19);
+    });
+
+    it('lets Mending lift the wear the pudding left on the mace', () => {
+      let state = beside('black-pudding', 'mace');
+      state = swing(state, 'mace', 'one').events.reduce(applyEvent, state);
+      expect(penaltyOn(state, 'mace')).toBe(1);
+
+      // The fight over, and Bren a caster of the cantrip, so the minute can run.
+      state = [
+        { type: 'combat-ended' as const, ending: { kind: 'defeated' as const } },
+        {
+          type: 'spellcasting-declared' as const,
+          id: BREN,
+          spellcasting: declaredCasting({ ability: 'int', cantrips: ['mending'], prepared: [] }),
+        },
+      ].reduce(applyEvent, state);
+      const declared = unwrap(
+        resolveSpell(state, BREN, { spellId: 'mending', targets: [BREN], object: 'mace' }, supply('mend')),
+        'Mending',
+      );
+      state = declared.events.reduce(applyEvent, state);
+      state = unwrap(advanceTime(state, 60, 'the minute'), 'the minute').reduce(applyEvent, state);
+      const settled = unwrap(
+        resolveDeclaredCast(state, pendingCastingsOf(state)[0]!.castingId, supply('mended')),
+        'the mending',
+      );
+      expect(penaltyOn(settled.events.reduce(applyEvent, state), 'mace')).toBe(0);
+    });
   });
 });

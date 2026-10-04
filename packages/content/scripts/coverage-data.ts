@@ -520,7 +520,8 @@ export const VERIFIED_SPELLS: readonly string[] = [
   'protection-from-energy',
   // `protection-from-evil-and-good.test.ts`: the Ghoul swinging at Disadvantage
   // and the bandit swinging normally, the Ghoul unable to frighten the cleric
-  // and the bandit able to, and the possession clause reported on every casting;
+  // and the bandit able to, and — M-MIND — the Ghoul unable to possess the
+  // warded cleric (`ghost-possession.test.ts`);
   // the printed road is `printed-save-provenance.test.ts`.
   'protection-from-evil-and-good',
   'protection-from-poison',
@@ -1450,6 +1451,8 @@ export interface StatBlockLine {
   readonly forms?: unknown;
   /** What a line drags toward its creature — SRD Roper's Reel. */
   readonly pulls?: unknown;
+  /** The object a line touches and eats a cube of — SRD Rust Monster's Destroy Metal. */
+  readonly touchesObject?: unknown;
   /** Whom a line takes inside its creature — SRD Giant Frog's Swallow. */
   readonly swallows?: unknown;
   /** The plane a line steps to and back from — SRD Phase Spider's Ethereal Jaunt. */
@@ -1462,6 +1465,10 @@ export interface StatBlockLine {
   readonly rampages?: unknown;
   /** The light a use switches on and the next switches off — SRD Ignited Illumination. */
   readonly togglesLight?: unknown;
+  /** An effect a line keeps up under Concentration — SRD Vanish, SRD Darkness Aura. (M-REFLEX) */
+  readonly concentrates?: unknown;
+  /** The cloud a Reaction line releases — SRD Ink Cloud. (M-REFLEX) */
+  readonly releasesCloud?: unknown;
   /** The step between two trees a line makes — SRD Dryad's Tree Stride. */
   readonly treeStride?: unknown;
   /** The flat addend a Reaction line puts on somebody's D20 Test. */
@@ -1537,6 +1544,7 @@ export const isReadLine = (line: StatBlockLine): boolean =>
   line.teleports !== undefined ||
   line.forms !== undefined ||
   line.pulls !== undefined ||
+  line.touchesObject !== undefined ||
   line.swallows !== undefined ||
   line.shiftsPlane !== undefined ||
   // The moves a line makes — W7-B9; `isExecutedLine` names the three doors.
@@ -1550,6 +1558,10 @@ export const isReadLine = (line: StatBlockLine): boolean =>
   // And the heal and the raise a line performs — M-RISE.
   line.heals !== undefined ||
   line.raises !== undefined ||
+  // And an effect kept up under Concentration, and the cloud a Reaction
+  // releases — M-REFLEX.
+  line.concentrates !== undefined ||
+  line.releasesCloud !== undefined ||
   line.addsToRoll !== undefined ||
   line.addsToAc !== undefined ||
   line.usesLine !== undefined ||
@@ -1611,9 +1623,6 @@ export const hasUnappliedRider = (line: StatBlockLine): boolean => {
  *
  * | Lines | The one seam each waits on |
  * |---|---|
- * | Death Dog's Bite, Mummy's Rotting Fist, Otyugh's Bite, Incubus's Restless Touch | a clock that runs for days. Three mechanisms under one sentence each: a Hit Point maximum that does **not** come back at a Long Rest (a mark that withholds `hit-point-maximum-restored`), a deadline that re-arms every 24 hours, and a rest whose benefit is denied to the creature that finished it. `a-clock-that-runs-for-days` |
- * | Barbed Devil's Hurl Flame | a flammable object. The creature half of the glossary's Burning is executed on the two lines that print one; this line catches **only** "a flammable object that isn't being worn or carried", and a declared object is a substance and a size with nothing on it that takes light |
- * | Black Pudding's Dissolving Pseudopod, Gray Ooze's Pseudopod | a spell that repairs an item. The penalty and the destruction are executed; "The penalty can be removed by casting the _Mending_ spell on the armor" is the spells side's, and no casting reaches an item's record |
  * | Roper's Tentacle | a limb that grows back. The hold, the Poisoned it carries, the tentacle as a thing with the printed Armour Class and Hit Points, and the cap of six are executed (W7-B10); "a destroyed tentacle regrows at the start of the roper's next turn" is a dead object the fold would have to forget at a turn boundary, and the cap counts the tentacles that hold somebody — so a destroyed one is treated as regrown at once and the sentence is handed over |
  *
  * **Four lines left this table in W7-B10** — the Stirge's Proboscis, the
@@ -1623,6 +1632,18 @@ export const hasUnappliedRider = (line: StatBlockLine): boolean => {
  * handover kind and keeps both on the row; the Roper's Tentacle joined it the
  * same day, read for the first time and carrying its regrowth.
  *
+ * **Four lines left this table in M-LINGER** — the Death Dog's Bite, the
+ * Mummy's Rotting Fist, the Otyugh's Bite and the Incubus's Restless Touch, the
+ * row that waited on "a clock that runs for days". All three mechanisms it
+ * named are built, on one record (`LingeringHarm`, hosted by the curse or the
+ * condition instance it lives as long as): the Long Rest withholds a maximum
+ * while a harm says so, a toll falls due every 24 hours and
+ * `settleDailyTolls` throws it, and a Short Rest pays nothing to a creature a
+ * harm denies. The Otyugh's save at a Long Rest's end and the Mummy's "can't
+ * regain Hit Points" ride on the same record. The one clause reported rather
+ * than enforced is the Mummy's "turns to dust" — the death is executed, and
+ * the engine keeps no body for dust to be (see `PrintedDroppedToZeroRider`).
+ *
  * **Nine lines left this table in W7-B13**, each for the reason its row gave:
  * the Shadow's rising Shadow, the Salamander's and the Merfolk Skirmisher's
  * returning spear and the Gibbering Mouther's absorbed body are fiction and
@@ -1630,6 +1651,14 @@ export const hasUnappliedRider = (line: StatBlockLine): boolean => {
  * lycanthropes' curse is read as the rider save it is — a Constitution save
  * for a Humanoid, the curse on the record, a day's grace on a success — with
  * the transformation filed as the compulsion the owner ruled the table's.
+ *
+ * **The Barbed Devil's Hurl Flame left it in M-MATTER**, by the seam its row
+ * named: a declared object's substance says whether it takes light
+ * (`ObjectMaterial.flammable`, pinned at the declaration), so "If the target is
+ * a flammable object that isn't being worn or carried, it starts burning"
+ * lights a wooden door the devil hits and nobody else — a declared object is
+ * never worn or carried. The Black Pudding's and the Gray Ooze's Pseudopods
+ * had left it before, when SRD Mending's `repairs` began lifting the penalty.
  */
 export const RIDER_HANDOVER_SHAPE = 'A hit whose line says more than the engine applies';
 export const hasHandedOverRider = (line: StatBlockLine): boolean => {
@@ -1694,14 +1723,31 @@ export const hasHandedOverRider = (line: StatBlockLine): boolean => {
  * | SRD Freeze | the same again, with a Speed on the end of it |
  * | SRD Blurred Form | `adaptMonster`, as the first printed `against-holder` mode |
  * | SRD Beast of Burden | `capacitySizeOf`, which reads SRD Powerful Build's own grant |
- * | SRD Fire Aura | `resolveTurn`, at the end of the holder's turn, on the creatures the DM named |
+ * | SRD Fire Aura | `resolveTurn`, at the end of the holder's turn, on the creatures the DM named — and, on the Fire Elemental's, lighting the creatures and the declared objects that take light (M-MATTER) |
  * | SRD Barbed Hide | the same, at the start, caught by the hold rather than by feet |
  * | SRD Swarm's healing sentence | `healCreature` and `grantTemporaryHpTo`, the two doors hit points come back through |
  * | SRD Regeneration (W7-B12) | `settleStartOfTurnBody`, which heals at the turn's start and kills a holder that starts it at 0 and does not regenerate; `printedTypeTriggers` hangs the acid-or-fire marker; `damageCreature` holds the death at 0 |
- * | SRD Corrosive Form (W7-B12) | `answerTheBlow`, which burns a melee striker back where Fire Shield burns one, and `wearTheWeapon`, which wears a nonmagical weapon that dealt damage by contact on both roads a blow lands |
+ * | SRD Corrosive Form (W7-B12) | `answerTheBlow`, which burns a melee striker back where Fire Shield burns one, and `wearTheWeapon`, which wears a nonmagical weapon that dealt damage by contact on both roads a blow lands; and `eatTheAmmunition`, which destroys the piece a launcher loosed out of the archer's inventory (M-MATTER) |
  * | SRD Succubus Form and Incubus Form (W7-B12) | `takeRestForm`, the DM's door at the instant a Long Rest ends, through `stat-block-replaced` |
  * | SRD Troll Spawn (W7-B12) | `addCreature`'s arrival, which hangs the day, and `settleBlockDeadlines`, which throws the d12; the turn refuses to advance while one is owed |
  * | SRD Split (W7-B12) | `adaptMonster`, as a Reaction at `damaged-by-creature` that `takeDamageResponse` performs through `summonCreature` and `removeCreatureEverywhere` |
+ * | SRD Redirect Attack (M-REFLEX) | `adaptMonster`, as a Reaction at `attack-declared`: `swingAt` holds a swing before its die where `declaredAttackOffers` finds the target can answer and an ally to take it, `redirectDeclaredAttack` swaps the two and re-aims the hold, and the attacker's same swing is thrown at the ally |
+ *
+ * **Redirect Attack's one residue, stated where it is counted** (M-REFLEX): a
+ * swing made *inside* another command's resolution — an Opportunity Attack,
+ * a Retaliation, a readied swing, a Cleave, a legendary action's attack, all
+ * `free` — opens no `attack-declared` window, because the command making it is
+ * itself settling something and would finish around a swing not yet thrown.
+ * The goblin redirects the attacks a creature makes on its own and not those;
+ * the day a nested swing can be held, the narrowing in `swingAt` comes out.
+ *
+ * **And a second, of the same kind: a spell's attack roll** — SRD Fire Bolt,
+ * Eldritch Blast, Guiding Bolt, Scorching Ray. Those are rolled inside the
+ * casting's own resolution (`spell-effect-rolls.ts`) and never reach `swingAt`,
+ * so they open no `attack-declared` window either; holding one would be a hold
+ * in the middle of a casting, a shape the pipeline does not have. The window
+ * is the weapon and printed-line swing's. Whether this keeps the line on the
+ * ledger is the coordinator's call, reported with the slice.
  *
  * **And four readers widened in W7-B12 without a new kind**: Vampire Spawn's
  * Sunlight is `disadvantage-in-sunlight` with `hurtAtTurnStart`, burnt by
@@ -1780,6 +1826,10 @@ export const TRAIT_KINDS_WITH_A_READER: readonly string[] = [
   // SRD Split, whose reader is the Reaction the adapter compiles and
   // `takeDamageResponse` performs. (W7-B12)
   'splits-into-two-creatures',
+  // SRD Redirect Attack, whose reader is the Reaction the adapter compiles at
+  // `attack-declared`, which `swingAt` holds and `redirectDeclaredAttack`
+  // answers. (M-REFLEX)
+  'swaps-places-with-an-ally-to-take-an-attack',
   'takes-a-named-action-as-a-bonus-action',
   'undead-fortitude',
 ];
@@ -1836,18 +1886,25 @@ export const TRAIT_KINDS_WITH_A_READER: readonly string[] = [
  *
  * | Lines | The one seam each waits on |
  * |---|---|
- * | Redirect Attack | a Reaction window on **being attacked**, before the roll is decided, whose response retargets the attack at somebody else. Every window the engine holds opens on a hit, and nothing can re-aim an attack that has been declared |
+ *
+ * **The table is empty**: its last two rows left in the same batch — the
+ * Goblin Boss's Redirect Attack when M-REFLEX opened a window on a declared
+ * swing, and the Otherworldly Steed's Life Bond when M-RISE read a summoner's
+ * spell healing where it lands.
  *
  * **Fourteen lines left this table in W7-B12, and two more left the row
  * below**, each by the seam its row named. Regeneration ×2 is `regenerates`: a
  * marker hung "until the end of its next turn" where acid or fire landed, the
  * heal at the turn's start, and a death held at 0 until that start. The Vampire
  * Spawn's Sunlight burns at the start of its turn in sunlight. The Fire
- * Elemental's aura lights the creatures it catches, and still owes the
- * flammable objects — the Hurl Flame seam — so it sits on
- * {@link TRAIT_HANDOVER_SHAPE} now rather than here. Both Corrosive Forms burn a
- * melee striker (the pudding's) and wear a nonmagical weapon down, and still
- * owe the ammunition and the Mending sentences, so they sit on that row too.
+ * Elemental's aura lights the creatures it catches, and owed the flammable
+ * objects — the Hurl Flame seam — on {@link TRAIT_HANDOVER_SHAPE} until
+ * M-MATTER lit the declared objects whose substance takes light. Both
+ * Corrosive Forms burn a melee striker (the pudding's) and wear a nonmagical
+ * weapon down, and owed the ammunition and the Mending sentences on that row
+ * until M-MATTER destroyed the piece a launcher loosed and read the Mending
+ * sentence as consumed — SRD Mending's `repairs` lifts the very penalty the
+ * form writes.
  * The Giant Boar's melee narrowing and the Swarm's Climb Speed gate are fields
  * on kinds that had readers. The three hags' Coven Magic is a cast line on a
  * trait, gated on two allies and priced a Long Rest per spell. Succubus Form,
@@ -1868,12 +1925,12 @@ export const TRAIT_KINDS_WITH_A_READER: readonly string[] = [
  * the movement command now, and `drags-for-free` is its exemption, on the
  * reader roster.
  *
- * **Redirect Attack is read as a *kind* and still unspent** — Split was the
- * other until W7-B12 — which is the one thing that makes it look different
- * from the rest of this paragraph: a sentence with a kind is off the residue
- * list below and onto {@link UNEXECUTED_TRAIT_SHAPE}, where it is counted as the
- * debt it is. The table above is the reason each waits, whichever list the
- * line is on.
+ * **Redirect Attack left this table in M-REFLEX**, by the seam its row named: a
+ * Reaction window on being attacked before the die (`attack-declared`), whose
+ * answer swaps the goblin and its ally and re-aims the declared swing. It was
+ * read as a kind and unspent, as Split was until W7-B12; both are on the reader
+ * roster now, and the narrowing it keeps — a swing made inside another
+ * command's resolution is not held — is written out beside its row there.
  */
 export const HANDOVER_TRAIT_KINDS: Readonly<Record<string, string>> = {
   'a-heading-over-the-lines-that-follow':
@@ -1981,8 +2038,9 @@ export const HANDOVER_TRAIT_KINDS: Readonly<Record<string, string>> = {
  * is genuinely something the engine cannot or should not take on (2026-09-26).
  * Each reason below says which of the two it is and why the engine cannot or
  * should not take it on; a sentence that needs a mechanism the engine lacks is
- * not filed here, whatever it sounds like — suffocation, the harpy's other
- * songs and the ghost's day's grace after a possession all stay owed.
+ * not filed here, whatever it sounds like — suffocation and the harpy's other
+ * songs stay owed, and the ghost's day's grace after a possession was owed
+ * until M-MIND built it.
  *
  * **Pinned in both directions** by `stat-block-handovers.test.ts`: every kind
  * the schema admits has a reason here or in `HANDOVER_TRAIT_KINDS`, every
@@ -1992,7 +2050,7 @@ export const HANDOVER_TRAIT_KINDS: Readonly<Record<string, string>> = {
  */
 export const HANDOVER_LINE_KINDS: Readonly<Record<string, string>> = {
   'a-compulsion-the-table-plays':
-    'The owner ruled on 2026-09-24 that a compulsion is legality the table adjudicates, so it is a handover. Each sentence under this kind makes a creature act by a rule rather than by its player: SRD Ghost\'s Possession (who drives the body, what the ghost may be targeted by while inside it, whose Speed it uses, how long it lasts), SRD Harpy\'s Luring Song (which way the charmed creature walks, and that it walks into Opportunity Attacks), the row SRD Gibbering Mouther\'s d8 lands on, what SRD Flesh Golem attacks once berserk and whether its creator has calmed it, and what a lycanthrope\'s victim becomes at 0 Hit Points — a player\'s character handed to the DM, which is the doctrine\'s own line. The numbers around each — the save, the recharge, the die, the day\'s grace, the curse on the record — are the engine\'s and are executed; only the creature being played is filed.',
+    'The owner ruled on 2026-09-24 that a compulsion is legality the table adjudicates, so it is a handover. Each sentence under this kind makes a creature act by a rule rather than by its player: SRD Ghost\'s Possession (who drives the body and whose Speed and modifiers it uses — where the ghost is, the Incapacitated, the two endings and the day\'s grace are the engine\'s since M-MIND, and what may still target the ghost inside the body is owed), SRD Harpy\'s Luring Song (which way the charmed creature walks, and that it walks into Opportunity Attacks), the row SRD Gibbering Mouther\'s d8 lands on, what SRD Flesh Golem attacks once berserk and whether its creator has calmed it, and what a lycanthrope\'s victim becomes at 0 Hit Points — a player\'s character handed to the DM, which is the doctrine\'s own line. The numbers around each — the save, the recharge, the die, the day\'s grace, the curse on the record — are the engine\'s and are executed; only the creature being played is filed.',
   'a-reflection-nothing-holds':
     'SRD Basilisk and SRD Medusa: "If the basilisk sees its reflection in the Cone, the basilisk must make this save." The scene holds no mirror and nothing that reflects, and the line already takes its head count from the table — so a DM who declares the mirror names the basilisk among the targets of the door that rolls the gaze, and nothing afterwards reads that it was a reflection.',
   'water-nothing-holds':
@@ -2004,7 +2062,7 @@ export const HANDOVER_LINE_KINDS: Readonly<Record<string, string>> = {
   'a-body-absorbed':
     'SRD Gibbering Mouther\'s Bite: "Its body is then absorbed into the mouther, leaving only equipment behind." The death is executed; what the corpse looks like afterwards is narration, in the family of SRD Cone of Cold\'s frozen statue. A revival that needs the body is the table\'s to refuse, as it is for every body destroyed off the page — the engine keeps no body apart from the creature\'s record.',
   'a-hole-eaten-through-the-world':
-    'SRD Black Pudding\'s and SRD Gray Ooze\'s Corrosive Form: "In 1 minute, the pudding can eat through 2 feet of nonmagical wood or metal." — W7-B12. A hole left in a wall is SRD Tunneler\'s tunnel by another means: a change to the map the table is drawing, and the engine draws none. The scene holds no nonmagical wall of wood or metal between two places for a hole to open — the barriers that block passage are the ones a casting raises, and a wall the table describes has no record a move is refused by — so no rule reads the hole afterwards, and a declared object the ooze destroys is destroyed through the door that damages one. The day a described wall blocks passage, this sentence is a debt and leaves this list.',
+    'SRD Black Pudding\'s and SRD Gray Ooze\'s Corrosive Form: "In 1 minute, the pudding can eat through 2 feet of nonmagical wood or metal." — W7-B12. A hole left in a wall is SRD Tunneler\'s tunnel by another means: a change to the map the table is drawing, and the engine draws none. The scene holds no nonmagical wall of wood or metal between two places for a hole to open — the barriers that block passage are the ones a casting raises, and a wall the table describes has no record a move is refused by — so no rule reads the hole afterwards, and a declared object the ooze destroys is destroyed through the door that damages one. The day a described wall blocks passage, this sentence is a debt and leaves this list. And SRD Rust Monster\'s Destroy Metal — M-MATTER: "The touch destroys a 1-foot Cube of the object." The touch is checked and the cube is asked about by the door that takes the line: where the table says the cube is the whole of the thing — a lock, a dagger lying loose — the engine destroys it, and nothing is filed. Where it is not, the sentence is filed here for the same reason: a declared object is a substance, a size and Hit Points with no shape, the SRD maps no volume to Hit Points, so the cube out of a gate is a hole in the map the table is drawing and no rule reads it afterwards.',
 };
 
 /**
@@ -2019,12 +2077,8 @@ export const HANDOVER_LINE_KINDS: Readonly<Record<string, string>> = {
  * used, so this is a reading and not a licence.
  */
 export const ARGUED_FILINGS: Readonly<Record<string, string>> = {
-  'The target is possessed by the':
-    'The Incapacitated condition the sentence names lasts exactly as long as the possession, and the possession ends when the ghost leaves or the body drops — the table\'s moment. Applied here it would be a condition nothing lifts.',
   "uses the possessed target's Speed":
-    'The Speed and the three ability modifiers are the ghost\'s statistics while it drives a body it has no record in; nothing in the engine is moving or rolling for a ghost that has disappeared into somebody else.',
-  'The possession lasts until the body drops to 0 Hit Points':
-    'The ending of the possession, which is the compulsion\'s own lifetime. The Hit Points are the body\'s and the engine keeps them; what their reaching 0 ends is the table\'s.',
+    'The Speed and the three ability modifiers are the ghost\'s statistics while it drives a body it has no record in; nothing in the engine is moving or rolling for a ghost that has disappeared into somebody else — a possessor inside its host reaches nobody, the host included (`AwayMark.possessor`, M-MIND), so every roll those modifiers would feed is one made through the body, which is who plays the body.',
   'If the cursed target drops to 0 Hit Points':
     'A player\'s character handed to the DM as a stat block the DM is playing — the doctrine\'s line. The 10 Hit Points are the new creature\'s, which the table brings in; the curse this reads is on the record, kept by the engine.',
   "doesn't grant Resistance to this":
@@ -2046,6 +2100,9 @@ export const filedHandoversOf = (
     ...(attack?.forTheTable ?? []),
     ...(attack?.riderSave?.forTheTable ?? []),
     ...((line.trait as Filed | undefined)?.forTheTable ?? []),
+    // A touch's cube where the object stands — SRD Rust Monster's Destroy
+    // Metal (M-MATTER).
+    ...((line.touchesObject as Filed | undefined)?.forTheTable ?? []),
   ];
 };
 
@@ -2177,6 +2234,11 @@ export const isExecutedLine = (line: StatBlockLine): boolean =>
   // the Roper is holding toward it, through the primitive a Merrow's rider
   // already goes through, at the heading's price.
   line.pulls !== undefined ||
+  // **A line that touches an object is spent** — M-MATTER. `takePrintedTouch`
+  // checks the reach, the substance and that the thing is a declared object
+  // nobody wears or carries, asks whether the cube is the whole of it, and
+  // destroys it where it is.
+  line.touchesObject !== undefined ||
   // **A line that swallows is spent** — `takePrintedSwallow` ends the grapple,
   // takes the target inside, hangs the conditions the line prints, and the
   // host's turn boundary rolls the damage; the exit is a return checked
@@ -2210,6 +2272,25 @@ export const isExecutedLine = (line: StatBlockLine): boolean =>
   // to, and the spender flips `activeFeatures`. No patch is written: `lightAt`
   // derives it off the sheet on every read.
   line.togglesLight !== undefined ||
+  // **And an effect kept up under Concentration is spent** — M-REFLEX. The
+  // spender names the line's feature on `CreatureState.concentration`, the
+  // fold switches it on with it, and `settleConcentratedFeatures` ends it by
+  // every road a Concentration ends and by the two deeds SRD Vanish prints;
+  // the conditions are hung under its key and the darkness and the withheld
+  // Illumination are derived off it by `carriedLight`, at the heading's price.
+  line.concentrates !== undefined ||
+  // **And a cloud a Reaction releases is spent** — M-REFLEX. SRD Ink Cloud is
+  // a Reaction at the window its trigger names — a blow landing
+  // (`takeDamageResponse`) or another creature's turn ending close by
+  // (`takeTurnEndReaction`) — which lays the Cube as an obscurement patch with
+  // a minute of its own, moves the creature up to the Speed the line names,
+  // and asks the table the one fact the engine holds no record of: whether it
+  // is underwater. The current that disperses it early is the table's, through
+  // `clearObscurement`. One narrowing, the one SRD Split's "is subjected to
+  // Lightning or Slashing damage" already lives with at the same window: a
+  // blow is a `damage-taken` with a dealer, so damage nobody dealt — a fall, a
+  // trap the DM applies — opens no window for the giant octopus.
+  line.releasesCloud !== undefined ||
   // **SRD Parry, executed at the window SRD *Shield* already answered.** The
   // number goes onto the Armour Class the held attack was measured against and
   // the hit is re-decided, which is the whole of what the sentence says — so
@@ -2427,11 +2508,12 @@ export const MONSTER_LINE_SHAPES: readonly (readonly [
  * for the third half, and `coverage.test.ts` holds it to the catalogue so an
  * entry that has been built, renamed or retired fails rather than rotting.
  *
- * **Read against the book, not against a summary.** Three of the entries below
- * correct a claim that had been made about them from a heading alone: the
- * Magmin's block prints no `sheds-light` trait for its Bonus Action to toggle,
- * the Wisp's Vanish is Concentration on something that is not a spell, and the
- * Succubus's Charm is a **cast** line at a fixed level rather than a save.
+ * **Read against the book, not against a summary.** Three of the entries that
+ * stood here corrected a claim that had been made about them from a heading
+ * alone: the Magmin's block prints no `sheds-light` trait for its Bonus Action
+ * to toggle, the Wisp's Vanish is Concentration on something that is not a
+ * spell (built in M-REFLEX), and the Succubus's Charm is a **cast** line at a
+ * fixed level rather than a save (built in M-MIND, below).
  *
  * **The Ettercap's Reel and the Roper's Tentacle left this table in W7-B10**:
  * a printed pull may say which hold it reads (`MonsterPull.of:
@@ -2440,23 +2522,36 @@ export const MONSTER_LINE_SHAPES: readonly (readonly [
  * imposes a condition — the tentacle the hold is made with is an object the
  * hit raises, filed with the grapple so destroying it frees the creature.
  *
+ * **The Rust Monster's Destroy Metal left it in M-MATTER**, by the seam its row
+ * named: a declared object says whether it is metal (E-L1), so the touch is
+ * checked by `takePrintedTouch` — a declared object nobody wears or carries,
+ * within the printed reach, of the printed substance — and the cube is the
+ * question the door asks, whether it is the whole of the thing, destroying the
+ * thing where it is. Where it is not, the object stands at its Hit Points and
+ * the cube is filed for the table (`a-hole-eaten-through-the-world`, on the
+ * touch's own `forTheTable`): a hole in a gate is the map the table is drawing.
+ *
  * Keyed `<block id>/<heading>`, because two blocks print one heading over two
  * rules and the pair is what a reader needs.
  *
  * **Lines only.** A trait's residue is the table in {@link HANDOVER_TRAIT_KINDS}'
- * own note — Redirect Attack, now that W7-B12 has built Coven Magic,
- * Regeneration and the rest and M-RISE Life Bond — and keeping the two apart is what stops one sentence being
+ * own note — empty since M-REFLEX built Redirect Attack and M-RISE Life Bond,
+ * W7-B12 having built Coven Magic, Regeneration and the rest — and keeping the two apart is what stops one sentence being
  * answered for twice in two places that could come to disagree.
  */
 export const LINE_RESIDUE_SEAMS: Readonly<Record<string, string>> = {
-  'rust-monster/Destroy Metal':
-    'a touch whose **legality** is a record the engine does not keep, around an effect that is fiction. "The rust monster touches a nonmagical metal object within 5 feet of itself that isn\'t being worn or carried. The touch destroys a 1-foot Cube of the object." The cube is narration — a declared object has no shape a cubic foot could be taken from — but the touch names a reach, a thing that is nonmagical metal and a thing nobody is wearing, and the hand-over door has no field to name the object, nor any record whether a substance is metal or a thing magical. Filed whole it would pass that legality as fiction (W7-B13\'s review), so the line stays owed: the day the door can name a declared object and the object says what it is made of, the touch is checked and the cube is filed.',
-  'will-o-wisp/Vanish':
-    'Concentration on something that is not a casting. "The wisp and its light have the Invisible condition until the wisp\'s Concentration ends on this effect, which ends early immediately after the wisp makes an attack roll or uses Consume Life." Every clause but the first is machinery the engine holds — the condition, the trigger that ends it, the light — and all of it hangs off `CreatureState.concentration`, which only a casting may occupy.',
-  'succubus/Charm':
-    'a cast line at a **fixed level**. "The succubus casts Dominate Person (level 8 version), requiring no spell components and using Charisma as the spellcasting ability (spell save DC 15)" is the book\'s cast template with one clause the reader has no field for, and `parseCastLine` refuses it whole rather than casting the spell at its own level. `a-duration-the-slot-changes` is the shape beside it; what this needs is a slot level a printed route states. The reader half is one clause; the other half is the casting pipeline taking a level from a route rather than from a slot — the level a casting is paid at is decided in `spell-resolution.ts`, which a stat block\'s own track does not hold (W7-B13 stopped here and said so).',
-  'sea-hag/Illusory Appearance':
-    'a cast line with a **printed duration**. "The hag casts _Disguise Self_, using Constitution as the spellcasting ability (spell save DC 13). The spell\'s duration is 24 hours." Disguise Self is handed over whole already and its Investigation check is the engine\'s, so the line would be spent the day a printed route may state the duration it casts at — the hour the spell prints would end the check\'s deadline twenty-three hours early. The succubus\'s Charm waits on the same hunk, a route stating its level; both are in the casting pipeline rather than the cast line\'s reader.',
+  // **The Succubus's Charm and the Sea Hag's Illusory Appearance left this map
+  // in M-MIND**: a cast line reads "(level 8 version)" into
+  // `MonsterCastLine.castLevel` and "The spell's duration is 24 hours." into
+  // `durationSeconds`, the route carries both (`GrantedSpell.castLevel`,
+  // `.durationSeconds`), and `spell-resolution.ts` casts at the route's level
+  // and pins the route's span.
+  // **The Wisp's Vanish left this table in M-REFLEX**, by the seam its row
+  // named: `CreatureState.concentration` may now hold a stat block's line as a
+  // running feature (`Concentration.feature`), and `settleConcentratedFeatures`
+  // ends the line by every road a Concentration ends and by the two deeds the
+  // sentence prints. The Darkmantle's Darkness Aura went with it on the same
+  // seam, from the per-day economy row.
   // **The Wraith's Create Specter and the Otherworldly Steed's Fey Step and
   // Healing Touch left this map in M-RISE**: a printed raise
   // (`raisePrintedLine`), a teleport whose rider goes with the mount by the
@@ -2493,10 +2588,15 @@ export const UNREAD_SAVE_SEAMS: Readonly<Record<string, string>> = {
 // (2026-09-24), so each save is read — the Charisma save and its day's grace,
 // the Charm with its repeat and the Incapacitated it carries — and what the
 // compulsion makes the creature do is filed for the table under
-// `a-compulsion-the-table-plays`. Each still carries a residue it owes, and
-// sits on `SAVE_HANDOVER_SHAPE` for it: the day's grace a possession's ending
+// `a-compulsion-the-table-plays`. Each then carried a residue it owed, and
+// sat on `SAVE_HANDOVER_SHAPE` for it: the day's grace a possession's ending
 // buys, and the song's Concentration, the other harpies' songs and the two
-// repeats a blow or lava raise.
+// repeats a blow or lava raise. **The Ghost's residue moved in M-MIND**: the
+// possession is a `possesses` clause — the ghost inside the body, the
+// Incapacitated for as long as it lasts, the two endings and the grace — and
+// who drives the body is filed. What it still owes is the exception to "can't
+// be targeted": an effect that specifically targets Undead (SRD Turn Undead)
+// reaching a possessor that has no position, at its host's place.
 
 /** Whether this line prints the save template and the reader got nothing out of it. */
 export const isUnreadSave = (line: StatBlockLine): boolean =>

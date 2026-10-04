@@ -175,13 +175,24 @@ describe('the adapter reads the Reactions section', () => {
     ]);
   });
 
-  it('leaves a block whose Reactions the engine cannot apply with none', () => {
+  it('compiles Redirect Attack at the window before the die', () => {
     // SRD Redirect Attack opens its window **before** the roll is decided and
-    // then re-aims the attack at somebody else — two rules the engine does not
-    // have. The line is read as a kind so the ledger stops calling it unread,
-    // and nothing compiles onto the sheet from it.
+    // re-aims the attack at an ally — M-REFLEX built both. The sizes, the
+    // reach and the sight clause ride the Reaction as the line printed them;
+    // `redirect-attack.test.ts` drives it.
     const boss = adaptMonster(SRD_CONTENT.monsterById('goblin-boss')!, SPHINX);
-    expect(boss.sheet.reactions).toBeUndefined();
+    expect(boss.sheet.reactions).toEqual([
+      {
+        feature: 'goblin-boss:redirect-attack',
+        name: 'Redirect Attack',
+        window: 'attack-declared',
+        costsReaction: true,
+        pool: null,
+        reach: { kind: 'self' },
+        requiresSight: true,
+        does: { kind: 'redirect-attack', allySizes: ['small', 'medium'], withinFeet: 5 },
+      },
+    ]);
     expect(boss.pools).toEqual([]);
   });
 });

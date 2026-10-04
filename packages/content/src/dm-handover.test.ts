@@ -638,7 +638,9 @@ describe('the catalogue hands over exactly the text it means to', () => {
       'phantom-steed',
       'planar-ally',
       'prestidigitation',
-      'protection-from-evil-and-good',
+      // SRD Protection from Evil and Good left this list in M-MIND: its one
+      // handed-over sentence, "can't be possessed by … them", is executed now
+      // that SRD Ghost's Possession is a fact the engine holds.
       'purify-food-and-drink',
       // **Revivify's last sentence, whose fiction is the half nobody reads**
       // (E-L3). "This spell can't revive a creature that has died of old age"

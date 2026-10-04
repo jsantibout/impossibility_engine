@@ -696,11 +696,91 @@ export const PrintedPullOutSchema = z.object({
 });
 export type PrintedPullOut = z.infer<typeof PrintedPullOutSchema>;
 
+/**
+ * An amount the book prints with no damage type — "decreases by 5 (1d10)".
+ *
+ * The wound's `loss` beside it is the same three numbers; this one is about a
+ * Hit Point **maximum**, which nothing types either. Dice are required, because
+ * every printing is rolled and a flat toll would be a number nobody threw.
+ */
+export const PrintedAmountSchema = z.object({
+  dice: z.string().regex(/^\d+d\d+$/),
+  flat: z.number().int(),
+  /** The average the block prints outside the parenthesis. */
+  average: z.number().int().min(0),
+});
+export type PrintedAmount = z.infer<typeof PrintedAmountSchema>;
+
+/**
+ * **What a harm goes on doing after the fight** — M-LINGER.
+ *
+ * Five sentences the book prints about a curse or a poison that the fight's
+ * end does not end, each a rule a later moment reads:
+ *
+ * - SRD Mummy and SRD Death Dog: "its Hit Point maximum doesn't return to
+ *   normal when finishing a Long Rest" — {@link withholdsMaximum}, read by the
+ *   Long Rest that would otherwise give every lowering back;
+ * - SRD Mummy: "the target can't regain Hit Points" — {@link preventsHealing};
+ * - SRD Incubus: "the target gains no benefit from finishing Short Rests" —
+ *   {@link deniesShortRests};
+ * - SRD Mummy's "its Hit Point maximum decreases by 10 (3d6) every 24 hours
+ *   that elapse" and SRD Death Dog's "it repeats the save every 24 hours that
+ *   elapse … _Subsequent Failures:_ … decreases by 5 (1d10)" — {@link tolls},
+ *   a clock that falls due every period and either throws the line's own save
+ *   (a success ends the harm, a failure costs the amount) or simply costs it;
+ * - SRD Otyugh: "Whenever the Poisoned target finishes a Long Rest, it is
+ *   subjected to the following effect" — {@link atLongRest}, a save of its own
+ *   whose failure lowers the maximum until the condition ends and whose
+ *   success ends the condition.
+ *
+ * **One record for four lines**, and which of them carries it is the host:
+ * the Death Dog's and the Otyugh's Poisoned, the Mummy's and the Incubus's
+ * curse. The record lives exactly as long as its host — a cure, a Remove
+ * Curse, a made save, a day run out — which is what the engine pins.
+ */
+export const PrintedLingeringSchema = z.object({
+  withholdsMaximum: z.literal(true).optional(),
+  preventsHealing: z.literal(true).optional(),
+  deniesShortRests: z.literal(true).optional(),
+  tolls: z
+    .object({
+      /** "every 24 hours that elapse", in seconds. */
+      everySeconds: z.number().int().min(1),
+      /**
+       * "it repeats the save …, ending the effect on itself on a success" —
+       * the line's own ability and DC, thrown at every period.
+       */
+      repeatsSave: z.literal(true).optional(),
+      /**
+       * What the maximum loses each period — on every one where there is no
+       * save, on a failed one where there is.
+       */
+      decreases: PrintedAmountSchema.optional(),
+    })
+    .optional(),
+  atLongRest: z
+    .object({
+      ability: z.enum(['str', 'dex', 'con', 'int', 'wis', 'cha']),
+      dc: z.number().int().min(1),
+      /** "_Failure:_ The target's Hit Point maximum decreases by 5 (1d10)". */
+      decreases: PrintedAmountSchema,
+    })
+    .optional(),
+});
+export type PrintedLingering = z.infer<typeof PrintedLingeringSchema>;
+
 const PRINTED_SAVE_CLAUSES = [
   z.object({
     kind: z.literal('condition'),
     condition: PrintedConditionSchema,
     lasts: PrintedSpanSchema.optional(),
+    /**
+     * What the condition goes on doing after the fight — SRD Death Dog's
+     * Poisoned, under which the maximum is withheld and the save tolls every
+     * 24 hours. See {@link PrintedLingeringSchema}. The condition prints no
+     * span: its ending is the toll's made save, or a cure.
+     */
+    lingers: PrintedLingeringSchema.optional(),
     escapeDc: z.number().int().min(1).optional(),
     ifNoLargerThan: CreatureSizeSchema.optional(),
     /**
@@ -1338,6 +1418,45 @@ const PRINTED_SAVE_CLAUSES = [
     kind: z.literal('curse-immunity'),
     /** SRD's "for 24 hours", in seconds. */
     seconds: z.number().int().min(1),
+  }),
+  /**
+   * SRD Ghost's Possession — M-MIND: "_Failure:_ The target is possessed by the
+   * ghost; the ghost disappears, and the target has the Incapacitated
+   * condition and loses control of its body. … The possession lasts until the
+   * body drops to 0 Hit Points or the ghost leaves as a Bonus Action. When the
+   * possession ends, the ghost appears in an unoccupied space within 5 feet of
+   * the target, and the target is immune to this ghost's Possession for 24
+   * hours."
+   *
+   * **The engine's facts of a possession, and not who plays the body.** The
+   * creature that forced the save goes inside the target — the second place's
+   * `inside`, with the target as its host — and the target has the condition
+   * for exactly as long as it stays there. The two endings and what the ending
+   * buys are the record's: the body reaching 0 Hit Points ends it with nobody
+   * deciding, the possessor's own Bonus Action ends it on purpose, and either
+   * way the possessor comes back within `appearsWithin` feet of the body and
+   * the body has a day's grace from the line. What the possessor *does* with
+   * the body — the sentences after this one — is filed for the table.
+   *
+   * Every field but the condition and the distance is a literal, because every
+   * printing says so; a sentence that ended a possession some other way is one
+   * this shape does not describe, and stays owed.
+   */
+  z.object({
+    kind: z.literal('possesses'),
+    /** "the target has the Incapacitated condition" — for as long as the possession lasts. */
+    condition: PrintedConditionSchema,
+    /** "The possession lasts until the body drops to 0 Hit Points". */
+    endsAtZeroHitPoints: z.literal(true),
+    /** "or the ghost leaves as a Bonus Action". */
+    leavesAs: z.literal('bonus-action'),
+    /** "the ghost appears in an unoccupied space within 5 feet of the target". */
+    appearsWithin: z.number().int().min(0),
+    /** "the target is immune to this ghost's Possession for 24 hours" — the heading and the span. */
+    immunity: z.object({
+      line: z.string().min(1),
+      seconds: z.number().int().min(1),
+    }),
   }),
 ] as const;
 
@@ -2109,6 +2228,26 @@ export const MonsterCastLineSchema = z.object({
    * without. See {@link SpellComponentWaivedSchema}. (E-L1)
    */
   waives: z.array(SpellComponentWaivedSchema).min(1).optional(),
+  /**
+   * The level the line casts its spell at — M-MIND.
+   *
+   * SRD Succubus's Charm: "The succubus casts Dominate Person **(level 8
+   * version)**". What a slot would say for a caster who has slots, said by the
+   * sentence for a creature that has none, so the casting counts as that level
+   * everywhere a level is read: Dominate Person's Concentration "can last
+   * longer with a spell slot of level … 8+ (up to 8 hours)". Read only onto a
+   * menu of one spell — a level printed over a menu would be a level for one
+   * of them, and the book never says which.
+   */
+  castLevel: z.number().int().min(1).max(9).optional(),
+  /**
+   * A span the line prints over the spell's own — M-MIND.
+   *
+   * SRD Sea Hag's Illusory Appearance: "The hag casts _Disguise Self_ … **The
+   * spell's duration is 24 hours.**" A sentence about this casting and not
+   * about the spell, which a Wizard still casts for an hour. In seconds.
+   */
+  durationSeconds: z.number().int().min(1).optional(),
 });
 export type MonsterCastLine = z.infer<typeof MonsterCastLineSchema>;
 
@@ -2298,6 +2437,38 @@ export const MonsterPullSchema = z
     'a pull by a web names the reach and the line that spun it, and a pull by a grapple names neither',
   );
 export type MonsterPull = z.infer<typeof MonsterPullSchema>;
+
+/**
+ * A line that touches an object and destroys a cube of it — M-MATTER.
+ *
+ * SRD Rust Monster, Destroy Metal: "The rust monster touches a nonmagical
+ * metal object within 5 feet of itself that isn't being worn or carried. The
+ * touch destroys a 1-foot Cube of the object."
+ *
+ * **The legality is the sentence's and each part is carried or pinned**: the
+ * reach (`within`), the substance (`material`), and the two the pattern holds
+ * word for word — nonmagical, and not worn or carried, which a declared object
+ * always is. The cube is carried because it is the question the door asks: a
+ * declared object has a size and no shape, so whether a cubic foot is the
+ * whole of it is the table's to say.
+ */
+export const MonsterTouchSchema = z.object({
+  /** "within **5** feet of itself". */
+  within: z.number().int().min(5),
+  /** "a nonmagical **metal** object" — the one substance the book prints here. */
+  material: z.literal('metal'),
+  /** "destroys a **1**-foot Cube of the object". */
+  cubeFeet: z.number().int().min(1),
+  /**
+   * The cube sentence, filed for the table **for the case it is not the whole
+   * object** (`a-hole-eaten-through-the-world`): a hole in a gate is a change to
+   * the map the table is drawing, and the object stands. Where the table says
+   * the cube is the whole of the thing, the engine destroys it, and nothing is
+   * filed — the door reports this only when the object stands.
+   */
+  forTheTable: ForTheTableSchema.optional(),
+});
+export type MonsterTouch = z.infer<typeof MonsterTouchSchema>;
 
 /**
  * One line that takes a creature it is grappling **inside** itself.
@@ -2491,6 +2662,84 @@ export const MonsterLightToggleSchema = z.object({
   dimBeyondFeet: z.number().int().min(0),
 });
 export type MonsterLightToggle = z.infer<typeof MonsterLightToggleSchema>;
+
+/**
+ * An effect a line keeps up for as long as its creature holds Concentration on
+ * it — M-REFLEX.
+ *
+ * SRD Will-o'-Wisp, Vanish: "The wisp and its light have the Invisible
+ * condition until the wisp's Concentration ends on this effect, which ends
+ * early immediately after the wisp makes an attack roll or uses Consume Life."
+ * SRD Darkmantle, Darkness Aura: "Magical Darkness fills a 15-foot Emanation
+ * originating from the darkmantle. This effect lasts while the darkmantle
+ * maintains Concentration on it, up to 10 minutes. Darkvision can't penetrate
+ * this area, and no light can illuminate it."
+ *
+ * **Concentration on something that is not a casting**, which is the one fact
+ * the two lines share and the seam `LINE_RESIDUE_SEAMS` named for Vanish. What
+ * each keeps up is a field; the Concentration is the record's existence, as
+ * the toggle is `MonsterLightToggleSchema`'s.
+ */
+export const MonsterConcentrationSchema = z.object({
+  /** "The wisp … ha[s] the Invisible condition": conditions on the creature itself. */
+  conditions: z.array(PrintedConditionSchema).min(1).optional(),
+  /** "and its light": the creature's own Illumination shares them and sheds nothing while it lasts. */
+  withItsLight: z.literal(true).optional(),
+  /**
+   * "Magical Darkness fills a 15-foot Emanation originating from the
+   * darkmantle … Darkvision can't penetrate this area, and no light can
+   * illuminate it." The radius; the two clauses after it are what the record
+   * *is*, because the parser reads only the whole sentence.
+   */
+  darkness: z.object({ emanationFeet: z.number().int().positive() }).optional(),
+  /** "up to 10 minutes": the longest it may be maintained, where the line prints one. */
+  upToMinutes: z.number().int().positive().optional(),
+  /** "which ends early immediately after the wisp makes an attack roll or uses Consume Life". */
+  endsAfter: z
+    .object({
+      attackRoll: z.literal(true).optional(),
+      /** The headings of the block's own lines whose use ends it. */
+      lines: z.array(z.string().min(1)).min(1).optional(),
+    })
+    .optional(),
+});
+export type MonsterConcentration = z.infer<typeof MonsterConcentrationSchema>;
+
+/**
+ * A cloud a Reaction releases, and the move it makes away from it — M-REFLEX.
+ *
+ * SRD Giant Octopus, Ink Cloud (1/Day): "_Trigger:_ The octopus takes damage
+ * while underwater. _Response:_ The octopus releases ink that fills a 10-foot
+ * Cube centered on itself, and the octopus moves up to its Swim Speed. The Cube
+ * is Heavily Obscured for 1 minute or until a strong current or similar effect
+ * disperses the ink." SRD Octopus prints the same response at 5 feet behind a
+ * second trigger: "A creature ends its turn within 5 feet of the octopus while
+ * underwater."
+ *
+ * **"While underwater" is carried, not settled.** The engine holds no water:
+ * nothing in a scene says a space is submerged, so the door that takes this
+ * Reaction asks the table for the fact rather than assuming either answer.
+ */
+export const MonsterCloudSchema = z.object({
+  /** Which instant opens it: a blow landing, or another creature's turn ending close by. */
+  trigger: z.discriminatedUnion('kind', [
+    z.object({ kind: z.literal('takes-damage') }),
+    z.object({ kind: z.literal('creature-ends-turn-within'), feet: z.number().int().positive() }),
+  ]),
+  /** "while underwater": a clause of the trigger the table states at the door. */
+  underwater: z.literal(true).optional(),
+  /** "a 10-foot Cube centered on itself". */
+  cubeFeet: z.number().int().positive(),
+  /** "Heavily Obscured" — the glossary's degree the Cube is. */
+  degree: z.enum(['lightly', 'heavily']),
+  /** "for 1 minute". */
+  lastsMinutes: z.number().int().positive(),
+  /** "or until a strong current or similar effect disperses the ink" — the table's word ends it early. */
+  dispersedBy: z.string().min(1).optional(),
+  /** "and the octopus moves up to its Swim Speed": the Speed the move is measured against. */
+  movesUpTo: z.enum(['walk', 'swim', 'fly', 'burrow', 'climb']).optional(),
+});
+export type MonsterCloud = z.infer<typeof MonsterCloudSchema>;
 
 /**
  * One line that teleports its creature from beside one tree to beside another.
@@ -3086,10 +3335,9 @@ const MonsterTraitMechanicSchema = z.discriminatedUnion('kind', [
      * SRD Fire Elemental: "Creatures and flammable objects in the Emanation
      * **start burning**." The glossary's Burning, lit on every creature the
      * emanation catches — the hazard the hit riders already light and the
-     * boundary already collects. The *objects* half is the Barbed Devil's Hurl
-     * Flame seam (a declared object has nothing on it that takes light), so
-     * the whole sentence is carried in the trait's `handedOver` as well and
-     * the heading stays owed for it. (W7-B12)
+     * boundary already collects (W7-B12) — and on every declared object it
+     * catches whose substance takes light (M-MATTER), so the sentence is
+     * consumed whole and nothing of it is owed.
      */
     ignites: z.literal(true).optional(),
   }),
@@ -3162,10 +3410,10 @@ const MonsterTraitMechanicSchema = z.discriminatedUnion('kind', [
      * weapon is destroyed if the penalty reaches −5." — W7-B12.
      *
      * **A defence nobody elects**, answered where SRD Fire Shield is: the
-     * attack path consults it the instant a hit is known. The ammunition and
-     * the Mending sentences are owed (the engine spends no ammunition and no
-     * casting reaches an item's record) and the eating-through is filed for
-     * the table, so neither is a field here.
+     * attack path consults it the instant a hit is known. The eating-through
+     * is filed for the table. The Mending sentence is consumed — SRD Mending's
+     * `repairs` lifts the very penalty record this writes — and the
+     * ammunition sentence is {@link destroysAmmunition} (M-MATTER).
      */
     kind: z.literal('corrodes-what-hits-it'),
     /** "takes 4 (**1d8**) **Acid** damage" — absent on the Gray Ooze, which prints no such sentence. */
@@ -3176,6 +3424,13 @@ const MonsterTraitMechanicSchema = z.discriminatedUnion('kind', [
     weaponPenalty: z.number().int().min(1),
     /** "destroyed if the penalty reaches −**5**". */
     weaponDestroyedAt: z.number().int().min(1),
+    /**
+     * "Nonmagical ammunition is destroyed immediately after hitting the
+     * pudding and dealing any damage." — M-MATTER. The piece that touched it
+     * leaves the archer's inventory. Absent on a trait that prints no such
+     * sentence, which eats nothing.
+     */
+    destroysAmmunition: z.literal(true).optional(),
   }),
   z.object({
     /**
@@ -3399,14 +3654,18 @@ const MonsterTraitMechanicSchema = z.discriminatedUnion('kind', [
      * Small or Medium ally within 5 feet of itself. The goblin and that ally
      * swap places, and the ally becomes the target of the attack instead."
      *
-     * **Read into a kind and no further**, because two of the three things it
-     * says are rules the engine does not have. The window is *before* the roll
-     * is decided — every other Reaction to a swing answers a hit — and the
-     * response retargets an attack that has already been aimed, which nothing
-     * in the attack path can be told to do. The swap of two creatures' spaces
-     * is the one third of it that is built.
+     * The window is *before* the roll is decided — every other Reaction to a
+     * swing answers a hit — and the response retargets the attack that has
+     * been declared, so the three clauses the sentence prints are carried as
+     * the numbers and words it prints them in. (M-REFLEX)
      */
     kind: z.literal('swaps-places-with-an-ally-to-take-an-attack'),
+    /** "a Small or Medium ally". */
+    allySizes: z.array(CreatureSizeSchema).min(1),
+    /** "within 5 feet of itself". */
+    withinFeet: z.number().int().positive(),
+    /** "A creature the goblin can see". */
+    seesAttacker: z.literal(true),
   }),
   z.object({
     /**
@@ -3903,6 +4162,13 @@ export const featureSchema = z.object({
    */
   pulls: MonsterPullSchema.optional(),
   /**
+   * The object this line touches and eats a cube of — see
+   * {@link MonsterTouchSchema}. Read on every section like everything else
+   * here; SRD prints the one line that reaches this shape under Actions.
+   * (M-MATTER)
+   */
+  touchesObject: MonsterTouchSchema.optional(),
+  /**
    * Whom this line swallows — see {@link MonsterSwallowSchema}. Read on every
    * section like everything else here; SRD prints both under Actions.
    */
@@ -3943,6 +4209,19 @@ export const featureSchema = z.object({
    * (W7-B11)
    */
   togglesLight: MonsterLightToggleSchema.optional(),
+  /**
+   * The effect this line keeps up under the creature's Concentration — see
+   * {@link MonsterConcentrationSchema}. SRD prints one under Bonus Actions (the
+   * Will-o'-Wisp's Vanish) and one under Actions (the Darkmantle's Darkness
+   * Aura), and it is read on every section for the reason everything here is.
+   * (M-REFLEX)
+   */
+  concentrates: MonsterConcentrationSchema.optional(),
+  /**
+   * The cloud this Reaction line releases — see {@link MonsterCloudSchema}. SRD
+   * prints it on the two octopuses. (M-REFLEX)
+   */
+  releasesCloud: MonsterCloudSchema.optional(),
   /**
    * The teleport between two trees this line makes — see
    * {@link MonsterTreeStrideSchema}. SRD prints the one line under Bonus

@@ -215,6 +215,36 @@ export interface GrantedSpell {
    * empty; absent is every route that waives nothing. (E-L1)
    */
   readonly waives?: readonly SpellComponent[];
+  /**
+   * The level a casting through this route counts as — M-MIND.
+   *
+   * SRD Succubus's Charm: "The succubus casts Dominate Person **(level 8
+   * version)**". What a slot says for a caster who has slots, said by the line
+   * for a creature that has none: the casting is cast at this level, so every
+   * reader of a casting's level — Dominate Person's band of eight hours, a
+   * Dispel Magic's DC, a Counterspell's — sees the level the book printed. An
+   * item route's `castLevel` exactly, on the granted route. Absent casts at
+   * the spell's own level, which is every route but the ones a line prices so.
+   */
+  readonly castLevel?: number;
+  /**
+   * A span in seconds a casting through this route lasts, over the spell's own
+   * — M-MIND. SRD Sea Hag's Illusory Appearance: "The hag casts _Disguise
+   * Self_ … The spell's duration is 24 hours." Read where the spell runs for a
+   * span of seconds at all; a spell that prints none has nothing to lengthen.
+   */
+  readonly durationSeconds?: number;
+}
+
+/**
+ * The level a casting by this route is cast at, where the route says — an
+ * item's charges, a stat block's "(level 8 version)" — or null where the
+ * slot or the spell's own level decides. M-MIND.
+ */
+export function routeCastLevel(route: CastingRoute): number | null {
+  if (route.kind === 'item') return route.castLevel;
+  if (route.kind === 'granted') return route.grant.castLevel ?? null;
+  return null;
 }
 
 /**

@@ -232,7 +232,7 @@ describe('Heat Metal on an unattended object', () => {
   it('pins the substance on the declared object, so the fold reads no catalogue', () => {
     const added = BASE.find((event) => event.type === 'creature-added' && event.id === GATE);
     expect(added).toMatchObject({ material: { id: 'iron', metal: true } });
-    expect(fold('seed', BASE).creatures[GATE]!.material).toEqual({ id: 'iron', metal: true });
+    expect(fold('seed', BASE).creatures[GATE]!.material).toEqual({ id: 'iron', metal: true, flammable: false });
   });
 
   it('refuses a wooden door before the slot', () => {

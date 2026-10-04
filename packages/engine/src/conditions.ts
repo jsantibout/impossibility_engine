@@ -827,6 +827,14 @@ export interface GrantedConditionImmunity {
    * Mind Blank, which print no such sentence.
    */
   readonly suppresses?: true;
+  /**
+   * The holder also can't be **possessed** by what this holds against —
+   * M-MIND, SRD Protection from Evil and Good's "can't be possessed by or gain
+   * the Charmed or Frightened conditions from them". Narrowed by
+   * {@link fromTypes} exactly as the conditions are; read by
+   * `possessionWardedAgainst`.
+   */
+  readonly alsoPossession?: true;
 }
 
 /**

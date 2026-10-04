@@ -350,29 +350,34 @@ describe('a monster attacks with what its block prints', () => {
    * handed back. Saying so is the difference between a shape that is honest
    * about its edges and one that quietly makes a creature weaker than the book.
    *
-   * The Mummy's Rotting Fist, because what its line imposes is not a
-   * condition at all: "the target can't regain Hit Points, its Hit Point
-   * maximum doesn't return to normal when finishing a Long Rest, and its Hit
-   * Point maximum decreases by 10 (3d6) every 24 hours that elapse." The
-   * Wolf's Prone was this example until `printed-riders.test.ts` started
-   * executing it, and the Ghoul's printed save was until the reader learned
-   * to read one; the two files are the two halves of one claim, and this is
-   * the half that must not shrink to nothing.
+   * The Barbed Devil's Hurl Flame, because what its line catches is not a
+   * creature at all: "If the target is a flammable object that isn't being
+   * worn or carried, it starts burning." The Wolf's Prone was this example
+   * until `printed-riders.test.ts` started executing it, the Ghoul's printed
+   * save was until the reader learned to read one, and the Mummy's curse was
+   * until M-LINGER built the clock it waited on; the two files are the two
+   * halves of one claim, and this is the half that must not shrink to nothing.
    */
   it('reports the rider the block prints and the engine does not apply', () => {
-    const table = inTheWoods('mummy', MUMMY);
-    const fist = unwrap(
+    const table = inTheWoods('barbed-devil', DEVIL);
+    const flame = unwrap(
       resolveAttack(
         table.state,
-        MUMMY,
-        { target: BREN, weapon: null, action: 'Rotting Fist' },
+        DEVIL,
+        {
+          target: BREN,
+          weapon: null,
+          action: 'Hurl Flame',
+          attackBonuses: [{ source: 'forced', flat: 40 }],
+        },
         supply(),
       ),
-      'the fist',
+      'the flame',
     );
 
-    expect(fist.unverified.join(' ')).toContain('it is cursed');
-    expect(fist.unverified.join(' ')).toContain('the engine does not apply that');
+    expect(flame.attack?.hit).toBe(true);
+    expect(flame.unverified.join(' ')).toContain('flammable object');
+    expect(flame.unverified.join(' ')).toContain('the engine does not apply that');
   });
 
   /**
@@ -1585,19 +1590,19 @@ describe('an Actions line the parser read nothing out of', () => {
    * not tell the two apart would pass while the economy did nothing.
    */
   it('refuses a second line in the same turn', () => {
-    // The Rust Monster's Destroy Metal — the Harpy's Luring Song stood here
-    // until W7-B13 read its save, and Destroy Metal is a line nothing is read
-    // beneath.
-    const RUST = id('rust');
-    const table = inTheWoods('rust-monster', RUST);
-    const line = 'Destroy Metal';
-    table.did('the rust monster touches', (s) => takeStatedAction(s, RUST, { line, commandId: 'one' }));
-    const again = taking(table, RUST, line, 'two');
+    // The Chain Devil's Conjure Infernal Chain, a line nothing is read beneath
+    // — the Harpy's Luring Song stood here until W7-B13 read its save, and the
+    // Rust Monster's Destroy Metal until M-MATTER read its touch.
+    const CHAINS = id('chains');
+    const table = inTheWoods('chain-devil', CHAINS);
+    const line = 'Conjure Infernal Chain';
+    table.did('the devil conjures', (s) => takeStatedAction(s, CHAINS, { line, commandId: 'one' }));
+    const again = taking(table, CHAINS, line, 'two');
     expect(isErr(again) ? again.code : 'ok').toBe('no_action');
 
     // And the line is where it was: a block that prints no notation has
     // nothing to expend, so only the turn stops it.
-    expect(table.state.creatures[RUST]?.expendedLines).toEqual([]);
+    expect(table.state.creatures[CHAINS]?.expendedLines).toEqual([]);
   });
 
   /**

@@ -132,6 +132,22 @@ export interface CatalogueItem {
    */
   readonly metal?: boolean;
   /**
+   * The ammunition this weapon fires, by its item id — the Ammunition
+   * property's "(Range 80/320; Arrow)" turned into the catalogue row the
+   * archer carries. (M-MATTER)
+   *
+   * Read by SRD Black Pudding's and SRD Gray Ooze's Corrosive Form:
+   * "Nonmagical ammunition is destroyed immediately after hitting the pudding
+   * and dealing any damage." The piece that touched the ooze is one of these,
+   * out of the archer's inventory. **Content's reading and not a derivation**,
+   * because the weapon record prints a word ("Bullet") and the Ammunition table
+   * prints two rows it could mean ("Bullets, Firearm", "Bullets, Sling"), so
+   * the link is made once per row and reviewed there. `checkContent` refuses
+   * one that names nothing, or names an item that is not ammunition. Absent
+   * is a weapon that fires nothing, or one nobody has said of.
+   */
+  readonly firesAmmunition?: string;
+  /**
    * What the item does, in the vocabulary a class feature is already written
    * in.
    *

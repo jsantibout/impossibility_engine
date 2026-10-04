@@ -5,6 +5,7 @@ import { abilityModifier } from './character.js';
 import { isIncapacitated } from './conditions.js';
 import { distanceBetween } from './positioning.js';
 import { remaining } from './resources.js';
+import { effectiveSizeOf } from './size.js';
 import { canSee } from './standing.js';
 import type { GameState } from './events.js';
 import type { FallMoment } from './state.js';
@@ -34,6 +35,13 @@ import type { FallMoment } from './state.js';
  * | `casting-a-spell` | the casting is declared and the action spent | the slot, the effects | *Counterspell* |
  * | `targeted-by-spell` | the casting is declared and its targets are fixed | its effects, on each of them | *Shield*'s second trigger |
  * | `creature-falling` | the table has said a creature is falling | how far, how long, and what it lands on | *Feather Fall*; the Monk's Slow Fall |
+ * | `creature-ended-turn` | a creature's turn has ended | nothing — it holds nothing back | the Octopus's Ink Cloud (M-REFLEX) |
+ * | `attack-declared` | an attack is declared at a creature | whom the d20 is thrown at | the Goblin Boss's Redirect Attack (M-REFLEX) |
+ *
+ * **The last two arrived with M-REFLEX and keep the rule the first seven
+ * keep**: each is a point in a resolution the engine performs — the turn
+ * boundary `advanceTurn` crosses, and a swing `swingAt` holds before its die —
+ * and each opens only where somebody holds something that answers it.
  *
  * **Six of the seven are points in a resolution; the last is a declaration.**
  * `creature-falling` is open because somebody at the table said so rather than
@@ -132,7 +140,35 @@ export type ReactionWindow =
    * false here, not unknown, which is what keeps a Reaction spell from being
    * unlocked by inventing its trigger.
    */
-  | 'creature-falling';
+  | 'creature-falling'
+  /**
+   * SRD Octopus, Ink Cloud: "_Trigger:_ **A creature ends its turn** within 5
+   * feet of the octopus while underwater." — M-REFLEX.
+   *
+   * **A point in a resolution the engine already performs**: the turn
+   * boundary, which `advanceTurn` crosses and now records
+   * (`CombatState.endedLast`). It stays open through the turn that follows,
+   * because the turn is the finest grain the engine has for *now* — the
+   * reading `damageWindowOpen` gives "in response to" — and it closes on the
+   * next boundary. Who ended the turn, and where they stand, are both facts in
+   * state; whether the water is deep enough is the one the command asks for.
+   */
+  | 'creature-ended-turn'
+  /**
+   * SRD Goblin Boss, Redirect Attack: "_Trigger:_ A creature the goblin can see
+   * **makes an attack roll against it**." — M-REFLEX.
+   *
+   * **The instant before the d20 is thrown**, which is the one instant the
+   * response can still act on: "the ally becomes the target of the attack
+   * instead", and an attack roll's Advantage, cover and Armour Class are all
+   * its target's — a roll thrown at the goblin is not a roll at the ally. So
+   * the swing is declared and held (`PendingSwing`), the target answers or
+   * declines, and the attacker makes the swing, thrown at whoever is then its
+   * target. Opened only where the target holds something that can answer it,
+   * which is the rule every window here keeps, and only on a swing made on its
+   * own — see `declaredAttackOffers` for the swings that open nothing.
+   */
+  | 'attack-declared';
 
 /**
  * The windows a **spell** answers.
@@ -171,7 +207,12 @@ export type SpellReactionWindow = Extract<
  */
 export type FeatureReactionWindow = Extract<
   ReactionWindow,
-  'hit-by-attack' | 'damage-rolled' | 'damaged-by-creature' | 'test-rolled'
+  | 'hit-by-attack'
+  | 'damage-rolled'
+  | 'damaged-by-creature'
+  | 'test-rolled'
+  | 'creature-ended-turn'
+  | 'attack-declared'
 >;
 
 /**
@@ -426,6 +467,49 @@ export type ReactionEffect =
       readonly minimumHitPoints: number;
       readonly whenBloodied: true;
       readonly damageTypes: readonly string[];
+    }
+  /**
+   * Fill the Cube the holder stands in with something nobody sees through,
+   * and move away from it — M-REFLEX.
+   *
+   * SRD Giant Octopus and SRD Octopus, Ink Cloud: "The octopus releases ink
+   * that fills a 10-foot Cube centered on itself, and the octopus moves up to
+   * its Swim Speed. The Cube is Heavily Obscured for 1 minute or until a strong
+   * current or similar effect disperses the ink."
+   *
+   * Every number is the line's, pinned at adaptation. The Cube is laid where
+   * the holder stands when it answers and stays there — an obscurement patch
+   * with a deadline of its own (`LatticePatch.lapsesWith`) — and the move is an
+   * allowance the answer may spend at once, measured against the Speed the line
+   * names, as SRD Ready's move is. `underwater` is the trigger's clause the
+   * table states at the door: the engine holds no water. `withinFeet` is the
+   * reach the second trigger prints, measured to the creature that ended its
+   * turn; absent on a trigger that names no other creature.
+   */
+  | {
+      readonly kind: 'release-cloud';
+      readonly cubeFeet: number;
+      readonly degree: 'lightly' | 'heavily';
+      readonly lastsSeconds: number;
+      readonly underwater?: true;
+      readonly movesUpTo?: 'walk' | 'swim' | 'fly' | 'burrow' | 'climb';
+      readonly dispersedBy?: string;
+      readonly withinFeet?: number;
+    }
+  /**
+   * Turn a declared attack on an ally standing close by, and change places
+   * with it — M-REFLEX.
+   *
+   * SRD Goblin Boss, Redirect Attack: "The goblin chooses a Small or Medium
+   * ally within 5 feet of itself. The goblin and that ally swap places, and the
+   * ally becomes the target of the attack instead." The sizes and the reach are
+   * the line's, pinned at adaptation; "ally" is declared allegiance, read the
+   * three-valued way every "you or your allies" in the engine is.
+   */
+  | {
+      readonly kind: 'redirect-attack';
+      readonly allySizes: readonly CreatureSize[];
+      readonly withinFeet: number;
     };
 
 /**
@@ -971,6 +1055,99 @@ export function attackReactionRefusal(
   return null;
 }
 
+/**
+ * Why this creature cannot be the ally a declared attack is turned on, or null
+ * where it can — M-REFLEX, SRD Goblin Boss's Redirect Attack: "a Small or
+ * Medium ally within 5 feet of itself".
+ *
+ * **"Ally" is declared allegiance, three-valued.** A creature on the reactor's
+ * declared side is one; one on another is not; one whose side, or the
+ * reactor's, nobody has said is `undeclared` — offered where the offer is
+ * counted, and asked for where the answer names it, so the engine neither
+ * invents an ally nor withholds one the table simply has not named. One reader
+ * for the offer and the command, the rule `attackReactionRefusal` keeps.
+ */
+export function redirectAllyProblem(
+  state: GameState,
+  reactor: CharacterId,
+  does: Extract<ReactionEffect, { readonly kind: 'redirect-attack' }>,
+  ally: CharacterId,
+  attacker: CharacterId,
+): { readonly code: string; readonly reason: string } | 'undeclared' | null {
+  if (ally === reactor || ally === attacker) {
+    return { code: 'not_an_ally', reason: `${ally} cannot take the attack ${attacker} is making at ${reactor}` };
+  }
+  const them = state.creatures[ally];
+  const me = state.creatures[reactor];
+  if (them === undefined || me === undefined) {
+    return { code: 'unknown_creature', reason: `${ally} has no record here` };
+  }
+  if (them.vitals.dead) return { code: 'not_an_ally', reason: `${ally} is dead` };
+  if (them.side != null && me.side != null && them.side !== me.side) {
+    return { code: 'not_an_ally', reason: `${ally} is not on ${reactor}'s side` };
+  }
+  const size = effectiveSizeOf(state, ally);
+  if (size === null || !does.allySizes.includes(size)) {
+    return {
+      code: 'wrong_size',
+      reason: `the attack can be turned only on a ${does.allySizes.join(' or ')} ally, and ${ally} is ${size ?? 'of no size anybody has said'}`,
+    };
+  }
+  const apart = state.scene === null ? null : distanceBetween(state.scene, reactor, ally);
+  if (apart === null || !apart.ok) {
+    return { code: 'unplaced', reason: `nobody has said where ${reactor} and ${ally} are standing` };
+  }
+  if (apart.value > does.withinFeet) {
+    return { code: 'out_of_range', reason: `${ally} is ${apart.value} feet from ${reactor}, and the ally must be within ${does.withinFeet}` };
+  }
+  return them.side == null || me.side == null ? 'undeclared' : null;
+}
+
+/**
+ * Who may answer an attack declared at a creature, before its die is thrown —
+ * M-REFLEX, SRD Goblin Boss's Redirect Attack.
+ *
+ * The target's own features at `attack-declared`, offered where it could spend
+ * one, where it can see the attacker (the trigger's "a creature the goblin can
+ * see"; an undeclared sight line offers and says so), and where **somebody
+ * stands to take the attack** — a Redirect with nobody to give the swing to is
+ * not a Reaction anybody could take, so the swing is not held for it.
+ *
+ * Empty is the common case and it is the important one: a swing at a creature
+ * with nothing to answer it is thrown exactly as it always was.
+ */
+export function declaredAttackOffers(
+  state: GameState,
+  target: CharacterId,
+  attacker: CharacterId,
+): ReactionOffers {
+  const offers: ReactionOffer[] = [];
+  const unverified: string[] = [];
+  for (const feature of [...featuresFor(state, target, 'attack-declared')].sort(byFeature)) {
+    const does = feature.does;
+    if (does.kind !== 'redirect-attack') continue;
+    if (!canAfford(state, target, feature)) continue;
+    if (feature.requiresSight === true) {
+      const line = canSee(state, target, attacker);
+      if (line === false) continue;
+      if (line === null) {
+        unverified.push(
+          `nobody has said whether ${target} can see ${attacker}, and ${feature.name} needs that; it was offered rather than withheld`,
+        );
+      }
+    }
+    const takers = Object.keys(state.creatures)
+      .sort()
+      .filter((who) => {
+        const problem = redirectAllyProblem(state, target, does, who as CharacterId, attacker);
+        return problem === null || problem === 'undeclared';
+      });
+    if (takers.length === 0) continue;
+    offers.push(offerOf(target, feature));
+  }
+  return { offers, unverified };
+}
+
 /** What the `test-rolled` window is being asked about. */
 export interface TestContext {
   readonly who: CharacterId;
@@ -1124,6 +1301,22 @@ export function fallWindowOpen(state: GameState, who: CharacterId): FallMoment |
   if (fell.turn !== (state.combat?.turnsTaken ?? null)) return null;
   if (fell.elapsed !== state.elapsed) return null;
   return fell;
+}
+
+/**
+ * Whose turn has just ended, while the moment a Reaction to that answers is
+ * still open — or null. (M-REFLEX)
+ *
+ * SRD Octopus, Ink Cloud: "A creature **ends its turn** within 5 feet of the
+ * octopus". The boundary is recorded where `advanceTurn` crosses it
+ * (`CombatState.endedLast`), and the moment stays open through the turn that
+ * began at it — {@link damageWindowOpen}'s grain, the turn — so it closes on
+ * the next boundary. Outside a fight there are no turns to end.
+ */
+export function turnEndWindowOpen(state: GameState): CharacterId | null {
+  const ended = state.combat?.endedLast;
+  if (ended === undefined || state.combat === null) return null;
+  return state.combat.turnsTaken === ended.turn + 1 ? ended.who : null;
 }
 
 /** Everybody the table has said is falling, right now, in a stable order. */

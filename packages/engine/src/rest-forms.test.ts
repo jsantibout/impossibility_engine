@@ -65,7 +65,11 @@ describe('SRD Succubus Form and Incubus Form: another block at a Long Rest', () 
     expect(fiend.vitals.hpMax).toBe(SRD_CONTENT.monsterById('succubus')!.hp.average);
     expect(fiend.vitals.hp).toBe(fiend.vitals.hpMax);
     // The succubus prints no Spellcasting line, and the incubus's is gone.
-    expect(fiend.spellcasting.granted).toEqual([]);
+    // What it does cast is its own Charm's Dominate Person (M-MIND), through
+    // the route its heading holds open.
+    expect(fiend.spellcasting.granted.map((grant) => [grant.spellId, grant.throughLine])).toEqual([
+      ['dominate-person', 'Charm'],
+    ]);
     expect(fiend.sheet.stated?.attacks?.map((attack) => attack.name)).toContain('Fiendish Touch');
     // "Any equipment it is wearing or carrying isn't transformed."
     expect(fiend.inventory.some((line) => line.id === 'dagger')).toBe(true);

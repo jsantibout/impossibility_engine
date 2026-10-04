@@ -10,8 +10,13 @@
 import type { CharacterId } from '@ie/shared';
 import type { CreatureSize } from '@ie/srd';
 import { READY } from '../actions.js';
+import { concentratedLines } from '../character.js';
+import { removeConditionInstance } from '../conditions.js';
 import type { GameEvent } from '../events.js';
-import type { GameState } from '../state.js';
+import type { CreatureState, GameState } from '../state.js';
+import { type TimedEffect, timerKey } from '../timers.js';
+import { attackRollMadeBy } from './endings.js';
+import { printedLineSource } from '../monster.js';
 import {
   CorruptLogError,
   creatureOf,
@@ -152,6 +157,123 @@ export function applyFeatures({ state, next }: Applying, event: FeaturesEvent): 
   }
 
   return unhandledEvent(event);
+}
+
+/**
+ * A stat block's line held under Concentration, kept in step with the
+ * Concentration that holds it up — M-REFLEX.
+ *
+ * SRD Will-o'-Wisp's Vanish: "The wisp and its light have the Invisible
+ * condition until the wisp's Concentration ends on this effect, which ends
+ * early immediately after the wisp makes an attack roll or uses Consume Life."
+ * SRD Darkmantle's Darkness Aura: "This effect lasts while the darkmantle
+ * maintains Concentration on it, up to 10 minutes."
+ *
+ * **Derived, and the reason is the number of doors.** A Concentration ends by
+ * a failed save, the Incapacitated condition, a death, a second Concentration
+ * and a dismissal, and each of them reaches `releaseCasting` knowing nothing of
+ * features; a feature ends by its deadline (`expireEffects`) and by an ending
+ * somebody states. Every one of them takes away one half of the pair, and this
+ * takes away the other, so no road out of either can leave a Darkness standing
+ * with nobody concentrating on it or a Concentration held on nothing.
+ *
+ * **And the two early endings the line prints**, read off this one event: an
+ * attack roll its holder made — the reading SRD Invisibility's clause is given
+ * (`attackRollMadeBy`) — and a use of a line the record names, which is the
+ * `stated-action-taken` or `stated-bonus-action-taken` every door that spends a
+ * printed line writes.
+ *
+ * What goes with the feature: the Concentration, every condition hung under the
+ * line's `printedLineSource` **on any creature** — the holder's own Invisible,
+ * or the Charmed a save line's failure lands on its targets — and the deadlines
+ * that would have ended the feature or those instances. The light it laid and
+ * the light it withheld are derived off `activeFeatures`, so they go by
+ * themselves. `beginPrintedConcentration` is the door in; this is the one way
+ * out, whichever road a line is taken by.
+ */
+export function settleConcentratedFeatures(state: GameState, event: GameEvent): GameState {
+  let anyHeld = false;
+  for (const key in state.creatures) {
+    const creature = state.creatures[key];
+    if (creature === undefined) continue;
+    if (creature.activeFeatures.length > 0 || creature.concentration?.feature === true) {
+      anyHeld = true;
+      break;
+    }
+  }
+  if (!anyHeld) return state;
+
+  const attacker = attackRollMadeBy(state, event);
+  const used =
+    event.type === 'stated-action-taken' || event.type === 'stated-bonus-action-taken'
+      ? { who: event.id, line: event.line }
+      : null;
+
+  const creatures: Record<string, CreatureState> = { ...state.creatures };
+  const timers: Record<string, TimedEffect> = { ...state.timers };
+  let changed = false;
+  // The sources whose effect has ended this event, whoever it was hung on.
+  const ended = new Set<string>();
+  for (const key of Object.keys(state.creatures).sort()) {
+    const creature = creatures[key];
+    if (creature === undefined) continue;
+    const lines = concentratedLines(creature.sheet);
+    if (lines.length === 0) continue;
+
+    let updated = creature;
+    for (const { name, concentrates } of lines) {
+      const feature = concentrates.feature;
+      const held =
+        updated.concentration?.feature === true && updated.concentration.castingId === feature;
+      const endedByDeed =
+        (concentrates.endsAfter?.attackRoll === true && attacker === creature.id) ||
+        (used !== null &&
+          used.who === creature.id &&
+          (concentrates.endsAfter?.lines ?? []).some(
+            (line) => line.toLowerCase() === used.line.toLowerCase(),
+          ));
+      const running = updated.activeFeatures.includes(feature) && held && !endedByDeed;
+      if (running) continue;
+      if (!updated.activeFeatures.includes(feature) && !held) continue;
+
+      // Ending now: every condition the line hung, on anybody, goes below.
+      ended.add(printedLineSource(creature.id, name));
+      updated = {
+        ...updated,
+        activeFeatures: updated.activeFeatures.filter((f) => f !== feature),
+        ...(held ? { concentration: null } : {}),
+      };
+      const deadline = timerKey({ kind: 'feature', on: creature.id, feature });
+      if (timers[deadline] !== undefined) delete timers[deadline];
+      changed = true;
+    }
+    creatures[key] = updated;
+  }
+
+  // **What the line hung, on whoever it hung it on.** SRD Vanish's Invisible
+  // is on the wisp; SRD Harpy's Luring Song charms the creatures that failed
+  // its save — "until the song ends". A printed line hangs its clauses under
+  // `printedLineSource`, so one source names everything the line is holding
+  // up, and an ended line takes all of it, with any deadline that would have
+  // ended an instance later.
+  if (ended.size > 0) {
+    for (const key of Object.keys(creatures).sort()) {
+      const creature = creatures[key];
+      if (creature === undefined) continue;
+      const doomed = creature.conditions.instances.filter((instance) => ended.has(instance.source));
+      if (doomed.length === 0) continue;
+      let conditions = creature.conditions;
+      for (const instance of doomed) {
+        conditions = removeConditionInstance(conditions, instance.id);
+        const deadline = timerKey({ kind: 'condition', on: creature.id, instance: instance.id });
+        if (timers[deadline] !== undefined) delete timers[deadline];
+      }
+      creatures[key] = { ...creature, conditions };
+      changed = true;
+    }
+  }
+
+  return changed ? { ...state, creatures, timers } : state;
 }
 
 /**

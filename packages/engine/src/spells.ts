@@ -140,10 +140,29 @@ export interface StatedChoicePin {
 
 /** What a creature is currently concentrating on. */
 export interface Concentration {
+  /**
+   * What is being concentrated on: a casting's id, or — where {@link feature}
+   * is set — the key of the running feature that is.
+   *
+   * One handle for both because every road out of a Concentration names it
+   * and nothing else — a failed save, the Incapacitated condition, a death, a
+   * second Concentration, a dismissal — and each reaches `releaseCasting` with
+   * it. A feature's key matches no casting's sources, so that door takes away
+   * only the Concentration itself, and `settleConcentratedFeatures` ends the
+   * feature it no longer holds up. (M-REFLEX)
+   */
   readonly castingId: string;
+  /** The spell's name, or the heading of the line being concentrated on. */
   readonly spell: string;
-  /** The level it was cast at — the slot's level when it was upcast. */
+  /** The level it was cast at — the slot's level when it was upcast. 0 for a feature. */
   readonly level: number;
+  /**
+   * Present exactly when what is held is a stat block's line rather than a
+   * casting — SRD Will-o'-Wisp's Vanish, SRD Darkmantle's Darkness Aura: "until
+   * the wisp's Concentration ends on this effect". Absent on every
+   * Concentration a casting holds, which is every one before M-REFLEX.
+   */
+  readonly feature?: true;
 }
 
 /**

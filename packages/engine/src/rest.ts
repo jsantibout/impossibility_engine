@@ -10,7 +10,7 @@ import {
 import { HOUR, hours } from './time.js';
 import type { Rng } from './dice.js';
 import { timerKey } from './timers.js';
-import type { GameEvent, GameState } from './events.js';
+import { applyEvent, type GameEvent, type GameState } from './events.js';
 import { once, type CommandIdentity } from './idempotency.js';
 import { rechosenSpellKey } from './progression.js';
 import { hitDiceRequested, hitDiceRolled, type HitDieSpent } from './hit-dice.js';
@@ -20,7 +20,15 @@ export type { HitDieSpent } from './hit-dice.js';
 import { castingIdOf } from './spells.js';
 import { sheetAsItStands } from './standing.js';
 import type { CreatureState } from './state.js';
-import { settleHitPointMaximum, type GrantedHitPointMaximum } from './vitals.js';
+import { healingRuleOf, settleHitPointMaximum, type GrantedHitPointMaximum } from './vitals.js';
+import { hasPrintedTrait } from './monster.js';
+import {
+  harmSourcesOn,
+  longRestTollEvents,
+  owesDailyToll,
+  shortRestDeniedBy,
+  withheldBy,
+} from './commands/lingering.js';
 
 /**
  * Short and Long Rests.
@@ -414,27 +422,45 @@ function rechoiceEvents(
  *   a casting's, and a source a `grants` deadline stands over ends when that
  *   deadline arrives. Either way somebody else is already coming for it, and
  *   two owners of one ending is how a grant comes to be released twice.
- * **A third question has no field to ask yet**, and this is where it would be
- * asked. SRD Mummy's Rotting Fist prints the exception in as many words — "its
- * Hit Point maximum doesn't return to normal when finishing a Long Rest" — and
- * that line is handed to the table whole today, so no adjustment in any log
- * this engine writes is marked to survive. The mark is
- * `GrantedHitPointMaximum`'s to grow when a reader for the line is built; a
- * clause for it in the filter before then would be a guard over a fact
- * nothing can state.
+ * **And the two exceptions the bestiary prints** — M-LINGER. SRD Mummy and
+ * SRD Death Dog: "its Hit Point maximum doesn't return to normal when
+ * finishing a Long Rest", while the curse or the Poisoned stands — so a
+ * creature carrying such a harm gets **nothing** back, whatever lowered it,
+ * because the sentence is about the maximum and not about any one lowering.
+ * And SRD Otyugh's lowering "doesn't return to normal until the Poisoned
+ * condition ends": it is filed under the harm's own source, which is a
+ * lifetime of its own and the fold's to end, exactly as a `grants` deadline is.
  */
 function loweringsALongRestEnds(
   state: GameState,
   id: CharacterId,
   creature: CreatureState,
 ): readonly GrantedHitPointMaximum[] {
+  if (withheldBy(creature) !== null) return [];
+  const harms = harmSourcesOn(creature);
   return creature.hitPointMaxima.filter(
     (held) =>
       held.amount < 0 &&
       castingIdOf(held.source) === null &&
+      !harms.has(held.source) &&
       state.timers[timerKey({ kind: 'grants', on: id, source: held.source })] === undefined,
   );
 }
+
+/**
+ * Whether the hit points a rest pays may come back at all.
+ *
+ * SRD Mummy's curse: "the target **can't regain Hit Points**" (M-LINGER) — and
+ * a rest's hit points are regained hit points, a Long Rest's "Regain All HP"
+ * and a Hit Die's alike. The two rules `healCreature` meets at its door, met
+ * here too, because this is another door hit points come back through: a
+ * running effect's `prevented` rule, and a block that never regains any. The
+ * Hit Die is still spent, which is the reading `healCreature` takes of a Cure
+ * Wounds cast under the same rule; what the rest owes is still owed.
+ */
+const mayRegain = (creature: CreatureState): boolean =>
+  healingRuleOf(creature.healingRules) !== 'prevented' &&
+  !hasPrintedTrait(creature.sheet, 'regains-no-hit-points');
 
 /** What a retry is told, and the whole of what it is told. */
 const ALREADY_SETTLED: RestResolution = {
@@ -481,6 +507,17 @@ export function endRest(
     const rest = creature.resting;
     if (rest === null) return err('not_resting', `${id} is not resting`);
 
+    // **A toll the clock has passed is settled before the rest ends** —
+    // M-LINGER. SRD Death Dog's save "every 24 hours that elapse" may end the
+    // very Poisoned that is withholding the maximum this rest would give back,
+    // so the order is the book's: the day's save, then the waking.
+    if (owesDailyToll(state, id)) {
+      return err(
+        'daily_toll_owed',
+        `${id} owes a lingering harm's toll the clock has already passed; settleDailyTolls throws it before the rest ends`,
+      );
+    }
+
     // The sheet as it stands, for `rollRecorded`'s reason one paragraph down:
     // what a Long Rest takes this creature is a fact about the creature, and a
     // reader that took the built sheet would miss anything put on since.
@@ -492,7 +529,7 @@ export function endRest(
     // one it saw for itself carries the moment it actually happened.
     const interruptedAt =
       rest.interruptedBy !== null ? rest.interruptedAt : interrupted === null ? null : state.elapsed;
-    const benefit = restEarned(
+    const earned = restEarned(
       { ...rest, interruptedBy: interrupted, interruptedAt },
       state.elapsed,
       requires,
@@ -501,10 +538,25 @@ export function endRest(
 
     // Nothing interrupted it and it has not run its course, so it is not over.
     // Ending it here would quietly grant nothing for a rest still in progress.
-    if (benefit === 'none' && interrupted === null) {
+    if (earned === 'none' && interrupted === null) {
       return err(
         'rest_incomplete',
         `${id} has rested ${elapsed} of the ${requires} seconds a ${rest.kind} rest takes`,
+      );
+    }
+
+    // **A Short Rest's benefit, denied** — M-LINGER, SRD Incubus's Restless
+    // Touch: "Until the curse ends, the target gains no benefit from finishing
+    // Short Rests." Every Short Rest benefit, which is the Hit Dice and the
+    // features a Short Rest recharges — and the same benefit a Long Rest broken
+    // after an hour pays, because that is a Short Rest's benefit by another
+    // road. The rest is still over; it simply pays nothing.
+    const denied = earned === 'short' ? shortRestDeniedBy(creature) : null;
+    const benefit: RestBenefit = denied === null ? earned : 'none';
+    if (denied !== null && (options.hitDice ?? []).length > 0) {
+      return err(
+        'rest_benefit_denied',
+        `${id} gains no benefit from finishing Short Rests while ${denied.line}'s curse stands, so there are no Hit Dice to spend`,
       );
     }
 
@@ -576,7 +628,7 @@ export function endRest(
             count: supply.issuer.count - issuedBefore,
             rng: supply.rng.snapshot(),
           });
-          if (regained > 0) events.push({ type: 'healed', id, amount: regained });
+          if (regained > 0 && mayRegain(creature)) events.push({ type: 'healed', id, amount: regained });
         }
         break;
       }
@@ -623,7 +675,7 @@ export function endRest(
         const restored = settleHitPointMaximum(creature.vitals, stillHeld);
 
         const missing = restored.hpMax - restored.hp;
-        if (missing > 0) events.push({ type: 'healed', id, amount: missing });
+        if (missing > 0 && mayRegain(creature)) events.push({ type: 'healed', id, amount: missing });
 
         // SRD: "Temporary Hit Points last until they're depleted or you finish a
         // Long Rest." They are not hit points and healing does not touch them,
@@ -678,8 +730,20 @@ export function endRest(
       kind: rest.kind,
       benefit,
       ...(interrupted === null ? {} : { interrupted }),
+      ...(denied === null ? {} : { deniedBy: denied.line }),
       ...(stamp === null ? {} : { command: stamp }),
     });
+
+    // **The save a finished Long Rest throws** — M-LINGER, SRD Otyugh:
+    // "Whenever the Poisoned target finishes a Long Rest, it is subjected to
+    // the following effect." After the rest is over, because the sentence is
+    // about having finished it: the night's healing is measured first, and a
+    // failure lowers the maximum the creature wakes to.
+    if (benefit === 'long') {
+      const tolled = longRestTollEvents(events.reduce(applyEvent, state), id, supply);
+      if (!tolled.ok) return tolled;
+      events.push(...tolled.value);
+    }
 
     return ok({
       events,

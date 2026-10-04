@@ -199,6 +199,8 @@ const KNOWN_EVENT_TYPES: readonly string[] = [
   'armor-class-granted',
   'armor-penalised',
   'attack-damage-dealt',
+  // M-REFLEX: a swing declared and held before its die, answered, and thrown.
+  'attack-declared',
   'attack-landed',
   'attack-made',
   'attack-rider-granted',
@@ -249,6 +251,9 @@ const KNOWN_EVENT_TYPES: readonly string[] = [
   'creature-type-masked',
   'creature-unplaced',
   'creature-woken',
+  // One period of a harm's toll settled, and the harm itself — M-LINGER:
+  // SRD Mummy's curse, SRD Death Dog's poison and their kin.
+  'daily-toll-paid',
   'damage-defense-granted',
   'damage-dice-recorded',
   'damage-penalty-granted',
@@ -261,6 +266,8 @@ const KNOWN_EVENT_TYPES: readonly string[] = [
   'damage-type-declared',
   'dash-taken',
   'death-save-recorded',
+  'declared-attack-answered',
+  'declared-attack-thrown',
   'decoy-destroyed',
   // W7-S22: a word obeyed on the target's next turn, owed and then settled.
   'deferred-riders-settled',
@@ -306,6 +313,7 @@ const KNOWN_EVENT_TYPES: readonly string[] = [
   // SRD Troll's Loathsome Limbs: a limb severed, with its Exhaustion and the
   // day's use. M-RISE.
   'limb-severed',
+  'lingering-harm-laid',
   // A spell that may not affect a creature again until it finishes a Long
   // Rest — SRD Prayer of Healing. E-L3.
   'marked-until-long-rest',
@@ -314,6 +322,8 @@ const KNOWN_EVENT_TYPES: readonly string[] = [
   'movement-declared',
   'movement-granted',
   'movement-spent',
+  // M-REFLEX: the table's word that a patch nothing casts has cleared.
+  'obscurement-cleared',
   'obscurement-declared',
   'opportunity-answered',
   'passive-defense-granted',

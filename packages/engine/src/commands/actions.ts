@@ -52,7 +52,12 @@ import {
   type TurnBudget,
 } from '../combat.js';
 import { type Bonus, type ModeSource } from '../bonuses.js';
-import { type StatedAction, type StatedBonusAction, type StatedTraitCast } from '../character.js';
+import {
+  type StatedAction,
+  type StatedBonusAction,
+  type StatedConcentration,
+  type StatedTraitCast,
+} from '../character.js';
 import { formNamed, wrongFormFor, wrongTypeFor } from '../forms.js';
 import { grapplesOn } from './unarmed.js';
 import { pullToward } from './spell-effect-movement.js';
@@ -500,6 +505,67 @@ export function takeDisengage(
  * told what was applied and what was not. A line that is neither returns
  * nothing and the caller's blanket hand-over stands.
  */
+/**
+ * **Concentration on a printed line** — the one door into it, M-REFLEX.
+ *
+ * The events that put a stat block's line under its creature's Concentration:
+ * the Concentration already held ends ("another-concentration-effect", the
+ * reading `resolveCast` takes of a spell), the new one is started naming the
+ * line's feature key — the fold switches the feature on with it, in one event
+ * — and the line's cap (`upToMinutes`) is hung as the feature's deadline.
+ *
+ * **It hangs nothing else**, and that is what makes it the door for every
+ * shape a line comes in: a self-effect (SRD Will-o'-Wisp's Vanish), an area
+ * derived off the running feature (SRD Darkmantle's Darkness Aura), or a save
+ * whose failure lands conditions on other creatures (SRD Harpy's Luring Song,
+ * "until the song ends"). Whatever the caller hangs **after** these events
+ * under `printedLineSource(id, heading)` — on the holder or on anybody — ends
+ * with the line, by every road it ends: the Concentration broken (a failed
+ * save, Incapacitated, death, a new Concentration, a dismissal), the cap
+ * lapsing, or a printed early ending (`StatedConcentration.endsAfter`). That
+ * is `settleConcentratedFeatures`, and the line has to carry a `concentrates`
+ * record for it to be found there.
+ *
+ * The order the caller hangs them in does not matter: the pass takes the
+ * line's conditions off at the moment the line *stops* running, so whatever is
+ * standing under its source then — hung before these events or after — goes.
+ */
+export function beginPrintedConcentration(
+  state: GameState,
+  id: CharacterId,
+  heading: string,
+  held: StatedConcentration,
+): Result<GameEvent[]> {
+  const events: GameEvent[] = [];
+  const holder = state.creatures[id];
+  if (holder?.concentration != null) {
+    events.push({
+      type: 'concentration-ended',
+      id,
+      castingId: holder.concentration.castingId,
+      reason: 'another-concentration-effect',
+    });
+  }
+  events.push({
+    type: 'concentration-started',
+    id,
+    castingId: held.feature,
+    spell: heading,
+    level: 0,
+    feature: true,
+  });
+  if (held.upToMinutes !== undefined) {
+    const deadline = schedule(
+      state,
+      { kind: 'feature', on: id, feature: held.feature },
+      { kind: 'seconds', seconds: held.upToMinutes * 60 },
+    );
+    if (!deadline.ok) return deadline;
+    events.push(deadline.value);
+  }
+  return ok(events);
+}
+
 function grantsOfPrintedLine(
   state: GameState,
   id: CharacterId,
@@ -624,6 +690,30 @@ function grantsOfPrintedLine(
     }
   }
 
+  // **An effect kept up under Concentration** — M-REFLEX. SRD Will-o'-Wisp's
+  // Vanish: "The wisp and its light have the Invisible condition until the
+  // wisp's Concentration ends on this effect"; SRD Darkmantle's Darkness Aura:
+  // "This effect lasts while the darkmantle maintains Concentration on it, up to
+  // 10 minutes." The Concentration names the line's feature, and the fold
+  // switches the feature on with it in one event; what the effect does while it
+  // runs is derived off that feature (the darkness laid, the Illumination
+  // withheld) or hung under its key (the conditions), and every road out of the
+  // Concentration takes it away — see `settleConcentratedFeatures`.
+  const held = line.concentrates;
+  if (held !== undefined) {
+    const begun = beginPrintedConcentration(state, id, line.name, held);
+    if (!begun.ok) return begun;
+    events.push(...begun.value);
+    // The self-effect the line prints: "The wisp … ha[s] the Invisible
+    // condition", hung under the line's own source so the ending takes it.
+    for (const condition of held.conditions ?? []) {
+      events.push({ type: 'condition-applied', id, condition, source });
+    }
+    unverified.push(
+      `${line.name}: ${id} is concentrating on it, and it ends the moment that Concentration does`,
+    );
+  }
+
   return ok({
     events,
     unverified,
@@ -631,7 +721,8 @@ function grantsOfPrintedLine(
       line.jumps !== undefined ||
       line.dashes !== undefined ||
       line.rampages !== undefined ||
-      line.togglesLight !== undefined,
+      line.togglesLight !== undefined ||
+      line.concentrates !== undefined,
   });
 }
 
@@ -719,6 +810,9 @@ function ownDoorOf(
   }
   if (line.forms !== undefined) return 'the door that takes a printed form (takePrintedForm)';
   if (line.pulls !== undefined) return 'the door that makes a printed pull (takePrintedPull)';
+  if (line.touchesObject !== undefined) {
+    return 'the door that touches an object (takePrintedTouch)';
+  }
   if (line.swallows !== undefined) return 'the door that swallows (takePrintedSwallow)';
   if (line.shiftsPlane !== undefined) {
     return 'the door that steps onto another plane (takePrintedPlaneShift)';
@@ -2388,6 +2482,11 @@ export function takePrintedTeleport(
       if (state.pendingAttack !== null) {
         return err('attack_pending', 'a hit is waiting for its damage; settle it first');
       }
+      // A swing declared and not thrown is measured from where its two ends
+      // stand — M-REFLEX, SRD Redirect Attack. Nothing moves until it is thrown.
+      if (state.pendingSwing !== undefined) {
+        return err('attack_declared', 'a declared attack is waiting to be thrown; settle it first');
+      }
 
       // A mandatory effect this creature has been caught by, or a turn whose
       // start has not arrived. **After the duplicate check, never before it.**
@@ -2947,6 +3046,11 @@ export function takePrintedPull(
       if (state.pendingAttack !== null) {
         return err('attack_pending', 'a hit is waiting for its damage; settle it first');
       }
+      // A swing declared and not thrown is measured from where its two ends
+      // stand — M-REFLEX, SRD Redirect Attack. Nothing moves until it is thrown.
+      if (state.pendingSwing !== undefined) {
+        return err('attack_declared', 'a declared attack is waiting to be thrown; settle it first');
+      }
 
       const owedHere = mayAct(state, id, 'act');
       if (owedHere !== null) return owedHere;
@@ -3117,6 +3221,229 @@ export function takePrintedPull(
       }
 
       return ok({ events, pulled, unverified, duplicate: false });
+    },
+  );
+}
+
+/** Which line touches which object, and whether the cube is the whole of it. */
+export interface PrintedTouchCommand extends CommandIdentity {
+  readonly line: string;
+  /** The declared object the line touches. */
+  readonly object: CharacterId;
+  /**
+   * Whether the cube the touch destroys is **the whole of the object** — a
+   * lock, a dagger lying loose — or a part of it, a hole in a gate.
+   *
+   * A decision the rules leave to the table, and the reason this is a DM's
+   * door: a declared object has a size and no shape, and SRD's Object Hit
+   * Points table files "a bottle, a lock" under one size. Absent is asked
+   * about rather than guessed.
+   */
+  readonly wholeObject?: boolean;
+}
+
+export interface PrintedTouchOutcome {
+  readonly events: readonly GameEvent[];
+  /** The object touched. */
+  readonly object: CharacterId | null;
+  /** Whether the touch destroyed it — the table said the cube was the whole of it. */
+  readonly destroyed: boolean;
+  /** What the engine read without being able to check it. */
+  readonly unverified: readonly string[];
+  readonly duplicate: boolean;
+}
+
+/**
+ * Touch an object with a printed line, and destroy the cube of it the line
+ * prints — M-MATTER.
+ *
+ * SRD Rust Monster, Destroy Metal: "The rust monster touches a nonmagical
+ * metal object within 5 feet of itself that isn't being worn or carried. The
+ * touch destroys a 1-foot Cube of the object."
+ *
+ * **The touch is legality, and each clause is asked before anything is
+ * spent**: the thing is a declared object — a thing in the room, which nobody
+ * wears or carries, the reading SRD Light's target rule takes (W9-S4); it is
+ * standing; it is within the printed reach; and it is the printed substance,
+ * off the material the declaration pinned — refused where the substance is
+ * not, and taken with that said where nobody has recorded it, which is SRD
+ * Heat Metal's reading of the same mark (E-L1). "Nonmagical" is read off the
+ * record, which for a declared object says nothing magical, and said, as SRD
+ * Corrosive Form's weapon is.
+ *
+ * **The cube is the table's question and the destruction is the engine's.** A
+ * declared object has no shape a cubic foot could be measured against, so the
+ * caller says whether the cube is the whole of it (`wholeObject`), and is asked
+ * where it does not. Where it is, the object is destroyed — "An object is
+ * destroyed when it has 0 Hit Points" — through `creature-died`, the event a
+ * death that is not damage already writes. Where it is not, the object
+ * stands: a hole in a gate is a change to the map the table is drawing, and no
+ * rule reads it afterwards.
+ *
+ * The economy is every printed door's: the heading's slot or a use the
+ * Multiattack holds, the recharge and the day's uses checked before it.
+ */
+export function takePrintedTouch(
+  state: GameState,
+  id: CharacterId,
+  command: PrintedTouchCommand,
+): Result<PrintedTouchOutcome> {
+  return once(
+    state,
+    `printed-touch:${id}`,
+    command,
+    () => ({ events: [], object: null, destroyed: false, unverified: [], duplicate: true }),
+    (stamp) => {
+      const owedHere = mayAct(state, id, 'act');
+      if (owedHere !== null) return owedHere;
+
+      const creature = creatureOf(state, id);
+      if (creature === null) return unknownCreature(id, 'has no record here yet; add it first');
+      if (state.combat === null) {
+        return err('not_in_combat', 'there is no turn to spend a printed line from outside combat');
+      }
+
+      const action = statedActionOf(creature.sheet, command.line);
+      const bonus = action === null ? statedBonusActionOf(creature.sheet, command.line) : null;
+      const line: StatedAction | StatedBonusAction | null = action ?? bonus;
+      if (line === null) {
+        return err(
+          'no_such_line',
+          `no line called ${command.line} is printed under this creature's Actions or Bonus Actions; a printed attack is taken by the command that swings it, and a heading printed under another section by the command that owns that one`,
+        );
+      }
+      const printed = line.touchesObject;
+      if (printed === undefined) {
+        return err(
+          'line_touches_nothing',
+          `${line.name} states no touch on an object this engine could read; take it with the door that hands the sentence over, and a DM applies what it says`,
+        );
+      }
+
+      const wrongForm = wrongFormFor(creature, line);
+      if (wrongForm !== null) return err('wrong_form', wrongForm);
+      const missing = missingRequirementFor(state, id, line);
+      if (missing !== null) return err('requirement_unmet', missing);
+      const recharge = line.recharge ?? null;
+      if (creature.expendedLines.includes(line.name)) {
+        return err(
+          'line_expended',
+          `${id} has used ${line.name} and not got it back${
+            recharge === null ? '' : `: ${describeRecharge(recharge)}`
+          }`,
+        );
+      }
+      const perDay = line.perDay ?? null;
+      const usedToday = tallied(creature.resources, perDayTallyKey(line.name));
+      if (perDay !== null && usedToday >= perDay) {
+        return err(
+          'daily_limit_reached',
+          `${id} has used ${line.name} ${usedToday} times today: ${describePerDay(perDay)}`,
+        );
+      }
+
+      // **The thing touched**: a declared object, standing. A creature is not
+      // one, and what a creature wears or carries is refused with it — the
+      // line reaches "an object that isn't being worn or carried".
+      const thing = state.creatures[command.object];
+      if (thing === undefined) return unknownCreature(command.object);
+      if (thing.creatureType !== OBJECT_CREATURE_TYPE) {
+        return err(
+          'not_an_object',
+          `${line.name} touches an object that isn't being worn or carried, and ${command.object} is a creature — a thing it holds is carried, and a thing lying loose is declared as an object first`,
+        );
+      }
+      if (thing.vitals.dead) {
+        return err('object_destroyed', `${thing.name} is destroyed already, and there is nothing left to touch`);
+      }
+      const unverified: string[] = [];
+      if (thing.material?.metal === false) {
+        return err(
+          'not_metal',
+          `${line.name} touches a ${printed.material} object, and ${thing.name} is ${thing.material.id}`,
+        );
+      }
+      if (thing.material?.metal === undefined) {
+        unverified.push(`${line.name}: nobody has recorded whether ${thing.name} is metal — the table's to rule on`);
+      }
+      unverified.push(
+        `${thing.name} is nonmagical by its record; one a table has made magical some other way is the table's to spare from ${line.name}`,
+      );
+
+      const scene = sceneFor(state, id, `${id} to reach ${command.object} from`);
+      if (!scene.ok) return scene;
+      const apart = distanceBetween(scene.value, id, command.object);
+      if (!apart.ok) return apart;
+      if (apart.value > printed.within) {
+        return err(
+          'out_of_reach',
+          `${line.name} touches an object within ${printed.within} feet, and ${thing.name} is ${apart.value} away`,
+        );
+      }
+
+      if (command.wholeObject === undefined) {
+        return needsContext(
+          'undeclared_whole_object',
+          `${line.name} destroys a ${printed.cubeFeet}-foot Cube of ${thing.name}, and nobody has said whether that is the whole of it`,
+          [
+            {
+              kind: 'creature',
+              subject: command.object,
+              need: `whether a ${printed.cubeFeet}-foot Cube is the whole of ${thing.name} — a lock is, an iron gate is not`,
+              because: `a declared object has a size and no shape, and the touch destroys the object only where the cube is all of it`,
+              satisfyWith: 'takePrintedTouch again with wholeObject filled in',
+            },
+          ],
+        );
+      }
+
+      const slotSpent = spendLineSlot(state, state.combat, id, line, action !== null);
+      if (!slotSpent.ok) return slotSpent;
+      const events: GameEvent[] = [
+        ...slotSpent.value,
+        ...(recharge === null
+          ? []
+          : [{ type: 'printed-line-expended' as const, id, line: line.name }]),
+        ...(perDay === null
+          ? []
+          : [
+              {
+                type: 'resource-spent' as const,
+                id,
+                key: perDayTallyKey(line.name),
+                amount: 1,
+                tally: 'dawn' as const,
+              },
+            ]),
+        action !== null
+          ? { type: 'stated-action-taken' as const, id, line: line.name, ...(stamp === null ? {} : { command: stamp }) }
+          : {
+              type: 'stated-bonus-action-taken' as const,
+              id,
+              line: line.name,
+              turn: state.combat.turnsTaken,
+              ...(stamp === null ? {} : { command: stamp }),
+            },
+        // The cube that is the whole of the thing destroys the thing.
+        ...(command.wholeObject
+          ? [{ type: 'creature-died' as const, id: command.object, cause: line.name }]
+          : []),
+      ];
+
+      // **Where the object stands, the hole is the table's**: the cube out of a
+      // gate is a change to the map the table is drawing, filed by the line
+      // for this case and reported under the handover mark.
+      if (!command.wholeObject) {
+        unverified.push(...reportFiled(`${id}'s ${line.name} on ${thing.name}`, filedFor(printed.forTheTable, 'use')));
+      }
+
+      return ok({
+        events,
+        object: command.object,
+        destroyed: command.wholeObject,
+        unverified,
+        duplicate: false,
+      });
     },
   );
 }

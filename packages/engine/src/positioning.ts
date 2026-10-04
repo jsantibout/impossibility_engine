@@ -12,7 +12,13 @@ import { itemInstanceNumber } from './item-instance.js';
 // SRD Illumination, read off a sheet — see {@link carriedLight}. A value edge,
 // and a safe one: `character.ts` imports nothing but `@ie/shared` at value
 // level, so this pulls in one module and not the engine behind it.
-import { activatedLight, printedDifficultGround, printedLight } from './character.js';
+import {
+  activatedLight,
+  concentratedDarkness,
+  ownLightHidden,
+  printedDifficultGround,
+  printedLight,
+} from './character.js';
 import type { ResourcePool } from './resources.js';
 // Type-only: `elsewhere.ts` reads this module's geometry at value level.
 import type { AwayMark } from './elsewhere.js';
@@ -1443,9 +1449,16 @@ export function distanceBetween(
   // none from anybody else. SRD Swallow: the swallowed target "has Total Cover
   // against attacks and other effects outside the frog" — so the frog is the
   // one creature it reaches and the one that reaches it, and everything else
-  // meets the `not_here` below.
-  if (state.away[a]?.kind === 'inside' && state.away[a].host === b) return ok(0);
-  if (state.away[b]?.kind === 'inside' && state.away[b].host === a) return ok(0);
+  // meets the `not_here` below. **Not a possessor** (M-MIND): SRD Ghost's
+  // Possession puts the ghost inside a body it "now controls", and it acts
+  // through the body rather than at it — so it reaches nobody, its host
+  // included. See `AwayMark.possessor`.
+  if (state.away[a]?.kind === 'inside' && state.away[a].host === b && state.away[a].possessor !== true) {
+    return ok(0);
+  }
+  if (state.away[b]?.kind === 'inside' && state.away[b].host === a && state.away[b].possessor !== true) {
+    return ok(0);
+  }
 
   const boxA = boxOf(state, a);
   const boxB = boxOf(state, b);
@@ -2707,6 +2720,18 @@ export interface LightPatch extends LatticePatch {
    * at, or the creature carrying it. (E-L2)
    */
   readonly flame?: LightFlame;
+  /**
+   * SRD Darkmantle's Darkness Aura: "Darkvision can't penetrate this area, and
+   * **no light can illuminate it**." A darkness that is magical and that no
+   * light lifts — not a torch, which loses to any magical darkness, and not a
+   * spell's light either, which SRD *Darkness*'s own sentence would admit.
+   *
+   * Laid only by {@link carriedLight}, off a line a creature keeps up under
+   * Concentration; no declaration writes it. It carries no spell level because
+   * no spell made it, so neither half of the Darkness–Daylight dispel can find
+   * it. Absent is every other patch. (M-REFLEX)
+   */
+  readonly admitsNoLight?: true;
 }
 
 /**
@@ -2819,6 +2844,8 @@ export function declareObscuringPatch(
   region: TerrainRegion,
   degree: ObscurementDegree,
   source?: string,
+  /** The timer it lapses with — see `LatticePatch.lapsesWith`. (M-REFLEX) */
+  lapsesWith?: string,
 ): Result<PositionState> {
   if (patch.trim().length === 0) {
     return err('bad_patch', 'a patch of fog needs a name, so a refusal can say what it was');
@@ -2834,9 +2861,79 @@ export function declareObscuringPatch(
     ...state,
     obscurement: {
       ...state.obscurement,
-      [patch]: { region, degree, ...(source === undefined ? {} : { source }) },
+      [patch]: {
+        region,
+        degree,
+        ...(source === undefined ? {} : { source }),
+        ...(lapsesWith === undefined ? {} : { lapsesWith }),
+      },
     },
   });
+}
+
+/**
+ * Take a patch of obscured air away — the table's word that the fog burnt off,
+ * or that a strong current dispersed the ink. (M-REFLEX)
+ *
+ * **Only a patch no casting holds up.** A Fog Cloud ends with its casting, by
+ * the doors a casting ends through — a wind that disperses it among them — so
+ * taking its patch away here would leave a spell running over air it no longer
+ * fills. A patch with a deadline of its own may be cleared early, which is
+ * exactly what SRD Ink Cloud's "or until a strong current or similar effect
+ * disperses the ink" says.
+ */
+export function clearObscuringPatch(state: PositionState, patch: string): Result<PositionState> {
+  const found = state.obscurement[patch];
+  if (found === undefined) {
+    return err('unknown_patch', `nothing called ${patch} is obscuring the air here`);
+  }
+  if (found.source !== undefined) {
+    return err(
+      'held_by_casting',
+      `${patch} is held up by the casting ${found.source}; it ends when that casting does`,
+    );
+  }
+  const obscurement = { ...state.obscurement };
+  delete obscurement[patch];
+  return ok({ ...state, obscurement });
+}
+
+/**
+ * The region a Cube **centred on a creature** fills, laid where the creature
+ * stands now and staying there — or null where the Cube does not sit on the
+ * lattice around it. (M-REFLEX)
+ *
+ * SRD Ink Cloud: "ink that fills a 10-foot Cube centered on itself". The
+ * template vocabulary's own Cube is laid from a face towards a point, so a
+ * centred one is written as what it is on a grid: a square column as wide as
+ * it is tall, which is exactly the cylinder template — a Chebyshev radius about
+ * a point, a height up from a lattice plane. The centre is the creature's own,
+ * so a Large octopus's ten-foot Cube is the eight spaces it fills and a Small
+ * one's five-foot Cube is its one. A Cube whose faces would fall between
+ * spaces around the creature (a ten-foot Cube on a Medium one) is not laid by
+ * the engine at all: where it lies is the table's to say.
+ */
+export function cubeCentredOn(
+  state: PositionState,
+  who: CharacterId,
+  feet: number,
+): TerrainRegion | null {
+  const box = boxOf(state, who);
+  if (box === null) return null;
+  const width = box.max.x - box.min.x;
+  const height = box.max.z - box.min.z;
+  const inset = (width - feet) / 2;
+  const below = (height - feet) / 2;
+  if (feet <= 0 || inset % CUBE !== 0 || below % CUBE !== 0) return null;
+  const floor = box.min.z + below;
+  const centre = { x: box.min.x + width / 2, y: box.min.y + width / 2 };
+  // An odd number of spaces across is centred on a space, an even number on
+  // the corner four spaces share — the two conventions an `AreaPoint` names.
+  const origin: AreaPoint =
+    (feet / CUBE) % 2 === 1
+      ? { space: { x: centre.x - CUBE / 2, y: centre.y - CUBE / 2, z: floor } }
+      : { intersection: { x: centre.x, y: centre.y, z: floor } };
+  return { origin, shape: { kind: 'cylinder', radius: (feet - CUBE) / 2, height: feet } };
 }
 
 /**
@@ -3342,12 +3439,34 @@ function carriedLight(state: GameState): readonly (readonly [string, LightPatch]
   for (const who of Object.keys(state.creatures).sort()) {
     const creature = state.creatures[who];
     if (creature === undefined) continue;
-    const light = printedLight(creature.sheet);
+    // SRD Will-o'-Wisp's Vanish: "The wisp **and its light** have the
+    // Invisible condition" — a light nobody can see lights nothing, so the
+    // Illumination is withheld while the line runs. (M-REFLEX)
+    const light = ownLightHidden(creature.sheet, creature.activeFeatures)
+      ? null
+      : printedLight(creature.sheet);
     const fromFeatures = activatedLight(creature.sheet, creature.activeFeatures);
-    if (light === null && fromFeatures.length === 0) continue;
+    // SRD Darkmantle's Darkness Aura: "Magical Darkness fills a 15-foot
+    // Emanation originating from the darkmantle", while it holds Concentration
+    // on it. Carried by the creature for the reason its Illumination is: an
+    // Emanation moves with its origin. (M-REFLEX)
+    const darkness = concentratedDarkness(creature.sheet, creature.activeFeatures);
+    if (light === null && fromFeatures.length === 0 && darkness.length === 0) continue;
     if (positionOf(scene, creature.id) === null) continue;
 
     const origin = { creature: creature.id } as const;
+    for (const dark of darkness) {
+      shed.push([
+        `${dark.name} kept up by ${who}`,
+        {
+          // "A 15-foot Emanation originating from the darkmantle": measured
+          // from the creature's own space, as an Emanation is.
+          region: { origin, shape: { kind: 'emanation', distance: dark.radius } },
+          level: 'darkness',
+          admitsNoLight: true,
+        },
+      ]);
+    }
     if (light !== null) {
       const dimRadius = light.brightRadiusFeet + light.dimBeyondFeet;
       if (dimRadius > 0) {
@@ -3410,10 +3529,18 @@ function brightnessAt(
   const over: string[] = [];
   let magicalDark: LightPatch | null = null;
   let strongest: LightPatch | null = null;
+  let unlit = false;
 
   for (const [name, patch] of patches) {
     if (!spaceInRegion(scene, patch.region, space)) continue;
     over.push(name);
+    // SRD Darkmantle's Darkness Aura: "no light can illuminate it" — not even
+    // a magical one, which is the one thing that lifts an ordinary magical
+    // darkness. See `LightPatch.admitsNoLight`. (M-REFLEX)
+    if (patch.admitsNoLight === true) {
+      unlit = true;
+      continue;
+    }
     if (patch.level === 'darkness' && patch.magical !== undefined) {
       magicalDark = patch;
       continue;
@@ -3422,6 +3549,8 @@ function brightnessAt(
       strongest = patch;
     }
   }
+
+  if (unlit) return { level: 'darkness', magical: true, sunlight: false, patches: over };
 
   // Magical darkness, and nothing but magical light may lift it.
   if (magicalDark !== null && (strongest === null || strongest.magical === undefined)) {

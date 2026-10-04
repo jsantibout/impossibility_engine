@@ -15,6 +15,7 @@ import {
   MonsterFormsSchema,
   MonsterPlaneShiftSchema,
   MonsterPullSchema,
+  MonsterTouchSchema,
   MonsterSpellcastingSchema,
   MonsterSpeechSchema,
   type MonsterSpeech,
@@ -35,6 +36,10 @@ import {
   type MonsterRampage,
   MonsterLightToggleSchema,
   type MonsterLightToggle,
+  MonsterConcentrationSchema,
+  type MonsterConcentration,
+  MonsterCloudSchema,
+  type MonsterCloud,
   type MonsterJump,
   type MonsterTreeStride,
   type MonsterForm,
@@ -42,6 +47,7 @@ import {
   type MonsterMultiattack,
   type MonsterPlaneShift,
   type MonsterPull,
+  type MonsterTouch,
   type MonsterSwallow,
   type MonsterMultiattackEntry,
   type MonsterRecharge,
@@ -1045,9 +1051,9 @@ const damageTypeOf = (printed: string): string | null => {
  * Anchored end to end like everything else. The Fire Elemental's sentence ends
  * "Creatures and flammable objects in the Emanation start burning" — the
  * glossary's Burning, which the engine lights on a creature — and that closing
- * is the one optional clause read after the damage (W7-B12). The objects half
- * of it names nothing a declared object can hold, so the sentence is carried
- * whole as owed beside the kind that executes the creatures' half.
+ * is the one optional clause read after the damage (W7-B12). Its objects half
+ * is read as well since a declared object's substance says whether it takes
+ * light (M-MATTER), so the sentence is consumed whole by `ignites`.
  */
 const EMANATION_DAMAGE = new RegExp(
   `^At the (start|end) of each of ${SUBJECT} turns, each creature (of ${SUBJECT} choice )?` +
@@ -1255,15 +1261,17 @@ const REGENERATION = new RegExp(
  * 1. "A creature that hits the pudding with a melee attack roll takes 4 (1d8)
  *    Acid damage." — read: the damage back.
  * 2. "Nonmagical ammunition is destroyed immediately after hitting the pudding
- *    and dealing any damage." — **owed**: the engine spends no ammunition on
- *    any attack, so there is nothing for this to destroy yet.
+ *    and dealing any damage." — read (M-MATTER): `destroysAmmunition`, the
+ *    piece out of the archer's inventory.
  * 3. "Any nonmagical weapon takes a cumulative −1 penalty to attack rolls
  *    immediately after dealing damage to the pudding and coming into contact
  *    with it." — read: the penalty, on the weapon record the Rust Monster's
  *    Antennae already wears down.
  * 4. "The weapon is destroyed if the penalty reaches −5." — read: the ceiling.
  * 5. "The penalty can be removed by casting the _Mending_ spell on the
- *    weapon." — **owed**: the same Mending sentence the Pseudopod rider carries.
+ *    weapon." — consumed (M-MATTER): SRD Mending's `repairs` lifts the very
+ *    `weapon-penalised` record sentence 3 writes, which is the reading the
+ *    Pseudopod rider's identical sentence already gets.
  *
  * and a second paragraph about eating through wood or metal, which is filed
  * for the table (`a-hole-eaten-through-the-world`). Asked of `oneLine`, because
@@ -1271,11 +1279,11 @@ const REGENERATION = new RegExp(
  */
 const CORROSIVE_FORM = new RegExp(
   `^(?:A creature that hits the ${SUBJECT} with a melee attack roll takes \\d+ \\((\\d+d\\d+)\\) (\\w+) damage\\. )?` +
-    `(Nonmagical ammunition is destroyed immediately after hitting the ${SUBJECT} and dealing any damage\\.) ` +
+    `Nonmagical ammunition is destroyed immediately after hitting the ${SUBJECT} and dealing any damage\\. ` +
     `Any nonmagical weapon takes a cumulative [−-](\\d+) penalty to attack rolls immediately after dealing ` +
     `damage to the ${SUBJECT} and coming into contact with it\\. ` +
     `The weapon is destroyed if the penalty reaches [−-](\\d+)\\. ` +
-    `(The penalty can be removed by casting the _Mending_ spell on the weapon\\.) ` +
+    `The penalty can be removed by casting the _Mending_ spell on the weapon\\. ` +
     `((?:In \\d+ \\w+, the ${SUBJECT}|The ${SUBJECT}) can eat through [^.]+\\.)$`,
 );
 
@@ -1346,6 +1354,24 @@ const SEVERS_A_LIMB = new RegExp(
  */
 const LIFE_BOND = new RegExp(
   `^When you regain Hit Points from a level (\\d+)\\+ spell, the ${SUBJECT} regains the same number of Hit Points if you['’]re within (\\d+) feet of it\\.$`,
+);
+
+/**
+ * SRD Goblin Boss, Redirect Attack: "_Trigger:_ A creature the goblin can see
+ * makes an attack roll against it. _Response:_ The goblin chooses a Small or
+ * Medium ally within 5 feet of itself. The goblin and that ally swap places,
+ * and the ally becomes the target of the attack instead."
+ *
+ * Read whole, with its two sizes and its reach carried as printed, so a block
+ * that named another size or another distance is read as what it says rather
+ * than as the goblin's. (M-REFLEX)
+ */
+const REDIRECT_ATTACK = new RegExp(
+  `^_Trigger:_ A creature ${SUBJECT} can see makes an attack roll against it\\. ` +
+    `_Response:_ ${SUBJECT} chooses a (Tiny|Small|Medium|Large|Huge|Gargantuan) or ` +
+    `(Tiny|Small|Medium|Large|Huge|Gargantuan) ally within (\\d+) feet of itself\\. ` +
+    `${SUBJECT} and that ally swap places, and the ally becomes the target of the attack ` +
+    `instead\\.$`,
 );
 
 /** The types a sentence lists with "or" and commas, lower-cased, or null if any is not a type. */
@@ -1530,18 +1556,9 @@ const HANDOVERS: readonly (readonly [RegExp, MonsterTrait['kind']])[] = [
   // SRD Vampire Weakness: a heading, and a rule of nothing on its own.
   [new RegExp(`^${SUBJECT} has these weaknesses:$`), 'a-heading-over-the-lines-that-follow'],
 
-  // SRD Goblin Boss, Redirect Attack. Read whole, and every clause of it is
-  // why: the window is a swing **before** the roll is decided, and the
-  // response swaps two creatures' spaces and re-aims the attack.
-  [
-    new RegExp(
-      `^_Trigger:_ A creature ${SUBJECT} can see makes an attack roll against it\\. ` +
-        `_Response:_ ${SUBJECT} chooses a Small or Medium ally within \\d+ feet of itself\\. ` +
-        `${SUBJECT} and that ally swap places, and the ally becomes the target of the attack ` +
-        `instead\\.$`,
-    ),
-    'swaps-places-with-an-ally-to-take-an-attack',
-  ],
+  // SRD Goblin Boss, Redirect Attack, left this table in M-REFLEX: its sizes,
+  // its reach and its sight clause are read by {@link REDIRECT_ATTACK} and the
+  // Reaction spends them.
 
   // SRD Black Pudding and SRD Ochre Jelly, Split, left this table in W7-B12:
   // the gate and both triggers are read by {@link SPLIT} and the Reaction
@@ -1889,8 +1906,9 @@ export function parseTraitShape(text: string): MonsterTrait | null {
         chosen: burns[2] !== undefined,
         unlessIncapacitated: burns[6] !== undefined,
         // SRD Fire Elemental's closing sentence — W7-B12. The creatures it
-        // catches are lit by the boundary; the flammable objects are owed.
-        ...(burns[7] === undefined ? {} : { ignites: true as const, handedOver: [burns[7]] }),
+        // catches are lit by the boundary, and since M-MATTER the declared
+        // objects whose substance takes light are too, so nothing is owed.
+        ...(burns[7] === undefined ? {} : { ignites: true as const }),
       };
     }
   }
@@ -2012,10 +2030,12 @@ export function parseTraitShape(text: string): MonsterTrait | null {
       return {
         kind: 'corrodes-what-hits-it',
         ...(damageType === null ? {} : { meleeHitterTakes: { dice: corrodes[1]!, damageType } }),
-        weaponPenalty: Number(corrodes[4]),
-        weaponDestroyedAt: Number(corrodes[5]),
-        handedOver: [corrodes[3]!, corrodes[6]!],
-        forTheTable: [{ kind: 'a-hole-eaten-through-the-world', sentence: corrodes[7]! }],
+        weaponPenalty: Number(corrodes[3]),
+        weaponDestroyedAt: Number(corrodes[4]),
+        // Sentence 2, which the pattern requires; sentence 5 is consumed —
+        // see the note above the pattern. (M-MATTER)
+        destroysAmmunition: true as const,
+        forTheTable: [{ kind: 'a-hole-eaten-through-the-world', sentence: corrodes[5]! }],
       };
     }
   }
@@ -2080,6 +2100,16 @@ export function parseTraitShape(text: string): MonsterTrait | null {
       kind: 'regains-what-its-summoner-regains-from-a-spell',
       minimumSpellLevel: Number(lifeBond[1]),
       within: Number(lifeBond[2]),
+    };
+  }
+
+  const redirect = REDIRECT_ATTACK.exec(text);
+  if (redirect !== null) {
+    return {
+      kind: 'swaps-places-with-an-ally-to-take-an-attack',
+      allySizes: [redirect[1]!.toLowerCase(), redirect[2]!.toLowerCase()] as CreatureSize[],
+      withinFeet: Number(redirect[3]),
+      seesAttacker: true,
     };
   }
 
@@ -2428,13 +2458,22 @@ export function parseSpellcastingLine(text: string): MonsterSpellcasting | null 
  * to the part that fits is a creature doing something nobody printed — which
  * is why the target clause is anchored to the words the book prints and not to
  * a target at all.
+ *
+ * **Two more clauses vary, and each is a field** — M-MIND. SRD Succubus's
+ * Charm casts Dominate Person "(level 8 version)", the level a slot would
+ * otherwise say; SRD Sea Hag's Illusory Appearance ends "The spell's duration
+ * is 24 hours.", a span over the spell's own. Both are about this casting of
+ * the spell, and both are read only where the rest of the sentence is what
+ * every cast line says — SRD Vampire's Charm prints the duration and then two
+ * sentences more, and stays prose.
  */
 const CAST_LINE = new RegExp(
-  `^The ${SUBJECT} casts (?:the )?(.+?)(?: spell)?( on itself| on that creature)?,? ` +
+  `^The ${SUBJECT} casts (?:the )?(.+?)(?: spell)?(?: \\(level ([1-9]) version\\))?( on itself| on that creature)?,? ` +
     `(?:requiring no [A-Za-z ]+ components and )?` +
     `using (?:(the same) spellcasting ability as Spellcasting` +
     `|(Strength|Dexterity|Constitution|Intelligence|Wisdom|Charisma) as (?:the )?spell-?casting ability)` +
-    `(?: \\(spell save DC (\\d+)\\))?\\.$`,
+    `(?: \\(spell save DC (\\d+)\\))?\\.` +
+    `(?: The spell${APOSTROPHE}s duration is (\\d+) hours\\.)?$`,
 );
 
 /**
@@ -2475,6 +2514,14 @@ const TOUCH_DELIVERED = new RegExp(
  * routes to one spell and the engine picks between them without being asked.
  */
 function readCastMenu(menu: string): string[] | null {
+  // **A bare name, where it is the whole menu** — M-MIND. SRD Succubus prints
+  // "casts Dominate Person (level 8 version)" with no italics, which is
+  // typesetting rather than content. Read only where the SRD's own index holds
+  // the words as one spell's name; anything else bare stays prose.
+  if (!menu.includes('_')) {
+    const spellId = spellIdOf(menu.trim());
+    return spellId === null ? null : [spellId];
+  }
   const names: string[] = [];
   let rest = menu;
 
@@ -2525,15 +2572,20 @@ export function parseCastLine(text: string): MonsterCastLine | null {
 
   const spells = readCastMenu(matched[1]!);
   if (spells === null) return null;
+  // "(level 8 version)" over a menu of more than one is a level for one of
+  // them, and the book never says which. See `MonsterCastLine.castLevel`.
+  const castLevel = matched[2] === undefined ? undefined : Number(matched[2]);
+  if (castLevel !== undefined && spells.length !== 1) return null;
+  const hours = matched[7] === undefined ? undefined : Number(matched[7]);
 
-  const stated = matched[4] === undefined ? undefined : ABILITY_KEYS[matched[4]];
-  if (matched[4] !== undefined && stated === undefined) return null;
+  const stated = matched[5] === undefined ? undefined : ABILITY_KEYS[matched[5]];
+  if (matched[5] !== undefined && stated === undefined) return null;
 
   // **"on that creature" without the creature is a referent to nothing.** The
   // clause is the far end of a touch the same sentence printed, so the line is
   // refused whole where that clause is absent rather than read down to a target
   // rule the book did not state. See {@link TOUCH_DELIVERED}.
-  const onAnother = matched[2] === ' on that creature';
+  const onAnother = matched[3] === ' on that creature';
   if (onAnother && !TOUCH_DELIVERED.test(words)) return null;
 
   // What the casting does without — see {@link componentsWaived}.
@@ -2545,12 +2597,15 @@ export function parseCastLine(text: string): MonsterCastLine | null {
     ability: stated ?? ('spellcasting' as const),
     // "on itself" — the two words the book prints, and the whole of what they
     // say. A target this line fixes is not a target the caller offers.
-    ...(matched[2] === ' on itself' ? { selfOnly: true as const } : {}),
+    ...(matched[3] === ' on itself' ? { selfOnly: true as const } : {}),
     // And its mirror: "on that creature", which fixes the target to somebody
     // who is **not** the caster.
     ...(onAnother ? { notSelf: true as const } : {}),
-    ...(matched[5] === undefined ? {} : { saveDc: Number(matched[5]) }),
+    ...(matched[6] === undefined ? {} : { saveDc: Number(matched[6]) }),
     ...(waives === undefined ? {} : { waives }),
+    // The level and the span this casting is printed at — M-MIND.
+    ...(castLevel === undefined ? {} : { castLevel }),
+    ...(hours === undefined ? {} : { durationSeconds: hours * 3600 }),
   };
 
   // Validated rather than trusted, for the reason `parseSaveLine` validates
@@ -2767,6 +2822,35 @@ export function parseRaiseLine(text: string): MonsterRaise | null {
   return checked.success ? checked.data : null;
 }
 
+/**
+ * SRD Rust Monster, Destroy Metal: "The rust monster touches a nonmagical
+ * metal object within 5 feet of itself that isn't being worn or carried. The
+ * touch destroys a 1-foot Cube of the object." — M-MATTER.
+ *
+ * Anchored end to end, and "nonmagical metal" and "isn't being worn or
+ * carried" word for word, because each is legality the door checks: a line
+ * printing another substance, or one that reached a thing somebody holds, is a
+ * different sentence and gets nothing.
+ */
+const TOUCH_LINE = new RegExp(
+  `^The ${SUBJECT} touches a nonmagical metal object within (\\d+) feet of itself that isn['’]t being worn or carried\\. ` +
+    `(The touch destroys a (\\d+)-foot Cube of the object\\.)$`,
+);
+
+/** The object this line touches and eats a cube of, or null for every other line. */
+export function parseTouchLine(text: string): MonsterTouch | null {
+  const matched = TOUCH_LINE.exec(text.replace(/\s+/g, ' ').trim());
+  if (matched === null) return null;
+  const checked = MonsterTouchSchema.safeParse({
+    within: Number(matched[1]!),
+    material: 'metal',
+    cubeFeet: Number(matched[3]!),
+    // The cube where it is not the whole of the thing — see the schema.
+    forTheTable: [{ kind: 'a-hole-eaten-through-the-world', sentence: matched[2]! }],
+  });
+  return checked.success ? checked.data : null;
+}
+
 /** A line's text with the source's markup and line breaks folded away. */
 const oneLine = (text: string): string =>
   text.replace(/<br>/g, ' ').replace(/&emsp;/g, ' ').replace(/\s+/g, ' ').trim();
@@ -2973,6 +3057,101 @@ export function parseLightToggleLine(text: string): MonsterLightToggle | null {
   const checked = MonsterLightToggleSchema.safeParse({
     brightRadiusFeet: Number(matched[1]),
     dimBeyondFeet: Number(matched[2]),
+  });
+  return checked.success ? checked.data : null;
+}
+
+/**
+ * SRD Will-o'-Wisp, Vanish: "The wisp and its light have the Invisible
+ * condition until the wisp's Concentration ends on this effect, which ends
+ * early immediately after the wisp makes an attack roll or uses Consume Life."
+ *
+ * Anchored end to end. The condition is one word the glossary names, the light
+ * is optional, and the early ending is read only in the two forms the book
+ * prints it in — an attack roll, and a named line of the same block — so a
+ * sentence that ended it on anything else stays prose. (M-REFLEX)
+ */
+const CONCENTRATED_CONDITION = new RegExp(
+  `^The ${SUBJECT}?( and its light)? ha(?:s|ve) the (\\w+) condition until the ${SUBJECT}${APOSTROPHE}s ` +
+    `Concentration ends on this effect(?:, which ends early immediately after the ${SUBJECT} ` +
+    `(makes an attack roll)(?: or uses ([A-Z][A-Za-z' -]*[A-Za-z]))?)?\\.$`,
+);
+
+/**
+ * SRD Darkmantle, Darkness Aura: "Magical Darkness fills a 15-foot Emanation
+ * originating from the darkmantle. This effect lasts while the darkmantle
+ * maintains Concentration on it, up to 10 minutes. Darkvision can't penetrate
+ * this area, and no light can illuminate it."
+ *
+ * Every sentence anchored, because the last one is what makes this darkness
+ * different from SRD *Darkness*'s: that one admits magical light and this one
+ * admits none. (M-REFLEX)
+ */
+const CONCENTRATED_DARKNESS = new RegExp(
+  `^Magical Darkness fills a (\\d+)-foot Emanation originating from the ${SUBJECT}\\. ` +
+    `This effect lasts while the ${SUBJECT} maintains Concentration on it, up to (\\d+) minutes\\. ` +
+    `Darkvision can${APOSTROPHE}t penetrate this area, and no light can illuminate it\\.$`,
+);
+
+/** The effect a line keeps up under Concentration, or null for every other line. */
+export function parseConcentrationLine(text: string): MonsterConcentration | null {
+  const sentence = oneLine(text);
+  const held = CONCENTRATED_CONDITION.exec(sentence);
+  if (held !== null) {
+    const [, light, condition, attackRoll, uses] = held;
+    const checked = MonsterConcentrationSchema.safeParse({
+      conditions: [condition!.toLowerCase()],
+      ...(light === undefined ? {} : { withItsLight: true }),
+      ...(attackRoll === undefined
+        ? {}
+        : {
+            endsAfter: {
+              attackRoll: true,
+              ...(uses === undefined ? {} : { lines: [uses] }),
+            },
+          }),
+    });
+    return checked.success ? checked.data : null;
+  }
+  const dark = CONCENTRATED_DARKNESS.exec(sentence);
+  if (dark !== null) {
+    const checked = MonsterConcentrationSchema.safeParse({
+      darkness: { emanationFeet: Number(dark[1]) },
+      upToMinutes: Number(dark[2]),
+    });
+    return checked.success ? checked.data : null;
+  }
+  return null;
+}
+
+/**
+ * SRD Giant Octopus and SRD Octopus, Ink Cloud: the two triggers the book
+ * prints and the one response, anchored end to end. (M-REFLEX)
+ */
+const RELEASES_CLOUD = new RegExp(
+  `^_Trigger:_ (?:The ${SUBJECT} (takes damage)|A creature ends its turn within (\\d+) feet of the ${SUBJECT}) ` +
+    `while underwater\\. _Response:_ The ${SUBJECT} releases ink that fills a (\\d+)-foot Cube ` +
+    `centered on itself, and the ${SUBJECT} moves up to its (Swim )?Speed\\. ` +
+    `The Cube is (Lightly|Heavily) Obscured for (\\d+) minutes? or until ` +
+    `(a strong current or similar effect) disperses the ink\\.$`,
+);
+
+/** The cloud a Reaction line releases, or null for every other line. */
+export function parseCloudLine(text: string): MonsterCloud | null {
+  const matched = RELEASES_CLOUD.exec(oneLine(text));
+  if (matched === null) return null;
+  const [, damaged, feet, cube, swim, degree, minutes, dispersal] = matched;
+  const checked = MonsterCloudSchema.safeParse({
+    trigger:
+      damaged === undefined
+        ? { kind: 'creature-ends-turn-within', feet: Number(feet) }
+        : { kind: 'takes-damage' },
+    underwater: true,
+    cubeFeet: Number(cube),
+    degree: degree!.toLowerCase(),
+    lastsMinutes: Number(minutes),
+    dispersedBy: dispersal,
+    movesUpTo: swim === undefined ? 'walk' : 'swim',
   });
   return checked.success ? checked.data : null;
 }
@@ -4065,6 +4244,8 @@ function parseFeatures(
       // And the sixth: a line that drags toward itself what it is already
       // holding, which is `pullToward` at a heading's price.
       const pulls = parsePullLine(text);
+      // And a touch that eats a cube of a metal object — M-MATTER.
+      const touchesObject = parseTouchLine(text);
       // And the two roads into the second place: a creature taken inside
       // another, and a step onto the Ethereal Plane and back.
       const swallows = parseSwallowLine(text);
@@ -4077,6 +4258,10 @@ function parseFeatures(
       const rampages = parseRampageLine(text);
       // And the light a use switches on and the next switches off — W7-B11.
       const togglesLight = parseLightToggleLine(text);
+      // And an effect a line keeps up under Concentration, and the cloud a
+      // Reaction releases — M-REFLEX.
+      const concentrates = parseConcentrationLine(text);
+      const releasesCloud = parseCloudLine(text);
       const treeStride = parseTreeStrideLine(text);
       const addsToRoll = parseRollAddendLine(text);
       // The Reactions section's other two templates, read off the sentence for
@@ -4110,12 +4295,15 @@ function parseFeatures(
         ...(heals === null ? {} : { heals }),
         ...(raises === null ? {} : { raises }),
         ...(pulls === null ? {} : { pulls }),
+        ...(touchesObject === null ? {} : { touchesObject }),
         ...(swallows === null ? {} : { swallows }),
         ...(shiftsPlane === null ? {} : { shiftsPlane }),
         ...(jumps === null ? {} : { jumps }),
         ...(dashes === null ? {} : { dashes }),
         ...(rampages === null ? {} : { rampages }),
         ...(togglesLight === null ? {} : { togglesLight }),
+        ...(concentrates === null ? {} : { concentrates }),
+        ...(releasesCloud === null ? {} : { releasesCloud }),
         ...(treeStride === null ? {} : { treeStride }),
         ...(addsToRoll === null ? {} : { addsToRoll }),
         ...(addsToAc === null ? {} : { addsToAc }),

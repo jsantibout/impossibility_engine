@@ -572,6 +572,10 @@ describe('the bestiary row counts blocks, and the prose it cannot read', () => {
       'addsToRoll',
       'attack',
       'casts',
+      // An effect a line keeps up under Concentration — SRD Will-o'-Wisp's
+      // Vanish, SRD Darkmantle's Darkness Aura — read out of the sentence.
+      // (M-REFLEX)
+      'concentrates',
       // The moves a line makes — W7-B9 — read out of the sentence: a move a
       // line grants (SRD Bubble Dash, SRD Charge), a jump a line buys (SRD
       // Leap) and, further down, a stride between two trees (SRD Tree Stride).
@@ -606,6 +610,9 @@ describe('the bestiary row counts blocks, and the prose it cannot read', () => {
       'raises',
       'rampages',
       'recharge',
+      // The cloud a Reaction line releases — SRD Ink Cloud on both octopuses,
+      // read out of the sentence. (M-REFLEX)
+      'releasesCloud',
       // What a heading says its line may not be taken without — SRD Night Hag's
       // "Requires Soul Bag", read off the **name** for `recharge`'s reason and
       // changing nothing about what "read" counts, exactly as that one does.
@@ -622,6 +629,9 @@ describe('the bestiary row counts blocks, and the prose it cannot read', () => {
       // The light a use switches on and the next switches off — W7-B11, read out
       // of the sentence like the moves above it.
       'togglesLight',
+      // The object SRD Rust Monster's Destroy Metal touches — M-MATTER, read
+      // out of the sentence like the pull above it.
+      'touchesObject',
       'trait',
       'treeStride',
       'usesLine',
@@ -657,21 +667,19 @@ describe('the bestiary row counts blocks, and the prose it cannot read', () => {
     // A handed-over kind is on neither side of this question — it is read and
     // finished — so it is excluded from the search for an unspent one.
     //
-    // **And there is one real one to find again**, which is the column
-    // coming back off zero exactly as the note that emptied it said it would:
+    // **And there is none left to find**, which is the column at zero again:
     // the day the parser learns a shape nothing reads, this rises and the
-    // guard is the same. It is a Reaction the bestiary prints and the engine
-    // has no seam for — a goblin that swaps places with an ally and re-aims
-    // the attack — and it is *named* here rather than counted, so a kind that
-    // quietly joined or left is a diff. `HANDOVER_TRAIT_KINDS` holds the seam
-    // it waits on. The oozes' Split left in W7-B12: a Reaction at
-    // `damaged-by-creature` makes the two halves.
+    // guard is the same, and the kind is *named* here rather than counted, so
+    // a kind that quietly joined or left is a diff. The oozes' Split left in
+    // W7-B12, a Reaction at `damaged-by-creature` that makes the two halves;
+    // the goblin's Redirect Attack left in M-REFLEX, a Reaction at
+    // `attack-declared` that swaps it with an ally and re-aims the swing.
     const spent = TRAIT_KINDS_WITH_A_READER[0]!;
     const inert = kinds.filter(
       (kind) =>
         !TRAIT_KINDS_WITH_A_READER.includes(kind) && !Object.hasOwn(HANDOVER_TRAIT_KINDS, kind),
     );
-    expect([...inert].sort()).toEqual(['swaps-places-with-an-ally-to-take-an-attack']);
+    expect([...inert].sort()).toEqual([]);
     expect(hasUnexecutedTrait({ name: 'x', text: 'y' })).toBe(false);
     expect(hasUnexecutedTrait({ name: 'x', text: 'y', trait: { kind: spent } })).toBe(false);
     expect(hasUnexecutedTrait({ name: 'x', text: 'y', trait: { kind: UNREAD_KIND } })).toBe(true);

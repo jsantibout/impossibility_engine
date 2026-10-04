@@ -201,7 +201,7 @@ describe('declare_contact', () => {
 
     const gate = t.campaign.state().creatures['iron-gate']!;
     expect(gate.contact?.creatures).toEqual(['grish']);
-    expect(gate.material).toEqual({ id: 'iron', metal: true });
+    expect(gate.material).toEqual({ id: 'iron', metal: true, flammable: false });
   });
 
   /**

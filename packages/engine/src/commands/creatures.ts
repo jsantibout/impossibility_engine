@@ -324,14 +324,8 @@ function arrivalOf(
           // that makes this different from a rider's residue: a trait is not
           // spent, so there is no later moment to say it at.
           ...monster.traits.flatMap((line) =>
-            (line.trait?.handedOver ?? []).map((clause) =>
-              // SRD Fire Elemental's closing sentence is carried whole, because
-              // it joins the creatures the engine lights with the objects it
-              // cannot — so the note says which half is whose rather than
-              // telling a DM to light the creatures a second time. (W7-B12)
-              line.trait?.kind === 'damages-creatures-in-an-emanation' && line.trait.ignites === true
-                ? `${id}: ${line.name} reads "${clause}" — the engine lights the creatures the emanation catches; the flammable objects are a DM's`
-                : `${id}: ${line.name} reads "${clause}" — the engine does not apply that; a DM does`,
+            (line.trait?.handedOver ?? []).map(
+              (clause) => `${id}: ${line.name} reads "${clause}" — the engine does not apply that; a DM does`,
             ),
           ),
         ],
