@@ -1759,8 +1759,9 @@ export interface GrantedJump {
  * and the weapon or printed line it declared with, and the engine throws it at
  * {@link target} — the ally where the target redirected it, the target itself
  * where it declined. A swing re-sent with another weapon is refused: the target
- * answered *this* attack. The swing was rehearsed whole before it was held, so
- * what the attacker could not have thrown was never declared.
+ * answered *this* attack. The swing was rehearsed whole, at the creature it
+ * was declared at, before it was held; a throw turned on the ally can still be
+ * refused (that ally's own ward, say), and then the lapse below ends the hold.
  *
  * **It lapses at the turn's end once answered**: an attacker that never throws
  * an answered swing has made no attack, and the target's spent Reaction stands.
