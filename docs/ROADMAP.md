@@ -1335,6 +1335,12 @@ reshapes the casting pipeline, with a design note first.
   referee, the narrator unchanged (three model calls a turn; the result saved
   before it is narrated). **I-E9 is built.** Batch I-1 is approved (T0, then
   A–D, then E and F).
+- 2026-10-04 (owner): **a possessing Ghost acts through the body** — its own
+  actions from the body's position, the body's Speed and Strength, Dexterity
+  and Constitution; whoever plays the ghost plays it (the app's monster code);
+  a possessed player character is out of the player's hands until it ends.
+  **An effect that specifically targets Undead reaches the possessor at the
+  host's position** (Turn Undead within range of the body catches it).
 
 ## 10. Open questions and blocks
 
@@ -3455,3 +3461,34 @@ Appended 2026-10-03 — the last level-5 spells, and the party in the app:
 - **Still open:** round six's Watchtower never recruited its second ally;
   the P0-T3 session through the app (criteria 3 and 4); Supabase when the
   keys come.
+
+Appended 2026-10-04 — wave M, the last CR ≤ 5 stat-block lines:
+
+- **Six Opus slices merged** (engine `5dcfd55f`; 626 files / 24,956 tests):
+  M-HOLD (the glossary's Suffocation on the Rug, Darkmantle, Cube and Whelm;
+  breathing water across spells, items and an invocation; the Roper's
+  regrowth and 60-foot hold; `detach_creature`), M-LINGER (curses and poisons
+  that outlast the fight: Hit Point maxima across Long Rests, daily tolls,
+  no healing, Short Rests denied; `settle_daily_tolls`), M-MIND (a cast line's
+  level and duration — the Succubus, the Sea Hag; the Ghost's possession;
+  Protection from Evil and Good and Magic Circle bar possession), M-REFLEX
+  (Concentration held on a printed line; Ink Cloud; Redirect Attack on a
+  declared swing; darkness no light lifts), M-MATTER (materials that burn,
+  ammunition Corrosive Form eats, Mending's repair, Destroy Metal), M-RISE
+  (Troll Limbs, Specters from the fresh dead, the Otherworldly Steed's four
+  lines). Two slices merged main into their own branches before landing.
+- **LEDGER §5: 31 lines on 26 blocks → 1 item on 3 blocks** — the Harpy (its
+  song on the line-held Concentration), the Ghost (the owner's rulings above)
+  and the Night Hag (sight from the Ethereal; Dream's terrifying messenger).
+  Wave M2 is building them. Bestiary 1167 → 1181 printed lines read.
+- **Readings taken and reported, not yet ruled:** a burning declared object
+  never takes Burning's 1d4 (it takes no turns); a held breath starts at the
+  catch; Necklace of Adaptation breathes water only; the Death Dog's second
+  bite counts as a subsequent failure; the wisp's Invisible light lights
+  nothing; Goodberry and Prayer of Healing's Hit Dice do not feed Life Bond; a
+  corpse yields one Specter; whether a smothering hold douses Burning.
+- **Infinite Realms:** P-G (the narration tells the party the game holds) and
+  P-H (asking someone along works the first time — the narrator was answered
+  only two tool rounds) merged; the Watchtower reached a party of three on
+  turn 2 with every invariant held. The model tools carried to wave M at
+  86,976 bytes; I-M (the app plays wave M's monsters) in flight.
