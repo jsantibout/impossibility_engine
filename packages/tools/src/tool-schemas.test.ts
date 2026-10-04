@@ -190,8 +190,10 @@ describe('toolSchemas', () => {
     // And one on each for E-L2, `expose_to_fire`.
     // And one on the DM's alone for E-L2's owner rulings, `declare_plants`.
     // And one on the DM's alone for E-L1, `declare_contact`.
+    // And one on the DM's alone for M-LINGER, `settle_daily_tolls` — the toll
+    // a curse or a poison that outlasts the fight takes every 24 hours.
     expect(toolSchemas(player())).toHaveLength(101);
-    expect(toolSchemas(dm())).toHaveLength(137);
+    expect(toolSchemas(dm())).toHaveLength(138);
     // Re-pinned 2026-09-24 for the printed-lines track, which opened one door
     // on the DM's surface alone: `teleport_printed_line` takes the teleport a
     // stat block prints, at the distance the block prints, to a space the DM
@@ -476,10 +478,14 @@ describe('toolSchemas', () => {
     // or is owed it once the body drops to 0 Hit Points, and `end_turn` refuses
     // past a possession that has ended. One tool both doors publish: +300
     // bytes on each, and no tool added.
+    // And M-LINGER: `settle_daily_tolls` on the DM's alone — the toll a curse
+    // or a poison that outlasts the fight takes every 24 hours, a settlement
+    // that takes nothing. 137 → 138 tools on the DM's door, +675 bytes; the
+    // player's door is unmoved.
     expect(toolSchemas(player())).toHaveLength(101);
-    expect(toolSchemas(dm())).toHaveLength(137);
+    expect(toolSchemas(dm())).toHaveLength(138);
     expect(JSON.stringify(toolSchemas(player())).length).toBe(179628);
-    expect(JSON.stringify(toolSchemas(dm())).length).toBe(244958);
+    expect(JSON.stringify(toolSchemas(dm())).length).toBe(245633);
   });
 });
 

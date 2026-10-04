@@ -69,6 +69,9 @@ import { recordD20Test, savingSupport } from './rolls.js';
 import { escapeCheck, grappleSource } from './unarmed.js';
 import { type SpellTargetOutcome } from './targeting.js';
 import { wakeOfTheStable } from './stable-wake.js';
+import { lingeringHarmEvents } from './lingering.js';
+import { printedLineSource } from '../monster.js';
+import type { PrintedCurse } from '../state.js';
 
 /** What a swing says it is buying: one option of one feature. */
 export interface HitRiderRequest {
@@ -648,6 +651,14 @@ export function applyHitRider(
   }
   events.push(...lowering);
 
+  // **What outlasts the fight** — M-LINGER, SRD Mummy, SRD Incubus, SRD Otyugh:
+  // the curse or the spanless Poisoned, and the harm it hosts. After the
+  // lowered maximum and before the drop to 0, because the order is the
+  // engine's to fix and a curse is laid on whoever the blow left standing.
+  const lingering = layWhatLingers(lowering.reduce(applyEvent, held), hit, option);
+  if (!lingering.ok) return lingering;
+  events.push(...lingering.value);
+
   // **What a blow that emptied the target leaves**, on the world the lowered
   // maximum has already been written onto — SRD Specter's sentence and SRD
   // Phase Spider's can both ride on one homebrew line, and a maximum lowered
@@ -655,13 +666,23 @@ export function applyHitRider(
   // moved. Last of the three because it is the one clause that can end the
   // creature.
   const emptied = onDroppingToZero(
-    lowering.reduce(applyEvent, held),
+    [...lowering, ...lingering.value].reduce(applyEvent, held),
     hit,
     option,
     supply,
   );
   if (!emptied.ok) return emptied;
   events.push(...emptied.value);
+  // SRD Mummy: "A creature dies **and turns to dust** if reduced to 0 Hit
+  // Points by this attack." The death is the clause above; the dust is what
+  // the body becomes, and the engine keeps no body apart from the record — so
+  // it is said, at the moment it happens, and whether a revival can find one
+  // is the table's. (M-LINGER)
+  if (option.onDroppingToZero?.turnsToDust === true && hit.droppedToZero === true) {
+    unverified.push(
+      `${option.name} reduced ${hit.target} to 0 Hit Points, and the line says the body turns to dust — the engine keeps no body apart from the creature's record, so whether a revival can find one is the table's`,
+    );
+  }
 
   // **The feet the rider hands over**, after everything it imposed and before
   // the deadlines, because it is neither: SRD Cunning Strike's Withdraw is
@@ -696,7 +717,7 @@ export function applyHitRider(
   }
 
   const timed = fileDeadlines(
-    [...shoved.value.events, ...lowering, ...emptied.value].reduce(applyEvent, held),
+    [...shoved.value.events, ...lowering, ...lingering.value, ...emptied.value].reduce(applyEvent, held),
     resolved.value.outcomes,
     resolved.value.held,
     { attacker: hit.attacker, option },
@@ -704,6 +725,100 @@ export function applyHitRider(
   if (!timed.ok) return timed;
 
   return ok({ events: [...events, ...timed.value], unverified });
+}
+
+/**
+ * **What a printed hit leaves that outlasts the fight** — M-LINGER.
+ *
+ * SRD Mummy's Rotting Fist and SRD Incubus's Restless Touch lay a curse — the
+ * record a werewolf's bite lays, which SRD Remove Curse lifts — with the span
+ * the line prints pinned on it; SRD Otyugh's Bite lays a Poisoned with no span
+ * at all, because the save its Long Rests throw is its ending. Either way the
+ * harm is filed under the host it lives exactly as long as, by
+ * `lingeringHarmEvents`.
+ *
+ * Sourced to the line's own `printedLineSource` rather than to the use, so a
+ * second blow from the same creature lands on the same curse or the same
+ * Poisoned — "it is cursed", not cursed twice — and keeps its toll's clock.
+ *
+ * **Nothing for a corpse.** A blow that killed outright has nobody to curse.
+ */
+function layWhatLingers(
+  world: GameState,
+  hit: { readonly attacker: CharacterId; readonly target: CharacterId },
+  option: HitOption,
+): Result<readonly GameEvent[]> {
+  if (option.curse === undefined && option.lingeringCondition === undefined) return ok([]);
+  const victim = creatureOf(world, hit.target);
+  if (victim === null || victim.vitals.dead) return ok([]);
+
+  const source = printedLineSource(hit.attacker, option.name);
+  const events: GameEvent[] = [];
+  let current = world;
+  const land = (made: readonly GameEvent[]): void => {
+    events.push(...made);
+    current = made.reduce(applyEvent, current);
+  };
+
+  const curse = option.curse;
+  if (curse !== undefined) {
+    const laid: PrintedCurse = {
+      source,
+      by: hit.attacker,
+      line: option.name,
+      ...(curse.lastsSeconds === undefined ? {} : { lapsesAt: world.elapsed + curse.lastsSeconds }),
+      ...(curse.endsWhenAttackerDies === true ? { lapsesWhenDead: true as const } : {}),
+    };
+    land([{ type: 'printed-curse-laid', id: hit.target, curse: laid }]);
+    if (curse.lingers !== undefined) {
+      land(
+        lingeringHarmEvents(
+          current,
+          hit.target,
+          { kind: 'curse', source },
+          hit.attacker,
+          option.name,
+          curse.lingers,
+        ),
+      );
+    }
+  }
+
+  const poison = option.lingeringCondition;
+  if (poison !== undefined) {
+    const applied = applyConditionTo(
+      current,
+      hit.target,
+      poison.condition,
+      source,
+      [],
+      undefined,
+      undefined,
+      {},
+      undefined,
+      undefined,
+      undefined,
+      // Whose line it is, for a narrowed Immunity — W8-S24.
+      hit.attacker,
+    );
+    const landed = conditionLanding(applied);
+    if (!landed.ok) return landed;
+    // An Immunity to the condition is an Immunity to everything it carries.
+    if (landed.value.landed) {
+      land(landed.value.events);
+      land(
+        lingeringHarmEvents(
+          current,
+          hit.target,
+          { kind: 'condition', instance: conditionInstanceId(poison.condition, source) },
+          hit.attacker,
+          option.name,
+          poison.lingers,
+        ),
+      );
+    }
+  }
+  return ok(events);
 }
 
 /**

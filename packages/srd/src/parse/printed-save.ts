@@ -402,7 +402,7 @@ const STARTS_ITS_TURN = /starts its turn/;
  * line at {@link deepenBy}.
  */
 const SECTION =
-  /_(Failure or Success|Failure by \d+ or More|First Failure|Second Failure|Third Failure|Failure|Success):_\s*/g;
+  /_(Failure or Success|Failure by \d+ or More|First Failure|Second Failure|Third Failure|Subsequent Failures|Failure|Success):_\s*/g;
 
 /** "Failure by 5 or More": the margin at or beyond which the deeper list bites. */
 const BY_MARGIN = /^Failure by (\d+) or More$/;
@@ -647,6 +647,29 @@ const SPEED_CUT = /^[Tt]he target's Speed decreases by (\d+) feet (until .+)$/;
  */
 const HP_MAX_CUT =
   /^[Tt]he target's Hit Point maximum decreases by an amount equal to the ([A-Z][a-z]+ )?damage taken(, and the [a-z' -]+ regains Hit Points equal to that amount)?$/;
+
+/**
+ * SRD Death Dog: "While Poisoned, the target's Hit Point maximum doesn't
+ * return to normal when finishing a Long Rest, and it repeats the save every
+ * 24 hours that elapse, ending the effect on itself on a success." — M-LINGER.
+ *
+ * A sentence about the condition the clause before it imposed, naming it,
+ * and two rules it carries while it stands: the Long Rest's maximum withheld,
+ * and the line's own save thrown again every period. The period is in hours
+ * because that is the only unit the book prints here.
+ */
+const LINGERS_WHILE = new RegExp(
+  `^While ([A-Z][a-z]+), the target${APOSTROPHE}s Hit Point maximum doesn${APOSTROPHE}t return to normal when finishing a Long Rest, and it repeats the save every (\\d+) hours that elapse, ending the effect on itself on a success$`,
+);
+
+/**
+ * SRD Death Dog: "_Subsequent Failures:_ The Poisoned target's Hit Point
+ * maximum decreases by 5 (1d10)." — M-LINGER. The rung a toll's failed save
+ * costs, about the condition the toll is carried by.
+ */
+const SUBSEQUENT_DECREASE = new RegExp(
+  `^The ([A-Z][a-z]+) target${APOSTROPHE}s Hit Point maximum decreases by (\\d+) \\((\\d+d\\d+)(?: \\+ (\\d+))?\\)\\.?$`,
+);
 /**
  * SRD Water Elemental's Whelm: "Until the grapple ends, the target has the
  * Restrained condition, is suffocating unless it can breathe water, and takes
@@ -2268,6 +2291,30 @@ function readClause(clause: string, into: Scratch, where: Reading): boolean {
     return true;
   }
 
+  // SRD Death Dog — M-LINGER: what the Poisoned before it goes on doing after
+  // the fight. Onto the condition it names and only one that prints no span
+  // of its own, because the toll's made save is the whole of its ending; a
+  // condition already timed would end twice.
+  const lingering = LINGERS_WHILE.exec(words);
+  if (lingering !== null) {
+    const named = CONDITIONS[lingering[1]!];
+    if (named === undefined) return false;
+    return amendCondition(
+      into.effects,
+      (effect) => effect.condition === named,
+      (last) =>
+        last.lasts !== undefined || last.repeats !== undefined || last.lingers !== undefined
+          ? null
+          : {
+              ...last,
+              lingers: {
+                withholdsMaximum: true,
+                tolls: { everySeconds: Number(lingering[2]) * 3600, repeatsSave: true },
+              },
+            },
+    );
+  }
+
   if (REPEATS_AFTER.test(words) || REPEATS_BEFORE.test(words)) {
     // Onto the condition where there is one, and otherwise onto every mode and
     // penalty the failure hung with no lifetime yet — see `amendRepeatable`.
@@ -2710,13 +2757,24 @@ function readTable(
 }
 
 /** Which of the book's headings a section was printed under. */
-type SectionKind = 'failure' | 'first-failure' | 'second-failure' | 'by-margin' | 'success' | 'either';
+type SectionKind =
+  | 'failure'
+  | 'first-failure'
+  | 'second-failure'
+  | 'subsequent-failures'
+  | 'by-margin'
+  | 'success'
+  | 'either';
 
 const KINDS: Readonly<Record<string, SectionKind>> = {
   Failure: 'failure',
   'First Failure': 'first-failure',
   'Second Failure': 'second-failure',
   'Third Failure': 'second-failure',
+  // SRD Death Dog — M-LINGER: the rung every failed toll after the first
+  // costs. Not a deepening: the condition stays, and what the rung names is
+  // an amount the maximum loses each time. See {@link SUBSEQUENT_DECREASE}.
+  'Subsequent Failures': 'subsequent-failures',
   'Failure or Success': 'either',
   Success: 'success',
 };
@@ -3267,6 +3325,40 @@ export function parsePrintedSave(text: string): MonsterSave | null {
       // a table with no antecedent names neither the condition it ends nor the
       // rung it was printed under.
       handedOver.push(...deepened.carried.map((sentence) => `_Second Failure:_ ${sentence}`));
+    } else if (section.kind === 'subsequent-failures') {
+      // **The rung a toll's failure costs** — M-LINGER, SRD Death Dog: "The
+      // Poisoned target's Hit Point maximum decreases by 5 (1d10)." About the
+      // condition the first rung imposed and told to repeat its save every
+      // period, and onto nothing else: a rung that finds no such toll names a
+      // failure nothing ever throws, and the line is refused whole rather
+      // than kept with a rung missing.
+      const rung = SUBSEQUENT_DECREASE.exec(section.text);
+      const named = rung === null ? undefined : CONDITIONS[rung[1]!];
+      if (rung === null || named === undefined) return null;
+      const amended = [...onFailure];
+      const hung = amendCondition(
+        amended,
+        (effect) =>
+          effect.condition === named &&
+          effect.lingers?.tolls?.repeatsSave === true &&
+          effect.lingers.tolls.decreases === undefined,
+        (last) => ({
+          ...last,
+          lingers: {
+            ...last.lingers,
+            tolls: {
+              ...last.lingers!.tolls!,
+              decreases: {
+                dice: rung[3]!,
+                flat: rung[4] === undefined ? 0 : Number(rung[4]),
+                average: Number(rung[2]),
+              },
+            },
+          },
+        }),
+      );
+      if (!hung) return null;
+      onFailure = amended;
     } else if (section.kind === 'by-margin') {
       // **A rung that imposes states the whole failure; a rung that names one
       // states an addition.** SRD Homunculus writes its deeper rung out in

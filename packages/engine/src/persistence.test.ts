@@ -249,6 +249,9 @@ const KNOWN_EVENT_TYPES: readonly string[] = [
   'creature-type-masked',
   'creature-unplaced',
   'creature-woken',
+  // One period of a harm's toll settled, and the harm itself — M-LINGER:
+  // SRD Mummy's curse, SRD Death Dog's poison and their kin.
+  'daily-toll-paid',
   'damage-defense-granted',
   'damage-dice-recorded',
   'damage-penalty-granted',
@@ -303,6 +306,7 @@ const KNOWN_EVENT_TYPES: readonly string[] = [
   'jump-allowance-spent',
   'landmark-added',
   'light-declared',
+  'lingering-harm-laid',
   // A spell that may not affect a creature again until it finishes a Long
   // Rest — SRD Prayer of Healing. E-L3.
   'marked-until-long-rest',

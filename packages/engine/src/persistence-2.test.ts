@@ -657,6 +657,12 @@ const UNCOVERED_EVENT_TYPES: readonly string[] = [
   // spend, the blow that does the same thing, and the refusal on a creature
   // holding nothing wakeable.
   'creature-woken',
+  // One period of a harm's toll settled — M-LINGER, SRD Mummy's "every 24
+  // hours that elapse" and SRD Death Dog's repeat save. Neither log meets a
+  // mummy or a death dog, so both fold to the states they always did.
+  // `lingering-harm.test.ts` folds it and drives it end to end: the day owed,
+  // the rest refused while it is, the save made and failed, the maximum lost.
+  'daily-toll-paid',
   'damage-defense-granted',
   // The faces a damage roll showed. Neither log was written when the ordinary
   // damage path recorded them at all — a blow nobody could react to kept its
@@ -874,6 +880,11 @@ const UNCOVERED_EVENT_TYPES: readonly string[] = [
   // Darkness, the Devil's Sight that pierces it, the patch gone the read
   // after its casting ends, and the Fog Cloud a Rogue Hides in.
   'light-declared',
+  // A harm that outlasts the fight — M-LINGER: the Death Dog's and the
+  // Otyugh's Poisoned, the Mummy's and the Incubus's curse, and what each goes
+  // on doing. Neither log lays one, and the field is absent on every creature
+  // in both. `lingering-harm.test.ts` folds it and drives all four lines.
+  'lingering-harm-laid',
   // A spell's mark that it may not affect a creature again until the creature
   // finishes a Long Rest — SRD Prayer of Healing, E-L3. Neither log casts
   // Prayer of Healing, so both fold to the states they always did with the

@@ -1605,7 +1605,6 @@ export const hasUnappliedRider = (line: StatBlockLine): boolean => {
  *
  * | Lines | The one seam each waits on |
  * |---|---|
- * | Death Dog's Bite, Mummy's Rotting Fist, Otyugh's Bite, Incubus's Restless Touch | a clock that runs for days. Three mechanisms under one sentence each: a Hit Point maximum that does **not** come back at a Long Rest (a mark that withholds `hit-point-maximum-restored`), a deadline that re-arms every 24 hours, and a rest whose benefit is denied to the creature that finished it. `a-clock-that-runs-for-days` |
  * | Barbed Devil's Hurl Flame | a flammable object. The creature half of the glossary's Burning is executed on the two lines that print one; this line catches **only** "a flammable object that isn't being worn or carried", and a declared object is a substance and a size with nothing on it that takes light |
  * | Black Pudding's Dissolving Pseudopod, Gray Ooze's Pseudopod | a spell that repairs an item. The penalty and the destruction are executed; "The penalty can be removed by casting the _Mending_ spell on the armor" is the spells side's, and no casting reaches an item's record |
  * | Roper's Tentacle | a limb that grows back. The hold, the Poisoned it carries, the tentacle as a thing with the printed Armour Class and Hit Points, and the cap of six are executed (W7-B10); "a destroyed tentacle regrows at the start of the roper's next turn" is a dead object the fold would have to forget at a turn boundary, and the cap counts the tentacles that hold somebody — so a destroyed one is treated as regrown at once and the sentence is handed over |
@@ -1616,6 +1615,18 @@ export const hasUnappliedRider = (line: StatBlockLine): boolean => {
  * to the end as well but for one clause each, "is suffocating", which is a
  * handover kind and keeps both on the row; the Roper's Tentacle joined it the
  * same day, read for the first time and carrying its regrowth.
+ *
+ * **Four lines left this table in M-LINGER** — the Death Dog's Bite, the
+ * Mummy's Rotting Fist, the Otyugh's Bite and the Incubus's Restless Touch, the
+ * row that waited on "a clock that runs for days". All three mechanisms it
+ * named are built, on one record (`LingeringHarm`, hosted by the curse or the
+ * condition instance it lives as long as): the Long Rest withholds a maximum
+ * while a harm says so, a toll falls due every 24 hours and
+ * `settleDailyTolls` throws it, and a Short Rest pays nothing to a creature a
+ * harm denies. The Otyugh's save at a Long Rest's end and the Mummy's "can't
+ * regain Hit Points" ride on the same record. The one clause reported rather
+ * than enforced is the Mummy's "turns to dust" — the death is executed, and
+ * the engine keeps no body for dust to be (see `PrintedDroppedToZeroRider`).
  *
  * **Nine lines left this table in W7-B13**, each for the reason its row gave:
  * the Shadow's rising Shadow, the Salamander's and the Merfolk Skirmisher's

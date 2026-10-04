@@ -20,7 +20,12 @@ import { bonusKey } from '../bonuses.js';
 import { rollModifierKey } from '../roll-modifiers.js';
 import type { DeniedBenefit } from '../conditions.js';
 import type { GameEvent } from '../events.js';
-import { attachSource, type GameState } from '../state.js';
+import {
+  attachSource,
+  type CreatureState,
+  type GameState,
+  type LingeringHost,
+} from '../state.js';
 import {
   CorruptLogError,
   creatureOf,
@@ -29,7 +34,7 @@ import {
   unhandledEvent,
   type Applying,
 } from './common.js';
-import { releaseGrants } from './release.js';
+import { releaseGrants, withoutGrants } from './release.js';
 
 /** The event types this seam owns. Every one of them, and no other seam's. */
 export const GRANTS_EVENTS = [
@@ -58,6 +63,8 @@ export const GRANTS_EVENTS = [
   'printed-line-immunity-granted',
   'printed-curse-laid',
   'printed-curse-lifted',
+  'lingering-harm-laid',
+  'daily-toll-paid',
   'turn-payout-granted',
   'creature-attached',
   'creature-detached',
@@ -491,6 +498,42 @@ export function applyGrants({ state, next }: Applying, event: GrantsEvent): Game
       return withCreature(next, event.id, { curses }, creature);
     }
 
+    // **Harm that outlasts the fight** — M-LINGER. One per host: a second
+    // landing under the same curse or the same Poisoned replaces the first,
+    // which is the command's to carry the toll's progress across (a second
+    // bite does not restart a mummy's day). A harm whose host is not standing
+    // is refused: it would be dropped by the very next derived pass, and a
+    // log that lays one is a log that has been made up.
+    case 'lingering-harm-laid': {
+      const creature = creatureOf(state, event, event.id);
+      if (!hostStands(creature, event.harm.host)) {
+        throw new CorruptLogError(event, `${event.id} carries nothing that hosts ${event.harm.source}`);
+      }
+      const lingering = [
+        ...(creature.lingering ?? []).filter((held) => held.source !== event.harm.source),
+        event.harm,
+      ].sort((a, b) => (a.source < b.source ? -1 : a.source > b.source ? 1 : 0));
+      return withCreature(next, event.id, { lingering }, creature);
+    }
+
+    // One period of a toll settled. In order and once: a day paid twice is a
+    // maximum lowered twice for it.
+    case 'daily-toll-paid': {
+      const creature = creatureOf(state, event, event.id);
+      const held = (creature.lingering ?? []).find((one) => one.source === event.source);
+      if (held?.tolls === undefined || held.tolls.paid + 1 !== event.day) {
+        throw new CorruptLogError(
+          event,
+          `${event.id} owes no toll on day ${event.day} of ${event.source}`,
+        );
+      }
+      const tolls = held.tolls;
+      const lingering = (creature.lingering ?? []).map((one) =>
+        one === held ? { ...one, tolls: { ...tolls, paid: event.day } } : one,
+      );
+      return withCreature(next, event.id, { lingering }, creature);
+    }
+
     case 'turn-payout-granted': {
       const creature = creatureOf(state, event, event.id);
       // Re-granting from the same source replaces rather than stacking, the
@@ -703,4 +746,70 @@ export function applyGrants({ state, next }: Applying, event: GrantsEvent): Game
   }
 
   return unhandledEvent(event);
+}
+
+/** Whether what hosts a lingering harm is still on the creature. */
+const hostStands = (creature: CreatureState, host: LingeringHost): boolean =>
+  host.kind === 'curse'
+    ? creature.curses.some((held) => held.source === host.source)
+    : creature.conditions.instances.some((instance) => instance.id === host.instance);
+
+/**
+ * **A curse whose day is out, or whose maker has died, is over** — M-LINGER.
+ *
+ * SRD Incubus, Restless Touch: "the target is cursed for 24 hours or until the
+ * incubus dies." Both endings are facts the world already holds — the clock and
+ * a creature's vitals — so the curse is lifted by a derived pass, the reading
+ * `expireEffects` gives every deadline and `lapseExpiredControl` gives a
+ * summons' day: no event, because a replay of the same log reaches the same
+ * clock and the same death. A curse that prints neither ending — a werewolf's,
+ * a mummy's — is never touched here.
+ *
+ * Quiet, and the state comes back by reference, where nothing lapsed.
+ */
+export function lapseCurses(state: GameState): GameState {
+  let creatures: Record<string, CreatureState> | null = null;
+  for (const [who, creature] of Object.entries(state.creatures)) {
+    if (creature.curses.length === 0) continue;
+    const kept = creature.curses.filter(
+      (curse) =>
+        !(curse.lapsesAt !== undefined && state.elapsed >= curse.lapsesAt) &&
+        !(curse.lapsesWhenDead === true && state.creatures[curse.by]?.vitals.dead === true),
+    );
+    if (kept.length === creature.curses.length) continue;
+    creatures ??= { ...state.creatures };
+    creatures[who] = { ...creature, curses: kept };
+  }
+  return creatures === null ? state : { ...state, creatures };
+}
+
+/**
+ * **A harm whose host has gone goes with it, and takes what it hung** — M-LINGER.
+ *
+ * The four ways a host leaves are four doors this pass does not have to know
+ * about: a cure or a made save takes a condition instance off, Remove Curse
+ * and {@link lapseCurses} take a curse off. Whatever did it, the harm it
+ * hosted is over, and so is everything filed under the harm's own source —
+ * SRD Mummy's "can't regain Hit Points", and SRD Otyugh's lowered maximum,
+ * which "doesn't return to normal **until the Poisoned condition ends**".
+ * What a toll took off a maximum on a given day is filed under a source of its
+ * own and is not touched: SRD Death Dog's and SRD Mummy's lowerings come back
+ * at the next Long Rest, as every lowering does, once nothing withholds them.
+ *
+ * Derived rather than an event for {@link lapseCurses}' reason, and after it,
+ * so a curse that lapses on this event takes its harm in the same breath.
+ */
+export function dropHostlessHarms(state: GameState): GameState {
+  let creatures: Record<string, CreatureState> | null = null;
+  for (const [who, creature] of Object.entries(state.creatures)) {
+    const held = creature.lingering;
+    if (held === undefined || held.length === 0) continue;
+    const gone = held.filter((harm) => !hostStands(creature, harm.host));
+    if (gone.length === 0) continue;
+    const sources = new Set(gone.map((harm) => harm.source));
+    const released = withoutGrants(creature, (source) => sources.has(source));
+    creatures ??= { ...state.creatures };
+    creatures[who] = { ...released, lingering: held.filter((harm) => !sources.has(harm.source)) };
+  }
+  return creatures === null ? state : { ...state, creatures };
 }

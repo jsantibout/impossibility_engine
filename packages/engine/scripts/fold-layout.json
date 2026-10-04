@@ -38,6 +38,12 @@
     "itemInstanceFor",
     "itemInstanceNumber",
     "PrintedCurse",
+    "LingeringHost",
+    "LingeringAmount",
+    "LingeringToll",
+    "LongRestToll",
+    "LingeringHarm",
+    "lingeringSource",
     "AbilityLowering",
     "EquippedItem",
     "AttunedItem",
@@ -285,7 +291,10 @@
     "GRANTS_EVENTS",
     "GrantsEvent",
     "isGrantsEvent",
-    "applyGrants"
+    "applyGrants",
+    "hostStands",
+    "lapseCurses",
+    "dropHostlessHarms"
   ],
   "fold/rolls.ts": [
     "ROLLS_EVENTS",

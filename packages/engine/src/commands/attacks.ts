@@ -132,7 +132,9 @@ import {
   type HitDropToZero,
   type HitForcedMove,
   type HitHoldPayout,
+  type HitCurse,
   type HitGrapple,
+  type HitLingeringCondition,
   type HitOption,
   type HitRiderAnchor,
   type StrikeStyle,
@@ -855,6 +857,8 @@ function printedRiderOnASwing(
   let lowersAbility: HitAbilityDrain | undefined;
   let onDroppingToZero: HitDropToZero | undefined;
   let grantsAttack: { readonly line: string } | undefined;
+  let curse: HitCurse | undefined;
+  let lingeringCondition: HitLingeringCondition | undefined;
   let saveDc: number | undefined;
   let span: { readonly lasts: TurnAnchor; readonly lastsOn: HitRiderAnchor } | undefined;
 
@@ -1066,6 +1070,7 @@ function printedRiderOnASwing(
         onDroppingToZero = {
           ...(rider.stable === undefined ? {} : { stable: rider.stable }),
           ...(rider.dies === undefined ? {} : { dies: rider.dies }),
+          ...(rider.turnsToDust === undefined ? {} : { turnsToDust: rider.turnsToDust }),
           ...(rider.conditions === undefined
             ? {}
             : {
@@ -1103,8 +1108,41 @@ function printedRiderOnASwing(
         break;
       }
 
+      // SRD Mummy, SRD Incubus — M-LINGER. The curse and everything it does are
+      // laid by `applyHitRider`; the one gate the book prints is answered here,
+      // where the other gates are: a declared object is not a creature.
+      case 'curse': {
+        if (
+          rider.onlyCreatures === true &&
+          state.creatures[target]?.creatureType === OBJECT_CREATURE_TYPE
+        ) {
+          unverified.push(
+            `${target} is an object, and ${printed.name}'s curse reaches a creature — it was not laid`,
+          );
+          break;
+        }
+        curse = {
+          ...(rider.onlyCreatures === undefined ? {} : { onlyCreatures: rider.onlyCreatures }),
+          ...(rider.lastsSeconds === undefined ? {} : { lastsSeconds: rider.lastsSeconds }),
+          ...(rider.endsWhenAttackerDies === undefined
+            ? {}
+            : { endsWhenAttackerDies: rider.endsWhenAttackerDies }),
+          ...(rider.lingers === undefined ? {} : { lingers: rider.lingers }),
+        };
+        break;
+      }
+
       case 'condition': {
         if (!passesSize(rider.ifNoLargerThan, 'clause')) break;
+        // SRD Otyugh — M-LINGER: a condition with no span whose ending is the
+        // save a Long Rest throws. Not through the effect list: the harm it
+        // carries is filed on the instance the condition lands as, which
+        // `applyHitRider` makes and names. The reader admits it with one
+        // condition and nothing else, so nothing below applies to it.
+        if (rider.lingers !== undefined) {
+          lingeringCondition = { condition: rider.conditions[0]!, lingers: rider.lingers };
+          break;
+        }
         // SRD Boar's charge, evaluated off the turn's own record of what it
         // was made of — and the only gate a condition clause can carry, for
         // the reason `PrintedChargeGate` gives: this is settled before the d20
@@ -1205,7 +1243,9 @@ function printedRiderOnASwing(
     hazard === undefined &&
     penalisesArmor === undefined &&
     lowersAbility === undefined &&
-    attaches === undefined
+    attaches === undefined &&
+    curse === undefined &&
+    lingeringCondition === undefined
   ) {
     return { option: null, unverified };
   }
@@ -1235,6 +1275,8 @@ function printedRiderOnASwing(
       ...(hazard === undefined ? {} : { hazard }),
       ...(penalisesArmor === undefined ? {} : { penalisesArmor }),
       ...(lowersAbility === undefined ? {} : { lowersAbility }),
+      ...(curse === undefined ? {} : { curse }),
+      ...(lingeringCondition === undefined ? {} : { lingeringCondition }),
     },
     unverified,
   };
@@ -3193,8 +3235,8 @@ function swingAt(
     }
 
     // **What the block says a hit does**, reported the moment the hit is known:
-    // the clauses `printedRiderOnASwing` could not execute — the Mummy's curse,
-    // a charge nobody has declared, an extra die a Bloodied swarm rolls — and
+    // the clauses `printedRiderOnASwing` could not execute — a charge nobody
+    // has declared, an extra die a Bloodied swarm rolls — and
     // the parts of a clause it executed and could not check. What it *could*
     // execute is riding on `riding` and is applied below with everything else
     // a hit bought.

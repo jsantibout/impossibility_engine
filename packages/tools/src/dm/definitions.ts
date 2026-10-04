@@ -108,6 +108,7 @@ import {
   printedSaveOf,
   resolveDamage,
   settleBlockDeadlines,
+  settleDailyTolls,
   takeDamageResponse,
   takeRestForm,
   resolveFall,
@@ -2798,6 +2799,40 @@ const SETTLE_BLOCK_DEADLINES = tool({
 });
 
 /**
+ * Throw the toll a harm that outlasts the fight owes when its day is up —
+ * M-LINGER.
+ *
+ * SRD Mummy, Rotting Fist: "its Hit Point maximum decreases by 10 (3d6) every
+ * 24 hours that elapse." SRD Death Dog, Bite: "it repeats the save every 24
+ * hours that elapse, ending the effect on itself on a success. _Subsequent
+ * Failures:_ The Poisoned target's Hit Point maximum decreases by 5 (1d10)."
+ *
+ * **{@link SETTLE_BLOCK_DEADLINES}' shape, and on the DM's door for its
+ * reason**: nothing else runs the clock outside a fight. The engine hangs the
+ * toll on the curse or the poison when the blow lands, owes it once the clock
+ * has passed a period, and refuses to end a turn or a rest while one is owed;
+ * this is the call that throws it. It takes nothing: the period, the dice and
+ * the save are the line's, and the engine throws.
+ */
+const SETTLE_DAILY_TOLLS = tool({
+  name: 'settle_daily_tolls',
+  description:
+    'Throw the toll a curse or a poison that outlasts the fight takes every 24 hours — a mummy’s curse takes 3d6 off the Hit Point maximum each day, a death dog’s poison repeats its save each day and costs 1d10 of the maximum on a failure. The engine hangs the toll when the blow lands and owes it once the clock has passed a day; `end_turn` and `end_rest` refuse while one is owed, and this call throws every period that is due, in order. You state nothing: the dice and the save are the line’s. Nothing due is not a refusal — the call simply does nothing.',
+  mutates: true,
+  input: z.strictObject({}),
+  run: (context) =>
+    settle(
+      context,
+      settleDailyTolls(context.campaign.state(), context.campaign.supply(), identity(context)),
+      (value) => value.events,
+      (value) => ({
+        thrown: value.events.filter((event) => event.type === 'daily-toll-paid').length,
+        duplicate: value.duplicate,
+      }),
+    ),
+});
+
+/**
  * Split a creature whose printed Reaction splits it — W7-B12.
  *
  * SRD Black Pudding and SRD Ochre Jelly, Split: "_Trigger:_ While the pudding
@@ -2861,6 +2896,7 @@ const SPLIT_PRINTED_LINE = tool({
 
 export const DM_ONLY_TOOLS: readonly ToolDefinition[] = [
   SETTLE_BLOCK_DEADLINES,
+  SETTLE_DAILY_TOLLS,
   SPLIT_PRINTED_LINE,
   TAKE_REST_FORM,
   SHIFT_PLANE_PRINTED_LINE,

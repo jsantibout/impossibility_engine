@@ -73,7 +73,7 @@ import { applyFeatures, isFeaturesEvent, resized } from './features.js';
 import { overriddenSizeOf, printedSizeOf, printsASize } from '../size.js';
 import { applyHolds, isHoldsEvent } from './holds.js';
 import { applyInventory, isInventoryEvent, withEquipment } from './inventory.js';
-import { applyGrants, isGrantsEvent } from './grants.js';
+import { applyGrants, dropHostlessHarms, isGrantsEvent, lapseCurses } from './grants.js';
 import { applyRolls, isRollsEvent } from './rolls.js';
 import { applyDeferred, isDeferredEvent } from './deferred.js';
 
@@ -340,6 +340,14 @@ function applyEventUnder(state: GameState, event: GameEvent, legacy: Content | n
     // activation prints is settled after the shape for the same reason.
     settleSizes(
     settleShapes(
+    // **A harm whose host has gone, and a curse whose day or maker has** —
+    // M-LINGER. Beside the bond below and for its reason: a clock or a death
+    // ends a thing nothing downstream reads but the maximum, which is settled
+    // outermost. The curse first, so a lapse takes its harm in the same event;
+    // both after every pass that can end a condition, so a cure does too. See
+    // `lapseCurses` and `dropHostlessHarms`.
+    dropHostlessHarms(
+    lapseCurses(
     // A control the clock has outrun ends here, and the creature stays: SRD
     // Animate Dead's day. Beside the shapes rather than among the drops,
     // because nothing downstream reads the bond and nothing about the
@@ -450,6 +458,8 @@ function applyEventUnder(state: GameState, event: GameEvent, legacy: Content | n
       ),
       ),
       ),
+    ),
+    ),
     ),
     ),
     ),

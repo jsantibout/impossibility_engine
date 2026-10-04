@@ -24,6 +24,7 @@ import type {
   MonsterSave,
   MonsterTrait,
   PrintedHoldCapacity,
+  PrintedLingering,
   PrintedPullOut,
 } from '@ie/srd';
 import type { StatedLegendaryAction } from './character.js';
@@ -3460,7 +3461,36 @@ export type PrintedRider =
   | PrintedHazardRider
   | PrintedArmorPenaltyRider
   | PrintedAbilityDrainRider
-  | PrintedGrantsAttackRider;
+  | PrintedGrantsAttackRider
+  | PrintedCurseRider;
+
+/**
+ * **A curse the hit lays** — M-LINGER.
+ *
+ * SRD Mummy, Rotting Fist: "If the target is a creature, it is cursed. While
+ * cursed, the target can't regain Hit Points, its Hit Point maximum doesn't
+ * return to normal when finishing a Long Rest, and its Hit Point maximum
+ * decreases by 10 (3d6) every 24 hours that elapse." SRD Incubus, Restless
+ * Touch: "the target is cursed for 24 hours or until the incubus dies. Until
+ * the curse ends, the target gains no benefit from finishing Short Rests."
+ *
+ * The curse is the record a werewolf's bite already lays
+ * (`CreatureState.curses`), which SRD Remove Curse lifts; what it **does** is
+ * the {@link PrintedLingering} the sentence after it states, read onto it as
+ * one "while cursed" detail. A curse with no lifetime printed lasts until it
+ * is lifted, which is the book's own silence.
+ */
+export interface PrintedCurseRider {
+  readonly kind: 'curse';
+  /** SRD Mummy's "If the target is a creature" — an object is not cursed. */
+  readonly onlyCreatures?: true;
+  /** SRD Incubus's "for 24 hours", in seconds. */
+  readonly lastsSeconds?: number;
+  /** SRD Incubus's "or until the incubus dies". */
+  readonly endsWhenAttackerDies?: true;
+  /** What the curse does while it stands. */
+  readonly lingers?: PrintedLingering;
+}
 
 /**
  * A clause about the **damage roll** rather than about an effect the hit buys.
@@ -3632,6 +3662,16 @@ export interface PrintedConditionRider {
    * otherwise need is a deadline of its own that always equalled this one.
    */
   readonly preventsHealing?: true;
+  /**
+   * What the condition goes on doing after the fight — M-LINGER, SRD Otyugh's
+   * Bite: "the target has the Poisoned condition. Whenever the Poisoned target
+   * finishes a Long Rest, it is subjected to the following effect.
+   * _Constitution Saving Throw:_ DC 15. …"
+   *
+   * The one shape under which a condition with **no span** is read: the Long
+   * Rest's save is its ending, so it is not a condition nothing lifts.
+   */
+  readonly lingers?: PrintedLingering;
 }
 
 /**
@@ -3786,6 +3826,20 @@ export interface PrintedDroppedToZeroRider {
   readonly dies?: true;
   /** SRD's "it has the Poisoned condition for 1 hour", in printed order. */
   readonly conditions?: readonly PrintedDroppedCondition[];
+  /**
+   * SRD Mummy, Rotting Fist: "A creature dies **and turns to dust** if reduced
+   * to 0 Hit Points by this attack." — M-LINGER.
+   *
+   * The death is {@link dies}; this is what the body becomes, and it is
+   * **reported** at the moment it happens rather than enforced, the reading
+   * {@link PrintedGrappleRider.withLimbs} gets for a scorpion's claws: the
+   * engine keeps no body apart from the creature's record, and the book prints
+   * no rule about raising dust — unlike SRD Disintegrate's "can be revived only
+   * by a _True Resurrection_ or a _Wish_", which is a rule and is owed. Whether
+   * a revival can find a body is the table's, as it is for SRD Gibbering
+   * Mouther's absorbed one.
+   */
+  readonly turnsToDust?: true;
 }
 
 /** One condition a drop to 0 leaves, for the span the line prints on it. */
@@ -4167,7 +4221,9 @@ const PRINTED_GRAPPLE_OFFERED = new RegExp(
  * at the end is what keeps the shape honest: the Cockatrice's second rung of
  * failure, the Death Dog's repeat every 24 hours and the Pit Fiend's damage at
  * the start of each turn all print a fourth sentence and are refused whole
- * rather than read down to the part that fits.
+ * rather than read down to the part that fits. (The first two are read now,
+ * by `parseRiderSave` at ingest; this pattern still refuses them, which is
+ * what keeps the two readers from answering one sentence twice.)
  */
 const PRINTED_SAVE = new RegExp(
   `^If the target is (.+?), it is subjected to the following effect\\. _([A-Za-z]+) Saving Throw:_ DC (\\d+)\\. _Failure:_ The target has the ([A-Za-z]+)(?: and (?:the )?([A-Za-z]+))? conditions?(?: ${UNTIL_NEXT_TURN})?\\.$`,
@@ -4621,6 +4677,96 @@ const DROPPED_TO_ZERO_STABLE = new RegExp(
 /** SRD Gibbering Mouther: "The target dies if it is reduced to 0 Hit Points by this attack." */
 const DIES_AT_ZERO = /^The target dies if it is reduced to 0 Hit Points by this attack\.$/;
 
+/** SRD Mummy: "A creature dies and turns to dust if reduced to 0 Hit Points by this attack." */
+const DIES_TO_DUST = /^A creature dies and turns to dust if reduced to 0 Hit Points by this attack\.$/;
+
+/** SRD Mummy: "If the target is a creature, it is cursed." — M-LINGER. */
+const CURSED_CREATURE = /^If the target is a creature, it is cursed\.$/;
+
+/**
+ * SRD Incubus: "and the target is cursed for 24 hours or until the incubus
+ * dies." — M-LINGER. The noun is the attacker's own, routed through
+ * {@link anchorOf} like every other possessive this reader meets: a curse that
+ * ended with somebody this reader cannot name is a rule nobody printed.
+ */
+const CURSED_FOR = /^and the target is cursed for (\d+) (hours?|minutes?)(?: or until the (.+?) dies)?\.$/;
+
+/**
+ * SRD Mummy: "While cursed, the target can't regain Hit Points, its Hit Point
+ * maximum doesn't return to normal when finishing a Long Rest, and its Hit
+ * Point maximum decreases by 10 (3d6) every 24 hours that elapse." SRD
+ * Incubus: "Until the curse ends, the target gains no benefit from finishing
+ * Short Rests." — M-LINGER.
+ *
+ * A list of what the curse does, read item by item against
+ * {@link CURSE_ITEMS}; an item it does not know hands the whole sentence back,
+ * because a curse read in part is a rule nobody printed.
+ */
+const CURSE_DETAIL = /^(?:While cursed|Until the curse ends), the target (.+)\.$/;
+
+/** The four things a curse's detail may say, each the field it becomes. */
+const CURSE_ITEMS: readonly (readonly [RegExp, (match: RegExpExecArray) => PrintedLingering])[] = [
+  [new RegExp(`^can${APOSTROPHE}t regain Hit Points$`), () => ({ preventsHealing: true })],
+  [
+    new RegExp(
+      `^its Hit Point maximum doesn${APOSTROPHE}t return to normal when finishing a Long Rest$`,
+    ),
+    () => ({ withholdsMaximum: true }),
+  ],
+  [
+    /^its Hit Point maximum decreases by (\d+) \((\d+d\d+)(?: \+ (\d+))?\) every (\d+) hours that elapse$/,
+    (match) => ({
+      tolls: {
+        everySeconds: Number(match[4]) * 3600,
+        decreases: {
+          dice: match[2]!,
+          flat: match[3] === undefined ? 0 : Number(match[3]),
+          average: Number(match[1]),
+        },
+      },
+    }),
+  ],
+  [/^gains no benefit from finishing Short Rests$/, () => ({ deniesShortRests: true })],
+];
+
+/** What a curse's detail says, or null where any item is one this reader does not know. */
+function curseDetailOf(items: string): PrintedLingering | null {
+  let lingers: PrintedLingering = {};
+  for (const part of items.split(/,? and |, /)) {
+    let known: PrintedLingering | null = null;
+    for (const [pattern, read] of CURSE_ITEMS) {
+      const match = pattern.exec(part.trim());
+      if (match !== null) {
+        known = read(match);
+        break;
+      }
+    }
+    if (known === null) return null;
+    lingers = { ...lingers, ...known };
+  }
+  return lingers;
+}
+
+/**
+ * SRD Otyugh's Bite, whole — M-LINGER: "and the target has the Poisoned
+ * condition. Whenever the Poisoned target finishes a Long Rest, it is
+ * subjected to the following effect. _Constitution Saving Throw:_ DC 15.
+ * _Failure:_ The target's Hit Point maximum decreases by 5 (1d10) and doesn't
+ * return to normal until the Poisoned condition ends on the target.
+ * _Success:_ The Poisoned condition ends."
+ *
+ * Five sentences that are one rule, which is why it is read whole: the
+ * condition has no span because the save is its ending, the failure's
+ * lowering lasts exactly as long as the condition, and the success ends it.
+ * Every name in it must be the same condition, or it is not this sentence.
+ */
+const POISON_UNTIL_A_LONG_REST = new RegExp(
+  String.raw`^and the target has the ([A-Z][a-z]+) condition\. Whenever the \1 target finishes a Long Rest, it is subjected to the following effect\. ` +
+    String.raw`_([A-Z][a-z]+) Saving Throw:_ DC (\d+)\. ` +
+    String.raw`_Failure:_ The target${APOSTROPHE}s Hit Point maximum decreases by (\d+) \((\d+d\d+)(?: \+ (\d+))?\) and doesn${APOSTROPHE}t return to normal until the \1 condition ends on the target\. ` +
+    String.raw`_Success:_ The \1 condition ends\.$`,
+);
+
 /**
  * SRD Phase Spider: "While Poisoned, the target also has the Paralyzed
  * condition." SRD Vampire Familiar: "While it has the Poisoned condition, the
@@ -4848,12 +4994,11 @@ function abilityWord(word: string): Ability | null {
  * - **A second sentence on a grapple** — the Crocodile's Restrained "until the
  *   grapple ends", the Mimic's Disadvantage on the escape — is one effect
  *   ending with another, which is a lifetime the engine has not got.
- * - **A failure that is not a condition** — the werecreatures' curse, the
- *   Mummy's — has a readable DC and nothing to impose with it. The Bearded
- *   Devil's infernal wound was on this list and is not: its three sentences
- *   are read by `parseRiderSave` into a `wound` clause the printed-save
- *   executor lands, which is the door a rider's save goes through and not
- *   this one's.
+ * - **A failure that is not a condition** — the werecreatures' curse — has
+ *   a readable DC and nothing to impose with it here; `parseRiderSave` reads
+ *   it into the curse the printed-save executor lays. The Bearded Devil's
+ *   infernal wound went the same way. The Mummy's curse, which is no save at
+ *   all, is read here now (M-LINGER) as a {@link PrintedCurseRider}.
  * - **A possessive that names neither creature in the hit** — see
  *   {@link NAMES_NOBODY_IN_THE_HIT}.
  *
@@ -4944,7 +5089,13 @@ type ClauseRead =
    * the reason `armor-detail` is not: see {@link DIES_AT_ZERO_SCORE}.
    */
   | { readonly kind: 'drain-detail' }
-  | { readonly kind: 'no-healing' };
+  | { readonly kind: 'no-healing' }
+  /**
+   * "While cursed, the target …" — M-LINGER. A sentence about the curse
+   * before it, and only that: standing alone it names a curse that is not
+   * there, which is `attach-detail`'s rule on another host.
+   */
+  | { readonly kind: 'curse-detail'; readonly lingers: PrintedLingering };
 
 /** One rider and no residue, which is what most clauses read to. */
 const one = (rider: PrintedRider): ClauseRead => ({ kind: 'riders', riders: [rider] });
@@ -4955,15 +5106,15 @@ const one = (rider: PrintedRider): ClauseRead => ({ kind: 'riders', riders: [rid
  * Null is the guard rather than a gap, and what is left on the list of
  * refusals is worth naming because each is a mechanism rather than a wording:
  *
- * - **A failure that is not a condition** — the werecreatures' curse, the
- *   Mummy's — has a readable DC and nothing to impose with it. The Bearded
- *   Devil's infernal wound was on this list and is not: its three sentences
- *   are read by `parseRiderSave` into a `wound` clause the printed-save
- *   executor lands, which is the door a rider's save goes through and not
- *   this one's.
+ * - **A failure that is not a condition** — the werecreatures' curse — has
+ *   a readable DC and nothing to impose with it here; `parseRiderSave` reads
+ *   it into the curse the printed-save executor lays, as it reads the Bearded
+ *   Devil's infernal wound. The Mummy's curse is no save, and is read here
+ *   (M-LINGER) as a {@link PrintedCurseRider}.
  * - **A graded save on a hit** — the Cockatrice's second rung of failure, the
- *   Death Dog's repeat every 24 hours — is a vocabulary the spell side is
- *   building first.
+ *   Death Dog's repeat every 24 hours — is `parseRiderSave`'s at ingest, not
+ *   this reader's: the template is lifted out of the rider before the swing
+ *   ever sees it.
  * - **A possessive that names neither creature in the hit** — see
  *   {@link NAMES_NOBODY_IN_THE_HIT}.
  * - **A fact only the GM holds** — SRD Half-Dragon's "damage of the type
@@ -4975,6 +5126,54 @@ const one = (rider: PrintedRider): ClauseRead => ({ kind: 'riders', riders: [rid
  * now clause by clause rather than a line at a time.
  */
 function readClause(text: string): ClauseRead | null {
+  // SRD Otyugh's whole rider — M-LINGER. Before everything, because it is five
+  // sentences that are one rule and only the whole line can match it; split
+  // into clauses, its first would be a Poisoned with no ending at all.
+  const lingering = POISON_UNTIL_A_LONG_REST.exec(text);
+  if (lingering !== null) {
+    const condition = conditionWord(lingering[1]);
+    const ability = abilityWord(lingering[2]!);
+    if (condition === null || ability === null) return null;
+    return one({
+      kind: 'condition',
+      conditions: [condition],
+      lingers: {
+        atLongRest: {
+          ability,
+          dc: Number(lingering[3]),
+          decreases: {
+            dice: lingering[5]!,
+            flat: lingering[6] === undefined ? 0 : Number(lingering[6]),
+            average: Number(lingering[4]),
+          },
+        },
+      },
+    });
+  }
+
+  // SRD Mummy and SRD Incubus — M-LINGER: the curse, and what it does.
+  if (CURSED_CREATURE.test(text)) return one({ kind: 'curse', onlyCreatures: true });
+  const cursedFor = CURSED_FOR.exec(text);
+  if (cursedFor !== null) {
+    const unit = SECONDS_IN[cursedFor[2]!.replace(/s$/, '')];
+    // "until the incubus dies" ends with the attacker's death, and with
+    // nobody else's this reader could name.
+    const dies = cursedFor[3] === undefined ? null : anchorOf(undefined, cursedFor[3]);
+    if (unit === undefined || dies === 'target' || (cursedFor[3] !== undefined && dies === null)) {
+      return null;
+    }
+    return one({
+      kind: 'curse',
+      lastsSeconds: Number(cursedFor[1]) * unit,
+      ...(dies === 'attacker' ? { endsWhenAttackerDies: true as const } : {}),
+    });
+  }
+  const detail = CURSE_DETAIL.exec(text);
+  if (detail !== null) {
+    const lingers = curseDetailOf(detail[1]!);
+    return lingers === null ? null : { kind: 'curse-detail', lingers };
+  }
+
   // First, because it is the one shape that opens with the book's connective
   // rather than with a gate, so no other pattern can claim it.
   const amount = PRINTED_DAMAGE.exec(text);
@@ -5295,6 +5494,10 @@ function readClause(text: string): ClauseRead | null {
   }
 
   if (DIES_AT_ZERO.test(text)) return one({ kind: 'on-dropping-to-zero', dies: true });
+  // SRD Mummy — M-LINGER: the same death, and the dust the swing reports.
+  if (DIES_TO_DUST.test(text)) {
+    return one({ kind: 'on-dropping-to-zero', dies: true, turnsToDust: true });
+  }
 
   if (NO_HEALING_WHILE_IT_LASTS.test(text)) return { kind: 'no-healing' };
 
@@ -5528,6 +5731,18 @@ export function readPrintedRiders(text: string): PrintedRidersRead {
       // The death belongs to the drain before it, and the swing already keeps
       // it — the same reading the armour's ceiling gets one clause up.
       if (host === undefined || host.kind !== 'ability-score-decrease') handedOver.push(clause);
+      continue;
+    }
+
+    if (read.kind === 'curse-detail') {
+      const host = riders.at(-1);
+      // About the curse before it, and only once: a second detail would be a
+      // curse read twice, and one with no curse in front of it names nothing.
+      if (host === undefined || host.kind !== 'curse' || host.lingers !== undefined) {
+        handedOver.push(clause);
+        continue;
+      }
+      riders[riders.length - 1] = { ...host, lingers: read.lingers };
       continue;
     }
 

@@ -100,7 +100,122 @@ export interface PrintedCurse {
   readonly by: CharacterId;
   /** The printed heading, so a table reads it as a sentence. */
   readonly line: string;
+  /**
+   * SRD Incubus, Restless Touch: "the target is cursed **for 24 hours**" — the
+   * clock instant the curse lapses, pinned at the hit. M-LINGER.
+   *
+   * Absent is a curse the book prints no ending for — SRD Werewolf's, SRD
+   * Mummy's — which only Remove Curse lifts. The lapse is a derived pass in
+   * the fold, the reading every other span already gets (`lapseCurses`).
+   */
+  readonly lapsesAt?: number;
+  /**
+   * "…**or until the incubus dies**": the curse ends with {@link by}'s death.
+   * Read off the vitals by the same pass, so a creature that dies of anything
+   * at all takes its curse with it.
+   */
+  readonly lapsesWhenDead?: true;
 }
+
+/**
+ * What a {@link LingeringHarm} lives exactly as long as — M-LINGER.
+ *
+ * SRD Mummy's and SRD Incubus's are a **curse** (named by its source, which is
+ * its identity on `CreatureState.curses`); SRD Death Dog's and SRD Otyugh's
+ * are a **condition instance**, the Poisoned the line laid. A cure, a Remove
+ * Curse, a made save or a curse's lapse takes the host away, and the fold
+ * takes the harm with it.
+ */
+export type LingeringHost =
+  | { readonly kind: 'curse'; readonly source: string }
+  | { readonly kind: 'condition'; readonly instance: string };
+
+/** An amount a toll takes off a maximum, as a die and an addend the engine throws. */
+export interface LingeringAmount {
+  /** SRD's "1d10". */
+  readonly dice: string;
+  /** The addend inside the parenthesis, 0 where the book prints none. */
+  readonly flat: number;
+}
+
+/**
+ * SRD Mummy: "its Hit Point maximum decreases by 10 (3d6) **every 24 hours that
+ * elapse**"; SRD Death Dog: "it repeats the save every 24 hours that elapse,
+ * ending the effect on itself on a success. _Subsequent Failures:_ … decreases
+ * by 5 (1d10)." — M-LINGER.
+ *
+ * A clock that falls due once a period from the moment the harm was laid, and
+ * a count of the periods already paid, so the next one due is arithmetic
+ * rather than a stored instant: `from + (paid + 1) × everySeconds`. Settled by
+ * `settleDailyTolls`, which throws the dice; `resolveTurn` and `endRest`
+ * refuse while one is owed.
+ */
+export interface LingeringToll {
+  /** The clock reading the harm was laid at. */
+  readonly from: number;
+  readonly everySeconds: number;
+  /** How many periods have been settled. */
+  readonly paid: number;
+  /** What the maximum loses — every period, or on a failed save where there is one. */
+  readonly decreases?: LingeringAmount;
+  /** The line's own save, thrown every period: a success ends the harm's host. */
+  readonly save?: { readonly ability: Ability; readonly dc: number };
+}
+
+/**
+ * SRD Otyugh: "Whenever the Poisoned target finishes a Long Rest, it is
+ * subjected to the following effect. _Constitution Saving Throw:_ DC 15.
+ * _Failure:_ The target's Hit Point maximum decreases by 5 (1d10) and doesn't
+ * return to normal until the Poisoned condition ends on the target.
+ * _Success:_ The Poisoned condition ends." — M-LINGER.
+ *
+ * Thrown by `endRest` the moment a Long Rest is finished. The failure's
+ * lowering is filed under the harm's own source, which is what makes it last
+ * exactly as long as the condition: the fold releases it when the harm goes.
+ */
+export interface LongRestToll {
+  readonly ability: Ability;
+  readonly dc: number;
+  readonly decreases: LingeringAmount;
+}
+
+/**
+ * **Harm that outlasts the fight** — M-LINGER.
+ *
+ * One record for four printed hits — SRD Death Dog's Bite, SRD Mummy's Rotting
+ * Fist, SRD Otyugh's Bite, SRD Incubus's Restless Touch — whose damage is the
+ * least of what they do. Each sentence is a field a later moment reads:
+ *
+ * - {@link withholdsMaximum} — "its Hit Point maximum doesn't return to normal
+ *   when finishing a Long Rest", read by the Long Rest;
+ * - {@link deniesShortRests} — "gains no benefit from finishing Short Rests",
+ *   read by the Short Rest;
+ * - {@link tolls} — the clock every 24 hours;
+ * - {@link atLongRest} — the save a finished Long Rest throws.
+ *
+ * "can't regain Hit Points" is not a field: it is the `prevented` healing rule
+ * every healing door already reads, hung under this harm's {@link source} so
+ * the harm's ending ends it.
+ *
+ * **Pinned whole on `lingering-harm-laid`**, so the fold opens no stat block.
+ */
+export interface LingeringHarm {
+  /** {@link lingeringSource} of the host — the harm's identity, and its grants' source. */
+  readonly source: string;
+  /** Whose line it was — the creature a save against it is forced by. */
+  readonly by: CharacterId;
+  /** The printed heading, for the log. */
+  readonly line: string;
+  readonly host: LingeringHost;
+  readonly withholdsMaximum?: true;
+  readonly deniesShortRests?: true;
+  readonly tolls?: LingeringToll;
+  readonly atLongRest?: LongRestToll;
+}
+
+/** A harm's identity, out of what hosts it: one harm per curse, one per condition instance. */
+export const lingeringSource = (host: LingeringHost): string =>
+  `lingering:${host.kind === 'curse' ? host.source : host.instance}`;
 
 /**
  * Points taken off one ability score by one use of one effect.
@@ -1270,12 +1385,28 @@ export interface CreatureState {
    * the table can read it when the moment the second sentence names arrives,
    * and so `look` can show it until then.
    *
-   * **Nothing in the engine reads it to act**, which is the point: the drop to
-   * 0 is the table's. And nothing ends it, because the book prints no ending;
-   * the spell that would lift a curse is the spells side's to write. One entry
-   * per source, and a second bite from the same line leaves one.
+   * **Nothing in the engine reads the werewolf's to act**, which is the point:
+   * the drop to 0 is the table's. And nothing ends it but SRD Remove Curse,
+   * because the book prints no ending. One entry per source, and a second bite
+   * from the same line leaves one.
+   *
+   * **A curse may host what it does** — M-LINGER. SRD Mummy's and SRD
+   * Incubus's curses carry a {@link LingeringHarm} in `lingering` that lives
+   * exactly as long as the curse, and SRD Incubus's prints an ending of its
+   * own — 24 hours, or the incubus's death — which `lapsesAt` and
+   * `lapsesWhenDead` pin and the fold's `lapseCurses` reads.
    */
   readonly curses: readonly PrintedCurse[];
+  /**
+   * The harm on this creature that outlasts the fight — M-LINGER. See
+   * {@link LingeringHarm}.
+   *
+   * One entry per host, each living exactly as long as the curse or the
+   * condition instance it names: the fold drops a harm whose host has gone and
+   * releases what it hung (`dropHostlessHarms`). **Absent** is none, which is
+   * every log written before it — so both frozen fixtures fold unchanged.
+   */
+  readonly lingering?: readonly LingeringHarm[];
   /**
    * A creature type one running effect has put over this creature's own.
    *

@@ -47,6 +47,7 @@ import {
   dismissStrandedSummons,
   dismountRider,
   settleBlockDeadlines,
+  settleDailyTolls,
   takeRestForm,
   endCombat,
   joinCombat,
@@ -2275,6 +2276,32 @@ const LIMB_DUE: readonly GameEvent[] = [
   { type: 'time-advanced', seconds: 24 * 3600, reason: 'a day' },
 ];
 
+/**
+ * A knight a mummy cursed a day ago, its first toll owed — M-LINGER. The two
+ * records the hit lays, written as the hit writes them, and the day.
+ */
+const TOLL_DUE: readonly GameEvent[] = [
+  ...unwrap(addCreature(fold('s', []), SRD_CONTENT, id('a-cursed'), 'knight'), 'the knight').events,
+  {
+    type: 'printed-curse-laid',
+    id: id('a-cursed'),
+    curse: { source: 'printed:a-mummy:Rotting Fist', by: id('a-mummy'), line: 'Rotting Fist' },
+  },
+  {
+    type: 'lingering-harm-laid',
+    id: id('a-cursed'),
+    harm: {
+      source: 'lingering:printed:a-mummy:Rotting Fist',
+      by: id('a-mummy'),
+      line: 'Rotting Fist',
+      host: { kind: 'curse', source: 'printed:a-mummy:Rotting Fist' },
+      withholdsMaximum: true,
+      tolls: { from: 0, everySeconds: 24 * 3600, paid: 0, decreases: { dice: '3d6', flat: 0 } },
+    },
+  },
+  { type: 'time-advanced', seconds: 24 * 3600, reason: 'a day' },
+];
+
 const GUARDED: readonly Guarded[] = [
   {
     // The making itself, which is the retry question `addCreature` asks with a
@@ -2335,6 +2362,13 @@ const GUARDED: readonly Guarded[] = [
     name: 'settleBlockDeadlines',
     log: LIMB_DUE,
     run: (s, commandId) => settleBlockDeadlines(s, supply(), { commandId }),
+  },
+  {
+    // M-LINGER: a second throw of the day's 3d6 is a maximum lowered twice for
+    // one day, which is the one thing a retry must never be.
+    name: 'settleDailyTolls',
+    log: TOLL_DUE,
+    run: (s, commandId) => settleDailyTolls(s, supply(), { commandId }),
   },
   {
     name: 'summonCreature',

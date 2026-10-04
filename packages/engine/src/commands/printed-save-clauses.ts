@@ -83,7 +83,8 @@ import { shoveAwayFrom } from './spell-effect-movement.js';
 import { conditionLanding } from './spell-effect-riders.js';
 import { escapeCheck, grappleSource } from './unarmed.js';
 import { printedObjectId, raisePrintedObject } from './objects.js';
-import { heldByObjectSource } from '../state.js';
+import { heldByObjectSource, lingeringSource } from '../state.js';
+import { lingeringHarmEvents } from './lingering.js';
 
 export interface PrintedClausesLanded {
   readonly events: readonly GameEvent[];
@@ -745,6 +746,52 @@ export function applyPrintedClauses(
               };
         const repeat: RepeatSave | undefined =
           clause.repeats === undefined ? undefined : repeatOf(deeper);
+        // **A failure on a creature this line has already poisoned is a
+        // subsequent one** — M-LINGER, SRD Death Dog: "_First Failure:_ The
+        // target has the Poisoned condition. … _Subsequent Failures:_ The
+        // Poisoned target's Hit Point maximum decreases by 5 (1d10)." A second
+        // bite subjects the target to the same effect, and the effect's second
+        // failure is the rung, not a second Poisoned: so the Poisoned is left
+        // standing, its toll's clock untouched, and the maximum pays.
+        const harmHost = conditionInstanceId(clause.condition, conditionSource);
+        const lingeringAlready =
+          clause.lingers?.tolls?.repeatsSave === true &&
+          (current.creatures[target]?.lingering ?? []).some(
+            (held) => held.host.kind === 'condition' && held.host.instance === harmHost,
+          );
+        if (lingeringAlready) {
+          const decreases = clause.lingers!.tolls!.decreases;
+          if (decreases !== undefined) {
+            const issuedBefore = supply.issuer.count;
+            const rolled = rollRecorded(supply.issuer, supply.rng, decreases.dice);
+            if (!rolled.ok) return rolled;
+            const lost = rolled.value.total + decreases.flat;
+            land([
+              {
+                type: 'roll-recorded',
+                who: target,
+                label: `${line}: a subsequent failure (${decreases.dice})`,
+                natural: rolled.value.total,
+                total: lost,
+                contributions: [],
+                outcome: `Hit Point maximum decreases by ${lost}`,
+              },
+              { type: 'rolls-issued', count: supply.issuer.count - issuedBefore, rng: supply.rng.snapshot() },
+              ...(lost > 0
+                ? [
+                    {
+                      type: 'hit-point-maximum-adjusted' as const,
+                      id: target,
+                      adjustment: { source: `${lingeringSource({ kind: 'condition', instance: harmHost })}:use-${useTag}`, amount: -lost },
+                    },
+                  ]
+                : []),
+            ]);
+          }
+          landedInstances.set(clause.condition, harmHost);
+          conditions.push(clause.condition);
+          break;
+        }
         const landed = conditionLanding(
           applyConditionTo(
             current,
@@ -824,6 +871,23 @@ export function applyPrintedClauses(
           ]);
         }
         landedInstances.set(clause.condition, conditionInstanceId(clause.condition, conditionSource));
+        // **What the condition goes on doing after the fight** — M-LINGER, SRD
+        // Death Dog: the Long Rest's maximum withheld, and the line's own save
+        // thrown again every 24 hours. Hosted by the instance just landed, so
+        // a cure or the made save takes it away; the save is this line's.
+        if (clause.lingers !== undefined) {
+          land(
+            lingeringHarmEvents(
+              current,
+              target,
+              { kind: 'condition', instance: harmHost },
+              source,
+              line,
+              clause.lingers,
+              { ability: save.ability, dc: save.dc },
+            ),
+          );
+        }
         // **A hold that puts its target inside the holder** — W7-B10. SRD
         // Shambling Mound's Engulf: "The target is pulled into the shambling
         // mound's space and has the Grappled condition." The second place,

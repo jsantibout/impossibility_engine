@@ -977,6 +977,9 @@ describe('the reader claims only the sentences it can execute', () => {
     // And one more with the Merfolk Skirmisher's Ocean Spear — W7-B13 — whose
     // returning spear is filed off the rider at ingest, leaving the Speed cut
     // as one sentence this reader has always held.
-    expect(read).toBe(78);
+    // And one more with the Otyugh's Bite — M-LINGER — whose five sentences
+    // are one rule, a Poisoned whose ending is the save a Long Rest throws,
+    // and are read whole as the one shape they are.
+    expect(read).toBe(79);
   });
 });

@@ -101,6 +101,7 @@ import {
 import type {
   AbilityLowering,
   BlockDeadline,
+  LingeringHarm,
   PrintedCurse,
   Attachment,
   BorrowedSenses,
@@ -867,6 +868,41 @@ export type GameEvent =
       readonly type: 'printed-curse-laid';
       readonly id: CharacterId;
       readonly curse: PrintedCurse;
+    }
+
+  /**
+   * A harm that outlasts the fight landed on a creature — M-LINGER.
+   *
+   * SRD Death Dog's Poisoned, SRD Mummy's and SRD Incubus's curses, SRD
+   * Otyugh's Poisoned: what each goes on doing after the fight, hosted by the
+   * curse or the condition instance it lives exactly as long as. See
+   * `LingeringHarm`. **The whole record is on the event** — the toll's period,
+   * its dice and its save — so the fold opens no stat block, and a second
+   * landing under the same host replaces the first.
+   */
+  | {
+      readonly type: 'lingering-harm-laid';
+      readonly id: CharacterId;
+      readonly harm: LingeringHarm;
+    }
+
+  /**
+   * One period of a harm's toll settled — M-LINGER. SRD Mummy's "every 24
+   * hours that elapse", SRD Death Dog's repeat save.
+   *
+   * What the period cost is written beside it — the dice, a lowered maximum,
+   * a condition ended — and this is the count: the fold moves the harm's
+   * `paid` on by one and refuses a day out of order, because a toll paid
+   * twice is a maximum lowered twice for one day.
+   */
+  | {
+      readonly type: 'daily-toll-paid';
+      readonly id: CharacterId;
+      /** The harm's source. */
+      readonly source: string;
+      /** Which period this was, counting from 1. */
+      readonly day: number;
+      readonly command?: CommandStamp;
     }
 
   /**
@@ -2810,6 +2846,14 @@ export type GameEvent =
       /** What it earned, which is not always what was attempted. */
       readonly benefit: RestBenefit;
       readonly interrupted?: string;
+      /**
+       * A Short Rest finished and paid nothing, and the line that said so —
+       * SRD Incubus's Restless Touch: "Until the curse ends, the target gains
+       * no benefit from finishing Short Rests." (M-LINGER) `benefit` is `none`
+       * beside it; this is the reason, for the log. Absent on every rest
+       * nothing denied.
+       */
+      readonly deniedBy?: string;
       /**
        * The one event a settlement always emits, whatever the rest earned, so
        * the stamp rides here rather than on a Hit Die a short rest happened to
