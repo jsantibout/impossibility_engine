@@ -73,7 +73,7 @@ import { applyFeatures, isFeaturesEvent, resized } from './features.js';
 import { overriddenSizeOf, printedSizeOf, printsASize } from '../size.js';
 import { applyHolds, isHoldsEvent } from './holds.js';
 import { applyInventory, isInventoryEvent, withEquipment } from './inventory.js';
-import { applyGrants, isGrantsEvent } from './grants.js';
+import { applyGrants, detachTheDead, isGrantsEvent, letTheHeldBreathe } from './grants.js';
 import { applyRolls, isRollsEvent } from './rolls.js';
 import { applyDeferred, isDeferredEvent } from './deferred.js';
 
@@ -309,6 +309,15 @@ function applyEventUnder(state: GameState, event: GameEvent, legacy: Content | n
   // right whichever of them fired, rather than right for the ones somebody
   // remembered.
   return settleHitPointMaxima(reachStartOfTurn(
+    // **Whether a smothered creature can breathe** — M-HOLD — against the world
+    // every pass below has settled, because what ends a hold is everywhere: an
+    // escape, a release, a pull out of a cube, the fold's own freeing of what a
+    // dead host held. Inside it, **an attach whose attacher has died let go**,
+    // which is one of those endings and must have happened first. Both before
+    // the turn's start is reached, so a creature that has just breathed again
+    // does not begin its turn short of the levels it got back.
+    letTheHeldBreathe(
+    detachTheDead(
     // **A fire the sleet puts out**, against the world every pass below has
     // settled — a storm whose casting just ended douses nothing — and before
     // the turn's start is reached, so a creature standing in the sleet is not
@@ -457,7 +466,7 @@ function applyEventUnder(state: GameState, event: GameEvent, legacy: Content | n
     ),
     ),
     ),
-  ));
+  ))));
 }
 
 /**

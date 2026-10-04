@@ -55,7 +55,7 @@ import {
   type GameState,
   type PendingAttack,
 } from '../events.js';
-import type { CommandStamp } from '../state.js';
+import { type CommandStamp, limbsToRegrow } from '../state.js';
 import { modifierFor, type CharacterSheet, type StatedAttack } from '../character.js';
 import {
   attacksInAction,
@@ -173,7 +173,7 @@ import {
   type HitRiderRequest,
 } from './hit-riders.js';
 import { applyRiders } from './spell-effect-riders.js';
-import { grapplesOn } from './unarmed.js';
+import { grapplesOn, UNARMED_REACH } from './unarmed.js';
 import { roomInside } from '../elsewhere.js';
 import { effectiveSizeOf } from '../size.js';
 import { typeMagicSees } from '../creature-type.js';
@@ -765,10 +765,13 @@ function paymentOf(printed: PrintedHoldPayout): HitHoldPayout {
 function coveredByTheRoll(option: HitOption, mode: RollMode): HitOption {
   const attach = option.attaches;
   if (attach?.coverNeedsAdvantage !== true || mode === 'advantage') return option;
-  // The cover and the question about it both go; everything else the attach
-  // carries — the DC, the Speed, the payment — is not gated on the roll.
+  // The cover and the question about it both go — and the suffocation the
+  // cover brings with it (M-HOLD); everything else the attach carries — the
+  // DC, the Speed, the payment — is not gated on the roll.
   const bare = Object.fromEntries(
-    Object.entries(attach).filter(([field]) => field !== 'whileHeld' && field !== 'coverNeedsAdvantage'),
+    Object.entries(attach).filter(
+      ([field]) => field !== 'whileHeld' && field !== 'coverNeedsAdvantage' && field !== 'coverSuffocates',
+    ),
   ) as HitAttach;
   return { ...option, attaches: bare };
 }
@@ -943,7 +946,12 @@ function printedRiderOnASwing(
         // block can hold at once. The engine holds no record of limbs, so the
         // clause is handed back exactly as `grappleTarget` hands back the free
         // hand SRD asks it for — the grapple is made and the limit is the DM's.
-        if (rider.withLimbs !== undefined) {
+        // **Except where the limbs are counted things** — SRD Roper's "one of
+        // six tentacles", each a thing the hit raises and the cap the reader
+        // set from the count. That cap is enforced at the swing, so telling
+        // the table it is theirs would be the engine disowning a rule it
+        // keeps. (M-HOLD)
+        if (rider.withLimbs !== undefined && (rider.heldByObject === undefined || rider.capacity === undefined)) {
           unverified.push(
             `${printed.name} grapples ${target} from ${rider.withLimbs}, and the engine holds no record of limbs; how many creatures ${attacker} can hold at once is the table's`,
           );
@@ -962,6 +970,16 @@ function printedRiderOnASwing(
           ...(rider.capacity === undefined ? {} : { capacity: rider.capacity }),
           ...(rider.whileHolding === undefined ? {} : { whileHolding: rider.whileHolding }),
           ...(rider.heldByObject === undefined ? {} : { heldByObject: rider.heldByObject }),
+          // SRD Grappled: the hold lapses past "the grapple's range", and a
+          // printed hold's range is the reach its line was made at — SRD
+          // Roper's sixty feet. Pinned only past the five an Unarmed Strike
+          // reaches, which is what an absent range has always meant. (M-HOLD)
+          ...(printed.reach !== null && printed.reach > UNARMED_REACH
+            ? { range: printed.reach }
+            : {}),
+          // "Until the grapple ends, the target … is suffocating" — the
+          // glossary's hazard, for exactly the hold's lifetime. (M-HOLD)
+          ...(rider.suffocates === undefined ? {} : { suffocates: rider.suffocates }),
         };
         break;
       }
@@ -1005,6 +1023,9 @@ function printedRiderOnASwing(
                 ...(covers.ifAttackHadAdvantage === undefined
                   ? {}
                   : { coverNeedsAdvantage: covers.ifAttackHadAdvantage }),
+                // "and is suffocating while the darkmantle is attached in
+                // this way" — riding the cover's own gates. (M-HOLD)
+                ...(covers.suffocates === undefined ? {} : { coverSuffocates: covers.suffocates }),
               }),
           ...(rider.payout === undefined ? {} : { payout: paymentOf(rider.payout) }),
         };
@@ -2272,19 +2293,30 @@ function swingAt(
           `${id} can't take ${attackName} while it is grappling ${holding.join(', ')}`,
         );
       }
+      // **And the limbs it has lost and not grown back** — M-HOLD. SRD Roper:
+      // "from one of six tentacles … a destroyed tentacle regrows at the start
+      // of the roper's next turn." A counted cap is a count of limbs, and a
+      // destroyed one is a limb the holder does not have until then.
+      const lost =
+        printedGrapple.heldByObject?.regrows === undefined ? [] : limbsToRegrow(state, id);
       // The cap only where the hold is what the swing is for.
       if (
         (takingTheHold || printedGrapple.insteadOfDamage !== true) &&
         printedGrapple.capacity !== undefined &&
         !roomInside(
           printedGrapple.capacity,
-          holding.map((who) => effectiveSizeOf(state, who) ?? 'medium'),
+          [
+            ...holding.map((who) => effectiveSizeOf(state, who) ?? 'medium'),
+            ...lost.map(() => 'medium' as const),
+          ],
           effectiveSizeOf(state, command.target) ?? 'medium',
         )
       ) {
         return err(
           'holding_enough',
-          `${id} already holds as many creatures as ${attackName} allows (${holding.join(', ')}), and could not hold ${command.target}`,
+          lost.length === 0
+            ? `${id} already holds as many creatures as ${attackName} allows (${holding.join(', ')}), and could not hold ${command.target}`
+            : `${id} already holds as many creatures as ${attackName} allows (${holding.join(', ')}) with ${lost.length} of its limbs destroyed and not yet grown back (${lost.join(', ')}), and could not hold ${command.target}`,
         );
       }
     }

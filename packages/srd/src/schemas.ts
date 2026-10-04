@@ -697,6 +697,13 @@ const PRINTED_SAVE_CLAUSES = [
      * {@link payout}'s reason: the sentence says "until the grapple ends".
      */
     inside: z.literal(true).optional(),
+    /**
+     * SRD Water Elemental's Whelm: "Until the grapple ends, the target … is
+     * suffocating unless it can breathe water" — M-HOLD. The glossary's
+     * Suffocation hazard for exactly the hold's lifetime; only onto a grapple,
+     * for {@link payout}'s reason. The two words are the book's two wordings.
+     */
+    suffocates: z.enum(['always', 'unless-it-breathes-water']).optional(),
     /** How many creatures the hold this clause makes may have at once — see {@link PrintedHoldCapacitySchema}. */
     capacity: PrintedHoldCapacitySchema.optional(),
     /** The neighbour's action that frees the held creature — see {@link PrintedPullOutSchema}. */
@@ -1240,15 +1247,17 @@ const PRINTED_SAVE_CLAUSES = [
    * Swallow is executed on: no position, caught by nothing, reaching only the
    * host, moving with it because the record does. What this clause adds to
    * that record is what the line prints beside it — the conditions hung
-   * while inside, the damage at the host's boundary, and the escape the
-   * target's own action buys. The suffocation is a handover kind and is
-   * carried; the room the cube has is the Ooze Cube trait's
-   * (`holds-creatures-inside`), read by the door that moves the cube.
+   * while inside, the damage at the host's boundary, the escape the target's
+   * own action buys, and (M-HOLD) the suffocation; the room the cube has is
+   * the Ooze Cube trait's (`holds-creatures-inside`), read by the door that
+   * moves the cube.
    */
   z.object({
     kind: z.literal('engulfs'),
     /** "has the Restrained condition" — hung under the record and lifted by the way out. */
     whileInside: z.array(PrintedConditionSchema).min(1).optional(),
+    /** "An engulfed target is suffocating" — the glossary's hazard while inside. M-HOLD. */
+    suffocates: z.enum(['always', 'unless-it-breathes-water']).optional(),
     /** "can't cast spells with a Verbal component" — SRD Silence's standing, on the record. */
     noVerbalCasting: z.literal(true).optional(),
     /** "takes 10 (3d6) Acid damage at the start of each of the cube's turns". */

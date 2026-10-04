@@ -5,6 +5,7 @@ import {
   addCreature,
   addSceneLandmark,
   beginCombat,
+  damageCreature,
   declareCreatureSide,
   detachFrom,
   escapeGrapple,
@@ -20,6 +21,7 @@ import { createRng, type Rng } from './dice.js';
 import { fold, type GameEvent, type GameState } from './events.js';
 import { createRollIssuer } from './rolls.js';
 import { speedOf } from './standing.js';
+import { suffocationOn } from './hazards.js';
 import { attachmentsOf, attachmentsOn, grapplesOn } from './commands/unarmed.js';
 
 /**
@@ -349,6 +351,48 @@ describe('an attach that covers what it lands on', () => {
     expect(out.attack?.roll.mode).toBe('normal');
     expect(attachmentsOf(out.state, BEAST).map((one) => one.to)).toEqual([BREN]);
     expect(conditionsOn(out.state, BREN)).not.toContain('blinded');
+  });
+
+  /**
+   * "…which has the Blinded condition **and is suffocating** while the
+   * darkmantle is attached in this way" — M-HOLD. The hazard rides the cover:
+   * an ordinary roll attaches and covers nobody, and smothers nobody either.
+   */
+  it('smothers the creature it covers, and only that one', () => {
+    const covered = swing(field('darkmantle'), 'Crush', { modes: ['advantage'] });
+    expect(suffocationOn(covered.state, BREN)).toMatchObject({
+      hazard: 'suffocating',
+      lit: 'Crush',
+      while: [{ by: 'attach', source: `attach:${BEAST}` }],
+    });
+    expect(covered.unverified.join(' ')).not.toContain('suffocating');
+    const ordinary = swing(field('darkmantle'), 'Crush');
+    expect(suffocationOn(ordinary.state, BREN)).toBeNull();
+  });
+
+  it('gives the breath back when the darkmantle lets go, or is pulled off', () => {
+    const table = field('darkmantle');
+    swing(table, 'Crush', { modes: ['advantage'] });
+    const off = table.do('the darkmantle lets go', (s) => letGoOfAttachment(s, BEAST, { from: BREN, commandId: 'let go' }));
+    expect(suffocationOn(off, BREN)).toBeNull();
+  });
+
+  /**
+   * W7-B10's named gap, `lapsedAttachments`: "a dead attacher leaves its
+   * cover standing". A dead darkmantle is attached to nothing — the Blinded
+   * goes, the breath comes back, and what it pinned on itself goes too.
+   */
+  it('lets go when the darkmantle dies, taking its cover and its smothering with it', () => {
+    const table = field('darkmantle');
+    swing(table, 'Crush', { modes: ['advantage'] });
+    expect(conditionsOn(table.state, BREN)).toContain('blinded');
+    const dead = table.do('the darkmantle is killed', (s) => damageCreature(s, BEAST, { amount: 100, source: 'a sword' }));
+    expect(dead.creatures[BEAST]?.vitals.dead).toBe(true);
+    expect(attachmentsOf(dead, BEAST)).toEqual([]);
+    expect(attachmentsOn(dead, BREN)).toEqual([]);
+    expect(conditionsOn(dead, BREN)).not.toContain('blinded');
+    expect(suffocationOn(dead, BREN)).toBeNull();
+    expect(dead.creatures[BEAST]?.speedModifiers).toEqual([]);
   });
 
   /** SRD Darkmantle: "Its Speed becomes 0" — the darkmantle's own. */

@@ -84,6 +84,7 @@ import { conditionLanding } from './spell-effect-riders.js';
 import { escapeCheck, grappleSource } from './unarmed.js';
 import { printedObjectId, raisePrintedObject } from './objects.js';
 import { heldByObjectSource } from '../state.js';
+import { breathTakenBy } from '../hazards.js';
 
 export interface PrintedClausesLanded {
   readonly events: readonly GameEvent[];
@@ -823,6 +824,21 @@ export function applyPrintedClauses(
             },
           ]);
         }
+        // SRD Water Elemental's Whelm: "Until the grapple ends, the target …
+        // is suffocating unless it can breathe water." The glossary's hazard,
+        // filed against this very grapple, so every way it ends gives the
+        // breath back; the exception is read live by the fold, so a creature
+        // that breathes water is held and is not suffocating. Only onto a
+        // grapple, for the payout's reason above. (M-HOLD)
+        if (clause.suffocates !== undefined && grapple) {
+          land([
+            breathTakenBy(target, line, {
+              by: 'grapple',
+              source: conditionSource,
+              ...(clause.suffocates === 'unless-it-breathes-water' ? { unlessItBreathesWater: true as const } : {}),
+            }),
+          ]);
+        }
         landedInstances.set(clause.condition, conditionInstanceId(clause.condition, conditionSource));
         // **A hold that puts its target inside the holder** — W7-B10. SRD
         // Shambling Mound's Engulf: "The target is pulled into the shambling
@@ -941,6 +957,19 @@ export function applyPrintedClauses(
           break;
         }
         land(sent.value);
+        // SRD Gelatinous Cube: "An engulfed target is suffocating." The
+        // glossary's hazard, filed against the record that holds the target
+        // inside, so the escape, a neighbour's pull and any other way out give
+        // the breath back. (M-HOLD)
+        if (clause.suffocates !== undefined) {
+          land([
+            breathTakenBy(target, line, {
+              by: 'inside',
+              source: printedElsewhereSource(source, line),
+              ...(clause.suffocates === 'unless-it-breathes-water' ? { unlessItBreathesWater: true as const } : {}),
+            }),
+          ]);
+        }
         conditions.push(...(clause.whileInside ?? []));
         break;
       }

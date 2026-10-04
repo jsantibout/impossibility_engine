@@ -132,6 +132,13 @@ export interface ConditionInstance {
    * absent is what it always meant: a creature that is down may get up.
    */
   readonly forbidsStandingUp?: true;
+  /**
+   * The range of the grapple this instance is, in feet, where it is longer
+   * than an Unarmed Strike's five — M-HOLD. SRD Roper's Tentacle holds at
+   * sixty feet; `lapsedGrapples` measures against this. Only ever on the
+   * named Grappled instance, never on what it implies; absent is five feet.
+   */
+  readonly range?: number;
 }
 
 /**
@@ -295,6 +302,11 @@ export function applyCondition(
    * condition with a different way out.
    */
   forbidsStandingUp = false,
+  /**
+   * The grapple's range, where it is longer than five feet — M-HOLD. Seventh
+   * and last, for the fifth's reason. See {@link ConditionInstance.range}.
+   */
+  range?: number,
 ): ConditionState {
   const id = conditionInstanceId(condition, source);
   if (state.instances.some((i) => i.id === id)) return state;
@@ -312,6 +324,7 @@ export function applyCondition(
       impliedBy: null,
       ...marks(condition),
       ...(forbidsStandingUp ? { forbidsStandingUp: true as const } : {}),
+      ...(range === undefined ? {} : { range }),
     },
   ];
 

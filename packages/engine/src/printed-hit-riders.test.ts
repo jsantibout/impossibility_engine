@@ -575,6 +575,9 @@ describe('reading a printed rider as a sequence', () => {
           conditions: ['blinded'],
           ifNoLargerThan: 'medium',
           ifAttackHadAdvantage: true,
+          // M-HOLD: "and is suffocating while the darkmantle is attached in
+          // this way" — the glossary's hazard, for as long as the cover lasts.
+          suffocates: 'always',
         },
         // W7-B10: the three sentences about the holder, read.
         attacksOnlyTarget: true,
@@ -583,8 +586,8 @@ describe('reading a printed rider as a sequence', () => {
         movesWithTarget: true,
       },
     ]);
-    // Suffocation is the one clause left, and it stays a handover.
-    expect(read.handedOver).toEqual(['is suffocating']);
+    // The suffocation was the one clause left; it is read now (M-HOLD).
+    expect(read.handedOver).toEqual([]);
   });
 
   /** An attach clause with nothing in front of it names a hold that is not there. */
@@ -621,10 +624,12 @@ describe('reading a printed rider as a sequence', () => {
         // W7-B10: the cap on what the rug holds, and what binds it while it holds.
         capacity: { creatures: 1 },
         whileHolding: { forbidsThisLine: true, halvesDamageTaken: true, sharesDamageWithHeld: true },
+        // M-HOLD: "Until the grapple ends, the target … is suffocating".
+        suffocates: 'always',
       },
     ]);
-    // Suffocation is the one clause left, and it stays a handover.
-    expect(read.handedOver).toEqual(['is suffocating']);
+    // The suffocation was the one clause left; it is read now (M-HOLD).
+    expect(read.handedOver).toEqual([]);
   });
 
   /** The reader's own refusals, unchanged: a sentence it cannot read is the DM's. */

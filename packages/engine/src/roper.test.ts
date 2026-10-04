@@ -17,7 +17,7 @@
 
 import { SRD_CONTENT } from '@ie/content';
 import { describe, expect, it } from 'vitest';
-import { asCharacterId, type CharacterId, expect as unwrap, isErr, type Result } from '@ie/shared';
+import { asCharacterId, type CharacterId, expect as unwrap, isErr, ok, type Result } from '@ie/shared';
 import {
   addCreature,
   addSceneLandmark,
@@ -27,9 +27,11 @@ import {
   forcePrintedSave,
   placeCreatureInScene,
   resolveAttack,
+  resolveTurn,
   setScene,
   takePrintedPull,
 } from './commands.js';
+import { currentCombatant } from './combat.js';
 import { hasCondition } from './conditions.js';
 import { createRng, type Rng } from './dice.js';
 import { fold, type GameEvent, type GameState } from './events.js';
@@ -38,7 +40,7 @@ import { conditionInstanceId } from './conditions.js';
 import { schedule } from './commands/conditions.js';
 import { distanceBetween } from './positioning.js';
 import { createRollIssuer } from './rolls.js';
-import { grappleSource, grapplerOf, grapplesOn } from './commands/unarmed.js';
+import { grappleSource, grapplerOf, grapplesOn, lapsedGrapples } from './commands/unarmed.js';
 
 const id = (s: string) => asCharacterId(s);
 const ROPER = id('roper');
@@ -107,12 +109,16 @@ const swing = (table: Table, action: string, target: CharacterId, commandId?: st
     table.supply(),
   );
 
+const endTurn = (table: Table, step: string): void => {
+  table.did(step, (s) => resolveTurn(s, table.supply(), { commandId: step }));
+};
+
 /** The tentacle objects the roper has raised, live or dead, in id order. */
 const tentaclesOf = (state: GameState): readonly CharacterId[] =>
   (Object.keys(state.creatures) as CharacterId[]).filter((who) => who.startsWith(`tentacle:${ROPER}:`)).sort();
 
 describe("the Roper's Tentacle, read", () => {
-  it('reads the hold, the Poisoned it carries, the thing it is made with, the cap, and hands the regrowth over', () => {
+  it('reads the hold, the Poisoned it carries, the thing it is made with, the cap, and the regrowth', () => {
     const read = readPrintedRiders(
       "The target has the Grappled condition (escape DC 14) from one of six tentacles, and the target has the Poisoned condition until the grapple ends. The tentacle can be damaged, freeing a creature it has Grappled when destroyed (AC 20, HP 10, Immunity to Poison and Psychic damage). Damaging the tentacle deals no damage to the roper, and a destroyed tentacle regrows at the start of the roper's next turn.",
     );
@@ -122,11 +128,19 @@ describe("the Roper's Tentacle, read", () => {
         escapeDc: 14,
         withLimbs: 'one of six tentacles',
         whileHeld: ['poisoned'],
-        heldByObject: { noun: 'tentacle', armorClass: 20, hitPoints: 10, immunities: ['poison', 'psychic'] },
+        heldByObject: {
+          noun: 'tentacle',
+          armorClass: 20,
+          hitPoints: 10,
+          immunities: ['poison', 'psychic'],
+          // M-HOLD: "a destroyed tentacle regrows at the start of the roper's
+          // next turn" — read, and spent at the holder's own boundary.
+          regrows: 'start-of-holders-next-turn',
+        },
         capacity: { creatures: 6 },
       },
     ]);
-    expect(read.handedOver).toEqual(["a destroyed tentacle regrows at the start of the roper's next turn."]);
+    expect(read.handedOver).toEqual([]);
   });
 });
 
@@ -163,8 +177,97 @@ describe("the Roper's Tentacle, swung", () => {
     expect(limb.vitals.hpMax).toBe(10);
     expect(limb.defenses['poison']).toEqual({ immune: true });
     expect(limb.defenses['psychic']).toEqual({ immune: true });
-    // The regrowth is the one clause handed to the table.
-    expect(out.unverified.join(' ')).toContain('regrows at the start of the roper');
+    // The regrowth is the engine's now (M-HOLD), and nothing is handed over.
+    expect(out.unverified.join(' ')).not.toContain('regrows');
+  });
+
+  /**
+   * SRD Grappled: "The condition also ends if … the distance between the
+   * Grappled target and the grappler exceeds **the grapple's range**." The
+   * Tentacle reaches sixty feet, and so does the hold it makes — M-HOLD. The
+   * grapple used to be measured at five feet, so a hold the roper had just
+   * made at thirty feet read as lapsed until it was reeled in.
+   */
+  it("measures the hold at the tentacle's reach, and lapses it only past sixty feet", () => {
+    const table = cavern();
+    table.log.push(...unwrap(swing(table, 'Tentacle', BREN), 'the tentacle').events);
+    // Thirty feet off the roper's edge, and held.
+    expect(lapsedGrapples(table.state)).toEqual([]);
+    // Bren is carried off seventy feet north by a friend; the hold has lapsed.
+    table.log.push({
+      type: 'creature-moved',
+      id: BREN,
+      placement: { from: { point: { x: 100, y: 180, z: 0 } }, feet: 0, bearing: 0 },
+    });
+    expect(lapsedGrapples(table.state).map((one) => [one.target, one.reason])).toEqual([[BREN, 'out-of-range']]);
+  });
+});
+
+describe("the Roper's tentacle, destroyed and grown back", () => {
+  /** Every tentacle object the roper has raised, live or dead. */
+  const deadTentacles = (state: GameState): readonly CharacterId[] =>
+    tentaclesOf(state).filter((who) => state.creatures[who]!.vitals.dead);
+
+  /**
+   * "a destroyed tentacle regrows at the start of the roper's next turn." Until
+   * then the roper has one tentacle fewer, so the six holds are five; at the
+   * start of its next turn the dead limb is gone and the six are six again.
+   */
+  it('counts a destroyed tentacle against the six until the start of the roper\'s next turn', () => {
+    const table = cavern();
+    // Five holds, then one of the five tentacles is hacked off: four held, one dead.
+    const knights = [BREN, SABLE, ...['k3', 'k4', 'k5', 'k6'].map(id)];
+    for (const who of knights.slice(2)) {
+      table.did(`${who} arrives`, (s) => addCreature(s, SRD_CONTENT, who, 'knight'));
+      table.do(`${who} stands`, (s) =>
+        placeCreatureInScene(s, who, { from: { point: { x: 120 + 5 * knights.indexOf(who), y: 140, z: 0 } }, feet: 0, bearing: 0 }),
+      );
+    }
+    for (const who of knights.slice(0, 4)) {
+      // Each by hand, past the Multiattack's two: what is measured is the cap.
+      table.log.push({ type: 'condition-applied', id: who, condition: 'grappled', source: grappleSource(ROPER) });
+    }
+    const limb = id(`tentacle:${ROPER}:${BREN}:9`);
+    table.do('a tentacle is raised', () =>
+      ok([
+        {
+          type: 'creature-added',
+          id: limb,
+          name: `${ROPER}'s tentacle`,
+          sheet: table.state.creatures[BREN]!.sheet,
+          maxHp: 10,
+          diesAtZero: true,
+          limbOf: { holder: ROPER, regrows: 'start-of-holders-next-turn' },
+        },
+      ]),
+    );
+    table.do('and hacked off', (s) => damageCreature(s, limb, { amount: 10, source: 'a sword' }));
+    expect(deadTentacles(table.state)).toEqual([limb]);
+    // A fifth hold is room the six still have: four held and one dead.
+    table.log.push({ type: 'condition-applied', id: knights[4]!, condition: 'grappled', source: grappleSource(ROPER) });
+    // Five live holds and one dead tentacle: the sixth hold has no tentacle to be made with.
+    const refused = swing(table, 'Tentacle', knights[5]!, 'sixth');
+    expect(isErr(refused) && refused.code).toBe('holding_enough');
+    // Round the order to the roper's next turn: the tentacle grows back.
+    for (const step of ['roper', 'bren', 'sable']) endTurn(table, `${step} is done`);
+    expect(currentCombatant(table.state.combat!).id).toBe(ROPER);
+    expect(table.state.creatures[limb]).toBeUndefined();
+    expect(swing(table, 'Tentacle', knights[5]!, 'sixth again').ok).toBe(true);
+  });
+});
+
+describe('a grapple made at reach and measured at five feet', () => {
+  it("keeps a plain grapple's range at five feet", () => {
+    const table = cavern();
+    table.log.push({ type: 'condition-applied', id: BREN, condition: 'grappled', source: grappleSource(SABLE) });
+    // Bren and Sable stand side by side, five feet apart.
+    expect(lapsedGrapples(table.state)).toEqual([]);
+    table.log.push({
+      type: 'creature-moved',
+      id: BREN,
+      placement: { from: { point: { x: 100, y: 150, z: 0 } }, feet: 0, bearing: 0 },
+    });
+    expect(lapsedGrapples(table.state).map((one) => one.reason)).toEqual(['out-of-range']);
   });
 
   it('frees the knight when the tentacle is destroyed, and none of it reaches the roper', () => {

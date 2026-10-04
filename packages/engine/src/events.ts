@@ -118,6 +118,8 @@ import type {
   KeptBond,
   ControlledBond,
   DeviceRecord,
+  GrantedWaterBreathing,
+  LimbRecord,
 } from './state.js';
 
 /**
@@ -185,6 +187,8 @@ export type {
   ControlledBond,
   SummonBond,
   DeviceRecord,
+  GrantedWaterBreathing,
+  LimbRecord,
 } from './state.js';
 export {
   initialState,
@@ -343,6 +347,12 @@ export type GameEvent =
        * both frozen fixtures fold unchanged and neither was regenerated.
        */
       readonly device?: DeviceRecord;
+      /**
+       * Whose limb this thing is, where a printed hold raised it as one that
+       * grows back — M-HOLD. See `CreatureState.limbOf`. Absent on every
+       * creature but such a limb, and on every log written before it.
+       */
+      readonly limbOf?: LimbRecord;
       /**
        * The Challenge Rating this creature's stat block prints — 1/8 as
        * `0.125`, exactly as the parser reads it.
@@ -992,6 +1002,35 @@ export type GameEvent =
       readonly hazard: HazardName;
       readonly command?: CommandStamp;
     }
+  /**
+   * A creature out of breath, at the end of one of its turns — M-HOLD.
+   *
+   * SRD *Suffocation*: "When a creature runs out of breath …, it gains 1
+   * Exhaustion level at the end of each of its turns." One event for the level
+   * and for the count of levels suffocation has given, which is what "removes
+   * all levels of Exhaustion it gained from suffocating" reads when the
+   * creature can breathe again. **No number**: the level is one, as the book
+   * prints it, and the clock that says the breath has run out is the fold's.
+   * Death at Exhaustion 6 is the fold's too, as for `exhaustion-set`.
+   */
+  | {
+      readonly type: 'suffocation-exhaustion-gained';
+      readonly id: CharacterId;
+      readonly command?: CommandStamp;
+    }
+  /**
+   * A casting lets a creature breathe water — M-HOLD. SRD *Water Breathing*:
+   * "the ability to breathe underwater until the spell ends"; SRD *Alter
+   * Self*'s Aquatic Adaptation. Read by the one rule that asks — SRD Water
+   * Elemental's Whelm, "is suffocating unless it can breathe water" — through
+   * `breathesWater`. Ended by the source it carries, as `fall-ward-granted`
+   * is: `releaseCasting`, `releaseOnTarget` and the `grants` timer.
+   */
+  | {
+      readonly type: 'water-breathing-granted';
+      readonly id: CharacterId;
+      readonly breathing: GrantedWaterBreathing;
+    }
 
   /**
    * A rule this creature's turn is now subject to — the ninth sourced grant.
@@ -1635,6 +1674,17 @@ export type GameEvent =
        */
       readonly endsOnDamage?: readonly ConditionName[];
       readonly endsWhenWoken?: readonly ConditionName[];
+      /**
+       * **The grapple's range**, in feet, where it is longer than the five an
+       * Unarmed Strike reaches — M-HOLD. SRD Grappled: "The condition also
+       * ends if … the distance between the Grappled target and the grappler
+       * exceeds the grapple's range." SRD Roper's Tentacle grapples at sixty
+       * feet, and a hold made there was read as lapsed the moment it was made.
+       * Pinned for `implies`' reason — the fold opens no catalogue — and
+       * absent on every log written before it, which is the five feet those
+       * logs always meant. Only on a Grappled.
+       */
+      readonly range?: number;
       /**
        * This application forbids the creature to right itself.
        *

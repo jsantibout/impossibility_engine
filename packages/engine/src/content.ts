@@ -447,6 +447,10 @@ export const ITEM_EFFECT_KINDS: ReadonlySet<string> = new Set([
   // invocation rather than on an item; the list's rule is what a reader
   // reaches, not what the book happens to have written.
   'sees-through',
+  // Water breathed, on the same test: `breathesWater` walks `standingFor`, so
+  // a worn cloak's gills reach the one rule that asks — SRD Cloak of the Manta
+  // Ray and Necklace of Adaptation print it. (M-HOLD)
+  'breathes-water',
   'ability-score-set',
   // A rule about the dice a swing throws, on the same test as the three
   // below: the gatherer is `standingDamageEffects`, which walks `standingFor`,

@@ -112,8 +112,9 @@ import { statedDawnAmount } from '../resources.js';
 import { isDown } from '../vitals.js';
 import { type SpellcastingState } from '../spellcasting.js';
 import { type Supply } from './casting.js';
-import { anchorNeeded, creatureOf, dyingOutsideAFight, sceneFor, unknownCreature } from './command.js';
+import { anchorNeeded, breathlessOutsideAFight, creatureOf, dyingOutsideAFight, sceneFor, unknownCreature } from './command.js';
 import {
+  regrowLimbs,
   settleBoundaryPayouts,
   settleStartOfTurnGrants,
   settleStartOfTurnRecharges,
@@ -462,7 +463,15 @@ export function beginCombat(
     );
     if (!body.ok) return body;
 
-    return ok([opened, ...paid.value.events, ...recharged.value, ...granted, ...body.value.events]);
+    // And the limbs it grows back as that turn begins — SRD Roper's "a
+    // destroyed tentacle regrows at the start of the roper's next turn", of
+    // which a fight opening on the roper's turn is one. (M-HOLD)
+    const regrown = regrowLimbs(
+      [...paid.value.events, ...recharged.value, ...granted, ...body.value.events].reduce(applyEvent, after),
+      beginning,
+    );
+
+    return ok([opened, ...paid.value.events, ...recharged.value, ...granted, ...body.value.events, ...regrown]);
   });
 }
 
@@ -686,6 +695,11 @@ export function advanceTime(
     // — E-STABLE. See `dyingOutsideAFight` for the reading and its question.
     const dying = dyingOutsideAFight(state, seconds);
     if (dying !== null) return dying;
+    // And a creature held without breath that would run out of it — M-HOLD.
+    // See `breathlessOutsideAFight`, which is the same question about the
+    // Exhaustion suffocation charges at the end of each of its turns.
+    const breathless = breathlessOutsideAFight(state, seconds);
+    if (breathless !== null) return breathless;
 
     return ok([
       { type: 'time-advanced', seconds, reason, ...(stamp === null ? {} : { command: stamp }) },

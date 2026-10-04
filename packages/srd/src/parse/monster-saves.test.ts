@@ -398,9 +398,9 @@ describe('the clauses a failure prints besides the damage', () => {
   it("reads the Water Elemental's whelm: a hold that carries a condition and owes a payout", () => {
     // "Until the grapple ends, the target has the Restrained condition, is
     // suffocating unless it can breathe water, and takes 9 (2d8) Bludgeoning
-    // damage at the start of each of the elemental's turns." Two of the three
-    // are primitives the engine has; the suffocation is not, and goes into
-    // `handedOver` under the book's own opening.
+    // damage at the start of each of the elemental's turns." All three are
+    // primitives the engine has since M-HOLD: the suffocation is the
+    // glossary's hazard, with the one exception the book prints on it.
     const whelm = lineOf('water-elemental', 'Whelm').save;
     expect(whelm?.onFailure).toEqual([
       {
@@ -420,11 +420,21 @@ describe('the clauses a failure prints besides the damage', () => {
         // what the hold may have at once, and the neighbour's pull.
         capacity: { large: 1, mediumOrSmaller: 2 },
         pullOutBy: { within: 5, ability: 'str', skill: 'athletics', dc: 14 },
+        // M-HOLD: "is suffocating unless it can breathe water".
+        suffocates: 'unless-it-breathes-water',
       },
     ]);
-    expect(whelm?.handedOver).toEqual([
-      'Until the grapple ends, the target is suffocating unless it can breathe water.',
-    ]);
+    expect(whelm?.handedOver).toBeUndefined();
+  });
+
+  it('carries a middle it does not know rather than guessing at it', () => {
+    // A homebrew hold with a third wording of the breath: not the book's two,
+    // so it is carried whole and the hold reads without it.
+    const line = parseSaveLine(
+      "_Strength Saving Throw:_ DC 15, each creature in the elemental's space. _Failure:_ 22 (4d8 + 4) Bludgeoning damage. If the target is a Large or smaller creature, it has the Grappled condition (escape DC 14). Until the grapple ends, the target has the Restrained condition, is drowning slowly, and takes 9 (2d8) Bludgeoning damage at the start of each of the elemental's turns. _Success:_ Half damage only.",
+    );
+    expect(line?.onFailure[0]).not.toHaveProperty('suffocates');
+    expect(line?.handedOver).toEqual(['Until the grapple ends, the target is drowning slowly.']);
   });
 
   it('reads a second damage component after "plus", and the bite that feeds on it', () => {
@@ -1630,6 +1640,8 @@ describe('who a spent line catches', () => {
     }
     // The counts the corpus held before I-E9, pinned: reading who a line
     // catches gains and loses no line its save, and hands nothing new over.
-    expect({ save, handed, filed }).toEqual({ save: 151, handed: 15, filed: 8 });
+    // M-HOLD read the suffocation off two of the fifteen — SRD Gelatinous
+    // Cube's Engulf and SRD Water Elemental's Whelm — and nothing else moved.
+    expect({ save, handed, filed }).toEqual({ save: 151, handed: 13, filed: 8 });
   });
 });

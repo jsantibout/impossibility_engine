@@ -68,6 +68,7 @@ import { distanceBetweenPoints, positionOf } from './positioning.js';
 import { grantedRollModes } from './roll-modifiers.js';
 import { createRollIssuer } from './rolls.js';
 import { actionRulesOn, speedOf } from './standing.js';
+import { isSuffocating, suffocationOn } from './hazards.js';
 import { createCharacter, type CharacterChoices } from './creation.js';
 
 const id = (s: string) => asCharacterId(s);
@@ -1373,12 +1374,22 @@ describe('a hold that owes a payout at its holder boundary', () => {
       expect(has(freed, BREN, 'restrained')).toBe(false);
       expect(paidBy(freed, `${seed}-free`)).toEqual([]);
 
-      // The one sentence the reader still carries reaches the table at the
-      // moment of use, in the book's own words. The other two — the cap on
-      // what the hold may have and the neighbour's pull — are read since
-      // W7-B10: the cap is the door's `holding_enough`, and the pull is the
-      // escape check widened to a creature within reach of the held one.
-      expect(out.unverified.some((one) => one.includes('suffocating unless it can breathe water'))).toBe(true);
+      // "is suffocating unless it can breathe water" — M-HOLD: the hazard,
+      // filed against the grapple and carrying the book's one exception; the
+      // escape gives the breath back.
+      expect(suffocationOn(state, BREN)).toMatchObject({
+        hazard: 'suffocating',
+        while: [{ by: 'grapple', source: `grapple:${FOE}`, unlessItBreathesWater: true }],
+        since: state.elapsed,
+      });
+      expect(suffocationOn(freed, BREN)).toBeNull();
+
+      // Nothing the reader carries reaches the table any more. The cap on
+      // what the hold may have and the neighbour's pull are read since
+      // W7-B10 — the cap is the door's `holding_enough`, and the pull is the
+      // escape check widened to a creature within reach of the held one —
+      // and the suffocation since M-HOLD.
+      expect(out.unverified.some((one) => one.includes('suffocating'))).toBe(false);
       expect(out.unverified.some((one) => one.includes('one Large creature or up to two Medium'))).toBe(false);
       expect(out.unverified.some((one) => one.includes('pull a creature out of it'))).toBe(false);
       const [hold] = timersOn(state, BREN);
@@ -1386,6 +1397,41 @@ describe('a hold that owes a payout at its holder boundary', () => {
       return;
     }
     throw new Error('no seed failed the save');
+  });
+
+  /**
+   * "…is suffocating **unless it can breathe water**" — M-HOLD. A Merfolk
+   * Skirmisher prints Amphibious, so the elemental holds it and it breathes;
+   * a knight it holds cannot, until something lets it breathe water — and then
+   * it can breathe again, and sheds what suffocating cost it.
+   */
+  it('holds a creature that breathes water without smothering it, and lets a held one breathe once it can', () => {
+    const MER = id('mer');
+    for (const seed of SEEDS) {
+      const { out, state } = forced('water-elemental', 'Whelm (Recharge 4–6)', seed, [BREN, MER], [
+        { id: MER, monster: 'merfolk-skirmisher' },
+      ]);
+      if (out.outcomes.some((one) => one.save!.success)) continue;
+      // Both held; only the knight is holding its breath.
+      expect(has(state, MER, 'grappled')).toBe(true);
+      expect(suffocationOn(state, MER)?.since).toBeUndefined();
+      expect(isSuffocating(state, MER)).toBe(false);
+      expect(isSuffocating(state, BREN)).toBe(true);
+      // A level of Exhaustion the suffocation gave, by hand, and then a
+      // casting that lets the knight breathe water.
+      const winded = after(state, [{ type: 'suffocation-exhaustion-gained', id: BREN }]);
+      expect(winded.creatures[BREN]!.conditions.exhaustion).toBe(1);
+      const gills = after(winded, [
+        { type: 'water-breathing-granted', id: BREN, breathing: { source: 'Water Breathing#cast:99' } },
+      ]);
+      expect(isSuffocating(gills, BREN)).toBe(false);
+      expect(gills.creatures[BREN]!.conditions.exhaustion).toBe(0);
+      // Still held: the hold is the elemental's, the breath is the spell's.
+      expect(has(gills, BREN, 'grappled')).toBe(true);
+      expect(suffocationOn(gills, BREN)?.while).toHaveLength(1);
+      return;
+    }
+    throw new Error('no seed failed both saves');
   });
 });
 

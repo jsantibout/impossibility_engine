@@ -24,7 +24,7 @@ import { asCharacterId, type CharacterId, err, ok, type Result } from '@ie/share
 import type { CreatureSize } from '@ie/srd/schemas';
 import type { DamageDefenses } from '../attack.js';
 import type { Content } from '../content.js';
-import type { GameEvent, GameState } from '../events.js';
+import type { GameEvent, GameState, LimbRecord } from '../events.js';
 import { type CommandIdentity, once } from '../idempotency.js';
 import {
   objectDefenses,
@@ -219,6 +219,11 @@ export function raisePrintedObject(
     readonly vulnerabilities?: readonly string[];
     readonly resistances?: readonly string[];
     readonly immunities?: readonly string[];
+    /**
+     * Whose limb this is, where the line says it grows back — SRD Roper's
+     * tentacle (M-HOLD). Pinned on the arrival; see `CreatureState.limbOf`.
+     */
+    readonly limbOf?: LimbRecord;
   },
 ): Result<GameEvent[]> {
   if (creatureOf(state, id) !== null) {
@@ -248,6 +253,7 @@ export function raisePrintedObject(
       creatureType: OBJECT_CREATURE_TYPE,
       defenses,
       conditionImmunities: OBJECT_CONDITION_IMMUNITIES,
+      ...(printed.limbOf === undefined ? {} : { limbOf: printed.limbOf }),
     },
   ]);
 }
