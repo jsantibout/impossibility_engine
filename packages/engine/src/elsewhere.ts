@@ -57,6 +57,14 @@ export type ElsewhereKind = 'ethereal' | 'extradimensional' | 'inside';
 export interface AwayMark {
   readonly kind: ElsewhereKind;
   readonly host?: CharacterId;
+  /**
+   * The creature is inside its host as the body's **possessor** — M-MIND, SRD
+   * Ghost's Possession — and so does not reach its host the way a swallowed
+   * creature does: "the ghost disappears" and "now controls the body", so
+   * what it does it does through the body, which is the table's to play. A
+   * possessor is at no distance from anybody, its host included.
+   */
+  readonly possessor?: true;
 }
 
 /**

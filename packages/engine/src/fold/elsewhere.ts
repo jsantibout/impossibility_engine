@@ -71,6 +71,8 @@ export function applyElsewhere({ state, next }: Applying, event: ElsewhereEvent)
         scene: sendAway(scene, event.id, {
           kind: event.kind,
           ...(event.host === undefined ? {} : { host: event.host }),
+          // A possessor reaches nobody, its host included (M-MIND).
+          ...(event.possesses === undefined ? {} : { possessor: true as const }),
         }),
       };
     }

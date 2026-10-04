@@ -1034,14 +1034,27 @@ const DOES_NOT_AVOID = new RegExp(
  * an unoccupied space within 5 feet of the target, and the target is immune
  * to this ghost's Possession for 24 hours") are the record's. Those three are
  * read into a `possesses` clause, whole or not at all. What the possessor
- * does with the body — who drives it, what reaches the ghost inside it, whose
- * Speed and modifiers it uses — is the owner's compulsion ruling, and filed.
+ * does with the body — who drives it, whose Speed and modifiers it uses — is
+ * the owner's compulsion ruling, and filed. What reaches the ghost inside it
+ * is not: see {@link UNTARGETABLE_BUT_BY_A_TYPE}, carried as owed.
  *
  * "and loses control of its body" closes the first sentence and is read with
  * it: the control is the next sentence's ("The ghost now controls the body"),
  * which is filed, and the Incapacitated is what the engine holds of it.
  */
 const POSSESSED = /^The target is possessed by the [a-z' -]+; /;
+/**
+ * "The ghost can't be targeted by any attack, spell, or other effect, except
+ * ones that specifically target Undead." — **carried as owed, not filed**
+ * (M-MIND's review). The engine executes the first half: a possessor is inside
+ * its host and nothing reaches it. The exception is a rule a later effect
+ * reads — SRD Turn Undead names Undead within 30 feet, and cannot catch a ghost
+ * that has no position — so it is a debt with a seam (an effect narrowed to a
+ * creature type reaching a possessor at its host's place), not fiction.
+ */
+const UNTARGETABLE_BUT_BY_A_TYPE = new RegExp(
+  `^The [a-z' -]+ can${APOSTROPHE}t be targeted by any attack, spell, or other effect, except ones that specifically target [A-Z][a-z]+\\.$`,
+);
 const POSSESSED_WHOLE = new RegExp(
   '^The target is possessed by the [a-z\' -]+; the [a-z\' -]+ disappears, and the target has the ' +
     '([A-Z][a-z]+) condition and loses control of its body\\.$',
@@ -2628,7 +2641,11 @@ function readSection(
  */
 function readPossession(
   text: string,
-): { readonly effect: PrintedSaveEffect; readonly filed: readonly PrintedHandover[] } | null {
+): {
+  readonly effect: PrintedSaveEffect;
+  readonly filed: readonly PrintedHandover[];
+  readonly carried: readonly string[];
+} | null {
   const sentences = text
     .split(/(?<=\.)\s+(?=[A-Z])/)
     .map((sentence) => sentence.trim())
@@ -2640,9 +2657,11 @@ function readPossession(
   let lasts = false;
   let ends: RegExpExecArray | null = null;
   const filed: PrintedHandover[] = [];
+  const carried: string[] = [];
   for (const sentence of sentences.slice(1)) {
     if (POSSESSION_LASTS.test(sentence)) lasts = true;
     else if (POSSESSION_ENDS.test(sentence)) ends = POSSESSION_ENDS.exec(sentence);
+    else if (UNTARGETABLE_BUT_BY_A_TYPE.test(sentence)) carried.push(sentence);
     else filed.push({ kind: 'a-compulsion-the-table-plays', sentence });
   }
   if (!lasts || ends === null) return null;
@@ -2656,6 +2675,7 @@ function readPossession(
       immunity: { line: ends[2]!, seconds: Number(ends[3]) * 3600 },
     },
     filed,
+    carried,
   };
 }
 
@@ -3110,7 +3130,7 @@ export function parsePrintedSave(text: string): MonsterSave | null {
             damage: null,
             plus: null,
             effects: [possession.effect],
-            handedOver: [],
+            handedOver: possession.carried,
             filed: possession.filed,
             readSomething: true,
           }

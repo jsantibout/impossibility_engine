@@ -1333,17 +1333,16 @@ describe('the honesty pass: compulsions and fiction filed apart from the residue
         kind: compulsion,
         on: 'failure',
         sentence:
-          "The ghost can't be targeted by any attack, spell, or other effect, except ones that specifically target Undead.",
-      },
-      {
-        kind: compulsion,
-        on: 'failure',
-        sentence:
           "The ghost's game statistics are the same, except it uses the possessed target's Speed, as well as the target's Strength, Dexterity, and Constitution modifiers.",
       },
     ]);
-    // And nothing is owed.
-    expect(save?.handedOver ?? []).toEqual([]);
+    // **And one sentence is owed.** The engine executes "can't be targeted" —
+    // a possessor inside its host is reached by nothing — and the exception,
+    // "except ones that specifically target Undead", is a rule SRD Turn Undead
+    // reads and cannot reach a ghost with no position. A debt, not fiction.
+    expect(save?.handedOver).toEqual([
+      "The ghost can't be targeted by any attack, spell, or other effect, except ones that specifically target Undead.",
+    ]);
   });
 
   it("reads the harpy's Luring Song: the Charm and its repeat are the engine's, the walk is the table's", () => {

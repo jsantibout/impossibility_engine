@@ -1630,8 +1630,9 @@ describe('who a spent line catches', () => {
     }
     // The counts the corpus held before I-E9, pinned: reading who a line
     // catches gains and loses no line its save, and hands nothing new over.
-    // M-MIND: the Ghost's Possession reads its ending, and hands nothing over
-    // any more (15 → 14).
-    expect({ save, handed, filed }).toEqual({ save: 151, handed: 14, filed: 8 });
+    // M-MIND: the Ghost's Possession reads its ending, and still hands one
+    // sentence over — the exception to "can't be targeted" — so the counts
+    // stand.
+    expect({ save, handed, filed }).toEqual({ save: 151, handed: 15, filed: 8 });
   });
 });

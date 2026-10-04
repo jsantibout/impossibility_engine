@@ -1980,7 +1980,7 @@ export const HANDOVER_TRAIT_KINDS: Readonly<Record<string, string>> = {
  */
 export const HANDOVER_LINE_KINDS: Readonly<Record<string, string>> = {
   'a-compulsion-the-table-plays':
-    'The owner ruled on 2026-09-24 that a compulsion is legality the table adjudicates, so it is a handover. Each sentence under this kind makes a creature act by a rule rather than by its player: SRD Ghost\'s Possession (who drives the body, what the ghost may be targeted by while inside it, whose Speed and modifiers it uses — where the ghost is, the Incapacitated, the two endings and the day\'s grace are the engine\'s since M-MIND), SRD Harpy\'s Luring Song (which way the charmed creature walks, and that it walks into Opportunity Attacks), the row SRD Gibbering Mouther\'s d8 lands on, what SRD Flesh Golem attacks once berserk and whether its creator has calmed it, and what a lycanthrope\'s victim becomes at 0 Hit Points — a player\'s character handed to the DM, which is the doctrine\'s own line. The numbers around each — the save, the recharge, the die, the day\'s grace, the curse on the record — are the engine\'s and are executed; only the creature being played is filed.',
+    'The owner ruled on 2026-09-24 that a compulsion is legality the table adjudicates, so it is a handover. Each sentence under this kind makes a creature act by a rule rather than by its player: SRD Ghost\'s Possession (who drives the body and whose Speed and modifiers it uses — where the ghost is, the Incapacitated, the two endings and the day\'s grace are the engine\'s since M-MIND, and what may still target the ghost inside the body is owed), SRD Harpy\'s Luring Song (which way the charmed creature walks, and that it walks into Opportunity Attacks), the row SRD Gibbering Mouther\'s d8 lands on, what SRD Flesh Golem attacks once berserk and whether its creator has calmed it, and what a lycanthrope\'s victim becomes at 0 Hit Points — a player\'s character handed to the DM, which is the doctrine\'s own line. The numbers around each — the save, the recharge, the die, the day\'s grace, the curse on the record — are the engine\'s and are executed; only the creature being played is filed.',
   'a-reflection-nothing-holds':
     'SRD Basilisk and SRD Medusa: "If the basilisk sees its reflection in the Cone, the basilisk must make this save." The scene holds no mirror and nothing that reflects, and the line already takes its head count from the table — so a DM who declares the mirror names the basilisk among the targets of the door that rolls the gaze, and nothing afterwards reads that it was a reflection.',
   'water-nothing-holds':
@@ -2008,7 +2008,7 @@ export const HANDOVER_LINE_KINDS: Readonly<Record<string, string>> = {
  */
 export const ARGUED_FILINGS: Readonly<Record<string, string>> = {
   "uses the possessed target's Speed":
-    'The Speed and the three ability modifiers are the ghost\'s statistics while it drives a body it has no record in; nothing in the engine is moving or rolling for a ghost that has disappeared into somebody else.',
+    'The Speed and the three ability modifiers are the ghost\'s statistics while it drives a body it has no record in; nothing in the engine is moving or rolling for a ghost that has disappeared into somebody else — a possessor inside its host reaches nobody, the host included (`AwayMark.possessor`, M-MIND), so every roll those modifiers would feed is one made through the body, which is who plays the body.',
   'If the cursed target drops to 0 Hit Points':
     'A player\'s character handed to the DM as a stat block the DM is playing — the doctrine\'s line. The 10 Hit Points are the new creature\'s, which the table brings in; the curse this reads is on the record, kept by the engine.',
   "doesn't grant Resistance to this":
@@ -2481,10 +2481,12 @@ export const UNREAD_SAVE_SEAMS: Readonly<Record<string, string>> = {
 // `a-compulsion-the-table-plays`. Each still carries a residue it owes, and
 // sits on `SAVE_HANDOVER_SHAPE` for it: the day's grace a possession's ending
 // buys, and the song's Concentration, the other harpies' songs and the two
-// repeats a blow or lava raise. **The Ghost's left that row in M-MIND**: the
+// repeats a blow or lava raise. **The Ghost's residue moved in M-MIND**: the
 // possession is a `possesses` clause — the ghost inside the body, the
 // Incapacitated for as long as it lasts, the two endings and the grace — and
-// only who drives the body is filed.
+// who drives the body is filed. What it still owes is the exception to "can't
+// be targeted": an effect that specifically targets Undead (SRD Turn Undead)
+// reaching a possessor that has no position, at its host's place.
 
 /** Whether this line prints the save template and the reader got nothing out of it. */
 export const isUnreadSave = (line: StatBlockLine): boolean =>

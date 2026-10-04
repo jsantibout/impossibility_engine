@@ -236,11 +236,13 @@ describe("the ghost's Possession: the save and the day's grace are the engine's,
     const filed = handedOverIn(done.unverified);
     expect(filed).toEqual([
       'The ghost now controls the body, but the target retains awareness.',
-      "The ghost can't be targeted by any attack, spell, or other effect, except ones that specifically target Undead.",
       "The ghost's game statistics are the same, except it uses the possessed target's Speed, as well as the target's Strength, Dexterity, and Constitution modifiers.",
     ]);
-    // And nothing of the line is owed any more.
-    expect(owedIn(done.unverified).join(' ')).not.toContain('When the possession ends');
+    // The ending is the engine's now, and the one sentence still owed is the
+    // exception to "can't be targeted" — said, unmarked, as a debt.
+    const owed = owedIn(done.unverified).join(' ');
+    expect(owed).not.toContain('When the possession ends');
+    expect(owed).toContain('except ones that specifically target Undead');
   });
 
   it("keeps a day's grace on a success, and the next Possession passes the target by", () => {

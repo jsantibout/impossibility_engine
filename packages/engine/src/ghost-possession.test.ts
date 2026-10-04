@@ -226,11 +226,21 @@ describe('a failed save: the ghost inside the body, and the body Incapacitated',
     expect(state.creatures[BODY]!.conditions.conditions).toEqual(['incapacitated']);
     expect(state.creatures[BODY]!.conditions.instances.map((one) => one.source)).toEqual([POSSESSION]);
     expect(done.outcomes[0]?.conditions).toEqual(['incapacitated']);
-    // "the ghost disappears": no ruler reaches it.
+    // "the ghost disappears": no ruler reaches it — and, unlike a swallowed
+    // creature, it reaches no ruler either, its own host included: it "now
+    // controls the body", so what it does it does through the body.
     const apart = distanceBetween(state.scene!, OTHER, GHOST);
     expect(isErr(apart) && apart.code).toBe('not_here');
-    // Who drives the body is the table's, in the book's words.
-    expect(done.unverified.filter((line) => line.includes(DM_DECIDES))).toHaveLength(3);
+    const own = distanceBetween(state.scene!, GHOST, BODY);
+    expect(isErr(own) && own.code).toBe('not_here');
+    const back = distanceBetween(state.scene!, BODY, GHOST);
+    expect(isErr(back) && back.code).toBe('not_here');
+    // Who drives the body is the table's, in the book's words; the exception
+    // to "can't be targeted" is owed, unmarked.
+    expect(done.unverified.filter((line) => line.includes(DM_DECIDES))).toHaveLength(2);
+    expect(
+      done.unverified.filter((line) => !line.includes(DM_DECIDES)).join(' '),
+    ).toContain('except ones that specifically target Undead');
   });
 });
 
