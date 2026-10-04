@@ -2376,13 +2376,14 @@ export function resolveTurn(
       );
     }
 
-    // A swing declared and not thrown — M-REFLEX, SRD Redirect Attack. Its
-    // target may have spent a Reaction and changed places for it, so the turn
-    // does not move on around it.
-    if (state.pendingSwing !== undefined) {
+    // A swing declared and not yet answered — M-REFLEX, SRD Redirect Attack.
+    // Its target owes the answer, so the turn does not move on around it. One
+    // already answered and never thrown lapses at the boundary instead: the
+    // attacker made no attack (see `PendingSwing`).
+    if (state.pendingSwing !== undefined && !state.pendingSwing.answered) {
       return err(
         'attack_declared',
-        `${state.pendingSwing.attacker} has declared an attack at ${state.pendingSwing.declaredAt} that is not yet thrown; settle it before the turn moves on`,
+        `${state.pendingSwing.declaredAt} has not yet answered the attack ${state.pendingSwing.attacker} declared at it; settle it before the turn moves on`,
       );
     }
 

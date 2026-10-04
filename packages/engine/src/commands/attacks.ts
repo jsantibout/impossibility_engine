@@ -177,7 +177,8 @@ import { grapplesOn } from './unarmed.js';
 import { roomInside } from '../elsewhere.js';
 import { effectiveSizeOf } from '../size.js';
 import { typeMagicSees } from '../creature-type.js';
-import { type RollElection } from '../rolls.js';
+import { createRollIssuer, type RollElection } from '../rolls.js';
+import { restoreRng } from '../dice.js';
 import {
   allyWithinFiveFeetOf,
   defendingModes,
@@ -2030,10 +2031,14 @@ function swingAt(
           `${declared.declaredAt} has not yet answered the attack ${id} declared at it`,
         );
       }
-      if (command.target !== declared.declaredAt && command.target !== declared.target) {
+      if (
+        (command.target !== declared.declaredAt && command.target !== declared.target) ||
+        command.weapon !== declared.weapon ||
+        command.action !== declared.action
+      ) {
         return err(
           'attack_declared',
-          `${id} declared its attack at ${declared.declaredAt}, and that is the attack it makes now`,
+          `${id} declared its attack at ${declared.declaredAt} with ${declared.action ?? declared.weapon ?? 'an Unarmed Strike'}, and that is the attack it makes now`,
         );
       }
       const thrown = swingAt(state, id, { ...command, target: declared.target }, supply, stamp, true);
@@ -2484,11 +2489,29 @@ function swingAt(
     // Opportunity Attack, a Retaliation, a readied swing, a Cleave. Each is
     // made by a command that is itself settling something — a move it holds,
     // a Reaction it has spent — and a second hold inside it would have that
-    // command finish around a swing that has not been thrown. The residue is
-    // stated where the line is counted, in `coverage-data.ts`.
+    // command finish around a swing that has not been thrown. Nor on a spell's
+    // attack roll, which is made inside a casting and never comes here. Both
+    // residues are stated where the line is counted, in `coverage-data.ts`.
     if (!lostToWard && !throwingDeclared && command.free !== true) {
       const answers = declaredAttackOffers(state, command.target, id);
       if (answers.offers.length > 0) {
+        // **Validated whole before it is held.** Everything below this point
+        // can still refuse — the Attack action spent, a Multiattack's sequence,
+        // the cantrip cast with the swing — and a swing held and then refused
+        // would leave the target's Reaction spent and two creatures swapped for
+        // an attack that never came. So the rest of the swing is rehearsed on
+        // the world the ward left, with a copy of the generator and an issuer
+        // of its own, and its answer is discarded: a refusal is returned now,
+        // with nothing declared, and the real generator has not moved.
+        const rehearsal = swingAt(
+          ward.value.events.reduce(applyEvent, state),
+          id,
+          command,
+          { ...supply, issuer: createRollIssuer('rehearsal'), rng: restoreRng(supply.rng.snapshot()) },
+          null,
+          true,
+        );
+        if (!rehearsal.ok) return rehearsal;
         return ok({
           events: [
             ...ward.value.events,
@@ -2497,6 +2520,9 @@ function swingAt(
               type: 'attack-declared',
               attacker: id,
               target: command.target,
+              // What it is made with, pinned so the swing thrown is this one.
+              weapon: command.weapon,
+              ...(command.action === undefined ? {} : { action: command.action }),
               offers: answers.offers,
               ...(stamp === null ? {} : { command: stamp }),
             },

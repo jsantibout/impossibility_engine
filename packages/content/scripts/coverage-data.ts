@@ -1713,6 +1713,14 @@ export const hasHandedOverRider = (line: StatBlockLine): boolean => {
  * The goblin redirects the attacks a creature makes on its own and not those;
  * the day a nested swing can be held, the narrowing in `swingAt` comes out.
  *
+ * **And a second, of the same kind: a spell's attack roll** — SRD Fire Bolt,
+ * Eldritch Blast, Guiding Bolt, Scorching Ray. Those are rolled inside the
+ * casting's own resolution (`spell-effect-rolls.ts`) and never reach `swingAt`,
+ * so they open no `attack-declared` window either; holding one would be a hold
+ * in the middle of a casting, a shape the pipeline does not have. The window
+ * is the weapon and printed-line swing's. Whether this keeps the line on the
+ * ledger is the coordinator's call, reported with the slice.
+ *
  * **And four readers widened in W7-B12 without a new kind**: Vampire Spawn's
  * Sunlight is `disadvantage-in-sunlight` with `hurtAtTurnStart`, burnt by
  * `settleStartOfTurnBody`; the Fire Elemental's aura is

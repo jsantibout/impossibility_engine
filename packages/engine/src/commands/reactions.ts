@@ -2025,7 +2025,7 @@ function releaseCloud(
   if (region === null) {
     return err(
       'cube_off_the_lattice',
-      `a ${does.cubeFeet}-foot Cube centred on ${reactor} would not sit on whole spaces around it; where it lies is the table's to say`,
+      `a ${does.cubeFeet}-foot Cube centred on ${reactor} would not sit on whole spaces around it, and the engine lays a centred Cube only where it does`,
     );
   }
 

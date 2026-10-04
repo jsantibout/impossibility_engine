@@ -3428,6 +3428,9 @@ export type GameEvent =
       readonly type: 'attack-declared';
       readonly attacker: CharacterId;
       readonly target: CharacterId;
+      /** What the swing is made with — see `PendingSwing.weapon`. */
+      readonly weapon: string | null;
+      readonly action?: string;
       readonly offers: readonly ReactionOffer[];
       readonly command?: CommandStamp;
     }

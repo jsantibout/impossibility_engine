@@ -526,8 +526,9 @@ export function takeDisengage(
  * is `settleConcentratedFeatures`, and the line has to carry a `concentrates`
  * record for it to be found there.
  *
- * After, not before: a condition the fold sees hung under a line that is not
- * yet running is one the same pass takes off again.
+ * The order the caller hangs them in does not matter: the pass takes the
+ * line's conditions off at the moment the line *stops* running, so whatever is
+ * standing under its source then — hung before these events or after — goes.
  */
 export function beginPrintedConcentration(
   state: GameState,
@@ -2466,6 +2467,11 @@ export function takePrintedTeleport(
       if (state.pendingAttack !== null) {
         return err('attack_pending', 'a hit is waiting for its damage; settle it first');
       }
+      // A swing declared and not thrown is measured from where its two ends
+      // stand — M-REFLEX, SRD Redirect Attack. Nothing moves until it is thrown.
+      if (state.pendingSwing !== undefined) {
+        return err('attack_declared', 'a declared attack is waiting to be thrown; settle it first');
+      }
 
       // A mandatory effect this creature has been caught by, or a turn whose
       // start has not arrived. **After the duplicate check, never before it.**
@@ -3019,6 +3025,11 @@ export function takePrintedPull(
       }
       if (state.pendingAttack !== null) {
         return err('attack_pending', 'a hit is waiting for its damage; settle it first');
+      }
+      // A swing declared and not thrown is measured from where its two ends
+      // stand — M-REFLEX, SRD Redirect Attack. Nothing moves until it is thrown.
+      if (state.pendingSwing !== undefined) {
+        return err('attack_declared', 'a declared attack is waiting to be thrown; settle it first');
       }
 
       const owedHere = mayAct(state, id, 'act');

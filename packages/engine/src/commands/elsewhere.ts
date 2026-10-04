@@ -462,6 +462,11 @@ export function returnFromElsewhere(
       if (state.pendingAttack !== null) {
         return err('attack_pending', 'a hit is waiting for its damage; settle it first');
       }
+      // A swing declared and not thrown is measured from where its two ends
+      // stand — M-REFLEX, SRD Redirect Attack. Nothing moves until it is thrown.
+      if (state.pendingSwing !== undefined) {
+        return err('attack_declared', 'a declared attack is waiting to be thrown; settle it first');
+      }
       const creature = creatureOf(state, who);
       if (creature === null) return unknownCreature(who);
       const record = creature.elsewhere;
@@ -1379,6 +1384,11 @@ export function takePrintedSwallow(
       if (state.pendingAttack !== null) {
         return err('attack_pending', 'a hit is waiting for its damage; settle it first');
       }
+      // A swing declared and not thrown is measured from where its two ends
+      // stand — M-REFLEX, SRD Redirect Attack. Nothing moves until it is thrown.
+      if (state.pendingSwing !== undefined) {
+        return err('attack_declared', 'a declared attack is waiting to be thrown; settle it first');
+      }
       const owedHere = mayAct(state, id, 'act');
       if (owedHere !== null) return owedHere;
       const creature = creatureOf(state, id);
@@ -1545,6 +1555,11 @@ export function escapeFromInside(
       if (state.pendingAttack !== null) {
         return err('attack_pending', 'a hit is waiting for its damage; settle it first');
       }
+      // A swing declared and not thrown is measured from where its two ends
+      // stand — M-REFLEX, SRD Redirect Attack. Nothing moves until it is thrown.
+      if (state.pendingSwing !== undefined) {
+        return err('attack_declared', 'a declared attack is waiting to be thrown; settle it first');
+      }
       const owedHere = mayAct(state, who, 'act');
       if (owedHere !== null) return owedHere;
       const creature = creatureOf(state, who);
@@ -1694,6 +1709,11 @@ export function pullOutOfCreature(
       }
       if (state.pendingAttack !== null) {
         return err('attack_pending', 'a hit is waiting for its damage; settle it first');
+      }
+      // A swing declared and not thrown is measured from where its two ends
+      // stand — M-REFLEX, SRD Redirect Attack. Nothing moves until it is thrown.
+      if (state.pendingSwing !== undefined) {
+        return err('attack_declared', 'a declared attack is waiting to be thrown; settle it first');
       }
       const owedHere = mayAct(state, puller, 'act');
       if (owedHere !== null) return owedHere;
@@ -1925,6 +1945,11 @@ export function takePrintedPlaneShift(
       }
       if (state.pendingAttack !== null) {
         return err('attack_pending', 'a hit is waiting for its damage; settle it first');
+      }
+      // A swing declared and not thrown is measured from where its two ends
+      // stand — M-REFLEX, SRD Redirect Attack. Nothing moves until it is thrown.
+      if (state.pendingSwing !== undefined) {
+        return err('attack_declared', 'a declared attack is waiting to be thrown; settle it first');
       }
       const owedHere = mayAct(state, id, 'act');
       if (owedHere !== null) return owedHere;

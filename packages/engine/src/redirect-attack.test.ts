@@ -151,6 +151,44 @@ describe('a swing at the goblin boss, with an ally beside it', () => {
   });
 });
 
+describe('a declared swing is the swing that is thrown', () => {
+  it('is never declared where it could not be thrown, so nobody answers for nothing', () => {
+    // The bandit's Action is gone: the swing is refused before any window
+    // opens, and no Reaction is offered for an attack that cannot come.
+    const spent = after(camp(), [{ type: 'action-spent', id: BANDIT }]);
+    const refused = swing(spent);
+    expect(refused.ok).toBe(false);
+    expect(spent.pendingSwing).toBeUndefined();
+  });
+
+  it('refuses a different weapon after the answer', () => {
+    let state = after(camp(), unwrap(swing(camp()), 'declare').events);
+    state = after(
+      state,
+      unwrap(redirectDeclaredAttack(state, BOSS, { feature: REDIRECT, ally: GOBLIN, commandId: 'r' }), 'redirect'),
+    );
+    const switched = resolveAttack(
+      state,
+      BANDIT,
+      { target: BOSS, weapon: null, action: 'Light Crossbow', commandId: 'switch' },
+      supply(),
+    );
+    expect(isErr(switched) && switched.code).toBe('attack_declared');
+  });
+
+  it('lapses at the turn’s end once answered and never thrown, and the answer stands', () => {
+    let state = after(camp(), unwrap(swing(camp()), 'declare').events);
+    state = after(
+      state,
+      unwrap(redirectDeclaredAttack(state, BOSS, { feature: REDIRECT, ally: GOBLIN, commandId: 'r' }), 'redirect'),
+    );
+    state = after(state, unwrap(resolveTurn(state, supply(), { commandId: 'end' }), 'end').events);
+    expect(state.pendingSwing).toBeUndefined();
+    // The swap the answer made stands: the goblin is where the boss was.
+    expect(positionOf(state.scene!, GOBLIN)).toEqual({ x: 100, y: 100, z: 0 });
+  });
+});
+
 describe('what the boss may redirect it to', () => {
   const declared = (allyFeet = 5, allyBlock = 'goblin-warrior'): GameState =>
     after(camp(allyFeet, allyBlock), unwrap(swing(camp(allyFeet, allyBlock)), 'declare').events);

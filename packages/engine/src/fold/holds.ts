@@ -142,6 +142,8 @@ export function applyHolds({ state, next }: Applying, event: HoldsEvent): GameSt
         ...next,
         pendingSwing: {
           attacker: event.attacker,
+          weapon: event.weapon,
+          ...(event.action === undefined ? {} : { action: event.action }),
           declaredAt: event.target,
           target: event.target,
           offers: event.offers,
