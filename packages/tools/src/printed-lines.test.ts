@@ -358,7 +358,14 @@ describe('what a code-run monster reads off look to rank its lines', () => {
     expect(rapier.riderApplied).toBe('none');
     expect(rapier.riderReads).toEqual([]);
 
-    expect(attackOf('darkmantle', 'Crush').riderApplied).toBe('part');
+    // The Darkmantle's Crush was the CR ≤ 5 example of a rider read in part
+    // until M-HOLD read its suffocation; the Bone Devil's sting still is.
+    expect(attackOf('darkmantle', 'Crush').riderApplied).toBe('whole');
+    // Large, so it stands ten feet off rather than five.
+    const sting = blockOf(pair('a-bone-devil', 'bone-devil', 10), 'beast').attacks.find(
+      (one) => one.name === 'Infernal Sting',
+    )!;
+    expect(sting.riderApplied).toBe('part');
 
     // A line that prints no rider at all reads null rather than `whole`.
     const fist = attackOf('ape', 'Fist');
@@ -388,7 +395,9 @@ describe('what a code-run monster reads off look to rank its lines', () => {
     // Mummy's, the Otyugh's and the Incubus's harm that outlasts the fight.
     // M-MATTER: SRD Barbed Devil's Hurl Flame moved from `none` to `whole`,
     // its flammable object read now that a substance says it takes light.
-    }).toEqual({ lines: 104, whole: 101, part: 3, none: 0, damageAlone: 15 });
+    // M-HOLD read the last clause of the three CR ≤ 5 riders read in part —
+    // the Rug's and the Darkmantle's suffocation, the Roper's regrowth.
+    }).toEqual({ lines: 104, whole: 104, part: 0, none: 0, damageAlone: 15 });
   });
 
   it('says who each kind of line catches, off the pinned record the doors read', () => {
@@ -477,5 +486,48 @@ describe('what a code-run monster reads off look to rank its lines', () => {
     expect(budget.movementFeetByMode.fly).toBe(60);
     expect(budget.movementFeetByMode.walk).toBe(5);
     expect(budget.movementFeet).toBe(5);
+  });
+});
+
+/**
+ * SRD Darkmantle: "A creature can take an action to try to detach the
+ * darkmantle from itself, doing so with a successful DC 13 Strength
+ * (Athletics) check." — M-HOLD. The door W7-B10 named as missing: an attach
+ * could be made through this surface and not undone, and a darkmantle's
+ * cover takes the breath of what it covers.
+ */
+describe('a creature attached to somebody, pulled off through the door', () => {
+  it('rolls the attach’s own check for the action, and on a success the attach ends at both ends', () => {
+    let sawSuccess = false;
+    let sawFailure = false;
+    for (let n = 0; n < 40 && !(sawSuccess && sawFailure); n += 1) {
+      const t = pair(`detach-${n}`, 'darkmantle', 5);
+      // The Crush through the door, and the attach it leaves. (What a cover
+      // and its smothering do when the attach ends is `attach.test.ts`'s.)
+      const crush = expectOk(t.call('attack', { attacker: 'beast', target: 'grish', action: 'Crush' }));
+      if ((crush.resolution as { hit?: boolean }).hit !== true) continue;
+      if (t.campaign.state().creatures['grish' as never]!.vitals.hp <= 0) continue;
+      expect(t.campaign.state().creatures['beast' as never]!.attachments).toHaveLength(1);
+      const out = expectOk(t.call('detach_creature', { who: 'grish', holder: 'beast', from: 'grish' }));
+      const value = out.resolution as { success: boolean; check: { total: number } | null };
+      // The DC 13 the line prints is rolled; the caller named no number.
+      expect(value.check).not.toBeNull();
+      const state = t.campaign.state();
+      if (value.success) {
+        sawSuccess = true;
+        expect(state.creatures['beast' as never]!.attachments).toEqual([]);
+        expect(state.creatures['beast' as never]!.speedModifiers).toEqual([]);
+      } else {
+        sawFailure = true;
+        expect(state.creatures['beast' as never]!.attachments).toHaveLength(1);
+      }
+    }
+    expect(sawSuccess).toBe(true);
+    expect(sawFailure).toBe(true);
+  });
+
+  it('refuses a creature that is not attached to that one', () => {
+    const t = pair('detach-none', 'darkmantle', 5);
+    expectRefused(t.call('detach_creature', { who: 'grish', holder: 'beast', from: 'grish' }));
   });
 });

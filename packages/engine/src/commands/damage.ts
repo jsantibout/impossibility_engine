@@ -1159,22 +1159,14 @@ export function dealSpellDamage(
   // the glossary's own rounding — and the sharing is the blow's outcome dealt
   // again to whoever is held, below. Read off the holder's block and the
   // standing hold rather than pinned, because a grapple has no record to carry
-  // a clause. **The held road does not pass through here**: a blow a defender
-  // held open lands through `settleDamage`, which asks `defensesOf` alone, so a
-  // Rug struck by a blow a Cutting Words answered halves nothing — a gap
-  // named rather than a rule, because `defensesOf` cannot read the block
-  // without a runtime cycle through `monster.ts`.
+  // a clause. **The held road asks the same two functions**: a blow a defender
+  // held open lands through `settleDamage`, which calls `holdHalvedDefenses`
+  // and `shareWithTheHeld` too (M-HOLD), so a Rug struck by a blow a Cutting
+  // Words answered halves and shares like any other.
   const binding = options.ignoresDefenses === true ? null : holdBindsOn(state, target);
-  const defenses = defensesOf(state, target);
-  const halving: Record<string, DamageDefenses> = { ...defenses };
-  if (binding?.binds.halvesDamageTaken === true) {
-    for (const component of components) {
-      halving[component.type] = { ...halving[component.type], resistant: true };
-    }
-  }
   const applied = applyDamage(
     components,
-    options.ignoresDefenses === true ? {} : halving,
+    options.ignoresDefenses === true ? {} : holdHalvedDefenses(state, target, components, binding),
     adjustments,
   );
   const resolved = resolveDamage(
@@ -1198,38 +1190,20 @@ export function dealSpellDamage(
   if (!resolved.ok) return resolved;
 
   // "and the target takes the same amount of damage" — the other half of the
-  // Rug's sentence, dealt to each creature the holder holds, through the same
-  // funnel, as what the holder took after the halving above. Under its own
-  // source so the log says why, with the blow's dealer, of the blow's types;
-  // never along a chain, because a share is not a blow the holder's hold
-  // binds. Shaped as SRD Warding Bond's share is (`bondSharedDamage`), which
-  // is the same sentence about a casting.
-  const shared: GameEvent[] = [];
-  const sharedUnverified: string[] = [];
-  if (binding?.binds.sharesDamageWithHeld === true && !source.endsWith(SHARED_BY_HOLD)) {
-    const taken = damageTakenIn(resolved.value.events, applied.total);
-    if (taken > 0) {
-      let world = resolved.value.events.reduce(applyEvent, state);
-      for (const who of binding.held) {
-        if (world.creatures[who]?.vitals.dead === true) continue;
-        const passed = resolveDamage(
-          world,
-          who,
-          {
-            amount: taken,
-            source: `${source} (${target}'s hold${SHARED_BY_HOLD}`,
-            types: [...new Set(components.map((component) => component.type))].sort(),
-            ...(options.by === undefined ? {} : { by: options.by }),
-          },
-          supply,
-        );
-        if (!passed.ok) return passed;
-        shared.push(...passed.value.events);
-        sharedUnverified.push(...passed.value.unverified);
-        world = passed.value.events.reduce(applyEvent, world);
-      }
-    }
-  }
+  // Rug's sentence. See {@link shareWithTheHeld}.
+  const sharing = shareWithTheHeld(
+    resolved.value.events.reduce(applyEvent, state),
+    target,
+    binding,
+    damageTakenIn(resolved.value.events, applied.total),
+    source,
+    components,
+    options.by,
+    supply,
+  );
+  if (!sharing.ok) return sharing;
+  const shared = sharing.value.events;
+  const sharedUnverified = sharing.value.unverified;
 
   // The faces first, then what they came to: this is the chronology of the
   // moment, and the only place every unheld damage roll passes through. A held
@@ -1311,6 +1285,82 @@ export function dealSpellDamage(
 
 /** The tail a shared blow's source carries, so a share is never shared again. */
 const SHARED_BY_HOLD = ', shared)';
+
+/**
+ * The defences a blow meets on a creature a hold binds — SRD Animated Rug of
+ * Smothering: "While grappling the target, … the rug halves the damage it
+ * takes (round down)."
+ *
+ * A Resistance to every type in the blow, which is the glossary's own
+ * rounding, laid over the creature's own defences. **One function, asked on
+ * both roads** a blow lands by — the one nobody answered and the one a
+ * Reaction held open (`settleDamage`) — because they are the same blow; W7-B10
+ * named the held road's missing halving as a gap, and M-HOLD closed it here.
+ */
+export function holdHalvedDefenses(
+  state: GameState,
+  target: CharacterId,
+  components: readonly DamageComponent[],
+  binding: ReturnType<typeof holdBindsOn>,
+): Record<string, DamageDefenses> {
+  const halving: Record<string, DamageDefenses> = { ...defensesOf(state, target) };
+  if (binding?.binds.halvesDamageTaken === true) {
+    for (const component of components) {
+      halving[component.type] = { ...halving[component.type], resistant: true };
+    }
+  }
+  return halving;
+}
+
+/**
+ * "…and the target takes the same amount of damage" — the other half of the
+ * Rug's sentence, dealt to each creature the holder holds.
+ *
+ * Through the same funnel, as what the holder took after the halving; under
+ * its own source so the log says why, with the blow's dealer, of the blow's
+ * types; never along a chain, because a share is not a blow the holder's hold
+ * binds. Shaped as SRD Warding Bond's share is (`bondSharedDamage`), which is
+ * the same sentence about a casting. Asked on both roads a blow lands by, for
+ * {@link holdHalvedDefenses}' reason. (M-HOLD)
+ *
+ * `world` is the world the holder's own damage has already changed.
+ */
+export function shareWithTheHeld(
+  world: GameState,
+  target: CharacterId,
+  binding: ReturnType<typeof holdBindsOn>,
+  taken: number,
+  source: string,
+  components: readonly DamageComponent[],
+  by: CharacterId | undefined,
+  supply: Supply,
+): Result<{ readonly events: readonly GameEvent[]; readonly unverified: readonly string[] }> {
+  const events: GameEvent[] = [];
+  const unverified: string[] = [];
+  if (binding?.binds.sharesDamageWithHeld !== true || source.endsWith(SHARED_BY_HOLD) || taken <= 0) {
+    return ok({ events, unverified });
+  }
+  let current = world;
+  for (const who of binding.held) {
+    if (current.creatures[who]?.vitals.dead === true) continue;
+    const passed = resolveDamage(
+      current,
+      who,
+      {
+        amount: taken,
+        source: `${source} (${target}'s hold${SHARED_BY_HOLD}`,
+        types: [...new Set(components.map((component) => component.type))].sort(),
+        ...(by === undefined ? {} : { by }),
+      },
+      supply,
+    );
+    if (!passed.ok) return passed;
+    events.push(...passed.value.events);
+    unverified.push(...passed.value.unverified);
+    current = passed.value.events.reduce(applyEvent, current);
+  }
+  return ok({ events, unverified });
+}
 
 /**
  * What a `casting-damage` feature charges its holder for having used it.

@@ -379,6 +379,8 @@ const KNOWN_EVENT_TYPES: readonly string[] = [
   'stat-block-replaced',
   'stated-action-taken',
   'stated-bonus-action-taken',
+  // M-HOLD: a held breath run out into a level of Exhaustion.
+  'suffocation-exhaustion-gained',
   'summons-control-renewed',
   'temporary-hp-cleared',
   'temporary-hp-granted',
@@ -391,6 +393,8 @@ const KNOWN_EVENT_TYPES: readonly string[] = [
   'turn-payout-granted',
   'unarmed-strike-made',
   'utilize-taken',
+  // M-HOLD: water a casting or a potion lets a creature breathe.
+  'water-breathing-granted',
   'way-in-drawn',
   'way-in-height-declared',
   'weapon-penalised',

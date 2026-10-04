@@ -25,6 +25,7 @@ import { type Duration } from '../time.js';
 import { type GameEvent, type GameState } from '../events.js';
 import { type Anchor, distanceBetween, positionOf, type PositionState } from '../positioning.js';
 import { actionRulesOn } from '../standing.js';
+import { outOfBreath } from '../hazards.js';
 
 /**
  * Written in `vitals.ts`, beside the arithmetic of dying, since the fold lifts
@@ -401,6 +402,39 @@ export function dyingOutsideAFight(state: GameState, seconds: number): Err | nul
       subject,
       need: `an Initiative order, so that the turns ${subject}'s death saving throws are made at exist`,
       because: `SRD: "Whenever you start your turn with 0 Hit Points, you must make a Death Saving Throw", and outside combat there is no turn`,
+      satisfyWith: 'a beginCombat command',
+    })),
+  );
+}
+
+/**
+ * A creature held without breath whose breath would give out before the clock
+ * stops — M-HOLD, {@link dyingOutsideAFight}'s twin.
+ *
+ * SRD *Suffocation*: "When a creature runs out of breath …, it gains 1
+ * Exhaustion level **at the end of each of its turns**." The same absence the
+ * dying meet: the levels are owed at a moment in the turn order, the book
+ * gives no rate outside one, and a clock that ran on in silence would leave a
+ * creature smothered for an hour and none the worse. So the clock may run
+ * while the breath lasts and not past it, and the command names the facts
+ * that would settle it: a turn order to charge the levels in, or the hold
+ * ended. Null when nobody's breath runs out within the span, and for a span of
+ * nothing.
+ */
+export function breathlessOutsideAFight(state: GameState, seconds: number): Err | null {
+  if (seconds <= 0 || state.combat !== null) return null;
+  const breathless = (Object.keys(state.creatures).sort() as CharacterId[]).filter(
+    (who) => state.creatures[who]?.vitals.dead === false && outOfBreath(state, who, state.elapsed + seconds),
+  );
+  if (breathless.length === 0) return null;
+  return needsContext(
+    'suffocating_outside_a_fight',
+    `${breathless.join(', ')} ${breathless.length === 1 ? 'is' : 'are'} held without breath and would run out of it before ${seconds} seconds pass — and a creature out of breath gains a level of Exhaustion at the end of each of its turns, which outside a fight it has none of. Settle it first: begin a fight so the levels are charged on turns, or end the hold`,
+    breathless.map((subject) => ({
+      kind: 'turn-order' as const,
+      subject,
+      need: `an Initiative order, so that the turns ${subject} gains Exhaustion at the end of exist`,
+      because: 'SRD Suffocation: "it gains 1 Exhaustion level at the end of each of its turns", and outside combat there is no turn',
       satisfyWith: 'a beginCombat command',
     })),
   );

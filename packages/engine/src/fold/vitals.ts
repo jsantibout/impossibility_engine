@@ -466,6 +466,8 @@ function reduceVitals({ state, next }: Applying, event: VitalsEvent): GameState 
         // SRD Hideous Laughter's "it can't end the Prone condition on itself",
         // pinned for the same reason and read by `standUp` off the instance.
         event.forbidsStandingUp === true,
+        // SRD Roper's sixty-foot hold — M-HOLD. Only a Grappled carries one.
+        event.condition === 'grappled' ? event.range : undefined,
       );
       // **And nothing else.** This case used to also put the creature into the
       // casting's list of who it was on, by hand — a growth pass called

@@ -671,6 +671,22 @@ const SUBSEQUENT_DECREASE = new RegExp(
   `^The ([A-Z][a-z]+) target${APOSTROPHE}s Hit Point maximum decreases by (\\d+) \\((\\d+d\\d+)(?: \\+ (\\d+))?\\)\\.?$`,
 );
 /**
+ * The two ways the book writes a held creature's breath — M-HOLD.
+ *
+ * SRD Gelatinous Cube: "An engulfed target **is suffocating**"; SRD Water
+ * Elemental: "the target … **is suffocating unless it can breathe water**".
+ * The glossary's Suffocation hazard, executed by the engine for exactly the
+ * hold's lifetime; the second wording carries the one exception the book
+ * prints. Matched whole, so a third wording is carried rather than guessed.
+ */
+const SUFFOCATION_WORDS: Readonly<Record<string, 'always' | 'unless-it-breathes-water'>> = {
+  'is suffocating': 'always',
+  'is suffocating unless it can breathe water': 'unless-it-breathes-water',
+};
+/** {@link SUFFOCATION_WORDS} looked up as an own key and nothing inherited, or undefined. */
+const suffocationOf = (words: string): 'always' | 'unless-it-breathes-water' | undefined =>
+  Object.hasOwn(SUFFOCATION_WORDS, words) ? SUFFOCATION_WORDS[words] : undefined;
+/**
  * SRD Water Elemental's Whelm: "Until the grapple ends, the target has the
  * Restrained condition, is suffocating unless it can breathe water, and takes
  * 9 (2d8) Bludgeoning damage at the start of each of the elemental's turns."
@@ -678,9 +694,10 @@ const SUBSEQUENT_DECREASE = new RegExp(
  * {@link UNTIL_GRAPPLE_ENDS}'s sentence with two more things in it, and the
  * one place in this reader where a clause is read **around** words of its own
  * rather than beside them: the Restrained and the payout are primitives the
- * engine has, the suffocation is not, and the residue goes into
- * `Scratch.carried` under the book's own opening so a table reads a whole
- * sentence rather than a fragment. The ledger goes on counting the line.
+ * engine has, and since M-HOLD so is the suffocation ({@link SUFFOCATION_WORDS}).
+ * A middle that is neither goes into `Scratch.carried` under the book's own
+ * opening so a table reads a whole sentence rather than a fragment, and the
+ * ledger goes on counting the line.
  *
  * The middle is optional because a homebrew hold might print only the two
  * halves this reads, and the whole is anchored, so anything else between them
@@ -766,8 +783,8 @@ const ESCAPES_TO_NEAREST =
  * Acid damage at the start of each of the cube's turns."
  *
  * A list about the engulf before it, read item by item: a condition, the
- * Verbal-casting bar, the payout, and the suffocation — which is the one item
- * nothing in the engine drowns, carried under the book's own opening.
+ * Verbal-casting bar, the payout, and the suffocation — the glossary's hazard,
+ * read since M-HOLD ({@link SUFFOCATION_WORDS}).
  */
 const ENGULFED_TARGET_IS = /^An engulfed target (.+)$/;
 const ENGULFED_PAYS = new RegExp(
@@ -1936,11 +1953,17 @@ function readClause(clause: string, into: Scratch, where: Reading): boolean {
     if (name === undefined || !DAMAGE_TYPES.has(type)) return false;
     if (heldAndPaid[2] !== undefined && second === null) return false;
     const sign = heldAndPaid[7] === undefined ? 1 : heldAndPaid[7] === '+' ? 1 : -1;
+    // What the sentence says between its two halves — SRD's "is suffocating
+    // unless it can breathe water", read since M-HOLD as the glossary's
+    // Suffocation for the hold's lifetime. Matched whole against the book's
+    // two wordings; anything else is carried as it always was.
+    const breath = heldAndPaid[3] === undefined ? null : (suffocationOf(heldAndPaid[3]) ?? null);
     const hung = amendCondition(
       into.effects,
       (effect) => effect.escapeDc !== undefined,
       (last) => ({
         ...(second === null ? alsoImplies(last, name) : alsoImplies(alsoImplies(last, name), second)),
+        ...(breath === null ? {} : { suffocates: breath }),
         payout: {
           damage: {
             dice: `${heldAndPaid[5]}d${heldAndPaid[6]}`,
@@ -1955,10 +1978,9 @@ function readClause(clause: string, into: Scratch, where: Reading): boolean {
     );
     if (!hung) return false;
     // What the sentence said between its two halves and this reader cannot
-    // spend — SRD's "is suffocating unless it can breathe water", which is a
-    // rule about breathing nothing in the engine holds. Carried under the
+    // spend, where it is not the suffocation read above: carried under the
     // book's own opening, so a table reads a sentence rather than a fragment.
-    if (heldAndPaid[3] !== undefined) {
+    if (heldAndPaid[3] !== undefined && breath === null) {
       into.carried.push(`Until the grapple ends, the target ${heldAndPaid[3]}.`);
     }
     return true;
@@ -2042,10 +2064,11 @@ function readClause(clause: string, into: Scratch, where: Reading): boolean {
     const items = engulfedIs[1]!.split(/,? and |, /).map((item) => item.trim());
     return amendEngulf(into.effects, (last) => {
       let amended: EngulfsEffect = last;
-      const carried: string[] = [];
       for (const item of items) {
-        if (item === 'is suffocating') {
-          carried.push(`An engulfed target ${item}.`);
+        // "is suffocating" — the glossary's hazard while inside (M-HOLD).
+        const breath = suffocationOf(item);
+        if (breath !== undefined) {
+          amended = { ...amended, suffocates: breath };
           continue;
         }
         if (NO_VERBAL_CASTING.test(item)) {
@@ -2083,7 +2106,6 @@ function readClause(clause: string, into: Scratch, where: Reading): boolean {
         // rule every list here is read under.
         return null;
       }
-      into.carried.push(...carried);
       return amended;
     });
   }

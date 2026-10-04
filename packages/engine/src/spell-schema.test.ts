@@ -4480,6 +4480,10 @@ describe('every branch judges untyped input rather than throwing on it', () => {
     // `revive` reads is the casting's own running span, which is on the
     // ongoing record rather than on the effect.
     'preserves',
+    // And the seventh: SRD Water Breathing prints that the targets can breathe
+    // water and nothing about how well, so `breathes-water` carries no field.
+    // (M-HOLD)
+    'breathes-water',
   ]);
 
   /**

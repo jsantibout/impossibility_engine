@@ -63,6 +63,7 @@ import { fold, type GameEvent, type GameState } from './events.js';
 import { distanceBetween, positionOf, type Point } from './positioning.js';
 import { createRollIssuer } from './rolls.js';
 import { silencedBy } from './standing.js';
+import { suffocationOn } from './hazards.js';
 import { grapplesOn } from './commands/unarmed.js';
 
 const id = (s: string) => asCharacterId(s);
@@ -203,7 +204,8 @@ describe("a Gelatinous Cube's Engulf", () => {
       expect(out.outcomes.map((one) => one.target).sort()).toEqual([ONE, TWO]);
       // The cube ended where the route ended, and offered nobody a swing.
       expect(positionOf(state.scene!, CUBE)).toEqual(p(25, 50));
-      expect(out.unverified.join(' ')).toContain('suffocating');
+      // The suffocation is the engine's now (M-HOLD), and nothing is handed over for it.
+      expect(out.unverified.join(' ')).not.toContain('suffocating');
       for (const outcome of out.outcomes) {
         const who = outcome.target;
         const record = elsewhereOf(state, who);
@@ -215,6 +217,15 @@ describe("a Gelatinous Cube's Engulf", () => {
           expect(positionOf(state.scene!, who)).toBeNull();
           expect(hasCondition(state.creatures[who]!.conditions, 'restrained')).toBe(true);
           expect(silencedBy(state, who)).toBe(ENGULF);
+          // "An engulfed target is suffocating" — for as long as it is inside,
+          // its breath held from this moment. (M-HOLD)
+          expect(suffocationOn(state, who)).toMatchObject({
+            hazard: 'suffocating',
+            lit: ENGULF,
+            while: [{ by: 'inside', source: `line:${CUBE}/${ENGULF}` }],
+            since: state.elapsed,
+            gained: 0,
+          });
           expect(outcome.damage).toBeGreaterThan(0);
           // The price of staying and the ways out, pinned on the record.
           expect(record?.damage).toEqual({ dice: '3d6', damageType: 'acid', each: 'start-of-turn' });
@@ -230,6 +241,8 @@ describe("a Gelatinous Cube's Engulf", () => {
           expect(at).not.toEqual(who === ONE ? p(20, 50) : p(20, 55));
           expect(distanceBetween(state.scene!, who, CUBE)).toEqual({ ok: true, value: 5 });
           expect(hasCondition(state.creatures[who]!.conditions, 'restrained')).toBe(false);
+          // Out of the cube's way and breathing.
+          expect(suffocationOn(state, who)).toBeNull();
         }
       }
     }
@@ -284,9 +297,12 @@ describe("a Gelatinous Cube's Engulf", () => {
         expect(distanceBetween(after.scene!, ONE, CUBE)).toEqual({ ok: true, value: 5 });
         expect(hasCondition(after.creatures[ONE]!.conditions, 'restrained')).toBe(false);
         expect(silencedBy(after, ONE)).toBeNull();
+        // Out of the cube, it can breathe again. (M-HOLD)
+        expect(suffocationOn(after, ONE)).toBeNull();
       } else {
         sawFailure = true;
         expect(elsewhereOf(after, ONE)?.host).toBe(CUBE);
+        expect(suffocationOn(after, ONE)?.hazard).toBe('suffocating');
       }
       if (sawSuccess && sawFailure) break;
     }
@@ -347,6 +363,8 @@ describe("a Gelatinous Cube's Engulf", () => {
         expect(distanceBetween(after.scene!, ONE, CUBE)).toEqual({ ok: true, value: 5 });
         // "and the puller takes 10 (3d6) Acid damage"
         expect(after.creatures[CLERIC]!.vitals.hp).toBeLessThan(clericHp);
+        // Pulled out, it can breathe again. (M-HOLD)
+        expect(suffocationOn(after, ONE)).toBeNull();
       } else {
         sawFailure = true;
         expect(elsewhereOf(after, ONE)?.host).toBe(CUBE);

@@ -3,6 +3,7 @@ import { ELDRITCH_INVOCATIONS, SRD_CONTENT } from '@ie/content';
 import { asCharacterId, expect as unwrap } from '@ie/shared';
 import {
   advanceCharacter,
+  breathesWater,
   canSee,
   checkCharacter,
   createCharacter,
@@ -943,6 +944,16 @@ describe('Gift of the Depths', () => {
 
     const without = fold('seed', table(warlock(['Misty Visions', 'Armor of Shadows', 'Eldritch Mind', "Devil's Sight", 'Fiendish Vigor'])));
     expect(speedOf(without, WHO, 'swim')).toBe(0);
+  });
+
+  /**
+   * "You can breathe underwater" — read since M-HOLD by the one rule that
+   * asks, SRD Water Elemental's Whelm ("unless it can breathe water").
+   */
+  it('breathes water, and a Warlock without the invocation does not', () => {
+    expect(breathesWater(fold('seed', table(warlock(GIFT))), WHO)).toBe(true);
+    const without = fold('seed', table(warlock(['Misty Visions', 'Armor of Shadows', 'Eldritch Mind', "Devil's Sight", 'Fiendish Vigor'])));
+    expect(breathesWater(without, WHO)).toBe(false);
   });
 
   /** "You can also cast Water Breathing once without expending a spell slot." */

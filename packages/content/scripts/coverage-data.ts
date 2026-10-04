@@ -709,6 +709,11 @@ export const VERIFIED_SPELLS: readonly string[] = [
   // three endings — the cleric at 0, the pair past sixty feet, a recast on
   // either end.
   'warding-bond',
+  // `water-breathing.test.ts` (engine): the druid and a willing friend
+  // breathing water off one casting and neither a day later; and
+  // `printed-save-effects.test.ts`, a whelmed knight breathing again by it.
+  // (M-HOLD)
+  'water-breathing',
   'web',
   'wind-walk',
   // `barriers.test.ts` and `wall-template.test.ts`: the path pinned on the
@@ -1616,14 +1621,22 @@ export const hasUnappliedRider = (line: StatBlockLine): boolean => {
  *
  * | Lines | The one seam each waits on |
  * |---|---|
- * | Roper's Tentacle | a limb that grows back. The hold, the Poisoned it carries, the tentacle as a thing with the printed Armour Class and Hit Points, and the cap of six are executed (W7-B10); "a destroyed tentacle regrows at the start of the roper's next turn" is a dead object the fold would have to forget at a turn boundary, and the cap counts the tentacles that hold somebody — so a destroyed one is treated as regrown at once and the sentence is handed over |
+ * | — | none at CR ≤ 5: M-LINGER, M-MATTER and M-HOLD read the last of these rows between them, and a line that lands here again is written in as its own row |
  *
  * **Four lines left this table in W7-B10** — the Stirge's Proboscis, the
  * Mimic's Pseudopod, the Allosaurus's Claws and the Giant Crocodile's Bite,
- * each read to the end. The Rug's Smother and the Darkmantle's Crush are read
- * to the end as well but for one clause each, "is suffocating", which is a
- * handover kind and keeps both on the row; the Roper's Tentacle joined it the
- * same day, read for the first time and carrying its regrowth.
+ * each read to the end. The Rug's Smother and the Darkmantle's Crush were read
+ * to the end as well but for one clause each, "is suffocating"; the Roper's
+ * Tentacle joined them the same day, read for the first time and carrying its
+ * regrowth.
+ *
+ * **Those three left it in M-HOLD.** "Is suffocating" is the glossary's
+ * Suffocation hazard, executed for exactly the hold's lifetime (`hazards.ts`):
+ * the breath held for 1 + Constitution minutes or a block's own Hold Breath,
+ * a level of Exhaustion at the end of each of the creature's turns after, and
+ * the levels taken back the moment it can breathe. The Roper's tentacle grows
+ * back at the start of the roper's next turn (`regrowLimbs`), and until then
+ * counts against the six as a tentacle the roper does not have.
  *
  * **Four lines left this table in M-LINGER** — the Death Dog's Bite, the
  * Mummy's Rotting Fist, the Otyugh's Bite and the Incubus's Restless Touch, the
@@ -1762,6 +1775,19 @@ export const TRAIT_KINDS_WITH_A_READER: readonly string[] = [
   'advantage-when-ally-is-within-5-feet-of-the-target',
   'advantage-while-bloodied',
   'allies-in-emanation-have-advantage',
+  // SRD Amphibious and SRD Water Breathing, whose reader is `breathesWater`
+  // for the one rule that asks: SRD Water Elemental's Whelm, "is suffocating
+  // unless it can breathe water". (M-HOLD) What is left of each sentence is
+  // the other half of the same hazard — Limited Amphibiousness's "must be
+  // submerged at least once every 4 hours to avoid suffocating outside
+  // water", and "only underwater", which is Suffocation once out of it. The
+  // rule exists now; what does not is any fact that a creature is underwater
+  // or out of water — a hold is the only thing that takes a breath here
+  // (`BreathTaken` is a grapple, an attach or an inside) — so that half waits
+  // on a place the scene does not hold, and is a question put to the
+  // coordinator rather than filed as fiction.
+  'breathes-air-and-water',
+  'breathes-only-water',
   // SRD Succubus Form and Incubus Form, whose reader is `takeRestForm`, and
   // SRD Troll Spawn, whose readers are the arrival that hangs the day and
   // `settleBlockDeadlines`, which throws the die. (W7-B12)
@@ -1793,6 +1819,10 @@ export const TRAIT_KINDS_WITH_A_READER: readonly string[] = [
   'emanation-is-difficult-terrain',
   'hides-in-dim-light-or-darkness',
   'holds-creatures-inside',
+  // SRD Hold Breath, whose reader is `breathSecondsOf`: the span a held
+  // creature's breath lasts before the glossary's Suffocation charges it
+  // Exhaustion. (M-HOLD)
+  'holds-its-breath',
   'jumps-by-dexterity',
   'jumps-without-a-running-start',
   'long-jump-with-a-running-start',
@@ -1825,17 +1855,17 @@ export const TRAIT_KINDS_WITH_A_READER: readonly string[] = [
  * **A handover is not a debt, and the difference is the point.**
  * `docs/design/content.md` settles the test — "a table fact that a rule then
  * reads is a debt; a table fact nothing reads afterwards is a handover" — and
- * `docs/ROADMAP.md` §6 P3-B applies it to these three in as many words:
+ * `docs/ROADMAP.md` §6 P3-B applied it to the first three in as many words:
  * "Amphibious and breathing are handovers by the fiction rule unless drowning
  * is ever modelled."
  *
- * Nothing in this engine drowns, suffocates or holds a breath. There is no
- * rule that would read "can breathe water", no clock that counts the four
- * hours a Limited Amphibiousness gives, and no consequence for a creature
- * outside its element — so these sentences say something true about the world
- * and nothing a rule consults. Filing them as debt would put work on a list
- * nobody should do; filing them as unspent would keep twelve CR ≤ 5 blocks off
- * the clean list forever.
+ * **The breathing traits left this list in M-HOLD, by that sentence's own
+ * condition.** The glossary's Suffocation is a hazard the engine executes now
+ * — the four holds that print "is suffocating" take a breath, the clock runs
+ * it out, Exhaustion follows — so Hold Breath is the span a rule reads
+ * (`breathSecondsOf`) and the two breathing traits are what SRD Whelm's
+ * "unless it can breathe water" reads (`breathesWater`). All three are on the
+ * reader roster above, each with what of its sentence is left as fiction.
  *
  * **Not the same claim the reader roster makes, and pinned the opposite way.**
  * A kind on the roster must still be named in `packages/engine/src`; a kind
@@ -1844,12 +1874,11 @@ export const TRAIT_KINDS_WITH_A_READER: readonly string[] = [
  *
  * The reason is per kind rather than one sentence for the list, because the
  * day one of them stops being a handover it will be one of them and not all
- * three.
+ * of them — which is what the breathing traits did.
  *
- * **The breathing traits were the first three and are no longer alone.** The
- * test that admitted them admits every sentence below: each names planes,
- * minds, sounds, a narrated substance or a GM's choice, and not one of them
- * names a thing a rule consults.
+ * **What is still here passes the test the breathing traits were admitted
+ * by**: each names planes, minds, sounds, a narrated substance or a GM's
+ * choice, and not one of them names a thing a rule consults.
  *
  * **And the world family joined them**, which is the same test pointed at the
  * ground instead of at the air. A gap an inch wide, solid rock, a web, a sheet
@@ -1916,10 +1945,6 @@ export const TRAIT_KINDS_WITH_A_READER: readonly string[] = [
 export const HANDOVER_TRAIT_KINDS: Readonly<Record<string, string>> = {
   'a-heading-over-the-lines-that-follow':
     'SRD Vampire Weakness: "The vampire has these weaknesses:". A heading the book prints over the three lines that follow it, each of which is counted on its own. It states no rule, so there is nothing to build and nothing to wait for.',
-  'breathes-air-and-water':
-    'SRD Amphibious. The engine models no drowning and no suffocation, so "can breathe air and water" — and the four hours a Limited Amphibiousness gives before it must submerge — say what the fiction is and name nothing a rule reads afterwards.',
-  'breathes-only-water':
-    'SRD Water Breathing, the same sentence the other way round. A creature that can breathe only underwater is a fact about where the DM may put it; nothing in the engine happens when it is put somewhere else.',
   'cannot-enter-a-home-uninvited':
     'SRD Forbiddance: "The vampire can\'t enter a residence without an invitation from an occupant." Whose home a place is, and who has spoken from inside it, are facts about the story rather than about anything the engine could be told: there is no rule that would read them and no move that would be refused, because a vampire under this sentence is simply not sent in. It tells a DM what their vampire will not do.',
   'cannot-shape-shift':
@@ -1932,8 +1957,6 @@ export const HANDOVER_TRAIT_KINDS: Readonly<Record<string, string>> = {
     'SRD Draconic Origin: "a type of dragon associated with one of the following damage types (GM\'s choice)". The block states no type, so there is nothing to pin; the attack lines that read it already ask for the ruling and refuse to roll until somebody has answered.',
   'has-a-skill-the-gm-chooses':
     'SRD Training: "proficiency in one skill of the GM\'s choice and Advantage whenever it makes an ability check using that skill." Both halves are mechanics the engine holds, and the block names no skill for either to be about — so the sentence is a slot the DM fills rather than a rule the sheet can carry.',
-  'holds-its-breath':
-    'SRD Hold Breath. A span with nothing at the end of it: the clock could count the hour, but there is no rule waiting for it to run out, so the number is the table\'s to narrate.',
   'is-hurt-by-water':
     'SRD Water Susceptibility and SRD Running Water. A gallon thrown and a river waded are things a DM narrates rather than rules anything sets off, and the damage that follows a ruling already has a door built for it: the DM states the amount and the engine applies it. So the sentence is the number to use through a door that exists, which is what a handover is.',
   'makes-a-noise':
@@ -2019,9 +2042,9 @@ export const HANDOVER_TRAIT_KINDS: Readonly<Record<string, string>> = {
  * is genuinely something the engine cannot or should not take on (2026-09-26).
  * Each reason below says which of the two it is and why the engine cannot or
  * should not take it on; a sentence that needs a mechanism the engine lacks is
- * not filed here, whatever it sounds like — suffocation and the harpy's other
- * songs stay owed, and the ghost's day's grace after a possession was owed
- * until M-MIND built it.
+ * not filed here, whatever it sounds like — suffocation stayed owed until
+ * M-HOLD built it rather than filing it, the ghost's day's grace after a
+ * possession until M-MIND built it, and the harpy's other songs stay owed.
  *
  * **Pinned in both directions** by `stat-block-handovers.test.ts`: every kind
  * the schema admits has a reason here or in `HANDOVER_TRAIT_KINDS`, every
@@ -2166,8 +2189,8 @@ export const RIDER_SHAPE = 'An effect a hit buys';
  * the line verbatim in `handedOver`; `forcePrintedSave` applies what was read
  * and hands the rest to the table at the moment of use. The line is *read*,
  * so `isReadLine` says so — and it is not *paid*, because a Couatl's
- * Restrained or a Water Elemental's suffocation is still a sentence nothing
- * executes. Counted apart from the unread saves for the reason the unapplied
+ * Restrained or (until M-HOLD built it) a Water Elemental's suffocation is a
+ * sentence nothing executes. Counted apart from the unread saves for the reason the unapplied
  * riders are counted apart from the unread attacks: learning to recognise a
  * sentence can never retire a debt on its own.
  *

@@ -17,7 +17,7 @@ import {
   type StandingBonusApplies,
 } from './bonuses.js';
 import type { CreatureSize, PrintedHoldCapacity, PrintedLingering } from '@ie/srd';
-import type { HazardName } from './hazards.js';
+import type { HazardName, Suffocates } from './hazards.js';
 import { strongestOfEachEffect } from './same-effect.js';
 // Type-only, so the cycle with `monster.ts` (which imports this file's types)
 // is erased: the shape a printed hold binds its holder with — W7-B10.
@@ -1617,6 +1617,20 @@ export type StandingGrant =
    * {@link piercesObscurement}, which is where both are read.
    */
   | { readonly kind: 'sees-through'; readonly through: SeesThrough; readonly feet: number }
+  /**
+   * The holder can breathe water — M-HOLD.
+   *
+   * SRD Cloak of the Manta Ray: "While wearing this cloak, you can breathe
+   * underwater"; SRD Necklace of Adaptation: "you can breathe normally in any
+   * environment"; SRD Gift of the Depths: "You can breathe underwater". A fact
+   * with no magnitude, derived on every read for a Darkvision's reason — the
+   * cloak taken off is gills gone. **Read by one rule**, the one the book
+   * prints an exception for: SRD Water Elemental's Whelm, "is suffocating
+   * unless it can breathe water" (`breathesWater` in `hazards.ts`). Nothing in
+   * the engine holds water to be under, so this is that exception and nothing
+   * more.
+   */
+  | { readonly kind: 'breathes-water' }
   /**
    * An ability score **set** to a number while whatever grants it holds.
    *
@@ -3481,6 +3495,18 @@ export interface HitGrapple {
    * destroying it frees the creature. See `PrintedHeldObject`.
    */
   readonly heldByObject?: PrintedHeldObject;
+  /**
+   * The grapple's range, in feet, where the line reaches past an Unarmed
+   * Strike's five — M-HOLD. SRD Roper's Tentacle, sixty. Pinned onto the
+   * Grappled it makes, which is what `lapsedGrapples` measures against.
+   */
+  readonly range?: number;
+  /**
+   * SRD Animated Rug of Smothering: "Until the grapple ends, the target … is
+   * suffocating" — M-HOLD. The glossary's hazard for as long as the hold
+   * stands; see `hazards.ts`.
+   */
+  readonly suffocates?: Suffocates;
 }
 
 /**
@@ -3515,6 +3541,12 @@ export interface HitAttach {
    * narrows the option once the mode is known — see `coveredByTheRoll`.
    */
   readonly coverNeedsAdvantage?: true;
+  /**
+   * SRD Darkmantle: the covered target "is suffocating while the darkmantle is
+   * attached in this way" — M-HOLD. Rides the cover: where the cover does not
+   * land (the size gate, the Advantage gate), neither does this.
+   */
+  readonly coverSuffocates?: Suffocates;
   /** What the attach takes out of somebody at each of somebody's boundaries. */
   readonly payout?: HitHoldPayout;
   /**

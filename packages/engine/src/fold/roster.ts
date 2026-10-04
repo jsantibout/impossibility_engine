@@ -123,6 +123,9 @@ export function applyRoster({ state, next }: Applying, event: RosterEvent): Game
             // feature could make a thing says — so both frozen fixtures fold
             // unchanged and neither was regenerated.
             device: event.device ?? null,
+            // A limb that grows back, where a printed hold raised one (M-HOLD);
+            // absent on everything else and on every older log.
+            ...(event.limbOf === undefined ? {} : { limbOf: event.limbOf }),
             activeFeatures: [],
             // In its own shape, which is what every log written before a form
             // could be worn says — so both frozen fixtures fold unchanged.
@@ -165,6 +168,9 @@ export function applyRoster({ state, next }: Applying, event: RosterEvent): Game
             // fold unchanged.
             abilityLowerings: [],
             fallWards: [],
+            // Nothing lets it breathe water (M-HOLD). Empty is what every log
+            // written before says, so both frozen fixtures fold unchanged.
+            waterBreathing: [],
             lifts: [],
             jumpAllowances: [],
             attackRiders: [],
