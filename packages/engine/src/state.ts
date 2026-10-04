@@ -284,10 +284,24 @@ export interface SummonBond {
 
 /** The terms of a controlled summons, as the log carries them — see {@link SummonBond.controlled}. */
 export interface ControlledBond {
-  /** The spell whose recasting renews the control, so the resolver finds this caster's own. */
+  /**
+   * The spell whose recasting renews the control, so the resolver finds this
+   * caster's own — or, for a control a **printed line** gave, that line's own
+   * source (`printedLineSource`): SRD Wraith's Create Specter, whose ceiling of
+   * seven is counted over the bonds that name it. No spell id is ever spelled
+   * that way, so a recast never mistakes one for its own. (M-RISE)
+   */
   readonly spell: string;
-  /** The clock reading the control lapses at: `state.elapsed` at the binding plus the printed span. */
-  readonly until: number;
+  /**
+   * The clock reading the control lapses at: `state.elapsed` at the binding
+   * plus the printed span.
+   *
+   * **Absent is a control that does not lapse** — SRD Wraith's Create
+   * Specter: "The specter is under the wraith's control", with no span at all.
+   * `lapseExpiredControl` already walks past a bond with nothing to run out.
+   * (M-RISE)
+   */
+  readonly until?: number;
   /**
    * What giving the creature an order costs and how far it reaches — SRD
    * Animate Dead's Bonus Action and sixty feet, pinned from the raise

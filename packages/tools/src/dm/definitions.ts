@@ -120,6 +120,7 @@ import {
   takeSearch,
   takePrintedForm,
   takePrintedHeal,
+  raisePrintedLine,
   takePrintedMove,
   takePrintedPlaneShift,
   takePrintedPull,
@@ -2911,8 +2912,69 @@ const HEAL_PRINTED_LINE = tool({
     ),
 });
 
+/**
+ * Take the line a creature's stat block prints that raises a creature out of a
+ * corpse — M-RISE.
+ *
+ * SRD Wraith, Create Specter: "The wraith targets a Humanoid corpse within 10
+ * feet of itself that has been dead for no longer than 1 minute. The target's
+ * spirit rises as a **Specter** in the space of its corpse or in the nearest
+ * unoccupied space. The specter is under the wraith's control. The wraith can
+ * have no more than seven specters under its control at a time."
+ *
+ * **Here and not on the model's surface**, by {@link SPLIT_PRINTED_LINE}'s
+ * rule: whether the wraith spends its Action, on which corpse and under what
+ * name, is the choice of whoever runs it. Everything else is checked.
+ */
+const RAISE_PRINTED_LINE = tool({
+  name: 'raise_printed_line',
+  description:
+    'Have the engine take the line a creature’s stat block prints that raises a creature out of a corpse — the Wraith’s Create Specter. Name the heading, the corpse, and what to call the creature that rises. The engine refuses a creature that is not dead, a corpse of the wrong type (a Humanoid for the Wraith), one dead longer than the line allows (a minute), one beyond its reach (10 feet), a corpse something has already risen out of, and an eighth specter while seven stand under the creature’s control; it then spends the Action, raises the printed stat block in the corpse’s space or the nearest unoccupied one, on the creature’s side and under its control, and leaves the corpse where it lies. The new creature has no place in the order: roll its Initiative. You state no number. `look` says which lines this door takes, under `engineRaises` on `printed.actions[]`.',
+  mutates: true,
+  selfAnswers: ['creature', 'position'],
+  input: z.strictObject({
+    who: creatureId.describe('Which creature is taking the line.'),
+    line: printedLineName,
+    corpse: creatureId.optional().describe('The corpse the line targets. The engine asks where it is missing.'),
+    into: creatureId
+      .optional()
+      .describe('What to call the creature that rises. The engine asks where it is missing.'),
+  }),
+  run: (context, args) =>
+    settle(
+      context,
+      raisePrintedLine(
+        context.campaign.state(),
+        who(args.who),
+        {
+          line: args.line,
+          ...(args.corpse === undefined ? {} : { corpse: who(args.corpse) }),
+          ...(args.into === undefined ? {} : { into: who(args.into) }),
+          ...identity(context),
+        },
+        context.campaign.supply(),
+      ),
+      (value) => value.events,
+      (value) => ({
+        ...lineTaken(
+          context,
+          ['stated-action-taken', 'stated-bonus-action-taken'],
+          value.duplicate,
+          args.who,
+        ),
+        risen:
+          args.into === undefined ||
+          !value.events.some((event) => event.type === 'creature-added' && event.id === args.into)
+            ? null
+            : args.into,
+      }),
+      (value) => value.unverified,
+    ),
+});
+
 export const DM_ONLY_TOOLS: readonly ToolDefinition[] = [
   HEAL_PRINTED_LINE,
+  RAISE_PRINTED_LINE,
   SETTLE_BLOCK_DEADLINES,
   SPLIT_PRINTED_LINE,
   TAKE_REST_FORM,

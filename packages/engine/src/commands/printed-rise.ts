@@ -39,7 +39,9 @@ import { rollRecorded, type RollIssuer } from '../rolls.js';
 import { type Rng } from '../dice.js';
 import { healingRuleOf, maximisedHealing } from '../vitals.js';
 import { creatureOf, unknownCreature } from './command.js';
-import { healCreature } from './creatures.js';
+import { healCreature, summonCreature } from './creatures.js';
+import { placeCreatureInScene } from './scene.js';
+import { type Supply } from './casting.js';
 import { mayAct } from './holds.js';
 
 /** A printed line found under either heading a creature spends from, and which. */
@@ -321,6 +323,228 @@ export function takePrintedHeal(
       const after = healed.value.reduce(applyEvent, world).creatures[command.target]?.vitals.hp ?? before;
 
       return ok({ events, healed: after - before, unverified: [], duplicate: false });
+    },
+  );
+}
+
+export interface PrintedRaiseCommand extends CommandIdentity {
+  readonly line: string;
+  /**
+   * The corpse the line targets — SRD Create Specter's "a Humanoid corpse
+   * within 10 feet". A creature the engine holds, dead. The table's choice.
+   */
+  readonly corpse?: CharacterId;
+  /**
+   * What to call the creature that rises. The book names no creature and the
+   * engine invents no name, exactly as SRD Split's two halves are named.
+   */
+  readonly into?: CharacterId;
+}
+
+export interface PrintedRaiseOutcome {
+  readonly events: readonly GameEvent[];
+  readonly unverified: readonly string[];
+  readonly duplicate: boolean;
+}
+
+/**
+ * Take a printed line that raises a creature out of a corpse and keeps it
+ * under its holder's control — SRD Wraith, Create Specter. M-RISE.
+ *
+ * > The wraith targets a Humanoid corpse within 10 feet of itself that has
+ * > been dead for no longer than 1 minute. The target's spirit rises as a
+ * > **Specter** in the space of its corpse or in the nearest unoccupied space.
+ * > The specter is under the wraith's control. The wraith can have no more than
+ * > seven specters under its control at a time.
+ *
+ * **Every clause is a fact the engine already holds.** The corpse is a dead
+ * creature with a type and a `Vitals.diedAt`; the distance is the ruler's; the
+ * block arrives through `summonCreature` and stands through
+ * `placeCreatureInScene` measured from the corpse at no distance, which is the
+ * corpse's space where it is free and the nearest unoccupied one where it is
+ * not — the sentence's own two answers. "Under the wraith's control" is
+ * `SummonBond.controlled` with no lapse, named by this line's own source, and
+ * the seven are counted over the live creatures bound that way. The corpse
+ * stays where it lies: it is the spirit that rises, and a spirit rises once.
+ *
+ * **What it does not do is seat the specter.** The book gives a raised
+ * creature no place in the order, so it arrives without one and the table
+ * rolls its Initiative, as for any creature a fight did not start with — said
+ * in the report rather than invented.
+ */
+export function raisePrintedLine(
+  state: GameState,
+  id: CharacterId,
+  command: PrintedRaiseCommand,
+  supply: Supply,
+): Result<PrintedRaiseOutcome> {
+  return once(
+    state,
+    `printed-raise:${id}`,
+    command,
+    () => ({ events: [], unverified: [], duplicate: true }),
+    (stamp) => {
+      const owedHere = mayAct(state, id, 'act');
+      if (owedHere !== null) return owedHere;
+
+      const creature = creatureOf(state, id);
+      if (creature === null) return unknownCreature(id, 'has no record here yet; add it first');
+      if (state.combat === null) {
+        return err('not_in_combat', 'there is no turn to spend a printed line from outside combat');
+      }
+
+      const found = printedLineOf(state, id, command.line);
+      if (found === null) {
+        return err(
+          'no_such_line',
+          `no line called ${command.line} is printed under this creature's Actions or Bonus Actions`,
+        );
+      }
+      const raises = 'raises' in found.line ? found.line.raises : undefined;
+      if (raises === undefined) {
+        return err(
+          'line_states_no_raise',
+          `${found.line.name} states no raising this engine could read; take it with the door that hands the sentence over`,
+        );
+      }
+
+      const refused = headingRefusal(state, id, found);
+      if (refused !== null) return refused;
+
+      if (command.corpse === undefined) {
+        return needsContext(
+          'undeclared_corpse',
+          `${found.line.name} targets "a ${raises.corpseType} corpse within ${raises.within} feet", and nobody has said which`,
+          [
+            {
+              kind: 'creature',
+              subject: id,
+              need: `the corpse ${found.line.name} targets`,
+              because: 'the book offers a choice of corpses and the engine makes none of them',
+              satisfyWith: 'raisePrintedLine again with its corpse filled in',
+            },
+          ],
+        );
+      }
+      const corpse = creatureOf(state, command.corpse);
+      if (corpse === null) return unknownCreature(command.corpse);
+      if (!corpse.vitals.dead) {
+        return err('not_a_corpse', `${command.corpse} is not dead, and ${found.line.name} targets a corpse`);
+      }
+      if (corpse.creatureType?.toLowerCase() !== raises.corpseType.toLowerCase()) {
+        return err(
+          'wrong_creature_type',
+          `${found.line.name} targets a ${raises.corpseType} corpse, and ${command.corpse} is ${
+            corpse.creatureType === null ? 'of no type anybody stated' : `a ${corpse.creatureType}`
+          }`,
+        );
+      }
+      const diedAt = corpse.vitals.diedAt;
+      if (diedAt === null) {
+        return err(
+          'death_unrecorded',
+          `${command.corpse} is dead and the log does not say when, so whether it has been dead for no longer than ${raises.deadForAtMostSeconds} seconds cannot be told`,
+        );
+      }
+      if (state.elapsed - diedAt > raises.deadForAtMostSeconds) {
+        return err(
+          'dead_too_long',
+          `${command.corpse} has been dead for ${state.elapsed - diedAt} seconds, and ${found.line.name} targets a corpse dead for no longer than ${raises.deadForAtMostSeconds}`,
+        );
+      }
+      // "The target's spirit rises" — once. A corpse something has already
+      // risen out of has no spirit left in it for a second line to raise.
+      const risen = Object.keys(state.creatures)
+        .sort()
+        .find((key) => state.creatures[key]?.raisedFrom === command.corpse);
+      if (risen !== undefined) {
+        return err(
+          'spirit_already_risen',
+          `${risen} has already risen out of ${command.corpse}, and a spirit rises once`,
+        );
+      }
+      const apart = measured(
+        state,
+        id,
+        command.corpse,
+        `${found.line.name} targets a corpse within ${raises.within} feet of ${id}`,
+      );
+      if (!apart.ok) return apart;
+      if (apart.value > raises.within) {
+        return err(
+          'out_of_range',
+          `${command.corpse} lies ${apart.value} feet from ${id}, and ${found.line.name} reaches ${raises.within}`,
+        );
+      }
+
+      // "No more than seven … under its control at a time": the live creatures
+      // this line's own control holds. A destroyed one is under nobody's.
+      const bondKey = printedLineSource(id, found.line.name);
+      const held = Object.values(state.creatures).filter(
+        (one) =>
+          one.summonedBy?.by === id &&
+          one.summonedBy.controlled?.spell === bondKey &&
+          !one.vitals.dead,
+      ).length;
+      if (held >= raises.controlsAtMost) {
+        return err(
+          'controls_too_many',
+          `${id} already has ${held} creatures under its control from ${found.line.name}, and the line allows no more than ${raises.controlsAtMost}`,
+        );
+      }
+
+      if (command.into === undefined) {
+        return needsContext(
+          'undeclared_creature',
+          `${found.line.name} raises a creature, and nobody has said what it is called`,
+          [
+            {
+              kind: 'creature',
+              subject: id,
+              need: 'what the risen creature is called',
+              because: 'the book names no creature and the engine invents no name',
+              satisfyWith: 'raisePrintedLine again with into filled in',
+            },
+          ],
+        );
+      }
+
+      const spent = spendTheLine(state, id, found, stamp);
+      if (!spent.ok) return spent;
+      const events: GameEvent[] = [...spent.value];
+      let current = events.reduce(applyEvent, state);
+      const land = (more: readonly GameEvent[]): void => {
+        events.push(...more);
+        current = more.reduce(applyEvent, current);
+      };
+
+      const raised = summonCreature(current, supply.content, {
+        id: command.into,
+        monsterId: raises.block,
+        by: id,
+        controlled: { spell: bondKey },
+        raisedFrom: command.corpse,
+      });
+      if (!raised.ok) return raised;
+      land(raised.value.events);
+
+      // "in the space of its corpse or in the nearest unoccupied space": a
+      // placement at no distance from the corpse is exactly that pair.
+      const stood = placeCreatureInScene(current, command.into, {
+        from: { creature: command.corpse },
+        feet: 0,
+      });
+      if (!stood.ok) return stood;
+      land(stood.value);
+
+      return ok({
+        events,
+        unverified: [
+          ...raised.value.unverified,
+          `${command.into} has no place in the order yet; roll its Initiative to seat it`,
+        ],
+        duplicate: false,
+      });
     },
   );
 }
