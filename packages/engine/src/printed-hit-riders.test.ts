@@ -629,17 +629,17 @@ describe('reading a printed rider as a sequence', () => {
 
   /**
    * The reader's own refusals, unchanged: a sentence it cannot read is the
-   * DM's. SRD Barbed Devil's Hurl Flame catches only a flammable object, which
-   * the engine holds no record of. (The Mummy's curse was this example until
-   * M-LINGER read it.)
+   * DM's. SRD Dragon Turtle's Bite (CR 17): "Being underwater doesn't grant
+   * Resistance to this Fire damage." (The Mummy's curse was this example until
+   * M-LINGER read it, and the Barbed Devil's flammable object until M-MATTER
+   * lit one.)
    */
   it('still refuses what it never read', () => {
-    const flame =
-      "If the target is a flammable object that isn't being worn or carried, it starts burning.";
-    const read = readPrintedRiders(flame);
+    const turtle = "Being underwater doesn't grant Resistance to this Fire damage.";
+    const read = readPrintedRiders(turtle);
     expect(read.riders).toEqual([]);
     expect(read.handedOver).toHaveLength(1);
-    expect(readPrintedRider(flame)).toBeNull();
+    expect(readPrintedRider(turtle)).toBeNull();
   });
 });
 

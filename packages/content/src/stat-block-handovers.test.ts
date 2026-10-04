@@ -163,7 +163,9 @@ describe('the residue, named with its seams', () => {
     const lines = ledger.monsters.residue.filter(
       (one) => one.section === 'action' || one.section === 'bonus action',
     );
-    expect(lines.length).toBeGreaterThan(0);
+    // **Empty since wave M**, with `LINE_RESIDUE_SEAMS` beside it; the walk
+    // stays so a line that joins the residue is named in the same commit.
+    expect(lines).toEqual([]);
     const unnamed = lines
       .map((one) => {
         const block = SRD_CONTENT.monsters.find((monster) => monster.name === one.monster)!;

@@ -799,9 +799,10 @@ describe('the bestiary row counts blocks, and the prose it cannot read', () => {
    * turning into a list of things that used to be true.
    */
   it('names a line the bestiary prints, and no line that has been built', () => {
-    // Not empty, so the checks below read something; the count itself is the
-    // report's to say, and falls as lines are built.
-    expect(Object.keys(LINE_RESIDUE_SEAMS).length).toBeGreaterThan(0);
+    // **Empty since wave M** (M-MIND, M-REFLEX, M-MATTER and M-RISE built the
+    // last rows between them), so the walk below reads nothing today; it stays,
+    // so an entry written later is held to the catalogue the day it arrives.
+    expect(Object.keys(LINE_RESIDUE_SEAMS)).toEqual([]);
     const missing: string[] = [];
     const built: string[] = [];
     for (const [key, seam] of Object.entries(LINE_RESIDUE_SEAMS)) {

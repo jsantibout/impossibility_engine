@@ -31,6 +31,7 @@ import type { ClassDefinition } from '@ie/engine';
 import {
   MONSTER_LINE_SHAPES,
   auditPlayableLevels,
+  hasUnappliedRider,
   isExecutedLine,
   isReadLine,
   reachOf,
@@ -260,10 +261,16 @@ describe('the ledger measures the three populations of the roadmap', () => {
     expect(ledger.monsters.items).toBe(
       ledger.monsters.handedOver + ledger.monsters.riders + ledger.monsters.inertTraits,
     );
-    // The riders are populated, so the identity above is not holding at zero —
-    // which is what it would do if the predicate stopped matching and the debt
-    // it names quietly left the ledger.
-    expect(ledger.monsters.riders).toBeGreaterThan(0);
+    // **And the riders are none** (wave M, 2026-10-03): M-LINGER and M-MATTER
+    // applied the last CR ≤ 5 riders. An absent column is a claim, so the
+    // predicate is asked above the ledger's reach, where riders still stand —
+    // which is what proves the zero is not a predicate that stopped matching.
+    expect(ledger.monsters.riders).toBe(0);
+    const above = SRD_CONTENT.monsters
+      .filter((monster) => monster.cr > 5)
+      .flatMap((monster) => statBlockLines(monster))
+      .filter(hasUnappliedRider);
+    expect(above.length).toBeGreaterThan(0);
     // **And the inert traits are none again.** The parser learned three
     // sentences nothing read — the two oozes' Split and the Goblin Boss's
     // Redirect Attack — W7-B12 spent the two Splits and M-REFLEX the Goblin
@@ -286,7 +293,9 @@ describe('the ledger measures the three populations of the roadmap', () => {
    * would make the ledger read as finished sooner than it is.
    */
   it('names every handed-over line that matches no shape', () => {
-    expect(ledger.monsters.residue.length).toBeGreaterThan(0);
+    // **Empty since wave M**: every CR ≤ 5 line is read, so no handed-over line
+    // matches no shape. The walk stays for the line that joins it later.
+    expect(ledger.monsters.residue).toEqual([]);
     for (const line of ledger.monsters.residue) {
       expect(line.monster.length).toBeGreaterThan(0);
       expect(line.line.length).toBeGreaterThan(0);

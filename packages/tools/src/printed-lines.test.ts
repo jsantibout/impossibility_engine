@@ -350,11 +350,13 @@ describe('what a code-run monster reads off look to rank its lines', () => {
     expect(mummy.riderApplied).toBe('whole');
     expect(mummy.riderReads).toEqual(['curse', 'on-dropping-to-zero']);
 
-    // The one CR ≤ 5 rider nothing is read out of: a flammable object, which
-    // the engine holds no record of.
-    const flame = attackOf('barbed-devil', 'Hurl Flame');
-    expect(flame.riderApplied).toBe('none');
-    expect(flame.riderReads).toEqual([]);
+    // M-MATTER: the Barbed Devil's flammable object is lit, so no CR ≤ 5
+    // rider is left that nothing is read out of; the Pirate Captain's (CR 6)
+    // Advantage on its next attack is one.
+    expect(attackOf('barbed-devil', 'Hurl Flame').riderApplied).toBe('whole');
+    const rapier = attackOf('pirate-captain', 'Rapier');
+    expect(rapier.riderApplied).toBe('none');
+    expect(rapier.riderReads).toEqual([]);
 
     expect(attackOf('darkmantle', 'Crush').riderApplied).toBe('part');
 
