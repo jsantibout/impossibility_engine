@@ -68,6 +68,7 @@ import { filedFor, reportFiled } from './filed-handovers.js';
 import { settleStartOfTurnTraitDice } from './turn-start-dice.js';
 import { settleStartOfTurnBody } from './turn-start-body.js';
 import { blockDeadlinesDue } from './become-block.js';
+import { dailyTollsDue } from './lingering.js';
 import { needsCasterSheet, statedChoice, statedDamageType } from '../spell-definitions.js';
 import {
   type OwedMoment,
@@ -2477,6 +2478,18 @@ export function resolveTurn(
       return err(
         'block_change_owed',
         `${changing.join(', ')} ${changing.length === 1 ? 'owes' : 'owe'} the die a printed line throws when its day runs out; settleBlockDeadlines throws it before the turn moves on`,
+      );
+    }
+
+    // **A lingering harm's toll the clock has passed** — M-LINGER, SRD Mummy's
+    // "every 24 hours that elapse" and SRD Death Dog's repeat save. The same
+    // kind of debt as the limb's day just above, settled by
+    // `settleDailyTolls`, which throws the dice.
+    const tolling = dailyTollsDue(state);
+    if (tolling.length > 0) {
+      return err(
+        'daily_toll_owed',
+        `${tolling.join(', ')} ${tolling.length === 1 ? 'owes' : 'owe'} the toll a lingering harm takes every period; settleDailyTolls throws it before the turn moves on`,
       );
     }
 

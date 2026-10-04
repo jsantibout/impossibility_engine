@@ -16,7 +16,7 @@ import {
   type ModeSource,
   type StandingBonusApplies,
 } from './bonuses.js';
-import type { CreatureSize, PrintedHoldCapacity } from '@ie/srd';
+import type { CreatureSize, PrintedHoldCapacity, PrintedLingering } from '@ie/srd';
 import type { HazardName } from './hazards.js';
 import { strongestOfEachEffect } from './same-effect.js';
 // Type-only, so the cycle with `monster.ts` (which imports this file's types)
@@ -3225,6 +3225,20 @@ export interface HitOption {
    */
   readonly onDroppingToZero?: HitDropToZero;
   /**
+   * The curse the hit lays — M-LINGER, SRD Mummy's Rotting Fist and SRD
+   * Incubus's Restless Touch. Printed-only, beside the hazard and the drain:
+   * `applyHitRider` lays the curse, the harm it carries, and the healing rule
+   * "can't regain Hit Points" hangs. See {@link HitCurse}.
+   */
+  readonly curse?: HitCurse;
+  /**
+   * A condition with no span whose ending is what it goes on doing — M-LINGER,
+   * SRD Otyugh's Bite. Applied by `applyHitRider` with the harm it hosts,
+   * rather than through the effect list, because the harm is filed on the
+   * instance the condition lands as. See {@link HitLingeringCondition}.
+   */
+  readonly lingeringCondition?: HitLingeringCondition;
+  /**
    * Dice the rider adds to **the blow itself** — SRD Fire's Burn: "When you hit
    * a target with an attack roll and deal damage to it, you can also deal 1d10
    * Fire damage to that target."
@@ -3301,6 +3315,30 @@ export interface HitDropToZero {
   readonly dies?: true;
   /** SRD's "it has the Poisoned condition for 1 hour", in printed order. */
   readonly conditions?: readonly HitDropCondition[];
+  /** SRD Mummy's "and turns to dust": reported with the death, never enforced. M-LINGER. */
+  readonly turnsToDust?: true;
+}
+
+/**
+ * A curse a printed hit lays — M-LINGER. SRD Mummy, SRD Incubus.
+ *
+ * Every number is the line's and pinned at the hit: the span, whether the
+ * attacker's death ends it, and what the curse does while it stands.
+ */
+export interface HitCurse {
+  /** SRD Mummy's "If the target is a creature". */
+  readonly onlyCreatures?: true;
+  /** SRD Incubus's "for 24 hours". */
+  readonly lastsSeconds?: number;
+  /** SRD Incubus's "or until the incubus dies". */
+  readonly endsWhenAttackerDies?: true;
+  readonly lingers?: PrintedLingering;
+}
+
+/** SRD Otyugh's Poisoned and what it does at every Long Rest's end — M-LINGER. */
+export interface HitLingeringCondition {
+  readonly condition: ConditionName;
+  readonly lingers: PrintedLingering;
 }
 
 /** One condition such a hit leaves, and how long the line says it runs. */

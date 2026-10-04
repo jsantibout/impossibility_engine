@@ -341,9 +341,20 @@ describe('what a code-run monster reads off look to rank its lines', () => {
 
     expect(attackOf('wolf', 'Bite').riderReads).toEqual(['condition']);
 
+    // M-LINGER: the Death Dog's poison is a save printed inside the hit, read
+    // whole at ingest; the Mummy's curse and the dust at 0 are the swing's.
     const dog = attackOf('death-dog', 'Bite');
-    expect(dog.riderApplied).toBe('none');
-    expect(dog.riderReads).toEqual([]);
+    expect(dog.riderApplied).toBe('whole');
+    expect(dog.riderReads).toEqual(['save']);
+    const mummy = attackOf('mummy', 'Rotting Fist');
+    expect(mummy.riderApplied).toBe('whole');
+    expect(mummy.riderReads).toEqual(['curse', 'on-dropping-to-zero']);
+
+    // The one CR ≤ 5 rider nothing is read out of: a flammable object, which
+    // the engine holds no record of.
+    const flame = attackOf('barbed-devil', 'Hurl Flame');
+    expect(flame.riderApplied).toBe('none');
+    expect(flame.riderReads).toEqual([]);
 
     expect(attackOf('darkmantle', 'Crush').riderApplied).toBe('part');
 
@@ -371,7 +382,9 @@ describe('what a code-run monster reads off look to rank its lines', () => {
       none: count('none'),
       damageAlone: attacks.filter((one) => one.riderReads.length === 1 && one.riderReads[0] === 'damage')
         .length,
-    }).toEqual({ lines: 104, whole: 96, part: 3, none: 5, damageAlone: 15 });
+    // M-LINGER moved four from `none` to `whole`: the Death Dog's, the
+    // Mummy's, the Otyugh's and the Incubus's harm that outlasts the fight.
+    }).toEqual({ lines: 104, whole: 100, part: 3, none: 1, damageAlone: 15 });
   });
 
   it('says who each kind of line catches, off the pinned record the doors read', () => {

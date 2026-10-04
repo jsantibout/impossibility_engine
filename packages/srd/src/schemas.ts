@@ -679,11 +679,91 @@ export const PrintedPullOutSchema = z.object({
 });
 export type PrintedPullOut = z.infer<typeof PrintedPullOutSchema>;
 
+/**
+ * An amount the book prints with no damage type — "decreases by 5 (1d10)".
+ *
+ * The wound's `loss` beside it is the same three numbers; this one is about a
+ * Hit Point **maximum**, which nothing types either. Dice are required, because
+ * every printing is rolled and a flat toll would be a number nobody threw.
+ */
+export const PrintedAmountSchema = z.object({
+  dice: z.string().regex(/^\d+d\d+$/),
+  flat: z.number().int(),
+  /** The average the block prints outside the parenthesis. */
+  average: z.number().int().min(0),
+});
+export type PrintedAmount = z.infer<typeof PrintedAmountSchema>;
+
+/**
+ * **What a harm goes on doing after the fight** — M-LINGER.
+ *
+ * Five sentences the book prints about a curse or a poison that the fight's
+ * end does not end, each a rule a later moment reads:
+ *
+ * - SRD Mummy and SRD Death Dog: "its Hit Point maximum doesn't return to
+ *   normal when finishing a Long Rest" — {@link withholdsMaximum}, read by the
+ *   Long Rest that would otherwise give every lowering back;
+ * - SRD Mummy: "the target can't regain Hit Points" — {@link preventsHealing};
+ * - SRD Incubus: "the target gains no benefit from finishing Short Rests" —
+ *   {@link deniesShortRests};
+ * - SRD Mummy's "its Hit Point maximum decreases by 10 (3d6) every 24 hours
+ *   that elapse" and SRD Death Dog's "it repeats the save every 24 hours that
+ *   elapse … _Subsequent Failures:_ … decreases by 5 (1d10)" — {@link tolls},
+ *   a clock that falls due every period and either throws the line's own save
+ *   (a success ends the harm, a failure costs the amount) or simply costs it;
+ * - SRD Otyugh: "Whenever the Poisoned target finishes a Long Rest, it is
+ *   subjected to the following effect" — {@link atLongRest}, a save of its own
+ *   whose failure lowers the maximum until the condition ends and whose
+ *   success ends the condition.
+ *
+ * **One record for four lines**, and which of them carries it is the host:
+ * the Death Dog's and the Otyugh's Poisoned, the Mummy's and the Incubus's
+ * curse. The record lives exactly as long as its host — a cure, a Remove
+ * Curse, a made save, a day run out — which is what the engine pins.
+ */
+export const PrintedLingeringSchema = z.object({
+  withholdsMaximum: z.literal(true).optional(),
+  preventsHealing: z.literal(true).optional(),
+  deniesShortRests: z.literal(true).optional(),
+  tolls: z
+    .object({
+      /** "every 24 hours that elapse", in seconds. */
+      everySeconds: z.number().int().min(1),
+      /**
+       * "it repeats the save …, ending the effect on itself on a success" —
+       * the line's own ability and DC, thrown at every period.
+       */
+      repeatsSave: z.literal(true).optional(),
+      /**
+       * What the maximum loses each period — on every one where there is no
+       * save, on a failed one where there is.
+       */
+      decreases: PrintedAmountSchema.optional(),
+    })
+    .optional(),
+  atLongRest: z
+    .object({
+      ability: z.enum(['str', 'dex', 'con', 'int', 'wis', 'cha']),
+      dc: z.number().int().min(1),
+      /** "_Failure:_ The target's Hit Point maximum decreases by 5 (1d10)". */
+      decreases: PrintedAmountSchema,
+    })
+    .optional(),
+});
+export type PrintedLingering = z.infer<typeof PrintedLingeringSchema>;
+
 const PRINTED_SAVE_CLAUSES = [
   z.object({
     kind: z.literal('condition'),
     condition: PrintedConditionSchema,
     lasts: PrintedSpanSchema.optional(),
+    /**
+     * What the condition goes on doing after the fight — SRD Death Dog's
+     * Poisoned, under which the maximum is withheld and the save tolls every
+     * 24 hours. See {@link PrintedLingeringSchema}. The condition prints no
+     * span: its ending is the toll's made save, or a cure.
+     */
+    lingers: PrintedLingeringSchema.optional(),
     escapeDc: z.number().int().min(1).optional(),
     ifNoLargerThan: CreatureSizeSchema.optional(),
     /**

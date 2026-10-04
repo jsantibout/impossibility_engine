@@ -70,6 +70,8 @@ export type { AddCreatureOutcome, DamageCommand, Summons } from './commands/crea
 // A body that becomes another block — at a rest, or on a day's die (W7-B12).
 export { blockDeadlinesDue, settleBlockDeadlines, takeRestForm } from './commands/become-block.js';
 export type { BlockDeadlinesSettled, RestFormCommand } from './commands/become-block.js';
+export { dailyTollsDue, settleDailyTolls } from './commands/lingering.js';
+export type { DailyTollsSettled, TollSupply } from './commands/lingering.js';
 export { applyConditionTo, liftConditionFrom, whyCondition } from './commands/conditions.js';
 export { declareObject } from './commands/objects.js';
 export type { ObjectDeclaration } from './commands/objects.js';
