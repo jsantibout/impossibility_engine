@@ -291,13 +291,18 @@ function payOneToll(
     { type: 'daily-toll-paid', id: who, source: harm.source, day },
     // **Sourced to the day**, so it is a lowering with no lifetime of its own:
     // it comes back at a Long Rest once nothing withholds it, which is what SRD
-    // Death Dog and SRD Mummy both say by saying when it does not.
+    // Death Dog and SRD Mummy both say by saying when it does not. **And to
+    // the clock's start**, because a harm's source is its host's and a host
+    // can come again: a mummy that curses a creature a second time, after a
+    // Remove Curse and before any Long Rest, starts its days from 1 again, and
+    // a day-1 keyed to the source alone would replace the first curse's day 1
+    // rather than add to it.
     ...(lowered > 0
       ? [
           {
             type: 'hit-point-maximum-adjusted' as const,
             id: who,
-            adjustment: { source: `${harm.source}:day-${day}`, amount: -lowered },
+            adjustment: { source: `${harm.source}:from-${tolls.from}:day-${day}`, amount: -lowered },
           },
         ]
       : []),

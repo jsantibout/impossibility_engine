@@ -506,6 +506,33 @@ describe('a mummy’s curse', () => {
     expect(maximumOf(table.state)).toBe(whole);
   });
 
+  /**
+   * A curse lifted and laid again by the same mummy, with no Long Rest
+   * between, starts its days from 1 again — and the second curse's first day
+   * is a second lowering, not the first one's replacement.
+   */
+  it('adds a second curse’s first day to the first curse’s, rather than replacing it', () => {
+    const table = cursed();
+    const whole = maximumOf(table.state);
+    wait(table, DAY, 'a day');
+    table.log.push(...settle(table, 'the first curse’s day').events);
+    const first = whole - maximumOf(table.state);
+    const source = table.state.creatures[BREN]!.curses[0]!.source;
+    table.log.push({ type: 'printed-curse-lifted', id: BREN, source });
+    table.log.push(...swing(table, 'Rotting Fist', 'a second fist').events);
+    expect(table.state.creatures[BREN]!.vitals.dead).toBe(false);
+    expect(table.state.creatures[BREN]!.lingering![0]!.tolls!.paid).toBe(0);
+    wait(table, DAY, 'another day');
+    const again = settle(table, 'the second curse’s day').events;
+    table.log.push(...again);
+    // What the second day threw, off the log: both days stand, summed.
+    const second = again.find((event) => event.type === 'roll-recorded') as
+      | { readonly total: number }
+      | undefined;
+    expect(second).toBeDefined();
+    expect(whole - maximumOf(table.state)).toBe(first + second!.total);
+  });
+
   it('kills the creature its blow empties, and hands the dust to the table', () => {
     for (let attempt = 0; attempt < 60; attempt += 1) {
       const table = field('mummy');
@@ -650,5 +677,48 @@ describe('an incubus’s curse', () => {
     expect(table.state.creatures[BEAST]!.vitals.dead).toBe(true);
     expect(table.state.creatures[BREN]!.curses).toEqual([]);
     expect(unwrap(shortRest(table, 'a free rest'), 'a free rest').benefit).toBe('short');
+  });
+});
+
+// — what a rest's own healing meets ——————————————————————————————————————————
+
+/**
+ * A rest's hit points are regained hit points, so they meet the two rules
+ * every other healing door meets: a running `prevented` rule (the Mummy's
+ * curse is one) and a block that never regains any (SRD Swarm).
+ */
+describe('the hit points a rest pays', () => {
+  it('pays a swarm none at a Long Rest, because it regains no Hit Points', () => {
+    const table = new Table();
+    table.did('the swarm arrives', (s) => addCreature(s, SRD_CONTENT, BEAST, 'swarm-of-crawling-claws'));
+    table.do('a swat', (s) => damageCreature(s, BEAST, { amount: 10, source: 'a boot', commandId: 'swat' }));
+    const hurt = table.state.creatures[BEAST]!.vitals.hp;
+    table.do('settle', (s) => beginRest(s, BEAST, 'long', 'settle'));
+    wait(table, 8 * 3600, 'the night');
+    table.log.push(...unwrap(endRest(table.state, BEAST, { commandId: 'stir' }, supply()), 'stir').events);
+    expect(table.state.creatures[BEAST]!.vitals.hp).toBe(hurt);
+  });
+
+  it('spends the Hit Die and regains nothing where healing is prevented', () => {
+    const table = new Table();
+    table.do('the fighter arrives', () => createCharacter(SRD_CONTENT, walkOn('Bren'), BREN));
+    table.do('a cut', (s) => damageCreature(s, BREN, { amount: 6, source: 'a cut', commandId: 'cut' }));
+    // What a mummy's curse hangs, written as the hit writes it.
+    table.log.push({
+      type: 'healing-rule-granted',
+      id: BREN,
+      rule: { source: 'lingering:a curse', rule: 'prevented' },
+    });
+    const hurt = table.state.creatures[BREN]!.vitals.hp;
+    table.do('sit', (s) => beginRest(s, BREN, 'short', 'sit'));
+    wait(table, 3600, 'the hour');
+    const rested = unwrap(
+      endRest(table.state, BREN, { commandId: 'stand', hitDice: ['hit-die:d10'] }, supply()),
+      'stand',
+    );
+    table.log.push(...rested.events);
+    expect(rested.hitDice).toHaveLength(1);
+    expect(rested.events.some((event) => event.type === 'healed')).toBe(false);
+    expect(table.state.creatures[BREN]!.vitals.hp).toBe(hurt);
   });
 });
