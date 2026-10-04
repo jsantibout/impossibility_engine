@@ -7,6 +7,7 @@ import { createRollIssuer } from './rolls.js';
 import { fold, type GameEvent, type GameState } from './events.js';
 import { declaredCasting } from './spellcasting.js';
 import { hasSpeedInModeOn, weaponRidersFor } from './standing.js';
+import { breathesWater } from './hazards.js';
 import { activateSpell, resolveAttack, resolveSpell, resolveTurn } from './commands.js';
 
 /**
@@ -171,12 +172,32 @@ describe('SRD Alter Self’s Magic action replaces the option', () => {
     );
     const after = fold('seed', [...log, ...swapped.events]);
     expect(hasSpeedInModeOn(after, SORCERER, 'swim')).toBe(true);
+    // "You can breathe underwater" — the gills are the casting's, and SRD
+    // Whelm's "unless it can breathe water" reads them. (M-HOLD)
+    expect(breathesWater(state, SORCERER)).toBe(false);
+    expect(breathesWater(after, SORCERER)).toBe(true);
     expect(weaponRidersFor(after.creatures[SORCERER], null)).toHaveLength(0);
     expect(after.ongoing[castingId]?.option).toBe('aquatic-adaptation');
     // And a punch is a punch again: 1 + Strength's 0, with no die to record.
     const struck = punch(after);
     expect(struck.damage).toBe(1);
     expect(typesDealt(struck.events)).not.toContain('slashing');
+  });
+
+  /** And the gills go with the branch: a swap away from them is breath of air only. (M-HOLD) */
+  it('takes the gills away when the gills are swapped for claws', () => {
+    const { state, log, castingId } = shaped('aquatic-adaptation');
+    expect(breathesWater(state, SORCERER)).toBe(true);
+    const swapped = must(
+      activateSpell(
+        state,
+        SORCERER,
+        { castingId, targets: [], option: 'natural-weapons' },
+        supply('claws'),
+      ),
+      'swap',
+    );
+    expect(breathesWater(fold('seed', [...log, ...swapped.events]), SORCERER)).toBe(false);
   });
 
   /** "take a Magic action": the swap is paid for out of the turn. */

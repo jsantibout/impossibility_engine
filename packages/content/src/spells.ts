@@ -4268,15 +4268,18 @@ export const WATER_BREATHING: SpellDefinition = {
   ritual: true,
   concentration: false,
   range: { kind: 'ranged', feet: 30 },
-  targets: { count: 10, willing: true },
-  effects: [],
+  // "up to ten willing creatures of your choice within range" — the caster is
+  // one of the creatures within range, which the definition never had to say
+  // while it executed nothing. (M-HOLD)
+  targets: { count: 10, self: true, willing: true },
+  // "the ability to breathe underwater until the spell ends" — read since
+  // M-HOLD by the one rule that asks, SRD Water Elemental's Whelm ("is
+  // suffocating unless it can breathe water"), and gone with the casting.
+  effects: [{ kind: 'breathes-water' }],
   durationSeconds: 86_400,
-  // **Handed over whole.** Suffocation is not modelled, so breathing
-  // underwater lifts a rule the engine does not apply.
-  dmDecides: [
-    'This spell grants up to ten willing creatures of your choice within range the ability to breathe underwater until the spell ends.',
-    'Affected creatures also retain their normal mode of respiration.',
-  ],
+  // That the targets still breathe air is true of every creature here: the
+  // engine takes nobody's air away but a hold's, so nothing reads it.
+  dmDecides: ['Affected creatures also retain their normal mode of respiration.'],
 };
 
 /**
@@ -12353,7 +12356,8 @@ export const UNSEEN_SERVANT: SpellDefinition = {
  * Three branches, chosen at the casting and swapped on a later Magic action —
  * and all three are written. **Aquatic Adaptation** is a Swim Speed that
  * matches the walking Speed, the `match-walk` member the vocabulary grew for
- * exactly this sentence; the gills are the table's. **Change Appearance** is
+ * exactly this sentence, and the water it breathes (`breathes-water`, M-HOLD);
+ * what the gills look like is the table's. **Change Appearance** is
  * handed over whole. **Natural Weapons** is a `weapon-rider` on the Unarmed
  * Strike — `unarmed`, because a fist has no id to name — with its die, the type
  * the caster stated (`damageTypeStated`, substituted into the rider and pinned)
@@ -12380,16 +12384,15 @@ export const ALTER_SELF: SpellDefinition = {
   options: {
     'aquatic-adaptation': {
       label: 'Aquatic Adaptation',
-      // "gain a Swim Speed equal to your Speed".
-      effects: [{ kind: 'speed', change: 'match-walk', mode: 'swim' }],
-      // And the breathing, in the book's words (W8-S26): the engine holds no
-      // water and nothing drowns in it, so breathing underwater is a fact
-      // nothing reads — Water Breathing's reading, which is handed over whole.
-      // The Swim Speed in the same sentence is the effect above.
-      handsOver: [
-        'You sprout gills and grow webs between your fingers.',
-        'You can breathe underwater and gain a Swim Speed equal to your Speed.',
+      // "gain a Swim Speed equal to your Speed", and "You can breathe
+      // underwater" — the second read since M-HOLD by SRD Whelm's "unless it
+      // can breathe water", as Water Breathing's is.
+      effects: [
+        { kind: 'speed', change: 'match-walk', mode: 'swim' },
+        { kind: 'breathes-water' },
       ],
+      // The gills and the webs are what the change looks like.
+      handsOver: ['You sprout gills and grow webs between your fingers.'],
     },
     'change-appearance': {
       label: 'Change Appearance',

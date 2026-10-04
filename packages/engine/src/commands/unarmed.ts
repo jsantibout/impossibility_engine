@@ -617,6 +617,11 @@ export interface HeldGrapple {
   readonly source: string;
   /** The timer the escape DC is pinned on. */
   readonly effectKey: string;
+  /**
+   * The grapple's range where it is longer than an Unarmed Strike's five feet
+   * — M-HOLD. SRD Roper's Tentacle holds at sixty. Absent is five.
+   */
+  readonly range?: number;
 }
 
 /** Every grapple currently held on this creature. */
@@ -635,6 +640,7 @@ export function grapplesOn(state: GameState, target: CharacterId): readonly Held
           on: target,
           instance: conditionInstanceId('grappled', instance.source),
         }),
+        ...(instance.range === undefined ? {} : { range: instance.range }),
       },
     ];
   });
@@ -680,7 +686,9 @@ export function lapsedGrapples(state: GameState): readonly LapsedGrapple[] {
           return [{ ...common, reason: 'incapacitated' }];
         }
         const apart = apartFrom(state, held.grappler, held.target);
-        return apart !== null && apart > UNARMED_REACH
+        // "exceeds **the grapple's range**": five feet for an Unarmed Strike,
+        // and whatever a printed hold was made at — the Roper's sixty (M-HOLD).
+        return apart !== null && apart > (held.range ?? UNARMED_REACH)
           ? [{ ...common, reason: 'out-of-range' }]
           : [];
       }),

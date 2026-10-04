@@ -235,6 +235,13 @@ export const GLOSSARY_RULES: readonly GlossaryRule[] = [
     note: 'the hazard, not a sixteenth condition: a mark on the creature beside its conditions, so a stat block’s condition Immunities reach it not at all. The 1d4 Fire is collected at the start of each of its turns by the same boundary that settles a payout, so a creature with Immunity to Fire burns and takes nothing. The action that puts it out spends an Action and gives the creature the Prone condition, which is the method the sentence prints rather than a price the fire charges — a creature that cannot be given Prone still puts the fire out. SRD Fire Elemental’s Burn and SRD Magmin’s Touch light it, and the object half of both sentences is the table’s because nothing here holds flammability. The book’s other three endings — “doused, submerged, or suffocated” — are neither built nor handed over: there is no water in this world and no door a DM could rule one through, so they are a named gap and the action is the whole of what puts a fire out.',
   },
   {
+    id: 'suffocation',
+    name: 'Suffocation',
+    kind: 'rule',
+    built: 'outOfBreath',
+    note: 'the second hazard, and for Burning’s reason not a sixteenth condition — M-HOLD. A creature is caught in it by a hold that takes its breath — the four bestiary lines that print "is suffocating": a rug’s grapple, a darkmantle’s cover, a cube’s inside and a water elemental’s grapple, the last "unless it can breathe water" — and is caught exactly as long as that hold stands, read off the hold’s own record. It holds its breath for 1 plus its Constitution modifier minutes, at least thirty seconds, or for the span a block’s own Hold Breath prints; once that has run out on the clock it gains a level of Exhaustion at the end of each of its turns, which an Immunity to Exhaustion refuses; and the moment no hold is taking its breath it sheds every level suffocating gave it and no others. Outside a fight there are no turns to charge a level at, so the clock is refused past the moment a held breath gives out, as it is over a dying creature. "Choking" is the glossary’s other way in, and nothing in the engine chokes anybody.',
+  },
+  {
     id: 'two-weapon-fighting',
     name: 'Two-Weapon Fighting',
     kind: 'rule',

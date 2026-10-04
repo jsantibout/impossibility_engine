@@ -656,6 +656,31 @@ export const attachedTo = (source: string): CharacterId | null =>
  */
 export const heldByObjectSource = (object: CharacterId): string => `held-by:${object}`;
 
+/**
+ * Whose limb a printed thing is, and when it grows back — see
+ * {@link CreatureState.limbOf}. One moment, because the book prints one.
+ */
+export interface LimbRecord {
+  readonly holder: CharacterId;
+  readonly regrows: 'start-of-holders-next-turn';
+}
+
+/**
+ * The destroyed limbs a creature has not yet grown back — M-HOLD.
+ *
+ * SRD Roper: "a destroyed tentacle regrows at the start of the roper's next
+ * turn." A dead thing whose record names this holder; sorted, so every walk
+ * is fixed. Read by the cap at the swing and by the boundary that regrows.
+ */
+export function limbsToRegrow(state: GameState, holder: CharacterId): readonly CharacterId[] {
+  return (Object.keys(state.creatures) as CharacterId[])
+    .sort()
+    .filter((who) => {
+      const creature = state.creatures[who];
+      return creature?.limbOf?.holder === holder && creature.vitals.dead;
+    });
+}
+
 /** Which thing holds a condition, read back out of the source. Null for any other cause. */
 export const heldByObject = (source: string): CharacterId | null => {
   // **Anywhere in the source, not only at its head** — W7-B10. A grapple made
@@ -961,6 +986,16 @@ export interface CreatureState {
    * See {@link DeviceRecord}.
    */
   readonly device: DeviceRecord | null;
+  /**
+   * The creature this thing is a limb of, where a printed hold raised it as
+   * one that grows back — M-HOLD. SRD Roper: "a destroyed tentacle regrows at
+   * the start of the roper's next turn." Pinned at the raising off the line's
+   * own words; read by the cap a hold counts its limbs against (a destroyed
+   * limb is one the holder does not have) and by the boundary that grows it
+   * back. Absent on every creature but such a limb, and on every log written
+   * before it — so both frozen fixtures fold unchanged.
+   */
+  readonly limbOf?: LimbRecord;
   /**
    * Features this creature has switched on and is still in.
    *
@@ -1299,6 +1334,14 @@ export interface CreatureState {
    * already existed — and the landing itself ends it, because the book does.
    */
   readonly fallWards: readonly GrantedFallWard[];
+  /**
+   * The castings letting this creature breathe water — M-HOLD. SRD *Water
+   * Breathing*, SRD *Alter Self*'s Aquatic Adaptation. Read by `breathesWater`
+   * for the one rule that asks, SRD Whelm's "unless it can breathe water", and
+   * linked by the source like every other grant. Empty on every creature in
+   * every log written before it, so both frozen fixtures fold unchanged.
+   */
+  readonly waterBreathing: readonly GrantedWaterBreathing[];
   /**
    * The castings holding this creature off the ground — see {@link GrantedLift}.
    *
@@ -1802,6 +1845,16 @@ export interface FallMoment {
  */
 export interface GrantedFallWard {
   /** The casting (`Feather Fall#cast:3`) that hung it. */
+  readonly source: string;
+}
+
+/**
+ * A casting letting a creature breathe water — see
+ * {@link CreatureState.waterBreathing}. One field, for {@link GrantedFallWard}'s
+ * reason: what it records is that somebody's magic is doing it.
+ */
+export interface GrantedWaterBreathing {
+  /** The casting (`Water Breathing#cast:3`) or the conferral that hung it. */
   readonly source: string;
 }
 

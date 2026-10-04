@@ -140,6 +140,21 @@ describe('Loathsome Limbs', () => {
     expect(after.creatures[TROLL]!.conditions.exhaustion).toBe(0);
   });
 
+  it('takes back only the levels its limbs gave, beside Exhaustion from anywhere else', () => {
+    // Two levels from elsewhere — suffocation's, a spell's — then a limb.
+    const withOther: GameEvent[] = [...slash(fight(), '15d2')];
+    withOther.splice(withOther.findIndex((e) => e.type === 'damage-taken' && e.id === TROLL), 0, {
+      type: 'exhaustion-set',
+      id: TROLL,
+      level: 2,
+    });
+    const out = unwrap(resolveTurn(state(withOther), supply()), 'end of turn');
+    const advanced = out.events.findIndex((e) => e.type === 'turn-advanced');
+    expect(state([...withOther, ...out.events.slice(0, advanced)]).creatures[TROLL]!.conditions.exhaustion).toBe(3);
+    // The troll's turn starts and Regeneration heals: the limb's level goes, the two stay.
+    expect(state([...withOther, ...out.events]).creatures[TROLL]!.conditions.exhaustion).toBe(2);
+  });
+
   it('keeps the Exhaustion while fire stops the regeneration', () => {
     const burnt = slash(slash(fight(), '15d2'), '1d2', 'fire', 'fire');
     const after = state(endTurn(burnt));

@@ -42,7 +42,7 @@ import { saveModifier, skillModifier } from './character.js';
 import type { GameState } from './state.js';
 import type { ShapeShiftRow } from './progression.js';
 import { isCreatureType } from './spell-definitions.js';
-import type { HazardName } from './hazards.js';
+import type { HazardName, Suffocates } from './hazards.js';
 import type { TurnAnchor, TurnMoment } from './time.js';
 import type { HitRiderAnchor, StandingEffect, StandingRequirement } from './standing.js';
 import type { RollFamily } from './roll-modifiers.js';
@@ -4179,6 +4179,13 @@ export interface PrintedGrappleRider {
    * the pass that frees what a broken web held. See {@link PrintedHeldObject}.
    */
   readonly heldByObject?: PrintedHeldObject;
+  /**
+   * SRD Animated Rug of Smothering: "Until the grapple ends, the target … is
+   * suffocating" — M-HOLD. The glossary's Suffocation hazard for exactly the
+   * hold's lifetime; see `hazards.ts`. Read only from the book's own two
+   * wordings — {@link suffocationWords} — and handed back otherwise.
+   */
+  readonly suffocates?: Suffocates;
 }
 
 /**
@@ -4193,6 +4200,15 @@ export interface PrintedHeldObject {
   readonly vulnerabilities?: readonly DamageType[];
   readonly resistances?: readonly DamageType[];
   readonly immunities?: readonly DamageType[];
+  /**
+   * SRD Roper: "a destroyed tentacle regrows at the start of the roper's next
+   * turn." — M-HOLD. Until then the limb is gone, so it counts against the
+   * hold's cap as a tentacle the roper does not have; at the holder's next
+   * start the dead thing is taken out of the game and the cap is whole again
+   * (`regrowLimbs` in `commands/turns.ts`). One value, because the book prints
+   * one moment.
+   */
+  readonly regrows?: 'start-of-holders-next-turn';
 }
 
 /**
@@ -4201,14 +4217,14 @@ export interface PrintedHeldObject {
  *
  * Three flags for the one sentence in the book that prints them, and every
  * one read where the fact is asked: the line is refused at the swing while
- * the hold stands, and the halving and the sharing are both read in
- * `dealSpellDamage`, the seam every **unheld** blow lands through — the
- * halving as a Resistance to each type in the blow, the sharing as the same
- * amount dealt again to whoever is held. A blow a Reaction held open lands
- * through `settleDamage` instead and neither halves nor shares: a gap, named
- * beside the seam in `commands/damage.ts`. Derived off the sheet and the
- * standing hold rather than pinned, because a grapple is a condition instance
- * and a timer and has no record of its own to carry a clause.
+ * the hold stands, and the halving and the sharing are both read where a blow
+ * lands — the halving as a Resistance to each type in the blow, the sharing as
+ * the same amount dealt again to whoever is held — by `holdHalvedDefenses` and
+ * `shareWithTheHeld` in `commands/damage.ts`, which `dealSpellDamage` and
+ * `settleDamage` both ask, so a blow a Reaction held open halves and shares
+ * like any other (M-HOLD). Derived off the sheet and the standing hold rather
+ * than pinned, because a grapple is a condition instance and a timer and has
+ * no record of its own to carry a clause.
  */
 export interface PrintedWhileHolding {
   /** "the rug can't take this action". */
@@ -4304,6 +4320,27 @@ export interface PrintedAttachCover {
   readonly conditions: readonly ConditionName[];
   readonly ifNoLargerThan?: CreatureSize;
   readonly ifAttackHadAdvantage?: true;
+  /**
+   * "…which has the Blinded condition **and is suffocating** while the
+   * darkmantle is attached in this way" — M-HOLD. The hazard, for as long as
+   * the cover lasts; see `hazards.ts`.
+   */
+  readonly suffocates?: Suffocates;
+}
+
+/**
+ * The two ways the book writes a held creature's breath, and what each reads
+ * to — M-HOLD.
+ *
+ * SRD Animated Rug, SRD Darkmantle and SRD Gelatinous Cube write "is
+ * suffocating"; SRD Water Elemental writes "is suffocating unless it can
+ * breathe water". Matched whole, so a third wording is handed back rather than
+ * guessed at — the rule this reader keeps everywhere. Null for anything else.
+ */
+export function suffocationWords(words: string): Suffocates | null {
+  if (words === 'is suffocating') return 'always';
+  if (words === 'is suffocating unless it can breathe water') return 'unless-it-breathes-water';
+  return null;
 }
 
 /**
@@ -4711,9 +4748,9 @@ const LIMB_DEFENCE_RUN = /, (Vulnerability|Resistance|Immunity) to ([A-Za-z, ]+?
  *
  * The first half is true by construction once the limb is a thing of its own
  * — a blow at the tentacle lands on the tentacle — and is consumed; the
- * second is a limb the engine does not grow back, and is handed over in the
- * book's own words so the table applies it. The noun is back-referenced so
- * the sentence is about the limb the clause before it raised.
+ * second is read onto the limb (`PrintedHeldObject.regrows`, M-HOLD) and
+ * spent at the holder's next start. The noun is back-referenced so the
+ * sentence is about the limb the clause before it raised.
  */
 const LIMB_REGROWS = new RegExp(
   `^Damaging the ([a-z]+) deals no damage to the [a-z' -]+, and (a destroyed \\1 regrows at the start of the [a-z' -]+${APOSTROPHE}s next turn)\\.$`,
@@ -4797,7 +4834,8 @@ const WHILE_ATTACHED_PAYS = new RegExp(
  *
  * {@link WHILE_GRAPPLED}'s longer form: the same borrowed lifetime, plus what
  * the hold costs each turn, plus whatever the sentence says in between — which
- * here is a suffocation nothing in the engine drowns, handed back.
+ * here is the glossary's Suffocation, read since M-HOLD through
+ * {@link suffocationWords}; any other middle is handed back.
  */
 const UNTIL_THE_GRAPPLE_ENDS = new RegExp(
   `^Until the grapple ends, the target has the ([A-Za-z]+)(?: and (?:the )?([A-Za-z]+))? conditions?(?:, (.+?))?, and takes ${PAID_AMOUNT} ${EACH_TURN}\\.$`,
@@ -5236,6 +5274,8 @@ type ClauseRead =
       readonly payout?: PrintedHoldPayout;
       /** SRD Giant Crocodile's "can't be targeted by the crocodile's Tail" — W7-B10. */
       readonly immuneToLine?: string;
+      /** SRD Animated Rug's "is suffocating" — M-HOLD. */
+      readonly suffocates?: Suffocates;
       readonly handedOver?: string;
     }
   /**
@@ -5247,8 +5287,19 @@ type ClauseRead =
   | {
       readonly kind: 'grapple-detail';
       readonly detail: Partial<Omit<PrintedGrappleRider, 'kind'>>;
-      /** The part of this clause the engine read nothing out of — the tentacle's regrowth. */
+      /** The part of this clause the engine read nothing out of. */
       readonly handedOver?: string;
+    }
+  /**
+   * SRD Roper: "a destroyed tentacle regrows at the start of the roper's next
+   * turn" — M-HOLD. A sentence about the **thing** the hold before it is made
+   * with, and only about that thing: the noun is back-referenced, so it reads
+   * onto a `heldByObject` of the same noun and is handed back anywhere else.
+   */
+  | {
+      readonly kind: 'limb-detail';
+      readonly noun: string;
+      readonly regrows: 'start-of-holders-next-turn';
     }
   /**
    * "While Poisoned, the target also has the Paralyzed condition" — the same
@@ -5470,7 +5521,7 @@ function readClause(text: string): ClauseRead | null {
   }
   const regrows = LIMB_REGROWS.exec(text);
   if (regrows !== null) {
-    return { kind: 'grapple-detail', detail: {}, handedOver: `${regrows[2]!}.` };
+    return { kind: 'limb-detail', noun: regrows[1]!, regrows: 'start-of-holders-next-turn' };
   }
 
   // — what a hold says about the holder — W7-B10 ————————————————————————————
@@ -5595,14 +5646,21 @@ function readClause(text: string): ClauseRead | null {
     const size = sizeWord(covers[1]!);
     const conditions = conditionsOf(covers[2]!, undefined);
     if (size === null || conditions === null) return null;
+    // SRD's "and is suffocating" — M-HOLD: the glossary's hazard, for as long
+    // as the cover lasts. Any other tail is handed back rather than dropped
+    // with the Blinded it rides on.
+    const breath = covers[3] === undefined ? null : suffocationWords(covers[3]);
     return {
       kind: 'attach-detail',
       detail: {
-        covers: { conditions, ifNoLargerThan: size, ifAttackHadAdvantage: true },
+        covers: {
+          conditions,
+          ifNoLargerThan: size,
+          ifAttackHadAdvantage: true,
+          ...(breath === null ? {} : { suffocates: breath }),
+        },
       },
-      // SRD's "and is suffocating": a rule about breath, and nothing here
-      // drowns. Handed back rather than dropped with the Blinded it rides on.
-      ...(covers[3] === undefined ? {} : { handedOver: covers[3] }),
+      ...(covers[3] === undefined || breath !== null ? {} : { handedOver: covers[3] }),
     };
   }
 
@@ -5647,11 +5705,16 @@ function readClause(text: string): ClauseRead | null {
       .map((word) => CONDITIONS.find((name) => name === word.toLowerCase()));
     const payout = payoutOf(smothered.slice(4));
     if (payout === null || named.some((name) => name === undefined)) return null;
+    // What the sentence says between its conditions and its payment — SRD's
+    // "is suffocating", read since M-HOLD as the glossary's hazard; any other
+    // middle is handed back as it always was.
+    const breath = smothered[3] === undefined ? null : suffocationWords(smothered[3]);
     return {
       kind: 'while-held',
       conditions: named as readonly ConditionName[],
       payout,
-      ...(smothered[3] === undefined ? {} : { handedOver: smothered[3] }),
+      ...(breath === null ? {} : { suffocates: breath }),
+      ...(smothered[3] === undefined || breath !== null ? {} : { handedOver: smothered[3] }),
     };
   }
 
@@ -5855,6 +5918,7 @@ export function readPrintedRiders(text: string): PrintedRidersRead {
         whileHeld: read.conditions,
         ...(read.payout === undefined ? {} : { payout: read.payout }),
         ...(read.immuneToLine === undefined ? {} : { immuneToLine: read.immuneToLine }),
+        ...(read.suffocates === undefined ? {} : { suffocates: read.suffocates }),
       };
       if (read.handedOver !== undefined) handedOver.push(read.handedOver);
       continue;
@@ -5882,6 +5946,22 @@ export function readPrintedRiders(text: string): PrintedRidersRead {
         ...(limbs === null ? {} : { capacity: { creatures: LIMB_COUNTS[limbs[1]!]! } }),
       };
       if (read.handedOver !== undefined) handedOver.push(read.handedOver);
+      continue;
+    }
+
+    if (read.kind === 'limb-detail') {
+      const host = riders.at(-1);
+      // Onto the thing the hold before it is made with, and that thing only:
+      // a regrowth with no limb of that noun in front of it names a limb that
+      // is not there. — M-HOLD
+      if (host === undefined || host.kind !== 'grapple' || host.heldByObject?.noun !== read.noun) {
+        handedOver.push(clause);
+        continue;
+      }
+      riders[riders.length - 1] = {
+        ...host,
+        heldByObject: { ...host.heldByObject, regrows: read.regrows },
+      };
       continue;
     }
 

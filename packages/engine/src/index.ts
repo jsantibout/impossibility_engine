@@ -46,10 +46,11 @@ export * from './forms.js';
 // A thing you can attack and break: the vocabulary an object's two tables are
 // written in, and the rule that stands over both of them.
 export * from './objects.js';
-// The glossary's hazards — a fire a creature is standing in, which is not one
-// of the fifteen conditions and is not a grant either. Exported whole because
-// a door above the engine has to be able to say a creature is burning, and the
-// mark is the only place that fact lives.
+// The glossary's hazards — a fire a creature is standing in, and since M-HOLD a
+// breath a hold has taken, neither of which is one of the fifteen conditions
+// or a grant. Exported whole because a door above the engine has to be able to
+// say a creature is burning or suffocating, and the mark is the only place
+// that fact lives.
 export * from './hazards.js';
 export * from './events.js';
 export * from './idempotency.js';

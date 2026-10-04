@@ -15,11 +15,13 @@
  * a `grants` deadline arrives — the same release, reached by a die rather than
  * by the clock.
  */
+import type { CharacterId } from '@ie/shared';
 import { actionRuleKey } from '../combat.js';
 import { bonusKey } from '../bonuses.js';
 import { rollModifierKey } from '../roll-modifiers.js';
-import type { DeniedBenefit } from '../conditions.js';
+import { type DeniedBenefit, removeCondition, setExhaustion } from '../conditions.js';
 import type { GameEvent } from '../events.js';
+import { type BreathTaken, holdTakesBreath } from '../hazards.js';
 import {
   attachSource,
   type CreatureState,
@@ -34,7 +36,7 @@ import {
   unhandledEvent,
   type Applying,
 } from './common.js';
-import { releaseGrants, withoutGrants } from './release.js';
+import { instancesLifted, releaseGrants, releaseInstanceGrants, withoutGrants } from './release.js';
 
 /** The event types this seam owns. Every one of them, and no other seam's. */
 export const GRANTS_EVENTS = [
@@ -70,6 +72,8 @@ export const GRANTS_EVENTS = [
   'creature-detached',
   'hazard-caught',
   'hazard-ended',
+  'suffocation-exhaustion-gained',
+  'water-breathing-granted',
   'action-rule-granted',
   'reaction-granted',
   'healing-rule-granted',
@@ -586,13 +590,40 @@ export function applyGrants({ state, next }: Applying, event: GrantsEvent): Game
 
     case 'hazard-caught': {
       const creature = creatureOf(state, event, event.id);
+      // **The clock and the count are the fold's to keep**, never an event's
+      // to state — the reading a Burn's die gets. A log naming either is a
+      // log and a set of rules that disagree. (M-HOLD)
+      if (event.hazard.since !== undefined || event.hazard.gained !== undefined) {
+        throw new CorruptLogError(event, 'a hazard caught names no clock and no count; the fold keeps both');
+      }
+      const before = creature.hazards.find((held) => held.hazard === event.hazard.hazard);
       // **The hazard is the identity**, which is the rule this seam keeps
       // everywhere and is here the glossary's own: a creature is burning or it
       // is not, so a second Burn re-lights one fire rather than stacking a
       // second 1d4 on it. Sorted so a fold compares byte for byte.
+      //
+      // **Suffocation keeps what it already had** (M-HOLD): a second hold on a
+      // creature that is already holding its breath adds a hold and does not
+      // give it its breath back, so the holds are unioned and the clock and
+      // the count carried over. The clock is stamped by the derived pass that
+      // settles breath (`letTheHeldBreathe`), which sees the hold land.
+      const caught =
+        event.hazard.hazard === 'suffocating'
+          ? {
+              ...event.hazard,
+              while: [
+                ...(before?.while ?? []).filter(
+                  (held) => !(event.hazard.while ?? []).some((hold) => hold.source === held.source),
+                ),
+                ...(event.hazard.while ?? []),
+              ].sort((a, b) => (a.source < b.source ? -1 : a.source > b.source ? 1 : 0)),
+              ...(before?.since === undefined ? {} : { since: before.since }),
+              gained: before?.gained ?? 0,
+            }
+          : event.hazard;
       const hazards = [
         ...creature.hazards.filter((held) => held.hazard !== event.hazard.hazard),
-        event.hazard,
+        caught,
       ].sort((a, b) => (a.hazard < b.hazard ? -1 : a.hazard > b.hazard ? 1 : 0));
       return withCreature(next, event.id, { hazards }, creature);
     }
@@ -603,7 +634,51 @@ export function applyGrants({ state, next }: Applying, event: GrantsEvent): Game
       // whole of what keeps it out of the family above. The Prone the action
       // buys arrives on its own `condition-applied`.
       const hazards = creature.hazards.filter((held) => held.hazard !== event.hazard);
-      return withCreature(next, event.id, { hazards }, creature);
+      // **And a creature that can breathe again sheds what suffocating cost
+      // it** — SRD *Suffocation*: "When a creature can breathe again, it
+      // removes all levels of Exhaustion it gained from suffocating." (M-HOLD)
+      const gained = creature.hazards.find((held) => held.hazard === event.hazard)?.gained ?? 0;
+      return withCreature(
+        next,
+        event.id,
+        gained === 0
+          ? { hazards }
+          : { hazards, conditions: setExhaustion(creature.conditions, Math.max(0, creature.conditions.exhaustion - gained)) },
+        creature,
+      );
+    }
+
+    case 'suffocation-exhaustion-gained': {
+      const creature = creatureOf(state, event, event.id);
+      // SRD *Suffocation*: "When a creature runs out of breath …, it gains 1
+      // Exhaustion level at the end of each of its turns." The level and the
+      // count of levels suffocation gave are one event, so the glossary's
+      // "removes all levels … it gained from suffocating" has the number it
+      // needs and no second record can disagree with the first. (M-HOLD)
+      const held = creature.hazards.find((one) => one.hazard === 'suffocating');
+      if (held === undefined) {
+        throw new CorruptLogError(event, `${event.id} is not suffocating and cannot gain Exhaustion from it`);
+      }
+      const level = Math.min(6, creature.conditions.exhaustion + 1);
+      const hazards = creature.hazards.map((one) =>
+        one === held ? { ...one, gained: (one.gained ?? 0) + (level - creature.conditions.exhaustion) } : one,
+      );
+      const conditions = setExhaustion(creature.conditions, level);
+      // SRD: "You die if your Exhaustion level is 6." The rule `exhaustion-set`
+      // keeps, kept here for the same reason.
+      const vitals = level >= 6 ? { ...creature.vitals, hp: 0, dead: true } : creature.vitals;
+      return withCreature(next, event.id, { hazards, conditions, vitals }, creature);
+    }
+
+    case 'water-breathing-granted': {
+      const creature = creatureOf(state, event, event.id);
+      // The source is the identity, the rule every family in this seam keeps:
+      // a second casting from the same source is the same grant. (M-HOLD)
+      const waterBreathing = [
+        ...creature.waterBreathing.filter((held) => held.source !== event.breathing.source),
+        event.breathing,
+      ].sort((a, b) => (a.source < b.source ? -1 : a.source > b.source ? 1 : 0));
+      return withCreature(next, event.id, { waterBreathing }, creature);
     }
 
     case 'action-rule-granted': {
@@ -747,6 +822,145 @@ export function applyGrants({ state, next }: Applying, event: GrantsEvent): Game
 
   return unhandledEvent(event);
 }
+
+/**
+ * An attach whose attacher has died, let go — M-HOLD.
+ *
+ * SRD Darkmantle: the target "has the Blinded condition and is suffocating
+ * **while the darkmantle is attached** in this way"; SRD Stirge drinks "while
+ * attached". A dead creature is attached to nothing: it holds on by its own
+ * grip, and the book's two ways off — the target's Action and the attacher's
+ * five feet of movement — are both written about a living one. W7-B10 named
+ * the gap (`lapsedAttachments`: "a dead attacher leaves its cover standing").
+ *
+ * **Derived rather than a question for the layer above**, which is where it
+ * differs from `lapsedGrapples`: a grapple's two endings are facts about a
+ * third party the fold reduces nothing about, while a death is on the very
+ * record the attach lives on, and the fold already frees what a dead host was
+ * holding inside it (`freeTheSwallowedOfTheDead`). The release is
+ * `creature-detached`'s body — both ends' grants under the attach — and the
+ * conditions the attach hung on the other creature, as `releaseAttachment`
+ * lifts them, each taking what it implied and what was sourced to it.
+ *
+ * By reference where nothing changed.
+ */
+export function detachTheDead(state: GameState): GameState {
+  let current = state;
+  for (const key of Object.keys(state.creatures).sort()) {
+    const dead = current.creatures[key];
+    if (dead === undefined || !dead.vitals.dead || dead.attachments.length === 0) continue;
+    for (const held of dead.attachments) {
+      const holder = current.creatures[key]!;
+      current = {
+        ...current,
+        creatures: {
+          ...current.creatures,
+          [key]: {
+            ...releaseGrants(holder, attachSource(held.to)),
+            attachments: holder.attachments.filter((one) => one.to !== held.to),
+          },
+        },
+      };
+      const other = current.creatures[held.to];
+      if (other === undefined) continue;
+      const source = attachSource(holder.id);
+      const conditions = other.conditions.instances
+        .filter((instance) => instance.source === source && instance.impliedBy === null)
+        .reduce((left, instance) => removeCondition(left, instance.condition, source), other.conditions);
+      current = {
+        ...current,
+        creatures: {
+          ...current.creatures,
+          [held.to]: {
+            ...releaseInstanceGrants(
+              releaseGrants(other, source),
+              instancesLifted(other.conditions.instances, conditions.instances),
+            ),
+            conditions,
+          },
+        },
+      };
+    }
+  }
+  return current;
+}
+
+/**
+ * Whether each creature caught in **Suffocation** can breathe, settled after
+ * every event — M-HOLD.
+ *
+ * SRD *Suffocation* [Hazard]: "A creature can hold its breath for a number of
+ * minutes equal to 1 plus its Constitution modifier (minimum of 30 seconds)
+ * before suffocation begins. When a creature runs out of breath or is
+ * choking, it gains 1 Exhaustion level at the end of each of its turns. When a
+ * creature can breathe again, it removes all levels of Exhaustion it gained
+ * from suffocating."
+ *
+ * **Derived, for the reason a lapsed attunement is**: nothing decides that a
+ * creature can breathe again — the rug is torn off, the cube is escaped, the
+ * darkmantle dies, a spell lets it breathe water — and every one of those is
+ * already an event of its own. So after each, three things are read off the
+ * record each hold keeps (`holdTakesBreath`):
+ *
+ * - a hold whose own record has ended is dropped, and with the last of them
+ *   the hazard goes;
+ * - a creature no hold is taking the breath of **can breathe again**: the
+ *   levels it gained come off, and the clock is cleared, so a hold that bites
+ *   again later starts a fresh breath;
+ * - a creature whose breath is being taken and whose clock is not running
+ *   starts holding it now, which is the moment the catch landed.
+ *
+ * The Water Elemental's exception is read live, so a hold kept while its
+ * creature breathes water is a hold, not a suffocation, and resumes being one
+ * if the water breathing ends. By reference where nothing changed.
+ */
+export function letTheHeldBreathe(state: GameState): GameState {
+  let current = state;
+  for (const key of Object.keys(state.creatures).sort()) {
+    const creature = current.creatures[key];
+    const held = creature?.hazards.find((one) => one.hazard === 'suffocating');
+    if (creature === undefined || held === undefined) continue;
+    const standing = (held.while ?? []).filter((hold) => holdStillStands(current, creature.id, hold));
+    const taking = standing.some((hold) => holdTakesBreath(current, creature.id, hold));
+    const gained = held.gained ?? 0;
+    const breathes = standing.length === 0 || !taking;
+    const conditions =
+      breathes && gained > 0
+        ? setExhaustion(creature.conditions, Math.max(0, creature.conditions.exhaustion - gained))
+        : creature.conditions;
+    const settled =
+      standing.length === 0
+        ? null
+        : breathes
+          ? { hazard: held.hazard, lit: held.lit, while: standing, gained: 0 }
+          : {
+              hazard: held.hazard,
+              lit: held.lit,
+              while: standing,
+              since: held.since ?? current.elapsed,
+              gained,
+            };
+    const unchanged =
+      settled !== null &&
+      standing.length === (held.while ?? []).length &&
+      settled.since === held.since &&
+      settled.gained === gained;
+    if (unchanged) continue;
+    const hazards = creature.hazards
+      .filter((one) => one !== held)
+      .concat(settled === null ? [] : [settled])
+      .sort((a, b) => (a.hazard < b.hazard ? -1 : a.hazard > b.hazard ? 1 : 0));
+    current = {
+      ...current,
+      creatures: { ...current.creatures, [key]: { ...creature, hazards, conditions } },
+    };
+  }
+  return current;
+}
+
+/** Whether a hold's own record still stands, its breath exception aside. */
+const holdStillStands = (state: GameState, who: CharacterId, hold: BreathTaken): boolean =>
+  holdTakesBreath(state, who, { by: hold.by, source: hold.source });
 
 /** Whether what hosts a lingering harm is still on the creature. */
 const hostStands = (creature: CreatureState, host: LingeringHost): boolean =>

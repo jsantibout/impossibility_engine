@@ -6641,6 +6641,11 @@ function grantCarried(given: SpellEffect): string | null {
       return 'light the target carries';
     case 'sense':
       return 'a sense the target gains';
+    // And gills, for the same reason: SRD Water Breathing runs "until the spell
+    // ends", so an Instantaneous casting would let a creature breathe water for
+    // ever. (M-HOLD)
+    case 'breathes-water':
+      return 'water the target can breathe';
     // And the two a creature carries about gravity. Neither carries a deadline
     // of its own, for the reason the light and the sense above do not: SRD
     // Feather Fall's ward runs "until the spell ends" by the same sentence
@@ -11485,6 +11490,7 @@ export const EFFECT_KINDS: ReadonlySet<string> = new Set([
   'repairs',
   'damage-reduction',
   'fall-ward',
+  'breathes-water',
   'jump-allowance',
   'change-altitude',
   'attack-rider',

@@ -43,7 +43,7 @@ import {
 import type { ObjectMaker } from '../standing.js';
 import { sheetAsItStands } from '../standing.js';
 import type { Placement } from '../positioning.js';
-import { creatureOf, dyingOutsideAFight, reachedBy, spendFor, unknownCreature } from './command.js';
+import { breathlessOutsideAFight, creatureOf, dyingOutsideAFight, reachedBy, spendFor, unknownCreature } from './command.js';
 import { mayAct } from './holds.js';
 import { removeCreatureEverywhere } from './creatures.js';
 
@@ -186,6 +186,10 @@ export function createDevice(
     // creature still dying. See `dyingOutsideAFight`. (E-STABLE)
     const dying = dyingOutsideAFight(state, maker.castingSeconds);
     if (dying !== null) return dying;
+    // Nor over a creature held without breath that would run out of it. See
+    // `breathlessOutsideAFight`. (M-HOLD)
+    const breathless = breathlessOutsideAFight(state, maker.castingSeconds);
+    if (breathless !== null) return breathless;
 
     // — from here it costs time ———————————————————————————————————————————
     //

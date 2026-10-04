@@ -915,8 +915,13 @@ describe('the bestiary row counts blocks, and the prose it cannot read', () => {
    * handover — and was exempted by name so that its return to a number would
    * be a diff rather than a silence. It has returned: the two oozes that split
    * and the Goblin Boss's Redirect Attack are read as kinds with no seam
-   * behind them. So the exemption is gone and the guard is the plain one it
-   * was before — a predicate that goes quiet fails here.
+   * behind them. So the exemption went, and the guard was the plain one.
+   *
+   * **And it is back at zero, exempted by name again** (wave M): the splits are
+   * spent and M-REFLEX built Redirect Attack, so every trait kind the parser
+   * reads now has a reader or is a handover. Only that row may read 0, so a
+   * second predicate going quiet still fails here, and this row's return to a
+   * number is a diff.
    */
   it('ranks what the unread lines would need, and the report carries the ranking', () => {
     const report = readFileSync(
@@ -926,7 +931,11 @@ describe('the bestiary row counts blocks, and the prose it cannot read', () => {
 
     expect(bestiary.shapes.length).toBeGreaterThan(3);
     for (const shape of bestiary.shapes) {
-      expect(shape.blocks, shape.shape).toBeGreaterThan(0);
+      if (shape.shape === 'A trait shape nothing spends') {
+        expect(shape.blocks, shape.shape).toBe(0);
+      } else {
+        expect(shape.blocks, shape.shape).toBeGreaterThan(0);
+      }
       expect(shape.blocks, shape.shape).toBeLessThan(bestiary.carried);
       expect(shape.lines, shape.shape).toBeGreaterThanOrEqual(shape.blocks);
       expect(report).toContain(`| ${shape.shape} | ${shape.blocks} | ${shape.lines} |`);

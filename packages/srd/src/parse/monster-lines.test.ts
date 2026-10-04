@@ -1185,6 +1185,8 @@ describe('a save whose failure puts the target inside', () => {
         kind: 'engulfs',
         whileInside: ['restrained'],
         noVerbalCasting: true,
+        // M-HOLD: "An engulfed target is suffocating" — the glossary's hazard.
+        suffocates: 'always',
         payout: {
           damage: { dice: '3d6', flat: 0, type: 'acid', average: 10 },
           at: 'start',
@@ -1198,9 +1200,8 @@ describe('a save whose failure puts the target inside', () => {
     // of the cube. If there is no unoccupied space, the target fails the save
     // instead."
     expect(engulf?.onSuccessEffects).toEqual([{ kind: 'steps-clear', within: 5, otherwiseFails: true }]);
-    // The one clause the engine holds no rule for, carried under the book's
-    // own opening so a table reads a sentence rather than a fragment.
-    expect(engulf?.handedOver).toEqual(['An engulfed target is suffocating.']);
+    // The suffocation was the one clause left, and it is read (M-HOLD).
+    expect(engulf?.handedOver).toBeUndefined();
   });
 
   it("reads the Shambling Mound's Engulf: a grapple that pulls the target into its space, its two conditions, its payout and its cap", () => {
@@ -1269,12 +1270,11 @@ describe('a save whose failure puts the target inside', () => {
         },
         capacity: { large: 1, mediumOrSmaller: 2 },
         pullOutBy: { within: 5, ability: 'str', skill: 'athletics', dc: 14 },
+        // M-HOLD: the suffocation was the one clause left, and it is read.
+        suffocates: 'unless-it-breathes-water',
       },
     ]);
-    // Suffocation is the one clause left, and it stays a handover.
-    expect(whelm?.handedOver).toEqual([
-      'Until the grapple ends, the target is suffocating unless it can breathe water.',
-    ]);
+    expect(whelm?.handedOver).toBeUndefined();
   });
 });
 

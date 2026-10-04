@@ -250,6 +250,7 @@ import {
   resolveActionRuleEffect,
   resolveLightEffect,
   resolveSenseEffect,
+  resolveWaterBreathingEffect,
   resolveSpeedEffect,
   resolveWeaponRiderEffect,
 } from './spell-effect-grants.js';
@@ -4237,6 +4238,8 @@ function resolveOneEffect(
       return resolveRepairsEffect(ctx, target, world);
     case 'fall-ward':
       return resolveFallWardEffect(ctx, target, world);
+    case 'breathes-water':
+      return resolveWaterBreathingEffect(ctx, target, world);
     case 'jump-allowance':
       return resolveJumpEffect(ctx, effect, target, world);
     case 'change-altitude':

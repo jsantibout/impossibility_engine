@@ -841,6 +841,26 @@ export function resolveSenseEffect(
 }
 
 /**
+ * Water the casting lets its target breathe — SRD *Water Breathing*: "the
+ * ability to breathe underwater until the spell ends"; SRD *Alter Self*'s
+ * Aquatic Adaptation. The sense's shape exactly: nothing is rolled, the
+ * casting is in the source, and `releaseCasting` takes it back with the spell.
+ * Read by `breathesWater`, for SRD Whelm's "unless it can breathe water".
+ * (M-HOLD)
+ */
+export function resolveWaterBreathingEffect(
+  ctx: EffectContext,
+  target: CharacterId,
+  world: GameState,
+): Result<GameState> {
+  const { source, events, outcomes, held } = ctx;
+  held.add(target);
+  events.push({ type: 'water-breathing-granted', id: target, breathing: { source } });
+  outcomes.push({ target, affected: true });
+  return ok(events.slice(-1).reduce(applyEvent, world));
+}
+
+/**
  * An amount the casting takes off later damage — SRD Resistance: "the creature
  * reduces the total damage taken by 1d4".
  *

@@ -51,7 +51,7 @@ import {
   type TimedEffect,
 } from '../timers.js';
 import { applyEvent, type GameEvent, type GameState } from '../events.js';
-import { HAZARD_RULES, hazardSource, objectHasNoTurnToBurnAt } from '../hazards.js';
+import { HAZARD_RULES, hazardSource, objectHasNoTurnToBurnAt, outOfBreath } from '../hazards.js';
 import { OBJECT_CREATURE_TYPE, takesLight, unsaidFlammability } from '../objects.js';
 import { type CommandIdentity, once } from '../idempotency.js';
 import {
@@ -82,6 +82,7 @@ import {
 import {
   actionRulesOn,
   canSee,
+  conditionImmunitiesOf,
   effectiveConditions,
   rollModesFor,
   sheetAsItStands,
@@ -92,7 +93,7 @@ import { type Supply } from './casting.js';
 import { schedule } from './conditions.js';
 import { type DamageComponent } from '../attack.js';
 import { creatureOf, unknownCreature, ZERO_HIT_POINTS } from './command.js';
-import { grantTemporaryHpTo, healCreature, strandedSummons } from './creatures.js';
+import { grantTemporaryHpTo, healCreature, settleDeparture, strandedSummons } from './creatures.js';
 import { dealSpellDamage } from './damage.js';
 import { forcePrintedSaveOn, withDeclaredDamage } from './printed-save-clauses.js';
 import { mayAct, owedRefusal, pendingCastingsOf, pendingSavesOf } from './holds.js';
@@ -109,7 +110,7 @@ import { sharesOfSpellHealing } from './spell-effect-hit-points.js';
 import { severedLimbsAt } from './printed-rise.js';
 import { type SpellTargetOutcome } from './targeting.js';
 import { grapplerOf, grapplesOn, attachmentsOf } from './unarmed.js';
-import { attachedTo, type CommandStamp } from '../state.js';
+import { attachedTo, type CommandStamp, limbsToRegrow } from '../state.js';
 import { thrownAgainst } from './spell-effect-chance.js';
 import { strandedElsewhere } from '../elsewhere.js';
 import { settleElsewhereAtBoundary, type StatedReturn } from './elsewhere.js';
@@ -628,21 +629,73 @@ function hazardsDue(state: GameState, begun: CharacterId | undefined): readonly 
   if (begun === undefined) return [];
   const creature = state.creatures[begun];
   if (creature === undefined || creature.vitals.dead) return [];
-  return creature.hazards.map((held) => {
+  // Only a hazard that deals damage: suffocation costs Exhaustion at the
+  // *end* of a turn, which `settleEndOfTurnBreath` collects. (M-HOLD)
+  return creature.hazards.flatMap((held): DuePayout[] => {
     const rule = HAZARD_RULES[held.hazard];
-    return {
-      target: begun,
-      holder: begun,
-      payout: {
-        source: hazardSource(held.hazard),
-        at: 'start-of-turn' as const,
-        payout: 'damage' as const,
-        dice: rule.dice,
-        flat: 0,
-        damageType: rule.damageType,
+    if (rule === undefined) return [];
+    return [
+      {
+        target: begun,
+        holder: begun,
+        payout: {
+          source: hazardSource(held.hazard),
+          at: 'start-of-turn' as const,
+          payout: 'damage' as const,
+          dice: rule.dice,
+          flat: 0,
+          damageType: rule.damageType,
+        },
       },
-    };
+    ];
   });
+}
+
+/**
+ * What running out of breath costs the creature whose turn has just ended —
+ * M-HOLD.
+ *
+ * SRD *Suffocation*: "When a creature runs out of breath or is choking, it
+ * gains 1 Exhaustion level **at the end of each of its turns**." Read off the
+ * hazard as it stands (`outOfBreath`) at the clock the turn **ended** at,
+ * which is the world before the boundary's `turn-advanced` — a round that
+ * wraps charges six seconds the finisher never spent holding its breath.
+ *
+ * **An Immunity to Exhaustion is an immunity to this**: the level is the
+ * condition, and the glossary's hazard is only what brings it. The mark stays
+ * — the creature still cannot breathe — and nothing is gained. A dead
+ * creature gains nothing either: it takes no more turns, and the boundary
+ * that would charge it is not its own.
+ *
+ * Throws nothing, so it needs no generator and can refuse nothing.
+ */
+function settleEndOfTurnBreath(
+  ended: GameState,
+  after: GameState,
+  who: CharacterId,
+): readonly GameEvent[] {
+  const creature = after.creatures[who];
+  if (creature === undefined || creature.vitals.dead) return [];
+  if (!outOfBreath(after, who, ended.elapsed)) return [];
+  if (conditionImmunitiesOf(after, who).includes('exhaustion')) return [];
+  return [{ type: 'suffocation-exhaustion-gained', id: who }];
+}
+
+/**
+ * The limbs a creature grows back as its turn begins — M-HOLD.
+ *
+ * SRD Roper: "a destroyed tentacle regrows at the start of the roper's next
+ * turn." Every destroyed limb whose record names this holder was destroyed
+ * before this start, so each grows back now: the dead thing leaves the game,
+ * and the cap its hold counts limbs against is whole again — a new tentacle is
+ * raised by the next hit that grapples with one. Throws nothing.
+ */
+export function regrowLimbs(state: GameState, begun: CharacterId | undefined): readonly GameEvent[] {
+  if (begun === undefined) return [];
+  return limbsToRegrow(state, begun).flatMap((limb) => [
+    ...settleDeparture(state, limb),
+    { type: 'creature-removed' as const, id: limb },
+  ]);
 }
 
 /**
@@ -2694,6 +2747,22 @@ export function resolveTurn(
     advanced.push(...paid.value.events);
     unverified.push(...paid.value.unverified);
     after = paid.value.events.reduce(applyEvent, after);
+
+    // SRD *Suffocation*: "it gains 1 Exhaustion level at the end of each of
+    // its turns" — the finisher's end, read at the clock its turn ended at,
+    // which is `state` before the advance. After the payouts, so a creature a
+    // boundary hit has just killed takes no level, and a hold the boundary
+    // ended has already given it its breath back. (M-HOLD)
+    const breathless = settleEndOfTurnBreath(state, after, ending);
+    advanced.push(...breathless);
+    after = breathless.reduce(applyEvent, after);
+
+    // SRD Roper: "a destroyed tentacle regrows at the start of the roper's
+    // next turn." The beginner's start, beside what else that start hands it;
+    // throws nothing. (M-HOLD)
+    const regrown = regrowLimbs(after, beginning);
+    advanced.push(...regrown);
+    after = regrown.reduce(applyEvent, after);
 
     // SRD *Monsters*: "At the start of each of the monster's turns, roll 1d6."
     // Beside the payouts because it is the same half of the boundary — what

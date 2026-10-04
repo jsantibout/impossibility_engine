@@ -36,6 +36,7 @@ import {
   resolveMove,
   resolveTurn,
   setScene,
+  settleDamage,
 } from './commands.js';
 import { hasCondition } from './conditions.js';
 import { createRng, type Rng } from './dice.js';
@@ -43,6 +44,7 @@ import { fold, type GameEvent, type GameState } from './events.js';
 import { distanceBetween, positionOf } from './positioning.js';
 import { createRollIssuer } from './rolls.js';
 import { grapplesOn, lapsedGrapples } from './commands/unarmed.js';
+import { suffocationOn } from './hazards.js';
 
 const id = (s: string) => asCharacterId(s);
 const BEAST = id('beast');
@@ -173,6 +175,73 @@ describe("the Animated Rug of Smothering's hold", () => {
         (e) => e.type === 'damage-taken' && e.id === BREN && e.source?.includes(`${BEAST}'s hold`) === true && e.source.includes('Greatsword'),
       ),
     ).toBe(true);
+  });
+
+  /**
+   * W7-B10's named gap: "a blow held open by a Reaction and landed through
+   * `settleDamage` neither halves nor shares the Rug's damage." It is the same
+   * blow by another road, so it halves and shares the same — M-HOLD.
+   */
+  it('halves and shares a blow a Reaction held open, exactly as one nobody answered', () => {
+    const table = field('animated-rug-of-smothering');
+    table.log.push(...unwrap(swing(table, 'Smother', { hold: true }), 'the smother').events);
+    const rugHp = table.state.creatures[BEAST]!.vitals.hp;
+    const brenHp = table.state.creatures[BREN]!.vitals.hp;
+    // Sable's greatsword, rolled and held open for a Reaction nobody takes.
+    table.log.push({
+      type: 'damage-rolled',
+      damage: {
+        target: BEAST,
+        by: SABLE,
+        source: 'Greatsword',
+        components: [{ source: 'Greatsword', type: 'slashing', roll: null, flat: 13, total: 13 }],
+        critical: false,
+        fromAttack: true,
+        reductions: [],
+        offers: [],
+      },
+    });
+    const settled = unwrap(settleDamage(table.state, table.supply()), 'the settlement');
+    table.log.push(...settled.events);
+    const state = table.state;
+    // "halves the damage it takes (round down)" — and the target takes the same.
+    expect(rugHp - state.creatures[BEAST]!.vitals.hp).toBe(6);
+    expect(brenHp - state.creatures[BREN]!.vitals.hp).toBe(6);
+    expect(
+      settled.events.some(
+        (e) => e.type === 'damage-taken' && e.id === BREN && e.source?.includes(`${BEAST}'s hold`) === true,
+      ),
+    ).toBe(true);
+  });
+
+  /**
+   * "Until the grapple ends, the target … is suffocating" — M-HOLD. The
+   * glossary's hazard, filed against the very grapple, so the escape gives
+   * the breath back; a swing that takes the damage instead holds nobody and
+   * smothers nobody.
+   */
+  it('smothers what it holds until the grapple ends, and nobody it only struck', () => {
+    const table = field('animated-rug-of-smothering');
+    const struck = unwrap(swing(table, 'Smother', { commandId: 'the blow' }), 'the blow');
+    table.log.push(...struck.events);
+    expect(suffocationOn(table.state, BREN)).toBeNull();
+    expect(struck.unverified.join(' ')).not.toContain('suffocating');
+    for (const step of ['rug', 'bren', 'sable', 'third']) endTurn(table, `${step} is done`);
+    table.log.push(...unwrap(swing(table, 'Smother', { hold: true, commandId: 'the hold' }), 'the smother').events);
+    expect(suffocationOn(table.state, BREN)).toMatchObject({
+      hazard: 'suffocating',
+      lit: 'Smother',
+      while: [{ by: 'grapple', source: grappleSource(BEAST) }],
+      since: table.state.elapsed,
+    });
+    endTurn(table, 'the rug is done');
+    const freed = unwrap(
+      escapeGrapple(table.state, BREN, { ability: 'str', bonuses: [{ source: 'forced', flat: 40 }] }, table.supply()),
+      'the escape',
+    );
+    table.log.push(...freed.events);
+    expect(freed.success).toBe(true);
+    expect(suffocationOn(table.state, BREN)).toBeNull();
   });
 
   it("refuses the rug its Smother while it is holding somebody, and a second hold past its one", () => {

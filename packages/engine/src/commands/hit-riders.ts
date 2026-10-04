@@ -44,6 +44,7 @@ import { featureSource } from '../progression.js';
 import { sizeAtMost } from '../positioning.js';
 import { effectiveSizeOf } from '../size.js';
 import { attachSource, heldByObjectSource } from '../state.js';
+import { breathTakenBy } from '../hazards.js';
 import { printedObjectId, raisePrintedObject } from './objects.js';
 import { remaining } from '../resources.js';
 import {
@@ -1025,6 +1026,10 @@ function makeTheGrapple(
       ...(printed.vulnerabilities === undefined ? {} : { vulnerabilities: printed.vulnerabilities }),
       ...(printed.resistances === undefined ? {} : { resistances: printed.resistances }),
       ...(printed.immunities === undefined ? {} : { immunities: printed.immunities }),
+      // "a destroyed tentacle regrows at the start of the roper's next turn"
+      // — M-HOLD: the limb knows whose it is, so the cap counts it while it is
+      // gone and the holder's next start grows it back.
+      ...(printed.regrows === undefined ? {} : { limbOf: { holder: hit.attacker, regrows: printed.regrows } }),
     });
     if (!thing.ok) return thing;
     raised.push(...thing.value);
@@ -1096,9 +1101,38 @@ function makeTheGrapple(
       },
     });
   }
+  // **The grapple's range, pinned on the Grappled it made** — M-HOLD. SRD
+  // Grappled lapses a hold past "the grapple's range", and the Roper's is the
+  // sixty feet its Tentacle reaches. `applyConditionTo` is a DM-facing door
+  // whose signature is not widened for one field, so the range is written onto
+  // the one event it belongs on here, where the hold is made.
+  const range = grapple.range;
+  const made: readonly GameEvent[] =
+    range === undefined
+      ? landed.value.events
+      : landed.value.events.map((event) =>
+          event.type === 'condition-applied' && event.condition === 'grappled' && event.source === source
+            ? { ...event, range }
+            : event,
+        );
+  // SRD Animated Rug of Smothering: "Until the grapple ends, the target … is
+  // suffocating." The glossary's hazard, filed against the very Grappled it
+  // lasts as long as — so every way the grapple ends gives the creature its
+  // breath back, through the fold's `letTheHeldBreathe`. (M-HOLD)
+  const smothered: readonly GameEvent[] =
+    grapple.suffocates === undefined
+      ? []
+      : [
+          breathTakenBy(hit.target, option.featureName, {
+            by: 'grapple',
+            source,
+            ...(grapple.suffocates === 'unless-it-breathes-water' ? { unlessItBreathesWater: true as const } : {}),
+          }),
+        ];
   return ok([
     ...raised,
-    ...landed.value.events,
+    ...made,
+    ...smothered,
     // SRD Animated Rug of Smothering: "takes 10 (2d6 + 3) Bludgeoning damage
     // at the start of each of its turns" — an arrangement the hold makes,
     // filed under the hold's own source so the boundary can read it and
@@ -1216,6 +1250,21 @@ function makeTheAttach(
     }
     events.push(...landed.value.events);
     current = landed.value.events.reduce(applyEvent, current);
+  }
+
+  // SRD Darkmantle: the covered target "is suffocating while the darkmantle is
+  // attached in this way." Filed against the attach itself rather than the
+  // Blinded — a creature immune to Blinded is still covered, and still cannot
+  // breathe — so the detach, either door, and the darkmantle's death give the
+  // breath back through the fold's `letTheHeldBreathe`. (M-HOLD)
+  if (attach.coverSuffocates !== undefined) {
+    events.push(
+      breathTakenBy(hit.target, option.featureName, {
+        by: 'attach',
+        source: attachSource(hit.attacker),
+        ...(attach.coverSuffocates === 'unless-it-breathes-water' ? { unlessItBreathesWater: true as const } : {}),
+      }),
+    );
   }
 
   // SRD Stirge: "the target takes 5 (2d4) Necrotic damage at the start of each

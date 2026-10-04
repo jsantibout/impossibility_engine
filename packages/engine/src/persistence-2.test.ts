@@ -1060,6 +1060,15 @@ const UNCOVERED_EVENT_TYPES: readonly string[] = [
   // engine applies none of it, and the Multiattack branch a golem's block
   // gates on having taken one.
   'stated-bonus-action-taken',
+  // A level of Exhaustion a held breath ran out into — M-HOLD. Neither log was
+  // written when a hold could take a breath: no creature carried a
+  // suffocation, and the glossary's hazard had one member, Burning. Both
+  // fixtures fold to exactly the states they always folded to.
+  // `suffocation.test.ts` folds it and drives it end to end: the breath held
+  // for its span, a level at the end of each of the creature's own turns
+  // after, an Immunity to Exhaustion refusing it, the levels taken back when
+  // the hold lets go, and death at the sixth.
+  'suffocation-exhaustion-gained',
   // A summoner's control over a creature renewed to a later clock reading —
   // SRD Animate Dead's recast. Neither log was written when a creature could
   // be controlled at all: `SummonBond.controlled` did not exist, so both
@@ -1100,6 +1109,13 @@ const UNCOVERED_EVENT_TYPES: readonly string[] = [
   // Thief paying from a Bonus Action through Fast Hands, and a Rogue without
   // the feature refused the cheaper price.
   'utilize-taken',
+  // Water a casting or a potion lets a creature breathe — M-HOLD. Neither log
+  // was written when anything read breathing: the `waterBreathing` list is
+  // empty on every creature, and both fixtures fold to exactly the states they
+  // always folded to. `water-breathing.test.ts` casts SRD Water Breathing and
+  // drinks the potion through the public API and drives both to their day's
+  // end; `printed-save-effects.test.ts` lets a whelmed knight breathe by it.
+  'water-breathing-granted',
   // A casting's way in drawn up, and the height it hangs at — SRD Rope Trick's
   // rope, "which can be pulled into or dropped out of it", and its portal "at
   // the rope's upper end" (W9-S3). Neither log was written when a place had a

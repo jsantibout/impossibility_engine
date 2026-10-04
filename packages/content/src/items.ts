@@ -1764,16 +1764,20 @@ const NAMED_ITEMS: readonly CatalogueItem[] = [
        * Attunement). While wearing this cloak, you can breathe underwater,
        * and you have a Swim Speed of 60 feet."
        *
-       * The ring's sentence at 60 feet. The breathing is fiction, as SRD
-       * Water Breathing's is and the Necklace of Adaptation's: the engine
-       * holds no air and no drowning, so nothing a rule reads is missing.
+       * The ring's sentence at 60 feet, and the breathing beside it — read
+       * since M-HOLD by the one rule that asks, SRD Water Elemental's Whelm
+       * ("is suffocating unless it can breathe water"), as SRD Water
+       * Breathing's is.
        */
       attunement: {},
       grants: [
         {
           kind: 'standing',
           reach: 'self',
-          effects: [{ kind: 'speed', change: 'at-least', mode: 'swim', feet: 60 }],
+          effects: [
+            { kind: 'speed', change: 'at-least', mode: 'swim', feet: 60 },
+            { kind: 'breathes-water' },
+          ],
           requires: WORN_AND_ATTUNED,
         },
       ],
@@ -3654,10 +3658,16 @@ const NAMED_ITEMS: readonly CatalogueItem[] = [
        * any environment, and you have Advantage on saving throws made to
        * avoid or end the Poisoned condition."
        *
-       * The Periapt of Health's second paragraph, worn alone. The breathing
-       * is fiction, as SRD Water Breathing's is: the engine holds no air and
-       * no drowning, so nothing a rule reads is missing and there is no note
-       * to write.
+       * The Periapt of Health's second paragraph, worn alone, and the
+       * breathing beside it. **"Breathe normally in any environment" is read
+       * as water and nothing more** (M-HOLD): the one environment the engine
+       * holds a rule about is a Water Elemental's Whelm, "suffocating unless
+       * it can breathe water", which the necklace answers. The three holds
+       * that print "is suffocating" with no exception — a rug wrapped round
+       * the face, a darkmantle over the head, a cube's inside — are a
+       * creature's breath taken by another creature rather than an
+       * environment it is breathing in, so the necklace does not lift them.
+       * That reading is the owner's to confirm.
        */
       attunement: {},
       grants: [
@@ -3665,6 +3675,7 @@ const NAMED_ITEMS: readonly CatalogueItem[] = [
           kind: 'standing',
           reach: 'self',
           effects: [
+            { kind: 'breathes-water' },
             {
               kind: 'roll-mode',
               modifier: {
@@ -4472,6 +4483,33 @@ const POTIONS: readonly CatalogueItem[] = [
     ],
     unmodelled: [
       '"you have Advantage on Strength (Athletics) checks to climb" is not granted: a mode may be narrowed to a skill but not to what the check is for, and the same mode on every Athletics check would reach a Grapple or a Shove the potion says nothing about',
+    ],
+  },
+  {
+    /**
+     * SRD Potion of Water Breathing: "Potion, Uncommon. You can breathe
+     * underwater for 24 hours after drinking this potion."
+     *
+     * SRD Water Breathing's effect, for the potion's day — M-HOLD. It was
+     * filed as fiction while nothing suffocated; the one rule that asks now —
+     * SRD Water Elemental's Whelm, "is suffocating unless it can breathe
+     * water" — reads it, so it is a conferral rather than a sentence.
+     */
+    id: 'potion-of-water-breathing',
+    name: 'Potion of Water Breathing',
+    kind: 'potion',
+    weightLb: 0.5,
+    costCp: null,
+    armor: null,
+    weapon: null,
+    contents: [],
+    grants: [
+      {
+        kind: 'confers',
+        action: 'bonus-action',
+        durationSeconds: 86_400,
+        effects: [{ kind: 'breathes-water' }],
+      },
     ],
   },
 ];
