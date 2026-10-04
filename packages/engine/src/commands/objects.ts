@@ -148,6 +148,9 @@ export function declareObject(
         material: {
           id: material.id,
           ...(material.metal === undefined ? {} : { metal: material.metal }),
+          // And whether it takes light, which the four sentences that set "a
+          // flammable object" burning read at a blow or a boundary. (M-MATTER)
+          ...(material.flammable === undefined ? {} : { flammable: material.flammable }),
         },
         ...(stamp === null ? {} : { command: stamp }),
       },

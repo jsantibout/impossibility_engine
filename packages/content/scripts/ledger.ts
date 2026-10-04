@@ -717,7 +717,8 @@ const auditMonsters = (maxCr: number): LedgerMonsters => {
     // **And a trait whose heading still owes a sentence** — W7-B12. The row
     // {@link TRAIT_HANDOVER_SHAPE} names says the heading is "read and still
     // unpaid", and this list did not ask it: a trait that files one sentence
-    // and owes another (SRD Corrosive Form's Mending, beside the hole it eats)
+    // and owes another (SRD Corrosive Form's Mending, beside the hole it eats,
+    // until M-MATTER paid it)
     // was listed as read to the end, and a block owing only such a heading
     // counted as clean.
     hasHandedOverTrait(line) ||

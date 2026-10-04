@@ -2515,6 +2515,16 @@ export interface PendingDamage {
    * what every log written before it says.
    */
   readonly contactWeapon?: string;
+  /**
+   * The launcher whose **ammunition** struck — a bow, a crossbow, by catalogue
+   * id — held for the settlement for {@link contactWeapon}'s reason, the other
+   * road a blow touches by — M-MATTER.
+   *
+   * SRD Corrosive Form: "Nonmagical ammunition is destroyed immediately after
+   * hitting the pudding and dealing any damage." Absent for every blow no
+   * launcher loosed, which is what every log written before it says.
+   */
+  readonly firedFrom?: string;
 }
 
 /** A rider a held damage roll owes, and whose it is. */

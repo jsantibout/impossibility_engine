@@ -15,6 +15,7 @@ import {
   MonsterFormsSchema,
   MonsterPlaneShiftSchema,
   MonsterPullSchema,
+  MonsterTouchSchema,
   MonsterSpellcastingSchema,
   MonsterSpeechSchema,
   type MonsterSpeech,
@@ -40,6 +41,7 @@ import {
   type MonsterMultiattack,
   type MonsterPlaneShift,
   type MonsterPull,
+  type MonsterTouch,
   type MonsterSwallow,
   type MonsterMultiattackEntry,
   type MonsterRecharge,
@@ -1041,9 +1043,9 @@ const damageTypeOf = (printed: string): string | null => {
  * Anchored end to end like everything else. The Fire Elemental's sentence ends
  * "Creatures and flammable objects in the Emanation start burning" — the
  * glossary's Burning, which the engine lights on a creature — and that closing
- * is the one optional clause read after the damage (W7-B12). The objects half
- * of it names nothing a declared object can hold, so the sentence is carried
- * whole as owed beside the kind that executes the creatures' half.
+ * is the one optional clause read after the damage (W7-B12). Its objects half
+ * is read as well since a declared object's substance says whether it takes
+ * light (M-MATTER), so the sentence is consumed whole by `ignites`.
  */
 const EMANATION_DAMAGE = new RegExp(
   `^At the (start|end) of each of ${SUBJECT} turns, each creature (of ${SUBJECT} choice )?` +
@@ -1251,15 +1253,17 @@ const REGENERATION = new RegExp(
  * 1. "A creature that hits the pudding with a melee attack roll takes 4 (1d8)
  *    Acid damage." — read: the damage back.
  * 2. "Nonmagical ammunition is destroyed immediately after hitting the pudding
- *    and dealing any damage." — **owed**: the engine spends no ammunition on
- *    any attack, so there is nothing for this to destroy yet.
+ *    and dealing any damage." — read (M-MATTER): `destroysAmmunition`, the
+ *    piece out of the archer's inventory.
  * 3. "Any nonmagical weapon takes a cumulative −1 penalty to attack rolls
  *    immediately after dealing damage to the pudding and coming into contact
  *    with it." — read: the penalty, on the weapon record the Rust Monster's
  *    Antennae already wears down.
  * 4. "The weapon is destroyed if the penalty reaches −5." — read: the ceiling.
  * 5. "The penalty can be removed by casting the _Mending_ spell on the
- *    weapon." — **owed**: the same Mending sentence the Pseudopod rider carries.
+ *    weapon." — consumed (M-MATTER): SRD Mending's `repairs` lifts the very
+ *    `weapon-penalised` record sentence 3 writes, which is the reading the
+ *    Pseudopod rider's identical sentence already gets.
  *
  * and a second paragraph about eating through wood or metal, which is filed
  * for the table (`a-hole-eaten-through-the-world`). Asked of `oneLine`, because
@@ -1267,11 +1271,11 @@ const REGENERATION = new RegExp(
  */
 const CORROSIVE_FORM = new RegExp(
   `^(?:A creature that hits the ${SUBJECT} with a melee attack roll takes \\d+ \\((\\d+d\\d+)\\) (\\w+) damage\\. )?` +
-    `(Nonmagical ammunition is destroyed immediately after hitting the ${SUBJECT} and dealing any damage\\.) ` +
+    `Nonmagical ammunition is destroyed immediately after hitting the ${SUBJECT} and dealing any damage\\. ` +
     `Any nonmagical weapon takes a cumulative [−-](\\d+) penalty to attack rolls immediately after dealing ` +
     `damage to the ${SUBJECT} and coming into contact with it\\. ` +
     `The weapon is destroyed if the penalty reaches [−-](\\d+)\\. ` +
-    `(The penalty can be removed by casting the _Mending_ spell on the weapon\\.) ` +
+    `The penalty can be removed by casting the _Mending_ spell on the weapon\\. ` +
     `((?:In \\d+ \\w+, the ${SUBJECT}|The ${SUBJECT}) can eat through [^.]+\\.)$`,
 );
 
@@ -1862,8 +1866,9 @@ export function parseTraitShape(text: string): MonsterTrait | null {
         chosen: burns[2] !== undefined,
         unlessIncapacitated: burns[6] !== undefined,
         // SRD Fire Elemental's closing sentence — W7-B12. The creatures it
-        // catches are lit by the boundary; the flammable objects are owed.
-        ...(burns[7] === undefined ? {} : { ignites: true as const, handedOver: [burns[7]] }),
+        // catches are lit by the boundary, and since M-MATTER the declared
+        // objects whose substance takes light are too, so nothing is owed.
+        ...(burns[7] === undefined ? {} : { ignites: true as const }),
       };
     }
   }
@@ -1985,10 +1990,12 @@ export function parseTraitShape(text: string): MonsterTrait | null {
       return {
         kind: 'corrodes-what-hits-it',
         ...(damageType === null ? {} : { meleeHitterTakes: { dice: corrodes[1]!, damageType } }),
-        weaponPenalty: Number(corrodes[4]),
-        weaponDestroyedAt: Number(corrodes[5]),
-        handedOver: [corrodes[3]!, corrodes[6]!],
-        forTheTable: [{ kind: 'a-hole-eaten-through-the-world', sentence: corrodes[7]! }],
+        weaponPenalty: Number(corrodes[3]),
+        weaponDestroyedAt: Number(corrodes[4]),
+        // Sentence 2, which the pattern requires; sentence 5 is consumed —
+        // see the note above the pattern. (M-MATTER)
+        destroysAmmunition: true as const,
+        forTheTable: [{ kind: 'a-hole-eaten-through-the-world', sentence: corrodes[5]! }],
       };
     }
   }
@@ -2620,6 +2627,33 @@ export function parsePullLine(text: string): MonsterPull | null {
     of: 'restrained-by-object',
     within: Number(webbed[1]!),
     heldBy: webbed[2]!,
+  });
+  return checked.success ? checked.data : null;
+}
+
+/**
+ * SRD Rust Monster, Destroy Metal: "The rust monster touches a nonmagical
+ * metal object within 5 feet of itself that isn't being worn or carried. The
+ * touch destroys a 1-foot Cube of the object." — M-MATTER.
+ *
+ * Anchored end to end, and "nonmagical metal" and "isn't being worn or
+ * carried" word for word, because each is legality the door checks: a line
+ * printing another substance, or one that reached a thing somebody holds, is a
+ * different sentence and gets nothing.
+ */
+const TOUCH_LINE = new RegExp(
+  `^The ${SUBJECT} touches a nonmagical metal object within (\\d+) feet of itself that isn['’]t being worn or carried\\. ` +
+    `The touch destroys a (\\d+)-foot Cube of the object\\.$`,
+);
+
+/** The object this line touches and eats a cube of, or null for every other line. */
+export function parseTouchLine(text: string): MonsterTouch | null {
+  const matched = TOUCH_LINE.exec(text.replace(/\s+/g, ' ').trim());
+  if (matched === null) return null;
+  const checked = MonsterTouchSchema.safeParse({
+    within: Number(matched[1]!),
+    material: 'metal',
+    cubeFeet: Number(matched[2]!),
   });
   return checked.success ? checked.data : null;
 }
@@ -3866,6 +3900,8 @@ function parseFeatures(
       // And the sixth: a line that drags toward itself what it is already
       // holding, which is `pullToward` at a heading's price.
       const pulls = parsePullLine(text);
+      // And a touch that eats a cube of a metal object — M-MATTER.
+      const touchesObject = parseTouchLine(text);
       // And the two roads into the second place: a creature taken inside
       // another, and a step onto the Ethereal Plane and back.
       const swallows = parseSwallowLine(text);
@@ -3908,6 +3944,7 @@ function parseFeatures(
         ...(onlyInForms === null ? {} : { onlyInForms: [...onlyInForms] }),
         ...(requiresObject === null ? {} : { requiresObject }),
         ...(pulls === null ? {} : { pulls }),
+        ...(touchesObject === null ? {} : { touchesObject }),
         ...(swallows === null ? {} : { swallows }),
         ...(shiftsPlane === null ? {} : { shiftsPlane }),
         ...(jumps === null ? {} : { jumps }),

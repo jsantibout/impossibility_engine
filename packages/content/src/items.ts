@@ -606,6 +606,39 @@ const metalOf = (row: string): { readonly metal?: boolean } => {
   return metal === undefined ? {} : { metal };
 };
 
+/**
+ * The row of the Ammunition table each launcher fires — read by SRD Corrosive
+ * Form's "Nonmagical ammunition is destroyed immediately after hitting the
+ * pudding". (M-MATTER)
+ *
+ * **The Weapons table prints a word and the Ammunition table prints rows**:
+ * a Longbow's property is "Ammunition (Range 150/600; Arrow)" and the row is
+ * "Arrows"; a Light Crossbow's is "Bolt" and the row "Bolts"; a Blowgun's
+ * "Needle" and "Needles". "Bullet" is the one word that names two rows,
+ * "Bullets, Firearm" and "Bullets, Sling", and the names settle it: a Sling
+ * fires sling bullets, and the Musket and Pistol — the Tinker's firearms — fire
+ * firearm bullets. Checked against every row that prints the property by
+ * `items-ammunition.test.ts`, so a re-vendored table with a new launcher fails
+ * until somebody reads it.
+ */
+const FIRES: Readonly<Record<string, string>> = {
+  'light-crossbow': 'bolts',
+  'hand-crossbow': 'bolts',
+  'heavy-crossbow': 'bolts',
+  shortbow: 'arrows',
+  longbow: 'arrows',
+  sling: 'bullets-sling',
+  musket: 'bullets-firearm',
+  pistol: 'bullets-firearm',
+  blowgun: 'needles',
+};
+
+/** The ammunition link for one row, as a spread, as {@link metalOf} is. */
+const firesOf = (row: string): { readonly firesAmmunition?: string } => {
+  const fires = FIRES[row];
+  return fires === undefined ? {} : { firesAmmunition: fires };
+};
+
 /** A magic weapon built on one row of the Weapons table. */
 const magicWeapon = (
   item: {
@@ -630,6 +663,9 @@ const magicWeapon = (
     // varies — see `METAL`. Before `rest`, so an entry that says otherwise
     // wins. (E-L1)
     ...(item.kind === 'staff' ? {} : metalOf(item.row)),
+    // And what it fires, which a magical bow fires as a plain one does — see
+    // `FIRES`. (M-MATTER)
+    ...firesOf(item.row),
     ...rest,
   };
 };
@@ -4522,6 +4558,7 @@ function build(): readonly CatalogueItem[] {
       weapon,
       contents: [],
       ...metalOf(weapon.id),
+      ...firesOf(weapon.id),
     });
   }
 

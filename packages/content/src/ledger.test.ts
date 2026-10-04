@@ -297,11 +297,13 @@ describe('the ledger measures the three populations of the roadmap', () => {
 
   /**
    * **A line that files one sentence and owes another is not read to the
-   * end** — W7-B12. SRD Corrosive Form files the hole an ooze eats and still
-   * owes the ammunition and the Mending, which is the first trait to do both;
+   * end** — W7-B12. SRD Corrosive Form filed the hole an ooze eats and owed
+   * the ammunition and the Mending, which was the first trait to do both;
    * the list's own prose says such a line "is not here", and the predicate
    * that decides it did not ask a trait's residue until a line came that had
-   * one beside a filing.
+   * one beside a filing. M-MATTER paid both of Corrosive Form's sentences, so
+   * the trait that still owes one — SRD Night Hag's Soul Bag — is the sentinel
+   * that keeps the loop below from checking an empty set.
    */
   it('lists no line among those read to the end that still owes a sentence', () => {
     const owes = new Set(
@@ -315,7 +317,7 @@ describe('the ledger measures the three populations of the roadmap', () => {
           .map((line) => `${monster.name}/${line.name}`),
       ),
     );
-    expect(owes.has('Black Pudding/Corrosive Form')).toBe(true);
+    expect(owes.has('Night Hag/Soul Bag')).toBe(true);
     for (const one of ledger.monsters.filed) {
       expect(owes.has(`${one.monster}/${one.line}`), `${one.monster}/${one.line}`).toBe(false);
     }

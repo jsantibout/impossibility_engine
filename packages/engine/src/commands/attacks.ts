@@ -76,7 +76,7 @@ import { wrongFormFor } from '../forms.js';
 import { forcePrintedSaveOn, withDeclaredDamage } from './printed-save-clauses.js';
 import { filedFor, reportFiled } from './filed-handovers.js';
 import type { HazardName } from '../hazards.js';
-import { OBJECT_CREATURE_TYPE } from '../objects.js';
+import { OBJECT_CREATURE_TYPE, takesLight, unsaidFlammability } from '../objects.js';
 import { type CommandIdentity, once } from '../idempotency.js';
 import {
   SAME_BEARING_DEGREES,
@@ -185,7 +185,7 @@ import {
   enemyWithinFiveFeet,
 } from './rolls.js';
 import { consumedRollModifiers } from '../roll-modifiers.js';
-import { answerTheBlow, wardAgainst, type WardFallback, wardOwed, wearTheWeapon } from './passive-defenses.js';
+import { answerTheBlow, corrodeWhatStruck, wardAgainst, type WardFallback, wardOwed } from './passive-defenses.js';
 
 /**
  * The weapons this creature currently has in hand, as records.
@@ -1022,23 +1022,30 @@ function printedRiderOnASwing(
         break;
 
       // SRD Fire Elemental's Burn: "If the target is a creature or a flammable
-      // object, it starts burning." **The creature half is applied and the
-      // object half is handed back**, because the engine holds no
-      // flammability: a declared object is a substance and a size, and whether
-      // the oak door in this room takes light is the table's. So a creature is
-      // set alight outright, and a *declared object* that was hit gets the
-      // sentence back in the book's own words. No span is claimed for it: a
-      // fire has no deadline, which is what keeps a hazard out of the clause
-      // above that would have needed one.
-      case 'hazard':
-        if (state.creatures[target]?.creatureType === OBJECT_CREATURE_TYPE) {
-          unverified.push(
-            `${printed.name} hit ${target}, and its line sets a flammable object burning — the engine holds no record of what takes light, so whether ${target} is now alight is the table's`,
-          );
+      // object, it starts burning"; SRD Barbed Devil's Hurl Flame, "a flammable
+      // object that isn't being worn or carried" and no creature. **Each half
+      // is the sentence's own**: a creature is set alight where the line names
+      // one, and a declared object where the line names a flammable one and
+      // its substance takes light (M-MATTER) — never worn or carried, because
+      // it is a thing in the room. A substance nobody has said of lights
+      // nothing and is said. No span is claimed: a fire has no deadline, which
+      // is what keeps a hazard out of the clause above that would have needed
+      // one.
+      case 'hazard': {
+        const record = state.creatures[target];
+        if (record?.creatureType !== OBJECT_CREATURE_TYPE) {
+          if (rider.creatures) hazard = rider.hazard;
           break;
         }
-        hazard = rider.hazard;
+        if (!rider.flammableObjects) break;
+        const lights = takesLight(state, target);
+        if (lights === null) {
+          unverified.push(unsaidFlammability(printed.name, record.name));
+          break;
+        }
+        if (lights) hazard = rider.hazard;
         break;
+      }
 
       // SRD Black Pudding's Dissolving Pseudopod, SRD Gray Ooze's Pseudopod.
       // The points ride on the option and `applyHitRider` finds the suit: a
@@ -3461,6 +3468,12 @@ function swingAt(
       command.weapon !== null && command.weapon !== undefined && (swingIsMelee || command.thrown === true)
         ? command.weapon
         : undefined;
+    // And the launcher, where the weapon loosed something rather than touched:
+    // its ammunition is what Corrosive Form destroys. (M-MATTER)
+    const firedFrom =
+      command.weapon !== null && command.weapon !== undefined && contactWeapon === undefined
+        ? command.weapon
+        : undefined;
     const hurt = landDamage(
       after,
       command.target,
@@ -3471,6 +3484,7 @@ function swingAt(
         by: id,
         fromAttack: true,
         ...(contactWeapon === undefined ? {} : { contactWeapon }),
+        ...(firedFrom === undefined ? {} : { firedFrom }),
         ...(attack.value.critical ? { critical: true } : {}),
         // **The defender answers first.** Where this opens a window, the rider
         // rides on the hold and resolves with the damage; where it opens none,
@@ -3485,14 +3499,15 @@ function swingAt(
 
     // SRD Corrosive Form: what dealing damage cost the weapon that touched the
     // target, asked the moment the blow has landed. A blow a window is holding
-    // carries the weapon to `settleDamage`, which asks there. (W7-B12)
+    // carries the weapon to `settleDamage`, which asks there. (W7-B12) And the
+    // ammunition a launcher loosed, on the same terms. (M-MATTER)
     const worn =
       hurt.value.offers.length === 0
-        ? wearTheWeapon(
+        ? corrodeWhatStruck(
             [...events, ...hurt.value.events].reduce(applyEvent, state),
             id,
             command.target,
-            contactWeapon,
+            { weapon: contactWeapon, firedFrom },
             hurt.value.amount ?? 0,
             supply.content,
           )
@@ -4000,6 +4015,8 @@ export function resolveAttackDamage(
       pending.weapon !== null && (rangeOf(weapon, pending.thrown) === null || pending.thrown)
         ? pending.weapon
         : undefined;
+    // And the launcher, where the weapon loosed something. (M-MATTER)
+    const firedFrom = pending.weapon !== null && contactWeapon === undefined ? pending.weapon : undefined;
     const hurt = landDamage(
       after,
       pending.target,
@@ -4012,6 +4029,7 @@ export function resolveAttackDamage(
         by: pending.attacker,
         fromAttack: true,
         ...(contactWeapon === undefined ? {} : { contactWeapon }),
+        ...(firedFrom === undefined ? {} : { firedFrom }),
         ...(pending.critical ? { critical: true } : {}),
         // What the hit bought, carried from the hold onto the damage roll
         // where one opens a window — so a held swing whose damage somebody may
@@ -4025,14 +4043,14 @@ export function resolveAttackDamage(
     if (!hurt.ok) return hurt;
 
     // SRD Corrosive Form's wear, on the half of a held swing that lands the
-    // blow — see the unheld path's copy of this call. (W7-B12)
+    // blow — see the unheld path's copy of this call. (W7-B12, M-MATTER)
     const worn =
       hurt.value.offers.length === 0
-        ? wearTheWeapon(
+        ? corrodeWhatStruck(
             [...events, ...hurt.value.events].reduce(applyEvent, state),
             pending.attacker,
             pending.target,
-            contactWeapon,
+            { weapon: contactWeapon, firedFrom },
             hurt.value.amount ?? 0,
             supply.content,
           )

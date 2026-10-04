@@ -51,7 +51,8 @@ import {
   type TimedEffect,
 } from '../timers.js';
 import { applyEvent, type GameEvent, type GameState } from '../events.js';
-import { HAZARD_RULES, hazardSource } from '../hazards.js';
+import { HAZARD_RULES, hazardSource, objectHasNoTurnToBurnAt } from '../hazards.js';
+import { OBJECT_CREATURE_TYPE, takesLight, unsaidFlammability } from '../objects.js';
 import { type CommandIdentity, once } from '../idempotency.js';
 import {
   LEGENDARY_POOL,
@@ -337,26 +338,31 @@ function settlePrintedBoundaryDamage(
       current = hurt.value.events.reduce(applyEvent, current);
       unverified.push(...hurt.value.unverified);
 
-      // SRD Fire Elemental: "Creatures … in the Emanation start burning." The
-      // glossary's Burning, lit on every creature the line caught that the
-      // damage left alive — the hazard the hit riders light and the start of
-      // its turn collects. (W7-B12)
-      if (line.ignites && current.creatures[victim]?.vitals.dead === false) {
-        const lit: GameEvent = {
-          type: 'hazard-caught',
-          id: victim,
-          hazard: { hazard: 'burning', lit: `an emanation from ${who}` },
-        };
-        events.push(lit);
-        current = applyEvent(current, lit);
+      // SRD Fire Elemental: "Creatures and flammable objects in the Emanation
+      // start burning." The glossary's Burning, lit on every creature the line
+      // caught that the damage left alive — the hazard the hit riders light
+      // and the start of its turn collects (W7-B12) — and on every declared
+      // object it caught whose substance takes light (M-MATTER). A stone
+      // pillar stands unlit; a substance nobody has said of is said.
+      const caught = current.creatures[victim];
+      if (!line.ignites || caught === undefined || caught.vitals.dead) continue;
+      const isObject = caught.creatureType === OBJECT_CREATURE_TYPE;
+      if (isObject) {
+        const lights = takesLight(current, victim);
+        if (lights === null) {
+          unverified.push(unsaidFlammability(`${who}'s emanation`, caught.name));
+          continue;
+        }
+        if (!lights) continue;
       }
-    }
-    // And the other half of that sentence, which the engine cannot light: a
-    // declared object has nothing on it that takes a flame.
-    if (line.ignites) {
-      unverified.push(
-        `${who}'s emanation sets "flammable objects in the Emanation" burning; the engine lights the creatures and the objects are the table's`,
-      );
+      const lit: GameEvent = {
+        type: 'hazard-caught',
+        id: victim,
+        hazard: { hazard: 'burning', lit: `an emanation from ${who}` },
+      };
+      events.push(lit);
+      current = applyEvent(current, lit);
+      if (isObject) unverified.push(objectHasNoTurnToBurnAt(caught.name));
     }
   }
 

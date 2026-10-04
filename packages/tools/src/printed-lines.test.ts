@@ -371,7 +371,9 @@ describe('what a code-run monster reads off look to rank its lines', () => {
       none: count('none'),
       damageAlone: attacks.filter((one) => one.riderReads.length === 1 && one.riderReads[0] === 'damage')
         .length,
-    }).toEqual({ lines: 104, whole: 96, part: 3, none: 5, damageAlone: 15 });
+      // M-MATTER: SRD Barbed Devil's Hurl Flame moved from `none` to `whole`,
+      // its flammable object read now that a substance says it takes light.
+    }).toEqual({ lines: 104, whole: 97, part: 3, none: 4, damageAlone: 15 });
   });
 
   it('says who each kind of line catches, off the pinned record the doors read', () => {

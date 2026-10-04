@@ -95,7 +95,7 @@ import { creatureOf, damageTakenIn, unknownCreature } from './command.js';
 import { removeCreatureEverywhere, summonCreature } from './creatures.js';
 import { placeCreatureInScene } from './scene.js';
 import { quantityOf } from './inventory.js';
-import { wearTheWeapon } from './passive-defenses.js';
+import { corrodeWhatStruck } from './passive-defenses.js';
 import {
   adjustmentsFor,
   dealSpellDamage,
@@ -698,15 +698,16 @@ export function settleDamage(
     // **And what dealing it cost the weapon that struck**, which the hold
     // carried here because only this command knows whether damage was dealt:
     // SRD Corrosive Form's "immediately after dealing damage to the pudding".
-    // (W7-B12)
+    // (W7-B12) And the ammunition a launcher loosed, on the same terms.
+    // (M-MATTER)
     const worn =
       pending.by === null
         ? { events: [], unverified: [] }
-        : wearTheWeapon(
+        : corrodeWhatStruck(
             [...events, ...dealt.value.events, ...triggered.events].reduce(applyEvent, state),
             pending.by,
             pending.target,
-            pending.contactWeapon,
+            { weapon: pending.contactWeapon, firedFrom: pending.firedFrom },
             damageTakenIn(dealt.value.events, applied.total),
             supply.content,
           );

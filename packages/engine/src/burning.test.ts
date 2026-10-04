@@ -180,15 +180,16 @@ describe('a hit that sets a creature alight', () => {
 
   /**
    * SRD Barbed Devil's Hurl Flame catches "a flammable object that isn't being
-   * worn or carried" and no creature at all. The engine holds no flammable
-   * object, so the clause goes to the table whole and nobody is set alight.
+   * worn or carried" and no creature at all. The sentence is read now
+   * (M-MATTER, `flammable-objects.test.ts`), and on a creature it does
+   * nothing — which is the book, not a clause handed back.
    */
   it('sets nobody alight for a line that only names an object', () => {
     const table = field('barbed-devil');
     const out = swing(table, 'Hurl Flame');
 
     expect(burning(out.state, BREN)).toBe(false);
-    expect(out.unverified.join(' ')).toContain('flammable object');
+    expect(out.unverified.join(' ')).not.toContain('the engine does not apply that');
   });
 
   /** A second hit re-lights the same fire rather than stacking a second one. */

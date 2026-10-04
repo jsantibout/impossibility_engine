@@ -190,8 +190,9 @@ describe('toolSchemas', () => {
     // And one on each for E-L2, `expose_to_fire`.
     // And one on the DM's alone for E-L2's owner rulings, `declare_plants`.
     // And one on the DM's alone for E-L1, `declare_contact`.
+    // And one on the DM's alone for M-MATTER, `touch_printed_line`.
     expect(toolSchemas(player())).toHaveLength(101);
-    expect(toolSchemas(dm())).toHaveLength(137);
+    expect(toolSchemas(dm())).toHaveLength(138);
     // Re-pinned 2026-09-24 for the printed-lines track, which opened one door
     // on the DM's surface alone: `teleport_printed_line` takes the teleport a
     // stat block prints, at the distance the block prints, to a space the DM
@@ -471,10 +472,14 @@ describe('toolSchemas', () => {
     // And `declare_contact.item` on the DM's alone — a second hand on a thing a
     // creature wears or wields (the owner's ruling, applied 2026-10-03) — with
     // the description and `object` saying so, +445. No tool added.
+    // And for M-MATTER, on the DM's alone: `touch_printed_line` (SRD Rust
+    // Monster's Destroy Metal — the declared object it touches and whether the
+    // cube is the whole of it), a new door. 137 → 138 tools; +1,603 bytes on
+    // the DM's door, none on the player's.
     expect(toolSchemas(player())).toHaveLength(101);
-    expect(toolSchemas(dm())).toHaveLength(137);
+    expect(toolSchemas(dm())).toHaveLength(138);
     expect(JSON.stringify(toolSchemas(player())).length).toBe(179328);
-    expect(JSON.stringify(toolSchemas(dm())).length).toBe(244658);
+    expect(JSON.stringify(toolSchemas(dm())).length).toBe(246261);
   });
 });
 

@@ -613,6 +613,9 @@ describe('the bestiary row counts blocks, and the prose it cannot read', () => {
       // The light a use switches on and the next switches off — W7-B11, read out
       // of the sentence like the moves above it.
       'togglesLight',
+      // The object SRD Rust Monster's Destroy Metal touches — M-MATTER, read
+      // out of the sentence like the pull above it.
+      'touchesObject',
       'trait',
       'treeStride',
       'usesLine',

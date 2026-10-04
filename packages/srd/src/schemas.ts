@@ -2229,6 +2229,30 @@ export const MonsterPullSchema = z
 export type MonsterPull = z.infer<typeof MonsterPullSchema>;
 
 /**
+ * A line that touches an object and destroys a cube of it — M-MATTER.
+ *
+ * SRD Rust Monster, Destroy Metal: "The rust monster touches a nonmagical
+ * metal object within 5 feet of itself that isn't being worn or carried. The
+ * touch destroys a 1-foot Cube of the object."
+ *
+ * **The legality is the sentence's and each part is carried or pinned**: the
+ * reach (`within`), the substance (`material`), and the two the pattern holds
+ * word for word — nonmagical, and not worn or carried, which a declared object
+ * always is. The cube is carried because it is the question the door asks: a
+ * declared object has a size and no shape, so whether a cubic foot is the
+ * whole of it is the table's to say.
+ */
+export const MonsterTouchSchema = z.object({
+  /** "within **5** feet of itself". */
+  within: z.number().int().min(5),
+  /** "a nonmagical **metal** object" — the one substance the book prints here. */
+  material: z.literal('metal'),
+  /** "destroys a **1**-foot Cube of the object". */
+  cubeFeet: z.number().int().min(1),
+});
+export type MonsterTouch = z.infer<typeof MonsterTouchSchema>;
+
+/**
  * One line that takes a creature it is grappling **inside** itself.
  *
  * SRD Giant Frog: "The frog swallows a Small or smaller target it is
@@ -3015,10 +3039,9 @@ const MonsterTraitMechanicSchema = z.discriminatedUnion('kind', [
      * SRD Fire Elemental: "Creatures and flammable objects in the Emanation
      * **start burning**." The glossary's Burning, lit on every creature the
      * emanation catches — the hazard the hit riders already light and the
-     * boundary already collects. The *objects* half is the Barbed Devil's Hurl
-     * Flame seam (a declared object has nothing on it that takes light), so
-     * the whole sentence is carried in the trait's `handedOver` as well and
-     * the heading stays owed for it. (W7-B12)
+     * boundary already collects (W7-B12) — and on every declared object it
+     * catches whose substance takes light (M-MATTER), so the sentence is
+     * consumed whole and nothing of it is owed.
      */
     ignites: z.literal(true).optional(),
   }),
@@ -3091,10 +3114,10 @@ const MonsterTraitMechanicSchema = z.discriminatedUnion('kind', [
      * weapon is destroyed if the penalty reaches −5." — W7-B12.
      *
      * **A defence nobody elects**, answered where SRD Fire Shield is: the
-     * attack path consults it the instant a hit is known. The ammunition and
-     * the Mending sentences are owed (the engine spends no ammunition and no
-     * casting reaches an item's record) and the eating-through is filed for
-     * the table, so neither is a field here.
+     * attack path consults it the instant a hit is known. The eating-through
+     * is filed for the table. The Mending sentence is consumed — SRD Mending's
+     * `repairs` lifts the very penalty record this writes — and the
+     * ammunition sentence is {@link destroysAmmunition} (M-MATTER).
      */
     kind: z.literal('corrodes-what-hits-it'),
     /** "takes 4 (**1d8**) **Acid** damage" — absent on the Gray Ooze, which prints no such sentence. */
@@ -3105,6 +3128,13 @@ const MonsterTraitMechanicSchema = z.discriminatedUnion('kind', [
     weaponPenalty: z.number().int().min(1),
     /** "destroyed if the penalty reaches −**5**". */
     weaponDestroyedAt: z.number().int().min(1),
+    /**
+     * "Nonmagical ammunition is destroyed immediately after hitting the
+     * pudding and dealing any damage." — M-MATTER. The piece that touched it
+     * leaves the archer's inventory. Absent on a trait that prints no such
+     * sentence, which eats nothing.
+     */
+    destroysAmmunition: z.literal(true).optional(),
   }),
   z.object({
     /**
@@ -3793,6 +3823,13 @@ export const featureSchema = z.object({
    * that reaches this shape under Actions.
    */
   pulls: MonsterPullSchema.optional(),
+  /**
+   * The object this line touches and eats a cube of — see
+   * {@link MonsterTouchSchema}. Read on every section like everything else
+   * here; SRD prints the one line that reaches this shape under Actions.
+   * (M-MATTER)
+   */
+  touchesObject: MonsterTouchSchema.optional(),
   /**
    * Whom this line swallows — see {@link MonsterSwallowSchema}. Read on every
    * section like everything else here; SRD prints both under Actions.

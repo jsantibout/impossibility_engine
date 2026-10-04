@@ -14,6 +14,7 @@ import {
   parseSaveLine,
   parseSwallowLine,
   parseTeleportLine,
+  parseTouchLine,
   parseTreeStrideLine,
 } from './monsters.js';
 import type { Monster } from '../schemas.js';
@@ -1526,15 +1527,23 @@ describe('the honesty pass: compulsions and fiction filed apart from the residue
   });
 
   /**
-   * **Not filed, and that is the reading** — W7-B13, after review. The cube the
-   * touch destroys is fiction, but the touch is legality — a reach, a thing
-   * that is nonmagical metal, a thing nobody is wearing — and a line filed
-   * whole would pass that as fiction too. It stays prose and owed, with its
-   * seam in `LINE_RESIDUE_SEAMS`.
+   * **Read, not filed** — M-MATTER. W7-B13 left the line prose because the
+   * touch is legality — a reach, a thing that is nonmagical metal, a thing
+   * nobody is wearing — and a line filed whole would pass that as fiction.
+   * A declared object pins whether it is metal now (E-L1), so the touch is a
+   * shape `takePrintedTouch` checks, and the cube is the question it asks.
    */
-  it("leaves the rust monster's Destroy Metal prose, because its touch is legality", () => {
+  it("reads the rust monster's Destroy Metal as a touch on a metal object", () => {
     const line = lineOf('rust-monster', 'Destroy Metal') as Record<string, unknown>;
-    expect(Object.keys(line).sort()).toEqual(['name', 'text']);
+    expect(line['touchesObject']).toEqual({ within: 5, material: 'metal', cubeFeet: 1 });
+  });
+
+  it('reads no touch where the sentence names another substance', () => {
+    expect(
+      parseTouchLine(
+        "The rust monster touches a nonmagical wooden object within 5 feet of itself that isn't being worn or carried. The touch destroys a 1-foot Cube of the object.",
+      ),
+    ).toBeNull();
   });
 
   it('files only the book’s own words, and never a sentence it also carries as owed', () => {
@@ -1609,7 +1618,7 @@ describe('regeneration, forms, coven magic and splits — W7-B12', () => {
     });
   });
 
-  it("reads the fire elemental's Fire Aura and the burning it lights, and owes the flammable objects", () => {
+  it("reads the fire elemental's Fire Aura and the burning it lights, objects and all", () => {
     expect(lineOf('fire-elemental', 'Fire Aura').trait).toEqual({
       kind: 'damages-creatures-in-an-emanation',
       moment: 'end',
@@ -1618,25 +1627,26 @@ describe('regeneration, forms, coven magic and splits — W7-B12', () => {
       damageType: 'fire',
       chosen: false,
       unlessIncapacitated: false,
+      // A declared object's substance says whether it takes light (M-MATTER),
+      // so the objects half is read with the creatures' and nothing is owed.
       ignites: true,
-      // A declared object has nothing on it that takes light — the Barbed
-      // Devil's Hurl Flame seam — so the sentence is owed, not filed.
-      handedOver: ['Creatures and flammable objects in the Emanation start burning.'],
     });
     // The azer's aura prints no such sentence and lights nobody.
     expect(lineOf('azer-sentinel', 'Fire Aura').trait).not.toHaveProperty('ignites');
   });
 
-  it("reads the black pudding's Corrosive Form: the acid back, the weapon worn down, the rest said", () => {
+  /**
+   * M-MATTER: the ammunition sentence is a field the blow reads, and the
+   * Mending sentence is consumed — SRD Mending's `repairs` lifts the very
+   * `weapon-penalised` record this trait writes, so nothing is owed.
+   */
+  it("reads the black pudding's Corrosive Form: the acid back, the weapon and the ammunition", () => {
     expect(lineOf('black-pudding', 'Corrosive Form').trait).toEqual({
       kind: 'corrodes-what-hits-it',
       meleeHitterTakes: { dice: '1d8', damageType: 'acid' },
       weaponPenalty: 1,
       weaponDestroyedAt: 5,
-      handedOver: [
-        'Nonmagical ammunition is destroyed immediately after hitting the pudding and dealing any damage.',
-        'The penalty can be removed by casting the _Mending_ spell on the weapon.',
-      ],
+      destroysAmmunition: true,
       forTheTable: [
         {
           kind: 'a-hole-eaten-through-the-world',
@@ -1651,10 +1661,7 @@ describe('regeneration, forms, coven magic and splits — W7-B12', () => {
       kind: 'corrodes-what-hits-it',
       weaponPenalty: 1,
       weaponDestroyedAt: 5,
-      handedOver: [
-        'Nonmagical ammunition is destroyed immediately after hitting the ooze and dealing any damage.',
-        'The penalty can be removed by casting the _Mending_ spell on the weapon.',
-      ],
+      destroysAmmunition: true,
       forTheTable: [
         {
           kind: 'a-hole-eaten-through-the-world',

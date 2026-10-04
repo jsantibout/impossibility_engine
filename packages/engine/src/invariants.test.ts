@@ -154,6 +154,7 @@ import {
   takeLegendaryAction,
   takePrintedForm,
   takePrintedPull,
+  takePrintedTouch,
   takePrintedTeleport,
   commandSummons,
   borrowSenses,
@@ -185,6 +186,7 @@ import {
 // `resolveSpell`, kept here so the `mayAct` guard it gained stays exercised.
 import { resolveCast } from './commands/casting.js';
 import { conditionInstanceId } from './conditions.js';
+import { OBJECT_CREATURE_TYPE, objectSheet } from './objects.js';
 import { beginRest, endRest, SHORT_REST } from './rest.js';
 import { hitDieKey } from './resources.js';
 import { extendContent, type Content } from './content.js';
@@ -666,6 +668,39 @@ const PULLING: readonly GameEvent[] = SETUP.map((event) =>
     ? { ...event, sheet: sheet({ stated: { unreadActions: [PULLING_LINE] } }) }
     : event,
 );
+
+/**
+ * The same invented line with the book's touch template read off it, and an
+ * iron lock five feet off for it to touch — M-MATTER. A retry that was not
+ * guarded would spend a second Action and destroy the lock a second time.
+ */
+const TOUCHING_LINE: StatedAction = {
+  ...PRINTED_LINE,
+  touchesObject: { within: 5, material: 'metal', cubeFeet: 1 },
+};
+const LOCK = id('lock');
+
+/** The same world again, with that line under Actions and the lock beside A. */
+const TOUCHING: readonly GameEvent[] = [
+  ...SETUP.slice(0, -1).map((event) =>
+    event.type === 'creature-added' && event.id === A
+      ? { ...event, sheet: sheet({ stated: { unreadActions: [TOUCHING_LINE] } }) }
+      : event,
+  ),
+  {
+    type: 'creature-added',
+    id: LOCK,
+    name: 'the iron lock',
+    sheet: objectSheet(19),
+    maxHp: 5,
+    diesAtZero: true,
+    creatureType: OBJECT_CREATURE_TYPE,
+    size: 'tiny',
+    material: { id: 'iron', metal: true, flammable: false },
+  },
+  { type: 'creature-placed', id: LOCK, placement: { from: { creature: A }, feet: 5, bearing: 180 } },
+  SETUP[SETUP.length - 1]!,
+];
 
 /**
  * The same invented line with the book's cast template read off it.
@@ -2480,6 +2515,16 @@ const GUARDED: readonly Guarded[] = [
     name: 'takePrintedPull',
     log: PULLING,
     run: (s, commandId) => takePrintedPull(s, A, { line: PULLING_LINE.name, commandId }),
+  },
+  /**
+   * And the touch on an object (M-MATTER). A retry that was not guarded would
+   * spend a second Action, or be refused as touching a lock already gone.
+   */
+  {
+    name: 'takePrintedTouch',
+    log: TOUCHING,
+    run: (s, commandId) =>
+      takePrintedTouch(s, A, { line: TOUCHING_LINE.name, object: LOCK, wholeObject: true, commandId }),
   },
   /**
    * The legendary door, on the moment just after B's turn began with nothing
@@ -4397,6 +4442,14 @@ const SPENDERS: readonly Spender[] = [
   {
     name: 'takePrintedPull',
     run: (s) => takePrintedPull(s, B, { line: 'A Printed Line' }),
+  },
+  /**
+   * And the door that touches an object (M-MATTER), refused for the same debt
+   * before the line, the object or the reach are looked at.
+   */
+  {
+    name: 'takePrintedTouch',
+    run: (s) => takePrintedTouch(s, B, { line: 'A Printed Line', object: A, wholeObject: true }),
   },
   /**
    * And the sixth door on one line, which spends the same slot through the
