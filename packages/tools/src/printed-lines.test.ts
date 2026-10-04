@@ -480,30 +480,26 @@ describe('what a code-run monster reads off look to rank its lines', () => {
  * cover takes the breath of what it covers.
  */
 describe('a creature attached to somebody, pulled off through the door', () => {
-  it('rolls the attach’s own check for the action, and on a success ends the cover and the smothering with it', () => {
+  it('rolls the attach’s own check for the action, and on a success the attach ends at both ends', () => {
     let sawSuccess = false;
     let sawFailure = false;
-    for (let n = 0; n < 12 && !(sawSuccess && sawFailure); n += 1) {
+    for (let n = 0; n < 40 && !(sawSuccess && sawFailure); n += 1) {
       const t = pair(`detach-${n}`, 'darkmantle', 5);
-      // The cover as the hit leaves it, by hand: the attach, the Blinded, the breath.
-      t.campaign.append([
-        { type: 'creature-attached', id: asCharacterId('beast'), attachment: { to: asCharacterId('grish'), name: 'Crush', detachDc: 13 } },
-        { type: 'condition-applied', id: asCharacterId('grish'), condition: 'blinded', source: 'attach:beast' },
-        {
-          type: 'hazard-caught',
-          id: asCharacterId('grish'),
-          hazard: { hazard: 'suffocating', lit: 'Crush', while: [{ by: 'attach', source: 'attach:beast' }] },
-        },
-      ]);
+      // The Crush through the door, and the attach it leaves. (What a cover
+      // and its smothering do when the attach ends is `attach.test.ts`'s.)
+      const crush = expectOk(t.call('attack', { attacker: 'beast', target: 'grish', action: 'Crush' }));
+      if ((crush.resolution as { hit?: boolean }).hit !== true) continue;
+      if (t.campaign.state().creatures['grish' as never]!.vitals.hp <= 0) continue;
+      expect(t.campaign.state().creatures['beast' as never]!.attachments).toHaveLength(1);
       const out = expectOk(t.call('detach_creature', { who: 'grish', holder: 'beast', from: 'grish' }));
       const value = out.resolution as { success: boolean; check: { total: number } | null };
+      // The DC 13 the line prints is rolled; the caller named no number.
       expect(value.check).not.toBeNull();
       const state = t.campaign.state();
       if (value.success) {
         sawSuccess = true;
         expect(state.creatures['beast' as never]!.attachments).toEqual([]);
-        expect(state.creatures['grish' as never]!.conditions.conditions).not.toContain('blinded');
-        expect(state.creatures['grish' as never]!.hazards).toEqual([]);
+        expect(state.creatures['beast' as never]!.speedModifiers).toEqual([]);
       } else {
         sawFailure = true;
         expect(state.creatures['beast' as never]!.attachments).toHaveLength(1);

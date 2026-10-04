@@ -375,6 +375,26 @@ describe('an attach that covers what it lands on', () => {
     swing(table, 'Crush', { modes: ['advantage'] });
     const off = table.do('the darkmantle lets go', (s) => letGoOfAttachment(s, BEAST, { from: BREN, commandId: 'let go' }));
     expect(suffocationOn(off, BREN)).toBeNull();
+
+    // And pulled off by the covered creature's own Action and the line's
+    // DC 13 check, forced to succeed.
+    const again = field('darkmantle');
+    swing(again, 'Crush', { modes: ['advantage'] });
+    expect(suffocationOn(again.state, BREN)).not.toBeNull();
+    again.did('the darkmantle’s turn ends', (s) => resolveTurn(s, supply('d')));
+    const pulled = unwrap(
+      detachFrom(
+        again.state,
+        BREN,
+        { holder: BEAST, from: BREN, bonuses: [{ source: 'forced', flat: 40 }], commandId: 'pull' },
+        supply(),
+      ),
+      'the detach',
+    );
+    expect(pulled.success).toBe(true);
+    again.log.push(...pulled.events);
+    expect(conditionsOn(again.state, BREN)).not.toContain('blinded');
+    expect(suffocationOn(again.state, BREN)).toBeNull();
   });
 
   /**
