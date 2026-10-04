@@ -37,6 +37,8 @@ import {
 } from '../character.js';
 import { canUseFeatureThisTurn, currentCombatant, sameSwingRule } from '../combat.js';
 import { conditionInstanceId } from '../conditions.js';
+import { objectHasNoTurnToBurnAt } from '../hazards.js';
+import { OBJECT_CREATURE_TYPE } from '../objects.js';
 import { applyEvent, type GameEvent, type GameState, grantSourcesOf } from '../events.js';
 import { featureSource } from '../progression.js';
 import { sizeAtMost } from '../positioning.js';
@@ -539,12 +541,20 @@ export function applyHitRider(
   // release it by, no deadline to lift it, and no condition immunity that
   // reaches it. A creature already alight is re-lit rather than doubled, which
   // is the fold's own reading of the mark.
-  if (option.hazard !== undefined) {
+  //
+  // **A declared object the blow has just broken takes no light**: SRD "An
+  // object is destroyed when it has 0 Hit Points", and there is nothing left
+  // to burn. One that stands is lit, and the turn it has none of is said
+  // (M-MATTER) — see `objectHasNoTurnToBurnAt`.
+  const struck = state.creatures[hit.target];
+  const isObject = struck?.creatureType === OBJECT_CREATURE_TYPE;
+  if (option.hazard !== undefined && !(isObject && struck.vitals.dead)) {
     events.push({
       type: 'hazard-caught',
       id: hit.target,
       hazard: { hazard: option.hazard, lit: option.name },
     });
+    if (isObject) unverified.push(objectHasNoTurnToBurnAt(struck.name));
   }
 
   // **The armour, beside the hazard and for its reason**: what it changes is

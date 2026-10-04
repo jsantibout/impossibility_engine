@@ -384,7 +384,9 @@ describe('what a code-run monster reads off look to rank its lines', () => {
         .length,
     // M-LINGER moved four from `none` to `whole`: the Death Dog's, the
     // Mummy's, the Otyugh's and the Incubus's harm that outlasts the fight.
-    }).toEqual({ lines: 104, whole: 100, part: 3, none: 1, damageAlone: 15 });
+    // M-MATTER: SRD Barbed Devil's Hurl Flame moved from `none` to `whole`,
+    // its flammable object read now that a substance says it takes light.
+    }).toEqual({ lines: 104, whole: 101, part: 3, none: 0, damageAlone: 15 });
   });
 
   it('says who each kind of line catches, off the pinned record the doors read', () => {

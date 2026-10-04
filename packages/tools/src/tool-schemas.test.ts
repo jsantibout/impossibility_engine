@@ -192,8 +192,9 @@ describe('toolSchemas', () => {
     // And one on the DM's alone for E-L1, `declare_contact`.
     // And one on the DM's alone for M-LINGER, `settle_daily_tolls` — the toll
     // a curse or a poison that outlasts the fight takes every 24 hours.
+    // And one on the DM's alone for M-MATTER, `touch_printed_line`.
     expect(toolSchemas(player())).toHaveLength(101);
-    expect(toolSchemas(dm())).toHaveLength(138);
+    expect(toolSchemas(dm())).toHaveLength(139);
     // Re-pinned 2026-09-24 for the printed-lines track, which opened one door
     // on the DM's surface alone: `teleport_printed_line` takes the teleport a
     // stat block prints, at the distance the block prints, to a space the DM
@@ -482,10 +483,14 @@ describe('toolSchemas', () => {
     // or a poison that outlasts the fight takes every 24 hours, a settlement
     // that takes nothing. 137 → 138 tools on the DM's door, +675 bytes; the
     // player's door is unmoved.
+    // And for M-MATTER, on the DM's alone: `touch_printed_line` (SRD Rust
+    // Monster's Destroy Metal — the declared object it touches and whether the
+    // cube is the whole of it), a new door. 137 → 138 tools; +1,603 bytes on
+    // the DM's door, none on the player's.
     expect(toolSchemas(player())).toHaveLength(101);
-    expect(toolSchemas(dm())).toHaveLength(138);
+    expect(toolSchemas(dm())).toHaveLength(139);
     expect(JSON.stringify(toolSchemas(player())).length).toBe(179628);
-    expect(JSON.stringify(toolSchemas(dm())).length).toBe(245633);
+    expect(JSON.stringify(toolSchemas(dm())).length).toBe(247236);
   });
 });
 

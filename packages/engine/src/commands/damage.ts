@@ -821,6 +821,11 @@ export function landDamage(
      * in the same breath. (W7-B12)
      */
     readonly contactWeapon?: string;
+    /**
+     * The launcher whose ammunition struck, on the same terms — see
+     * {@link PendingDamage.firedFrom}. (M-MATTER)
+     */
+    readonly firedFrom?: string;
   },
 ): Result<{
   readonly events: readonly GameEvent[];
@@ -871,6 +876,7 @@ export function landDamage(
     offers: possible.offers,
     ...(options.rider === undefined ? {} : { rider: options.rider }),
     ...(options.contactWeapon === undefined ? {} : { contactWeapon: options.contactWeapon }),
+    ...(options.firedFrom === undefined ? {} : { firedFrom: options.firedFrom }),
   };
 
   return ok({

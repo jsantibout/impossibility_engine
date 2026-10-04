@@ -1637,6 +1637,8 @@ export const printedCorrosion = (
   readonly meleeHitterTakes: { readonly dice: string; readonly damageType: string } | null;
   readonly weaponPenalty: number;
   readonly weaponDestroyedAt: number;
+  /** "Nonmagical ammunition is destroyed immediately after hitting the pudding" — M-MATTER. */
+  readonly destroysAmmunition: boolean;
 } | null => {
   for (const trait of sheet.stated?.traits ?? []) {
     if (trait.kind === 'corrodes-what-hits-it') {
@@ -1644,6 +1646,7 @@ export const printedCorrosion = (
         meleeHitterTakes: trait.meleeHitterTakes ?? null,
         weaponPenalty: trait.weaponPenalty,
         weaponDestroyedAt: trait.weaponDestroyedAt,
+        destroysAmmunition: trait.destroysAmmunition === true,
       };
     }
   }
@@ -1669,9 +1672,11 @@ export interface PrintedBoundaryDamage {
   readonly unlessIncapacitated: boolean;
   /**
    * SRD Fire Elemental's "Creatures … in the Emanation **start burning**" —
-   * W7-B12. The glossary's Burning, lit on every creature the line catches;
-   * the flammable objects the same sentence names are the table's, and the
-   * boundary says so where it lights the creatures.
+   * W7-B12. The glossary's Burning, lit on every creature the line catches,
+   * and — M-MATTER — on every declared object it catches whose substance takes
+   * light (`takesLight`). A creature's own gear burns with the creature: an
+   * item worn or carried holds no Hit Points and takes no turn, so the
+   * creature's fire is the whole of what the engine can light on it.
    */
   readonly ignites: boolean;
 }
@@ -3036,6 +3041,8 @@ export function adaptMonster(printed: Monster, id: CharacterId): AdaptedMonster 
       ...(line.forms === undefined ? {} : { forms: line.forms }),
       // And what it pulls, which the Roper prints and no other block does.
       ...(line.pulls === undefined ? {} : { pulls: line.pulls }),
+      // And the object it touches, which the Rust Monster prints. (M-MATTER)
+      ...(line.touchesObject === undefined ? {} : { touchesObject: line.touchesObject }),
       // And whom it swallows and which plane it steps to, the two roads into
       // the second place a stat block prints: SRD Giant Frog's Swallow, SRD
       // Ghost's Etherealness. Each arrives with the door that spends it.
@@ -3098,6 +3105,7 @@ export function adaptMonster(printed: Monster, id: CharacterId): AdaptedMonster 
     // And what it pulls, on both sections because a heading says what a use
     // costs rather than what it does.
     ...(line.pulls === undefined ? {} : { pulls: line.pulls }),
+    ...(line.touchesObject === undefined ? {} : { touchesObject: line.touchesObject }),
     // And the two roads into the second place, on both sections for the same
     // reason: SRD Phase Spider prints Ethereal Jaunt under this heading.
     ...(line.swallows === undefined ? {} : { swallows: line.swallows }),
@@ -3735,16 +3743,23 @@ export interface PrintedMaximumRider {
  * table douses it, which is why this is not a {@link PrintedConditionRider}
  * whose span the reader would then have had to invent.
  *
- * **Only the creature half is read.** The same sentence catches "a flammable
- * object", and the engine holds no flammability — a declared object is a
- * substance and a size, and whether the oak door in this room takes light is
- * the table's. So the swing applies it to a creature and hands the object half
- * back where the target is one; and SRD Barbed Devil's Hurl Flame, which
- * catches **only** an object, is not read at all.
+ * **Whom it catches is the sentence's**, and the book prints three reaches
+ * that differ by a few words and by the whole of the rule (M-MATTER): the Fire
+ * Elemental's Burn catches "a creature or a flammable object", the Magmin's
+ * Touch the same "that isn't being worn or carried", and SRD Barbed Devil's
+ * Hurl Flame "a flammable object that isn't being worn or carried" and **no
+ * creature at all** — a reader that lit creatures on it would set fire to
+ * everybody the devil hit. A flammable object is a declared object whose
+ * substance takes light (`takesLight`), and a declared object is never worn
+ * or carried, so the qualifier is true of every one the swing can reach.
  */
 export interface PrintedHazardRider {
   readonly kind: 'hazard';
   readonly hazard: HazardName;
+  /** "If the target is a creature" — false on SRD Hurl Flame, which names none. */
+  readonly creatures: boolean;
+  /** "… a flammable object" — false on a line that names only a creature. */
+  readonly flammableObjects: boolean;
 }
 
 /**
@@ -4338,14 +4353,16 @@ const PRINTED_MAXIMUM =
  * object, it starts burning." SRD Magmin's Touch qualifies the object — "that
  * isn't being worn or carried" — and says the same thing about the creature.
  *
- * **"a creature" is required and the object half is optional**, which is what
- * refuses SRD Barbed Devil's Hurl Flame: "If the target is a flammable object
- * that isn't being worn or carried, it starts burning" catches no creature at
- * all, and a reader that matched it would set fire to everybody the devil hit.
- * The two sentences differ by four words and by the whole of the rule.
+ * **And SRD Barbed Devil's Hurl Flame is the third**: "If the target is a
+ * flammable object that isn't being worn or carried, it starts burning"
+ * catches no creature at all (M-MATTER). Each half is captured rather than
+ * matched loosely, because a reader that took the object sentence for the
+ * creature one would set fire to everybody the devil hit — the two differ by
+ * four words and by the whole of the rule. The qualifier belongs to the object
+ * and is read only after it.
  */
 const STARTS_BURNING = new RegExp(
-  `^If the target is a creature(?: or a flammable object)?(?: that isn${APOSTROPHE}t being worn or carried)?, it starts burning\\.$`,
+  `^If the target is (?:(a creature)|(a creature or )?(a flammable object)(?: that isn${APOSTROPHE}t being worn or carried)?), it starts burning\\.$`,
 );
 
 /**
@@ -5320,7 +5337,15 @@ function readClause(text: string): ClauseRead | null {
 
   if (PRINTED_MAXIMUM.test(text)) return one({ kind: 'hit-point-maximum' });
 
-  if (STARTS_BURNING.test(text)) return one({ kind: 'hazard', hazard: 'burning' });
+  const burns = STARTS_BURNING.exec(text);
+  if (burns !== null) {
+    return one({
+      kind: 'hazard',
+      hazard: 'burning',
+      creatures: burns[1] !== undefined || burns[2] !== undefined,
+      flammableObjects: burns[3] !== undefined,
+    });
+  }
 
   const corroded = PRINTED_ARMOR_PENALTY.exec(text);
   if (corroded !== null) return one({ kind: 'armor-penalty', points: Number(corroded[1]) });

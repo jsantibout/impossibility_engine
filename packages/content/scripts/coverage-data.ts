@@ -1451,6 +1451,8 @@ export interface StatBlockLine {
   readonly forms?: unknown;
   /** What a line drags toward its creature — SRD Roper's Reel. */
   readonly pulls?: unknown;
+  /** The object a line touches and eats a cube of — SRD Rust Monster's Destroy Metal. */
+  readonly touchesObject?: unknown;
   /** Whom a line takes inside its creature — SRD Giant Frog's Swallow. */
   readonly swallows?: unknown;
   /** The plane a line steps to and back from — SRD Phase Spider's Ethereal Jaunt. */
@@ -1534,6 +1536,7 @@ export const isReadLine = (line: StatBlockLine): boolean =>
   line.teleports !== undefined ||
   line.forms !== undefined ||
   line.pulls !== undefined ||
+  line.touchesObject !== undefined ||
   line.swallows !== undefined ||
   line.shiftsPlane !== undefined ||
   // The moves a line makes — W7-B9; `isExecutedLine` names the three doors.
@@ -1605,8 +1608,6 @@ export const hasUnappliedRider = (line: StatBlockLine): boolean => {
  *
  * | Lines | The one seam each waits on |
  * |---|---|
- * | Barbed Devil's Hurl Flame | a flammable object. The creature half of the glossary's Burning is executed on the two lines that print one; this line catches **only** "a flammable object that isn't being worn or carried", and a declared object is a substance and a size with nothing on it that takes light |
- * | Black Pudding's Dissolving Pseudopod, Gray Ooze's Pseudopod | a spell that repairs an item. The penalty and the destruction are executed; "The penalty can be removed by casting the _Mending_ spell on the armor" is the spells side's, and no casting reaches an item's record |
  * | Roper's Tentacle | a limb that grows back. The hold, the Poisoned it carries, the tentacle as a thing with the printed Armour Class and Hit Points, and the cap of six are executed (W7-B10); "a destroyed tentacle regrows at the start of the roper's next turn" is a dead object the fold would have to forget at a turn boundary, and the cap counts the tentacles that hold somebody — so a destroyed one is treated as regrown at once and the sentence is handed over |
  *
  * **Four lines left this table in W7-B10** — the Stirge's Proboscis, the
@@ -1635,6 +1636,14 @@ export const hasUnappliedRider = (line: StatBlockLine): boolean => {
  * lycanthropes' curse is read as the rider save it is — a Constitution save
  * for a Humanoid, the curse on the record, a day's grace on a success — with
  * the transformation filed as the compulsion the owner ruled the table's.
+ *
+ * **The Barbed Devil's Hurl Flame left it in M-MATTER**, by the seam its row
+ * named: a declared object's substance says whether it takes light
+ * (`ObjectMaterial.flammable`, pinned at the declaration), so "If the target is
+ * a flammable object that isn't being worn or carried, it starts burning"
+ * lights a wooden door the devil hits and nobody else — a declared object is
+ * never worn or carried. The Black Pudding's and the Gray Ooze's Pseudopods
+ * had left it before, when SRD Mending's `repairs` began lifting the penalty.
  */
 export const RIDER_HANDOVER_SHAPE = 'A hit whose line says more than the engine applies';
 export const hasHandedOverRider = (line: StatBlockLine): boolean => {
@@ -1699,11 +1708,11 @@ export const hasHandedOverRider = (line: StatBlockLine): boolean => {
  * | SRD Freeze | the same again, with a Speed on the end of it |
  * | SRD Blurred Form | `adaptMonster`, as the first printed `against-holder` mode |
  * | SRD Beast of Burden | `capacitySizeOf`, which reads SRD Powerful Build's own grant |
- * | SRD Fire Aura | `resolveTurn`, at the end of the holder's turn, on the creatures the DM named |
+ * | SRD Fire Aura | `resolveTurn`, at the end of the holder's turn, on the creatures the DM named — and, on the Fire Elemental's, lighting the creatures and the declared objects that take light (M-MATTER) |
  * | SRD Barbed Hide | the same, at the start, caught by the hold rather than by feet |
  * | SRD Swarm's healing sentence | `healCreature` and `grantTemporaryHpTo`, the two doors hit points come back through |
  * | SRD Regeneration (W7-B12) | `settleStartOfTurnBody`, which heals at the turn's start and kills a holder that starts it at 0 and does not regenerate; `printedTypeTriggers` hangs the acid-or-fire marker; `damageCreature` holds the death at 0 |
- * | SRD Corrosive Form (W7-B12) | `answerTheBlow`, which burns a melee striker back where Fire Shield burns one, and `wearTheWeapon`, which wears a nonmagical weapon that dealt damage by contact on both roads a blow lands |
+ * | SRD Corrosive Form (W7-B12) | `answerTheBlow`, which burns a melee striker back where Fire Shield burns one, and `wearTheWeapon`, which wears a nonmagical weapon that dealt damage by contact on both roads a blow lands; and `eatTheAmmunition`, which destroys the piece a launcher loosed out of the archer's inventory (M-MATTER) |
  * | SRD Succubus Form and Incubus Form (W7-B12) | `takeRestForm`, the DM's door at the instant a Long Rest ends, through `stat-block-replaced` |
  * | SRD Troll Spawn (W7-B12) | `addCreature`'s arrival, which hangs the day, and `settleBlockDeadlines`, which throws the d12; the turn refuses to advance while one is owed |
  * | SRD Split (W7-B12) | `adaptMonster`, as a Reaction at `damaged-by-creature` that `takeDamageResponse` performs through `summonCreature` and `removeCreatureEverywhere` |
@@ -1841,11 +1850,14 @@ export const TRAIT_KINDS_WITH_A_READER: readonly string[] = [
  * marker hung "until the end of its next turn" where acid or fire landed, the
  * heal at the turn's start, and a death held at 0 until that start. The Vampire
  * Spawn's Sunlight burns at the start of its turn in sunlight. The Fire
- * Elemental's aura lights the creatures it catches, and still owes the
- * flammable objects — the Hurl Flame seam — so it sits on
- * {@link TRAIT_HANDOVER_SHAPE} now rather than here. Both Corrosive Forms burn a
- * melee striker (the pudding's) and wear a nonmagical weapon down, and still
- * owe the ammunition and the Mending sentences, so they sit on that row too.
+ * Elemental's aura lights the creatures it catches, and owed the flammable
+ * objects — the Hurl Flame seam — on {@link TRAIT_HANDOVER_SHAPE} until
+ * M-MATTER lit the declared objects whose substance takes light. Both
+ * Corrosive Forms burn a melee striker (the pudding's) and wear a nonmagical
+ * weapon down, and owed the ammunition and the Mending sentences on that row
+ * until M-MATTER destroyed the piece a launcher loosed and read the Mending
+ * sentence as consumed — SRD Mending's `repairs` lifts the very penalty the
+ * form writes.
  * The Giant Boar's melee narrowing and the Swarm's Climb Speed gate are fields
  * on kinds that had readers. The three hags' Coven Magic is a cast line on a
  * trait, gated on two allies and priced a Long Rest per spell. Succubus Form,
@@ -2003,7 +2015,7 @@ export const HANDOVER_LINE_KINDS: Readonly<Record<string, string>> = {
   'a-body-absorbed':
     'SRD Gibbering Mouther\'s Bite: "Its body is then absorbed into the mouther, leaving only equipment behind." The death is executed; what the corpse looks like afterwards is narration, in the family of SRD Cone of Cold\'s frozen statue. A revival that needs the body is the table\'s to refuse, as it is for every body destroyed off the page — the engine keeps no body apart from the creature\'s record.',
   'a-hole-eaten-through-the-world':
-    'SRD Black Pudding\'s and SRD Gray Ooze\'s Corrosive Form: "In 1 minute, the pudding can eat through 2 feet of nonmagical wood or metal." — W7-B12. A hole left in a wall is SRD Tunneler\'s tunnel by another means: a change to the map the table is drawing, and the engine draws none. The scene holds no nonmagical wall of wood or metal between two places for a hole to open — the barriers that block passage are the ones a casting raises, and a wall the table describes has no record a move is refused by — so no rule reads the hole afterwards, and a declared object the ooze destroys is destroyed through the door that damages one. The day a described wall blocks passage, this sentence is a debt and leaves this list.',
+    'SRD Black Pudding\'s and SRD Gray Ooze\'s Corrosive Form: "In 1 minute, the pudding can eat through 2 feet of nonmagical wood or metal." — W7-B12. A hole left in a wall is SRD Tunneler\'s tunnel by another means: a change to the map the table is drawing, and the engine draws none. The scene holds no nonmagical wall of wood or metal between two places for a hole to open — the barriers that block passage are the ones a casting raises, and a wall the table describes has no record a move is refused by — so no rule reads the hole afterwards, and a declared object the ooze destroys is destroyed through the door that damages one. The day a described wall blocks passage, this sentence is a debt and leaves this list. And SRD Rust Monster\'s Destroy Metal — M-MATTER: "The touch destroys a 1-foot Cube of the object." The touch is checked and the cube is asked about by the door that takes the line: where the table says the cube is the whole of the thing — a lock, a dagger lying loose — the engine destroys it, and nothing is filed. Where it is not, the sentence is filed here for the same reason: a declared object is a substance, a size and Hit Points with no shape, the SRD maps no volume to Hit Points, so the cube out of a gate is a hole in the map the table is drawing and no rule reads it afterwards.',
 };
 
 /**
@@ -2041,6 +2053,9 @@ export const filedHandoversOf = (
     ...(attack?.forTheTable ?? []),
     ...(attack?.riderSave?.forTheTable ?? []),
     ...((line.trait as Filed | undefined)?.forTheTable ?? []),
+    // A touch's cube where the object stands — SRD Rust Monster's Destroy
+    // Metal (M-MATTER).
+    ...((line.touchesObject as Filed | undefined)?.forTheTable ?? []),
   ];
 };
 
@@ -2172,6 +2187,11 @@ export const isExecutedLine = (line: StatBlockLine): boolean =>
   // the Roper is holding toward it, through the primitive a Merrow's rider
   // already goes through, at the heading's price.
   line.pulls !== undefined ||
+  // **A line that touches an object is spent** — M-MATTER. `takePrintedTouch`
+  // checks the reach, the substance and that the thing is a declared object
+  // nobody wears or carries, asks whether the cube is the whole of it, and
+  // destroys it where it is.
+  line.touchesObject !== undefined ||
   // **A line that swallows is spent** — `takePrintedSwallow` ends the grapple,
   // takes the target inside, hangs the conditions the line prints, and the
   // host's turn boundary rolls the damage; the exit is a return checked
@@ -2431,6 +2451,15 @@ export const MONSTER_LINE_SHAPES: readonly (readonly [
  * imposes a condition — the tentacle the hold is made with is an object the
  * hit raises, filed with the grapple so destroying it frees the creature.
  *
+ * **The Rust Monster's Destroy Metal left it in M-MATTER**, by the seam its row
+ * named: a declared object says whether it is metal (E-L1), so the touch is
+ * checked by `takePrintedTouch` — a declared object nobody wears or carries,
+ * within the printed reach, of the printed substance — and the cube is the
+ * question the door asks, whether it is the whole of the thing, destroying the
+ * thing where it is. Where it is not, the object stands at its Hit Points and
+ * the cube is filed for the table (`a-hole-eaten-through-the-world`, on the
+ * touch's own `forTheTable`): a hole in a gate is the map the table is drawing.
+ *
  * Keyed `<block id>/<heading>`, because two blocks print one heading over two
  * rules and the pair is what a reader needs.
  *
@@ -2440,8 +2469,6 @@ export const MONSTER_LINE_SHAPES: readonly (readonly [
  * answered for twice in two places that could come to disagree.
  */
 export const LINE_RESIDUE_SEAMS: Readonly<Record<string, string>> = {
-  'rust-monster/Destroy Metal':
-    'a touch whose **legality** is a record the engine does not keep, around an effect that is fiction. "The rust monster touches a nonmagical metal object within 5 feet of itself that isn\'t being worn or carried. The touch destroys a 1-foot Cube of the object." The cube is narration — a declared object has no shape a cubic foot could be taken from — but the touch names a reach, a thing that is nonmagical metal and a thing nobody is wearing, and the hand-over door has no field to name the object, nor any record whether a substance is metal or a thing magical. Filed whole it would pass that legality as fiction (W7-B13\'s review), so the line stays owed: the day the door can name a declared object and the object says what it is made of, the touch is checked and the cube is filed.',
   'will-o-wisp/Vanish':
     'Concentration on something that is not a casting. "The wisp and its light have the Invisible condition until the wisp\'s Concentration ends on this effect, which ends early immediately after the wisp makes an attack roll or uses Consume Life." Every clause but the first is machinery the engine holds — the condition, the trigger that ends it, the light — and all of it hangs off `CreatureState.concentration`, which only a casting may occupy.',
   // **The Succubus's Charm and the Sea Hag's Illusory Appearance left this map

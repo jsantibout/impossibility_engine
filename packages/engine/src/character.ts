@@ -36,6 +36,7 @@ import type {
   MonsterPlaneShift,
   MonsterTreeStride,
   MonsterPull,
+  MonsterTouch,
   MonsterLegendaryLine,
   MonsterRecharge,
   MonsterSwallow,
@@ -221,6 +222,8 @@ export interface StatedBonusAction {
    * rule at another price.
    */
   readonly pulls?: MonsterPull;
+  /** The object this line touches — see {@link StatedAction.touchesObject}, the same field. */
+  readonly touchesObject?: MonsterTouch;
   /** Whom this line swallows — see {@link StatedAction.swallows}, the same field. */
   readonly swallows?: MonsterSwallow;
   /**
@@ -454,6 +457,12 @@ export interface StatedAction {
    * heading's price.
    */
   readonly pulls?: MonsterPull;
+  /**
+   * The object this line touches and eats a cube of, where its sentence is
+   * the book's — see `MonsterTouchSchema`. SRD Rust Monster's Destroy Metal,
+   * which `takePrintedTouch` takes. (M-MATTER)
+   */
+  readonly touchesObject?: MonsterTouch;
   /**
    * Whom this line takes inside its creature, where its sentence is the
    * book's swallow template — see `MonsterSwallowSchema`.

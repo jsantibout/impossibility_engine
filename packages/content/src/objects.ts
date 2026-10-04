@@ -33,13 +33,21 @@ export const SRD_OBJECT_MATERIALS: readonly ObjectMaterial[] = [
   // a suit of armour is "reinforced with" and it heads the table's metals, so
   // it is read as one — a reading, and reviewed as such. The four rows above
   // them are not metals by any reading.
-  { id: 'cloth', name: 'Cloth, paper, rope', armorClass: 11, metal: false },
-  { id: 'crystal', name: 'Crystal, glass, ice', armorClass: 13, metal: false },
-  { id: 'wood', name: 'Wood', armorClass: 15, metal: false },
-  { id: 'stone', name: 'Stone', armorClass: 17, metal: false },
-  { id: 'iron', name: 'Iron, steel', armorClass: 19, metal: true },
-  { id: 'mithral', name: 'Mithral', armorClass: 21, metal: true },
-  { id: 'adamantine', name: 'Adamantine', armorClass: 23, metal: true },
+  //
+  // **`flammable` is the question "a flammable object … starts burning" asks**
+  // (M-MATTER: SRD Barbed Devil's Hurl Flame, SRD Fire Elemental's Burn and
+  // Fire Aura, SRD Magmin's Touch). The SRD prints no flammability column, so
+  // this is a reading of each row and reviewed as such. Cloth, paper and rope
+  // burn — the book's own hedge that paper or cloth "might have Vulnerability
+  // to Fire damage" is a thing that burns — and so does wood. Crystal, glass
+  // and ice, stone, and the three metals do not take light by any reading.
+  { id: 'cloth', name: 'Cloth, paper, rope', armorClass: 11, metal: false, flammable: true },
+  { id: 'crystal', name: 'Crystal, glass, ice', armorClass: 13, metal: false, flammable: false },
+  { id: 'wood', name: 'Wood', armorClass: 15, metal: false, flammable: true },
+  { id: 'stone', name: 'Stone', armorClass: 17, metal: false, flammable: false },
+  { id: 'iron', name: 'Iron, steel', armorClass: 19, metal: true, flammable: false },
+  { id: 'mithral', name: 'Mithral', armorClass: 21, metal: true, flammable: false },
+  { id: 'adamantine', name: 'Adamantine', armorClass: 23, metal: true, flammable: false },
 ];
 
 /**

@@ -238,20 +238,18 @@ describe('a filed sentence goes out under the handover mark, and never as owed',
   });
 
   /**
-   * **And a line whose legality is the engine's stays owed, however fictional
-   * its effect.** SRD Rust Monster's Destroy Metal destroys a cubic foot of an
-   * object, which is narration; but the touch is a reach, a nonmagical metal
-   * thing and a thing nobody is wearing, and filing the line whole would pass
-   * that as fiction. It is handed over whole and unmarked — a debt.
+   * **And a line whose legality is the engine's is never filed, however
+   * fictional its effect.** SRD Rust Monster's Destroy Metal was handed over
+   * whole and unmarked until M-MATTER, because its touch is a reach, a
+   * nonmagical metal thing and a thing nobody is wearing. It is read now, so
+   * the door that hands a sentence over refuses it and names the one that
+   * checks the touch (`destroy-metal.test.ts`) — it is neither filed nor owed.
    */
-  it("hands the rust monster's Destroy Metal over whole and unmarked, because its touch is legality", () => {
-    const out = unwrap(
-      takeStatedAction(aRoom('rust-monster').state, MONSTER, { line: 'Destroy Metal' }),
-      'Destroy Metal',
-    );
-    expect(out.events.some((event) => event.type === 'action-spent')).toBe(true);
-    expect(marked(out.unverified)).toEqual([]);
-    expect(owed(out.unverified).join(' ')).toContain('The touch destroys a 1-foot Cube of the object.');
+  it("sends the rust monster's Destroy Metal to the door that checks its touch, with nothing spent", () => {
+    const table = aRoom('rust-monster');
+    const refused = takeStatedAction(table.state, MONSTER, { line: 'Destroy Metal' });
+    expect(isErr(refused) && refused.code).toBe('line_has_its_own_door');
+    expect(table.state.combat!.budgets[MONSTER]!.action).toBe(true);
   });
 
   it("says nothing of a swarm's two space clauses at its arrival, which are filed kinds", () => {

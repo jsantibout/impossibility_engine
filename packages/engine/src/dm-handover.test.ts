@@ -865,7 +865,9 @@ describe('the mark is written only from a filed field', () => {
     );
     expect(callers).toEqual({
       // `forcePrintedSave`'s moment of use — a save's `forTheTable`.
-      'commands/actions.ts': 1,
+      // And `takePrintedTouch`'s cube where the object stands — the touch's
+      // `forTheTable` (M-MATTER).
+      'commands/actions.ts': 2,
       // `forcePrintedSaveOn`'s failure and success, and the row a d8 lands on.
       'commands/printed-save-clauses.ts': 2,
       // `settlePrintedSave`'s moment of use.

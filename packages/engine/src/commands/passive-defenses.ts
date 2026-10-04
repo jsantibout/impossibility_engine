@@ -46,6 +46,7 @@ import { effectiveConditions, sensesPerceiving, sheetAsItStands } from '../stand
 import { dealSpellDamage } from './damage.js';
 import { magicalByCasting } from './ongoing.js';
 import { isMagicalItem } from '../catalogue.js';
+import { carrying } from './inventory.js';
 import { type Supply } from './casting.js';
 import { rollRecorded } from '../rolls.js';
 import { recordD20Test, rollSpellDice, savingSupport } from './rolls.js';
@@ -474,7 +475,7 @@ export function answerTheBlow(
  * - **dealt damage** — a blow the holder's defences turned wholly aside (a
  *   Slashing blow on a pudding, which is immune to it) wears nothing;
  * - **contact** — a weapon swung or thrown, never the bow that loosed an arrow
- *   (the arrow is the ammunition sentence, which is owed);
+ *   (the arrow is the ammunition sentence, {@link eatTheAmmunition}'s);
  * - **the copy in hand** — the equipped record for the weapon's id;
  * - **nonmagical** — not a magic item by its record (`isMagicalItem`, or grants
  *   the equip event pinned), and no running casting whose spell says the
@@ -544,5 +545,116 @@ export function wearTheWeapon(
       },
     ],
     unverified: [read],
+  };
+}
+
+/**
+ * SRD Corrosive Form on whatever touched the holder — a weapon swung or
+ * thrown, or a launcher's ammunition — once the blow has dealt damage: the one
+ * call each of the three roads a blow lands by makes. The two are never both
+ * present (a weapon is swung *or* it looses something), so they read one world.
+ * (M-MATTER)
+ */
+export function corrodeWhatStruck(
+  state: GameState,
+  attacker: CharacterId,
+  target: CharacterId,
+  struck: { readonly weapon: string | null | undefined; readonly firedFrom: string | null | undefined },
+  dealt: number,
+  content: Content,
+): { readonly events: readonly GameEvent[]; readonly unverified: readonly string[] } {
+  const worn = wearTheWeapon(state, attacker, target, struck.weapon, dealt, content);
+  const eaten = eatTheAmmunition(state, attacker, target, struck.firedFrom, dealt, content);
+  return {
+    events: [...worn.events, ...eaten.events],
+    unverified: [...worn.unverified, ...eaten.unverified],
+  };
+}
+
+/**
+ * What the piece of ammunition that struck the holder, and dealt it damage, is
+ * owed — M-MATTER.
+ *
+ * SRD Black Pudding and SRD Gray Ooze, Corrosive Form: "Nonmagical ammunition
+ * is destroyed immediately after hitting the pudding and dealing any damage."
+ *
+ * **{@link wearTheWeapon}'s sibling, on the other road a blow lands by**: a
+ * weapon swung or thrown touches the ooze and is worn down; a launcher's
+ * ammunition touches it and is destroyed. Four clauses, each asked:
+ *
+ * - **dealt damage** — a shot the holder's defences turned wholly aside
+ *   destroys nothing;
+ * - **which piece** — the ammunition the launcher fires, by content's link
+ *   (`CatalogueItem.firesAmmunition`); a launcher with no link fires nothing
+ *   this can name;
+ * - **out of the archer's inventory** — one piece, through the door every lost
+ *   item leaves by. The engine spends no ammunition on an ordinary shot, so an
+ *   archer carrying none of it has lost nothing, and that is said rather than
+ *   refused: the blow has landed;
+ * - **nonmagical** — the piece's own record, as the weapon's is read. No SRD
+ *   ammunition in the catalogue is magical; a homebrew piece that is spares
+ *   itself here.
+ *
+ * Called by both halves of the weapon path and by the settlement a held blow
+ * lands through, with the launcher the shot was made with; a caller with no
+ * launcher asks nothing.
+ */
+export function eatTheAmmunition(
+  state: GameState,
+  attacker: CharacterId,
+  target: CharacterId,
+  launcher: string | null | undefined,
+  dealt: number,
+  content: Content,
+): { readonly events: readonly GameEvent[]; readonly unverified: readonly string[] } {
+  const nothing = { events: [], unverified: [] };
+  if (launcher == null || dealt <= 0) return nothing;
+  const holder = state.creatures[target];
+  if (holder === undefined || state.creatures[attacker] === undefined) return nothing;
+  if (printedCorrosion(holder.sheet)?.destroysAmmunition !== true) return nothing;
+
+  const bow = content.item(launcher);
+  // Only a weapon with the Ammunition property looses a piece; a Dart thrown
+  // is itself the thing that touched, and is the weapon's sentence.
+  if (bow?.weapon?.ammunitionRange == null) return nothing;
+  const fires = bow.firesAmmunition;
+  if (fires === undefined) {
+    // A launcher nobody has linked to what it fires — a homebrew bow — leaves
+    // the sentence unexecuted, and says so rather than going quiet.
+    return {
+      events: [],
+      unverified: [
+        `${attacker}'s ${bow.name} fires no ammunition the catalogue names, and ${target} destroys the nonmagical piece that hit it — which piece is the table's to strike off; nothing was destroyed`,
+      ],
+    };
+  }
+  const round = content.item(fires);
+  if (round === null || isMagicalItem(round)) return nothing;
+
+  const quiver = carrying(state, attacker).find((line) => line.id === fires && line.quantity > 0);
+  if (quiver === undefined) {
+    return {
+      events: [],
+      unverified: [
+        `${attacker} carries no ${round.name}, and ${target} destroys the nonmagical piece that hit it; the engine spends none on a shot, so there was none to destroy`,
+      ],
+    };
+  }
+  return {
+    events: [
+      {
+        type: 'items-lost',
+        id: attacker,
+        items: [
+          {
+            id: fires,
+            quantity: 1,
+            ...(quiver.instance === undefined ? {} : { instance: quiver.instance }),
+          },
+        ],
+        source: `corroded by ${target}`,
+      },
+    ],
+    unverified: [],
   };
 }

@@ -90,17 +90,32 @@ export interface ObjectMaterial {
    * said. (E-L1)
    */
   readonly metal?: boolean;
+  /**
+   * Whether the substance takes light — read by the sentences that set "a
+   * flammable object" burning: SRD Barbed Devil's Hurl Flame ("If the target
+   * is a flammable object that isn't being worn or carried, it starts
+   * burning"), SRD Fire Elemental's Burn and Fire Aura, SRD Magmin's Touch.
+   * Pinned on the object's record by `declareObject`, as `metal` is.
+   *
+   * **The SRD prints no flammability column**, so this is content's reading
+   * of each row, made once and reviewed there, exactly as `metal` is. Absent
+   * is a substance nobody has said of, and a fire that lands on it lights
+   * nothing and says so — the table's to rule on. (M-MATTER)
+   */
+  readonly flammable?: boolean;
 }
 
 /**
  * What a declared object's record says it is made of: the substance's id and
- * the one fact about it a rule reads, copied off {@link ObjectMaterial} when
+ * the facts about it a rule reads, copied off {@link ObjectMaterial} when
  * the object was declared. The Armour Class the row suggested is already on
  * the sheet, so it is not copied twice. (E-L1)
  */
 export interface MaterialPin {
   readonly id: string;
   readonly metal?: boolean;
+  /** {@link ObjectMaterial.flammable}, copied at the declaration. (M-MATTER) */
+  readonly flammable?: boolean;
 }
 
 /**
@@ -231,6 +246,25 @@ export function objectSheet(
     },
   };
 }
+
+/**
+ * Whether a declared object takes light, as its record says — the question
+ * "a flammable object … starts burning" asks. (M-MATTER)
+ *
+ * `true` and `false` are the substance's answer, pinned when the object was
+ * declared; **null is a thing nobody has said of** — a substance whose row
+ * prints no mark, a thing a printed line raised with no substance at all (SRD
+ * Giant Spider's web), or an object declared before the mark existed. A fire
+ * that lands on one lights nothing and the caller says so, because a fire the
+ * engine lit on a guess is a fire nothing would ever have started.
+ */
+export function takesLight(state: GameState, object: CharacterId): boolean | null {
+  return state.creatures[object]?.material?.flammable ?? null;
+}
+
+/** What a fire that reached a thing nobody has said burns reports, in one place. */
+export const unsaidFlammability = (what: string, thing: string): string =>
+  `${what} sets a flammable object burning, and nobody has recorded whether ${thing} takes light — the table's to rule on; nothing was lit`;
 
 /**
  * Who the table has said is touching this declared object, **if it said so

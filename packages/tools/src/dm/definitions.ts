@@ -123,6 +123,7 @@ import {
   takePrintedMove,
   takePrintedPlaneShift,
   takePrintedPull,
+  takePrintedTouch,
   takePrintedSwallow,
   takePrintedTeleport,
   type Placement,
@@ -2330,6 +2331,61 @@ const PULL_PRINTED_LINE = tool({
 });
 
 /**
+ * Touch an object with the line a creature's stat block prints, and destroy
+ * the cube of it the line names — M-MATTER.
+ *
+ * SRD Rust Monster, Destroy Metal: "The rust monster touches a nonmagical
+ * metal object within 5 feet of itself that isn't being worn or carried. The
+ * touch destroys a 1-foot Cube of the object."
+ *
+ * **Here and not on the model's surface, for the reason every printed-line
+ * door is**, and it takes one decision besides the object: whether the cube is
+ * the whole of the thing. A declared object has a size and no shape — a lock
+ * and a bottle are both Tiny — so that is the table's to say, and the engine
+ * destroys the object where it is.
+ */
+const TOUCH_PRINTED_LINE = tool({
+  name: 'touch_printed_line',
+  description:
+    'Have the engine take the touch a creature’s stat block prints on an object — the Rust Monster’s Destroy Metal. Name the heading as the block prints it and the declared object it touches. The engine checks the touch: the object is a declared one (a thing nobody wears or carries — a creature is refused), still standing, within the reach the line prints, and of the substance it names (an object whose material is not metal is refused; one whose material nobody has recorded goes ahead, with that said). Say whether the cube the touch destroys is the whole of the object — a lock is, an iron gate is not; the engine asks when you leave it out. Where it is, the object is destroyed; where it is not, the object stands. The engine spends whichever slot the heading names, along with any recharge or daily limit. `look` says which lines can be taken this way, under `engineMakesTheTouch` on `printed.actions[]`.',
+  mutates: true,
+  selfAnswers: ['creature'],
+  input: z.strictObject({
+    who: creatureId.describe('Which creature is taking the line.'),
+    line: printedLineName,
+    object: creatureId.describe('The declared object the line touches.'),
+    wholeObject: z
+      .boolean()
+      .optional()
+      .describe(
+        'Whether the cube the touch destroys is the whole of the object — a lock or a dagger lying loose is, a gate or a statue is not. Yours to say; leave it out and the engine asks.',
+      ),
+  }),
+  run: (context, args) =>
+    settle(
+      context,
+      takePrintedTouch(context.campaign.state(), who(args.who), {
+        line: args.line,
+        object: who(args.object),
+        ...(args.wholeObject === undefined ? {} : { wholeObject: args.wholeObject }),
+        ...identity(context),
+      }),
+      (value) => value.events,
+      (value) => ({
+        ...lineTaken(
+          context,
+          ['stated-action-taken', 'stated-bonus-action-taken'],
+          value.duplicate,
+          args.who,
+        ),
+        object: args.object,
+        destroyed: value.destroyed,
+      }),
+      (value) => value.unverified,
+    ),
+});
+
+/**
  * Take one of the legendary actions a creature's stat block prints.
  *
  * SRD *Monsters*: "Immediately after another creature's turn, the unicorn can
@@ -2921,6 +2977,7 @@ export const DM_ONLY_TOOLS: readonly ToolDefinition[] = [
   LOSE_ITEMS,
   MOVE_PRINTED_LINE,
   PULL_PRINTED_LINE,
+  TOUCH_PRINTED_LINE,
   RESOLVE_FALL,
   ROLL_IMPROVISED_DAMAGE,
   RULE_CONDITION,
