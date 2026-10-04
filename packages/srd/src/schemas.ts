@@ -1322,6 +1322,45 @@ const PRINTED_SAVE_CLAUSES = [
     /** SRD's "for 24 hours", in seconds. */
     seconds: z.number().int().min(1),
   }),
+  /**
+   * SRD Ghost's Possession — M-MIND: "_Failure:_ The target is possessed by the
+   * ghost; the ghost disappears, and the target has the Incapacitated
+   * condition and loses control of its body. … The possession lasts until the
+   * body drops to 0 Hit Points or the ghost leaves as a Bonus Action. When the
+   * possession ends, the ghost appears in an unoccupied space within 5 feet of
+   * the target, and the target is immune to this ghost's Possession for 24
+   * hours."
+   *
+   * **The engine's facts of a possession, and not who plays the body.** The
+   * creature that forced the save goes inside the target — the second place's
+   * `inside`, with the target as its host — and the target has the condition
+   * for exactly as long as it stays there. The two endings and what the ending
+   * buys are the record's: the body reaching 0 Hit Points ends it with nobody
+   * deciding, the possessor's own Bonus Action ends it on purpose, and either
+   * way the possessor comes back within `appearsWithin` feet of the body and
+   * the body has a day's grace from the line. What the possessor *does* with
+   * the body — the sentences after this one — is filed for the table.
+   *
+   * Every field but the condition and the distance is a literal, because every
+   * printing says so; a sentence that ended a possession some other way is one
+   * this shape does not describe, and stays owed.
+   */
+  z.object({
+    kind: z.literal('possesses'),
+    /** "the target has the Incapacitated condition" — for as long as the possession lasts. */
+    condition: PrintedConditionSchema,
+    /** "The possession lasts until the body drops to 0 Hit Points". */
+    endsAtZeroHitPoints: z.literal(true),
+    /** "or the ghost leaves as a Bonus Action". */
+    leavesAs: z.literal('bonus-action'),
+    /** "the ghost appears in an unoccupied space within 5 feet of the target". */
+    appearsWithin: z.number().int().min(0),
+    /** "the target is immune to this ghost's Possession for 24 hours" — the heading and the span. */
+    immunity: z.object({
+      line: z.string().min(1),
+      seconds: z.number().int().min(1),
+    }),
+  }),
 ] as const;
 
 /**
@@ -2092,6 +2131,26 @@ export const MonsterCastLineSchema = z.object({
    * without. See {@link SpellComponentWaivedSchema}. (E-L1)
    */
   waives: z.array(SpellComponentWaivedSchema).min(1).optional(),
+  /**
+   * The level the line casts its spell at — M-MIND.
+   *
+   * SRD Succubus's Charm: "The succubus casts Dominate Person **(level 8
+   * version)**". What a slot would say for a caster who has slots, said by the
+   * sentence for a creature that has none, so the casting counts as that level
+   * everywhere a level is read: Dominate Person's Concentration "can last
+   * longer with a spell slot of level … 8+ (up to 8 hours)". Read only onto a
+   * menu of one spell — a level printed over a menu would be a level for one
+   * of them, and the book never says which.
+   */
+  castLevel: z.number().int().min(1).max(9).optional(),
+  /**
+   * A span the line prints over the spell's own — M-MIND.
+   *
+   * SRD Sea Hag's Illusory Appearance: "The hag casts _Disguise Self_ … **The
+   * spell's duration is 24 hours.**" A sentence about this casting and not
+   * about the spell, which a Wizard still casts for an hour. In seconds.
+   */
+  durationSeconds: z.number().int().min(1).optional(),
 });
 export type MonsterCastLine = z.infer<typeof MonsterCastLineSchema>;
 

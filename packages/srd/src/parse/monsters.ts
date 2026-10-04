@@ -2377,13 +2377,22 @@ export function parseSpellcastingLine(text: string): MonsterSpellcasting | null 
  * to the part that fits is a creature doing something nobody printed — which
  * is why the target clause is anchored to the words the book prints and not to
  * a target at all.
+ *
+ * **Two more clauses vary, and each is a field** — M-MIND. SRD Succubus's
+ * Charm casts Dominate Person "(level 8 version)", the level a slot would
+ * otherwise say; SRD Sea Hag's Illusory Appearance ends "The spell's duration
+ * is 24 hours.", a span over the spell's own. Both are about this casting of
+ * the spell, and both are read only where the rest of the sentence is what
+ * every cast line says — SRD Vampire's Charm prints the duration and then two
+ * sentences more, and stays prose.
  */
 const CAST_LINE = new RegExp(
-  `^The ${SUBJECT} casts (?:the )?(.+?)(?: spell)?( on itself| on that creature)?,? ` +
+  `^The ${SUBJECT} casts (?:the )?(.+?)(?: spell)?(?: \\(level ([1-9]) version\\))?( on itself| on that creature)?,? ` +
     `(?:requiring no [A-Za-z ]+ components and )?` +
     `using (?:(the same) spellcasting ability as Spellcasting` +
     `|(Strength|Dexterity|Constitution|Intelligence|Wisdom|Charisma) as (?:the )?spell-?casting ability)` +
-    `(?: \\(spell save DC (\\d+)\\))?\\.$`,
+    `(?: \\(spell save DC (\\d+)\\))?\\.` +
+    `(?: The spell${APOSTROPHE}s duration is (\\d+) hours\\.)?$`,
 );
 
 /**
@@ -2424,6 +2433,14 @@ const TOUCH_DELIVERED = new RegExp(
  * routes to one spell and the engine picks between them without being asked.
  */
 function readCastMenu(menu: string): string[] | null {
+  // **A bare name, where it is the whole menu** — M-MIND. SRD Succubus prints
+  // "casts Dominate Person (level 8 version)" with no italics, which is
+  // typesetting rather than content. Read only where the SRD's own index holds
+  // the words as one spell's name; anything else bare stays prose.
+  if (!menu.includes('_')) {
+    const spellId = spellIdOf(menu.trim());
+    return spellId === null ? null : [spellId];
+  }
   const names: string[] = [];
   let rest = menu;
 
@@ -2474,15 +2491,20 @@ export function parseCastLine(text: string): MonsterCastLine | null {
 
   const spells = readCastMenu(matched[1]!);
   if (spells === null) return null;
+  // "(level 8 version)" over a menu of more than one is a level for one of
+  // them, and the book never says which. See `MonsterCastLine.castLevel`.
+  const castLevel = matched[2] === undefined ? undefined : Number(matched[2]);
+  if (castLevel !== undefined && spells.length !== 1) return null;
+  const hours = matched[7] === undefined ? undefined : Number(matched[7]);
 
-  const stated = matched[4] === undefined ? undefined : ABILITY_KEYS[matched[4]];
-  if (matched[4] !== undefined && stated === undefined) return null;
+  const stated = matched[5] === undefined ? undefined : ABILITY_KEYS[matched[5]];
+  if (matched[5] !== undefined && stated === undefined) return null;
 
   // **"on that creature" without the creature is a referent to nothing.** The
   // clause is the far end of a touch the same sentence printed, so the line is
   // refused whole where that clause is absent rather than read down to a target
   // rule the book did not state. See {@link TOUCH_DELIVERED}.
-  const onAnother = matched[2] === ' on that creature';
+  const onAnother = matched[3] === ' on that creature';
   if (onAnother && !TOUCH_DELIVERED.test(words)) return null;
 
   // What the casting does without — see {@link componentsWaived}.
@@ -2494,12 +2516,15 @@ export function parseCastLine(text: string): MonsterCastLine | null {
     ability: stated ?? ('spellcasting' as const),
     // "on itself" — the two words the book prints, and the whole of what they
     // say. A target this line fixes is not a target the caller offers.
-    ...(matched[2] === ' on itself' ? { selfOnly: true as const } : {}),
+    ...(matched[3] === ' on itself' ? { selfOnly: true as const } : {}),
     // And its mirror: "on that creature", which fixes the target to somebody
     // who is **not** the caster.
     ...(onAnother ? { notSelf: true as const } : {}),
-    ...(matched[5] === undefined ? {} : { saveDc: Number(matched[5]) }),
+    ...(matched[6] === undefined ? {} : { saveDc: Number(matched[6]) }),
     ...(waives === undefined ? {} : { waives }),
+    // The level and the span this casting is printed at — M-MIND.
+    ...(castLevel === undefined ? {} : { castLevel }),
+    ...(hours === undefined ? {} : { durationSeconds: hours * 3600 }),
   };
 
   // Validated rather than trusted, for the reason `parseSaveLine` validates

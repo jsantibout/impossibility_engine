@@ -471,10 +471,15 @@ describe('toolSchemas', () => {
     // And `declare_contact.item` on the DM's alone — a second hand on a thing a
     // creature wears or wields (the owner's ruling, applied 2026-10-03) — with
     // the description and `object` saying so, +445. No tool added.
+    // And for M-MIND, `return_from_elsewhere`'s description: a creature
+    // possessing another (SRD Ghost) leaves by it, spending its Bonus Action,
+    // or is owed it once the body drops to 0 Hit Points, and `end_turn` refuses
+    // past a possession that has ended. One tool both doors publish: +300
+    // bytes on each, and no tool added.
     expect(toolSchemas(player())).toHaveLength(101);
     expect(toolSchemas(dm())).toHaveLength(137);
-    expect(JSON.stringify(toolSchemas(player())).length).toBe(179328);
-    expect(JSON.stringify(toolSchemas(dm())).length).toBe(244658);
+    expect(JSON.stringify(toolSchemas(player())).length).toBe(179628);
+    expect(JSON.stringify(toolSchemas(dm())).length).toBe(244958);
   });
 });
 

@@ -651,6 +651,8 @@ export function resolveConditionImmunityEffect(
       // grant so the gatherer can ask what is causing a condition before it
       // answers — see `GrantedConditionImmunity.fromTypes`.
       ...(effect.fromTypes === undefined ? {} : { fromTypes: effect.fromTypes }),
+      // And "can't be possessed by … them", narrowed the same way (M-MIND).
+      ...(effect.alsoPossession === true ? { alsoPossession: true as const } : {}),
     },
   });
   current = events.slice(-1).reduce(applyEvent, current);

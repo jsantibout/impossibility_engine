@@ -3555,6 +3555,16 @@ export type SpellEffect =
        * Blank and most of the book.
        */
       readonly fromTypes?: readonly string[];
+      /**
+       * The target also **can't be possessed** by what the Immunity holds
+       * against — M-MIND. SRD Protection from Evil and Good: "The target also
+       * can't be possessed by or gain the Charmed or Frightened conditions
+       * from them." A possession is not a condition, so it is not in
+       * {@link conditions}; it is the one other thing the sentence refuses,
+       * narrowed by the same types, and SRD Ghost's Possession is what reads
+       * it (`possessionWardedAgainst`).
+       */
+      readonly alsoPossession?: true;
     }
   /**
    * A Speed the spell changes, for as long as it runs.

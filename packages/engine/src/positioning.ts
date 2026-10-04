@@ -1443,9 +1443,16 @@ export function distanceBetween(
   // none from anybody else. SRD Swallow: the swallowed target "has Total Cover
   // against attacks and other effects outside the frog" — so the frog is the
   // one creature it reaches and the one that reaches it, and everything else
-  // meets the `not_here` below.
-  if (state.away[a]?.kind === 'inside' && state.away[a].host === b) return ok(0);
-  if (state.away[b]?.kind === 'inside' && state.away[b].host === a) return ok(0);
+  // meets the `not_here` below. **Not a possessor** (M-MIND): SRD Ghost's
+  // Possession puts the ghost inside a body it "now controls", and it acts
+  // through the body rather than at it — so it reaches nobody, its host
+  // included. See `AwayMark.possessor`.
+  if (state.away[a]?.kind === 'inside' && state.away[a].host === b && state.away[a].possessor !== true) {
+    return ok(0);
+  }
+  if (state.away[b]?.kind === 'inside' && state.away[b].host === a && state.away[b].possessor !== true) {
+    return ok(0);
+  }
 
   const boxA = boxOf(state, a);
   const boxB = boxOf(state, b);

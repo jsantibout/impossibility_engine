@@ -19,7 +19,7 @@
 import type { CharacterId } from '@ie/shared';
 import type { GameEvent } from '../events.js';
 import type { CreatureState, GameState } from '../state.js';
-import type { Elsewhere } from '../elsewhere.js';
+import { possessedBodyFell, type Elsewhere } from '../elsewhere.js';
 import { removeConditionInstance } from '../conditions.js';
 import { bringBack, sendAway } from '../positioning.js';
 import { CorruptLogError, creatureOf, seamOf, unhandledEvent, withCreature, type Applying } from './common.js';
@@ -61,6 +61,8 @@ export function applyElsewhere({ state, next }: Applying, event: ElsewhereEvent)
         ...(event.escape === undefined ? {} : { escape: event.escape }),
         ...(event.pullOut === undefined ? {} : { pullOut: event.pullOut }),
         ...(event.noVerbalCasting === undefined ? {} : { noVerbalCasting: event.noVerbalCasting }),
+        // The possessor's way out and the grace its ending buys — M-MIND.
+        ...(event.possesses === undefined ? {} : { possesses: event.possesses }),
       };
       const moved = withCreature(next, event.id, { elsewhere: record }, creature);
       if (scene === null) return moved;
@@ -69,6 +71,8 @@ export function applyElsewhere({ state, next }: Applying, event: ElsewhereEvent)
         scene: sendAway(scene, event.id, {
           kind: event.kind,
           ...(event.host === undefined ? {} : { host: event.host }),
+          // A possessor reaches nobody, its host included (M-MIND).
+          ...(event.possesses === undefined ? {} : { possessor: true as const }),
         }),
       };
     }
@@ -83,8 +87,24 @@ export function applyElsewhere({ state, next }: Applying, event: ElsewhereEvent)
       if (scene === null) {
         throw new CorruptLogError(event, `${event.id} returns to a scene nobody has set`);
       }
+      const back = withCreature(
+        next,
+        event.id,
+        { ...withoutHung(creature, record.source), elsewhere: null },
+        creature,
+      );
+      // **A possession hung its condition on the host**, under the record's
+      // own source, so its ending lifts it there — M-MIND, SRD Ghost's
+      // Incapacitated for as long as the possession lasts. Already gone where
+      // the body fell first: `endFallenPossessions` lifted it then.
+      const host =
+        record.possesses === undefined || record.host === undefined
+          ? undefined
+          : back.creatures[record.host];
       return {
-        ...withCreature(next, event.id, { ...withoutHung(creature, record.source), elsewhere: null }, creature),
+        ...(host === undefined
+          ? back
+          : withCreature(back, host.id, withoutHung(host, record.source), host)),
         scene: bringBack(scene, event.id, event.at),
       };
     }
@@ -156,6 +176,51 @@ export function freeTheSwallowedOfTheDead(state: GameState): GameState {
         },
       },
     };
+  }
+  return current;
+}
+
+/**
+ * SRD Ghost's Possession — M-MIND: "The possession lasts until the body drops
+ * to 0 Hit Points".
+ *
+ * A rule about a body falling, which nobody commands, so it is a derived pass
+ * for `freeTheSwallowedOfTheDead`'s reason: the possession is marked ended and
+ * what it hung on the host is lifted, the moment the host is at 0, dead or
+ * gone. The possessor stays where it is until a return names the space it
+ * appears in — "an unoccupied space within 5 feet of the target" is a choice —
+ * and `strandedElsewhere` makes that return owed before the turn moves on.
+ *
+ * Once ended, always ended: healing the body afterwards does not resume a
+ * possession the book says is over. By reference where nothing changed.
+ */
+export function endFallenPossessions(state: GameState): GameState {
+  // Nobody possessing anybody — the case on every event but a ghost's — asks
+  // nothing further and allocates nothing.
+  let any = false;
+  for (const key in state.creatures) {
+    const possesses = state.creatures[key]?.elsewhere?.possesses;
+    if (possesses !== undefined && possesses.ended !== true) {
+      any = true;
+      break;
+    }
+  }
+  if (!any) return state;
+  let current = state;
+  for (const key of Object.keys(state.creatures).sort()) {
+    const creature = current.creatures[key];
+    const record = creature?.elsewhere;
+    if (creature === undefined || record === null || record === undefined) continue;
+    if (record.possesses === undefined || record.possesses.ended === true) continue;
+    if (!possessedBodyFell(current, record)) continue;
+    current = withCreature(
+      current,
+      creature.id,
+      { elsewhere: { ...record, possesses: { ...record.possesses, ended: true } } },
+      creature,
+    );
+    const host = record.host === undefined ? undefined : current.creatures[record.host];
+    if (host !== undefined) current = withCreature(current, host.id, withoutHung(host, record.source), host);
   }
   return current;
 }

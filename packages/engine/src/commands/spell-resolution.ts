@@ -134,7 +134,7 @@ import {
   castingTimeOf,
   type SequencedBurst,
 } from '../spell-definitions.js';
-import { castsAtWill, type CastingRoute, componentsWaivedBy } from '../spellcasting.js';
+import { castsAtWill, type CastingRoute, componentsWaivedBy, routeCastLevel } from '../spellcasting.js';
 import { hearsAndUnderstands } from '../languages.js';
 import { contactNow, OBJECT_CREATURE_TYPE } from '../objects.js';
 import {
@@ -1190,9 +1190,15 @@ function castingBody(
 
     const slotLevel = request.slotLevel ?? definition.level;
     // The item's level where an item is casting it — SRD's "lowest possible
-    // spell level", raised by the charges where the item's line says so.
+    // spell level", raised by the charges where the item's line says so — and
+    // a stat block's "(level 8 version)" where a line prints one (M-MIND).
+    const routeLevel = routeCastLevel(route);
     const paidLevel =
-      route.kind === 'item' ? route.castLevel : Math.max(definition.level, slotLevel);
+      route.kind === 'item'
+        ? route.castLevel
+        : routeLevel !== null
+          ? Math.max(definition.level, routeLevel)
+          : Math.max(definition.level, slotLevel);
 
     // — what the caster's own features do to what this casting costs —————
     //
@@ -3642,7 +3648,9 @@ function resolveOnTargets(
       // **The level the item casts it at, where an item is casting it.** No
       // slot decides it, so `castSpell` takes the spell's level as the cast
       // level — which for a Wand of Fireballs at three charges is level 5.
-      level: route.kind === 'item' ? castLevel : definition.level,
+      // **And a stat block's "(level 8 version)"**, which no slot decides
+      // either (M-MIND).
+      level: routeCastLevel(route) !== null ? castLevel : definition.level,
       // The level the casting counts as, where an option raised it above the
       // slot that paid for it. Absent otherwise, so every casting nothing
       // altered writes exactly the event it always wrote.
@@ -3762,9 +3770,14 @@ function resolveOnTargets(
         ? {
             // The band this casting's level falls in, as the elected options
             // leave it — SRD Extended Spell doubles what the band printed.
+            // **Or the span the route prints over the spell's** — SRD Sea
+            // Hag's "The spell's duration is 24 hours." (M-MIND)
             duration: {
               kind: 'seconds' as const,
-              seconds: altered.durationSeconds!,
+              seconds:
+                route.kind === 'granted' && route.grant.durationSeconds !== undefined
+                  ? route.grant.durationSeconds
+                  : altered.durationSeconds!,
             },
           }
         : definition.durationUntil === undefined

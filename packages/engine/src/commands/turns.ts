@@ -2485,12 +2485,14 @@ export function resolveTurn(
     // you are on the Ethereal Plane, you return": the casting ends in the
     // fold, which may choose no space, so the return is a debt of exactly
     // `summons_stranded`'s kind — derived from the world as it stands, and
-    // settled by `returnFromElsewhere` naming where the creature lands.
+    // settled by `returnFromElsewhere` naming where the creature lands. And
+    // SRD Ghost's possession of a body that has dropped to 0 Hit Points, whose
+    // ghost "appears in an unoccupied space within 5 feet" (M-MIND).
     const away = strandedElsewhere(state);
     if (away.length > 0) {
       return err(
         'elsewhere_stranded',
-        `${away.join(', ')} ${away.length === 1 ? 'is' : 'are'} still elsewhere under a casting that has ended; returnFromElsewhere brings ${away.length === 1 ? 'it' : 'them'} back before the turn moves on`,
+        `${away.join(', ')} ${away.length === 1 ? 'is' : 'are'} still elsewhere under a casting or a possession that has ended; returnFromElsewhere brings ${away.length === 1 ? 'it' : 'them'} back before the turn moves on`,
       );
     }
 

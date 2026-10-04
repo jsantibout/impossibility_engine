@@ -67,7 +67,7 @@ import { applyCasting, isCastingEvent } from './casting.js';
 import { applyOngoing, isOngoingEvent } from './ongoing.js';
 import { applyTimers, isTimersEvent } from './timers.js';
 import { applyCombat, isCombatEvent } from './combat.js';
-import { applyElsewhere, freeTheSwallowedOfTheDead, isElsewhereEvent } from './elsewhere.js';
+import { applyElsewhere, endFallenPossessions, freeTheSwallowedOfTheDead, isElsewhereEvent } from './elsewhere.js';
 import { applyScene, isSceneEvent, layBodiesWhereWalkersFell } from './scene.js';
 import { applyFeatures, isFeaturesEvent, resized } from './features.js';
 import { overriddenSizeOf, printedSizeOf, printsASize } from '../size.js';
@@ -367,6 +367,10 @@ function applyEventUnder(state: GameState, event: GameEvent, legacy: Content | n
       // edge and not the corpse.
       layBodiesWhereWalkersFell(
       state,
+      // SRD Ghost's Possession ends when the body drops to 0 Hit Points —
+      // the same falling edge one relation along: the possessor is inside the
+      // body. See `endFallenPossessions`. (M-MIND)
+      endFallenPossessions(
       freeTheSwallowedOfTheDead(
       dropOrphanedAreaEffects(
         dropStrandedDamage(
@@ -441,6 +445,7 @@ function applyEventUnder(state: GameState, event: GameEvent, legacy: Content | n
             ),
           ),
         ),
+      ),
       ),
       ),
       ),

@@ -1033,6 +1033,7 @@ function checkAreaStanding(
       }
       checkTypeList(standing['fromTypes'], `${path}.fromTypes`, statesTypes, found);
       checkOutside(standing, path, found);
+      checkPossessionFlag(standing['alsoPossession'], `${path}.alsoPossession`, found);
       return;
     }
 
@@ -1070,6 +1071,21 @@ function checkOutside(
       field: `${path}.attackerInside`,
       code: 'bad_area_side',
       reason: `a clause holds against whoever is inside the area or it asks nothing about them, so the only value is true, and this is ${nameOf(standing['attackerInside'])}`,
+    });
+  }
+}
+
+/**
+ * "can't be possessed by" beside an Immunity's conditions — M-MIND, SRD
+ * Protection from Evil and Good and SRD Magic Circle. The sentence prints it
+ * or does not, so the only value is `true`.
+ */
+function checkPossessionFlag(value: unknown, field: string, found: SpellDefinitionProblem[]): void {
+  if (value !== undefined && value !== true) {
+    found.push({
+      field,
+      code: MALFORMED,
+      reason: `an Immunity also refuses a possession or it says nothing about one, so the only value is true, and this is ${nameOf(value)}`,
     });
   }
 }
@@ -5273,6 +5289,13 @@ function checkEffect(
         }
         immune.add(condition);
       });
+      // "can't be possessed by" beside the conditions — M-MIND. A flag the
+      // sentence either prints or does not.
+      checkPossessionFlag(
+        (effect as { readonly alsoPossession?: unknown }).alsoPossession,
+        `${path}.alsoPossession`,
+        found,
+      );
       // **And the types it holds against, where the spell qualifies it.** SRD
       // Protection from Evil and Good's "from them". The names are not checked
       // against a list, for the reason `RollSelector.attackerType`'s are not: a

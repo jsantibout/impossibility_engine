@@ -57,6 +57,14 @@ export type ElsewhereKind = 'ethereal' | 'extradimensional' | 'inside';
 export interface AwayMark {
   readonly kind: ElsewhereKind;
   readonly host?: CharacterId;
+  /**
+   * The creature is inside its host as the body's **possessor** — M-MIND, SRD
+   * Ghost's Possession — and so does not reach its host the way a swallowed
+   * creature does: "the ghost disappears" and "now controls the body", so
+   * what it does it does through the body, which is the table's to play. A
+   * possessor is at no distance from anybody, its host included.
+   */
+  readonly possessor?: true;
 }
 
 /**
@@ -157,6 +165,46 @@ export interface ElsewherePullOut {
   };
 }
 
+/**
+ * What being inside another creature **as its possessor** adds to the record —
+ * SRD Ghost's Possession, M-MIND: "The possession lasts until the body drops
+ * to 0 Hit Points or the ghost leaves as a Bonus Action. When the possession
+ * ends, the ghost appears in an unoccupied space within 5 feet of the target,
+ * and the target is immune to this ghost's Possession for 24 hours."
+ *
+ * The record is the possessor's, inside its host — the body — and what the
+ * line hung on the body (its Incapacitated) is filed under the record's own
+ * `source`, so the ending lifts it from the host as a return lifts what a
+ * record hung on the creature coming back. Two endings: the possessor's own
+ * Bonus Action, spent at `returnFromElsewhere`, and the body reaching 0 Hit
+ * Points, which nobody decides — a derived pass marks the possession
+ * {@link ended} and lifts the host's condition, and the possessor's return is
+ * then owed before the turn moves on, the space being a choice.
+ *
+ * **Who plays the body is not here**, and that is deliberate: the sentences
+ * about it are filed for the table (`a-compulsion-the-table-plays`), and for a
+ * player's character it is an owner question.
+ */
+export interface ElsewherePossession {
+  /** The slot the possessor's own leaving costs — "the ghost leaves as a Bonus Action". */
+  readonly leavesAs: 'bonus-action';
+  /**
+   * The day's grace the ending buys the body: "immune to this ghost's
+   * Possession for 24 hours". The heading the grace is hung under — the full
+   * printed heading, so the same `printed:` source the success's grace is hung
+   * under — and its span. Absent where the sentence named some other heading
+   * than the line's own, which is a grace nobody here can honour and is said
+   * at the possession instead.
+   */
+  readonly immunity?: { readonly line: string; readonly seconds: number };
+  /**
+   * Set by the fold the moment the body has dropped to 0 Hit Points, died or
+   * gone: "The possession lasts until the body drops to 0 Hit Points". Never on
+   * the event — it is derived, as a swallow's freedom in a dead host is.
+   */
+  readonly ended?: true;
+}
+
 /** A creature's second place — see `CreatureState.elsewhere`. */
 export interface Elsewhere {
   readonly kind: ElsewhereKind;
@@ -189,6 +237,19 @@ export interface Elsewhere {
    * while the creature is inside. — W7-B10.
    */
   readonly noVerbalCasting?: true;
+  /** The creature is inside its host as the body's possessor — see {@link ElsewherePossession}. (M-MIND) */
+  readonly possesses?: ElsewherePossession;
+}
+
+/**
+ * Whether a possession has ended by its host's body — dropped to 0 Hit
+ * Points, dead, or no longer here. "The possession lasts until the body drops
+ * to 0 Hit Points." (M-MIND)
+ */
+export function possessedBodyFell(state: GameState, record: Elsewhere): boolean {
+  if (record.possesses === undefined || record.host === undefined) return false;
+  const host = state.creatures[record.host];
+  return host === undefined || host.vitals.dead || host.vitals.hp <= 0;
 }
 
 /** The record on a creature, or null for one standing in the scene. */
@@ -262,12 +323,17 @@ export function roomInside(
  * stands, refused by the turn, settled by a command that names the space.
  *
  * A record sourced to no casting — a kept bond's pocket, a printed line — is
- * never stranded: its way back is its own door.
+ * never stranded: its way back is its own door. **Except a possession whose
+ * body has fallen** (M-MIND): SRD Ghost's "the possession lasts until the body
+ * drops to 0 Hit Points … When the possession ends, the ghost appears in an
+ * unoccupied space within 5 feet of the target" — the ending nobody decides,
+ * and the space a choice, so the return is owed exactly as a casting's is.
  */
 export function strandedElsewhere(state: GameState): readonly CharacterId[] {
   return (Object.keys(state.creatures) as CharacterId[]).sort().filter((who) => {
     const record = state.creatures[who]?.elsewhere;
     if (record === null || record === undefined) return false;
+    if (record.possesses?.ended === true) return true;
     const castingId = castingIdOf(record.source);
     return castingId !== null && state.ongoing[castingId] === undefined;
   });

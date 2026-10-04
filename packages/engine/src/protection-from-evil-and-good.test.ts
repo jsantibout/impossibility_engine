@@ -8,7 +8,7 @@ import { fold, type GameEvent, type GameState } from './events.js';
 import { declaredCasting } from './spellcasting.js';
 import { rollSelectorProblems } from './roll-modifiers.js';
 import { SKILL_ABILITY } from '@ie/shared';
-import { conditionImmunitiesOf } from './standing.js';
+import { conditionImmunitiesOf, possessionWardedAgainst } from './standing.js';
 import { applyConditionTo, resolveAttack, resolveSpell, resolveTurn } from './commands.js';
 
 /**
@@ -34,8 +34,11 @@ import { applyConditionTo, resolveAttack, resolveSpell, resolveTurn } from './co
  * a timer, the timer names the source that hung the condition, and a casting's
  * record names its caster.
  *
- * Possession stays the table's, in the book's own words, and the Advantage on a
- * new save against *that* effect goes with it.
+ * Possession is read too (M-MIND): SRD Ghost's Possession is a fact the engine
+ * holds, and the ward refuses it from the six types. The Advantage on a new
+ * save against a possession already standing reads nothing, because no SRD
+ * possession is ended by a save — the ghost's ends at 0 Hit Points or by its own
+ * Bonus Action.
  */
 
 const id = (s: string) => asCharacterId(s);
@@ -425,9 +428,16 @@ describe('a mode on a save narrowed by what forced it', () => {
 });
 
 describe('the catalogue says what this spell does', () => {
-  it('hands over the one clause the engine cannot hold, in the book’s words', () => {
-    const { unverified } = new Game().ward();
-    expect(unverified.join(' ')).toContain('possessed');
+  it('hands over nothing: the possession is read where it is applied (M-MIND)', () => {
+    const { game, unverified } = new Game().ward();
+    // "can't be possessed by … them" was the one clause handed over, while a
+    // possession was the table's whole. SRD Ghost's Possession is a fact the
+    // engine holds now, and the ward refuses it — `ghost-possession.test.ts`
+    // drives that end to end; here the Ghoul (Undead) is warded against and
+    // the Bandit (Humanoid) is not.
+    expect(unverified.join(' ')).not.toContain('possessed');
+    expect(possessionWardedAgainst(game.state, CLERIC, GHOUL)).toBe(true);
+    expect(possessionWardedAgainst(game.state, CLERIC, BANDIT)).toBe(false);
     // And the clause that used to sit beside it is granted now, so it is no
     // longer reported as a debt.
     expect(unverified.join(' ')).not.toContain('nothing records what a save was against');

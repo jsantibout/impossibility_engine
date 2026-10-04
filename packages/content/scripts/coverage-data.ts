@@ -520,7 +520,8 @@ export const VERIFIED_SPELLS: readonly string[] = [
   'protection-from-energy',
   // `protection-from-evil-and-good.test.ts`: the Ghoul swinging at Disadvantage
   // and the bandit swinging normally, the Ghoul unable to frighten the cleric
-  // and the bandit able to, and the possession clause reported on every casting;
+  // and the bandit able to, and — M-MIND — the Ghoul unable to possess the
+  // warded cleric (`ghost-possession.test.ts`);
   // the printed road is `printed-save-provenance.test.ts`.
   'protection-from-evil-and-good',
   'protection-from-poison',
@@ -1967,8 +1968,9 @@ export const HANDOVER_TRAIT_KINDS: Readonly<Record<string, string>> = {
  * is genuinely something the engine cannot or should not take on (2026-09-26).
  * Each reason below says which of the two it is and why the engine cannot or
  * should not take it on; a sentence that needs a mechanism the engine lacks is
- * not filed here, whatever it sounds like — suffocation, the harpy's other
- * songs and the ghost's day's grace after a possession all stay owed.
+ * not filed here, whatever it sounds like — suffocation and the harpy's other
+ * songs stay owed, and the ghost's day's grace after a possession was owed
+ * until M-MIND built it.
  *
  * **Pinned in both directions** by `stat-block-handovers.test.ts`: every kind
  * the schema admits has a reason here or in `HANDOVER_TRAIT_KINDS`, every
@@ -1978,7 +1980,7 @@ export const HANDOVER_TRAIT_KINDS: Readonly<Record<string, string>> = {
  */
 export const HANDOVER_LINE_KINDS: Readonly<Record<string, string>> = {
   'a-compulsion-the-table-plays':
-    'The owner ruled on 2026-09-24 that a compulsion is legality the table adjudicates, so it is a handover. Each sentence under this kind makes a creature act by a rule rather than by its player: SRD Ghost\'s Possession (who drives the body, what the ghost may be targeted by while inside it, whose Speed it uses, how long it lasts), SRD Harpy\'s Luring Song (which way the charmed creature walks, and that it walks into Opportunity Attacks), the row SRD Gibbering Mouther\'s d8 lands on, what SRD Flesh Golem attacks once berserk and whether its creator has calmed it, and what a lycanthrope\'s victim becomes at 0 Hit Points — a player\'s character handed to the DM, which is the doctrine\'s own line. The numbers around each — the save, the recharge, the die, the day\'s grace, the curse on the record — are the engine\'s and are executed; only the creature being played is filed.',
+    'The owner ruled on 2026-09-24 that a compulsion is legality the table adjudicates, so it is a handover. Each sentence under this kind makes a creature act by a rule rather than by its player: SRD Ghost\'s Possession (who drives the body and whose Speed and modifiers it uses — where the ghost is, the Incapacitated, the two endings and the day\'s grace are the engine\'s since M-MIND, and what may still target the ghost inside the body is owed), SRD Harpy\'s Luring Song (which way the charmed creature walks, and that it walks into Opportunity Attacks), the row SRD Gibbering Mouther\'s d8 lands on, what SRD Flesh Golem attacks once berserk and whether its creator has calmed it, and what a lycanthrope\'s victim becomes at 0 Hit Points — a player\'s character handed to the DM, which is the doctrine\'s own line. The numbers around each — the save, the recharge, the die, the day\'s grace, the curse on the record — are the engine\'s and are executed; only the creature being played is filed.',
   'a-reflection-nothing-holds':
     'SRD Basilisk and SRD Medusa: "If the basilisk sees its reflection in the Cone, the basilisk must make this save." The scene holds no mirror and nothing that reflects, and the line already takes its head count from the table — so a DM who declares the mirror names the basilisk among the targets of the door that rolls the gaze, and nothing afterwards reads that it was a reflection.',
   'water-nothing-holds':
@@ -2005,12 +2007,8 @@ export const HANDOVER_LINE_KINDS: Readonly<Record<string, string>> = {
  * used, so this is a reading and not a licence.
  */
 export const ARGUED_FILINGS: Readonly<Record<string, string>> = {
-  'The target is possessed by the':
-    'The Incapacitated condition the sentence names lasts exactly as long as the possession, and the possession ends when the ghost leaves or the body drops — the table\'s moment. Applied here it would be a condition nothing lifts.',
   "uses the possessed target's Speed":
-    'The Speed and the three ability modifiers are the ghost\'s statistics while it drives a body it has no record in; nothing in the engine is moving or rolling for a ghost that has disappeared into somebody else.',
-  'The possession lasts until the body drops to 0 Hit Points':
-    'The ending of the possession, which is the compulsion\'s own lifetime. The Hit Points are the body\'s and the engine keeps them; what their reaching 0 ends is the table\'s.',
+    'The Speed and the three ability modifiers are the ghost\'s statistics while it drives a body it has no record in; nothing in the engine is moving or rolling for a ghost that has disappeared into somebody else — a possessor inside its host reaches nobody, the host included (`AwayMark.possessor`, M-MIND), so every roll those modifiers would feed is one made through the body, which is who plays the body.',
   'If the cursed target drops to 0 Hit Points':
     'A player\'s character handed to the DM as a stat block the DM is playing — the doctrine\'s line. The 10 Hit Points are the new creature\'s, which the table brings in; the curse this reads is on the record, kept by the engine.',
   "doesn't grant Resistance to this":
@@ -2408,11 +2406,12 @@ export const MONSTER_LINE_SHAPES: readonly (readonly [
  * for the third half, and `coverage.test.ts` holds it to the catalogue so an
  * entry that has been built, renamed or retired fails rather than rotting.
  *
- * **Read against the book, not against a summary.** Three of the entries below
- * correct a claim that had been made about them from a heading alone: the
- * Magmin's block prints no `sheds-light` trait for its Bonus Action to toggle,
- * the Wisp's Vanish is Concentration on something that is not a spell, and the
- * Succubus's Charm is a **cast** line at a fixed level rather than a save.
+ * **Read against the book, not against a summary.** Three of the entries that
+ * stood here corrected a claim that had been made about them from a heading
+ * alone: the Magmin's block prints no `sheds-light` trait for its Bonus Action
+ * to toggle, the Wisp's Vanish is Concentration on something that is not a
+ * spell, and the Succubus's Charm is a **cast** line at a fixed level rather
+ * than a save (built in M-MIND, below).
  *
  * **The Ettercap's Reel and the Roper's Tentacle left this table in W7-B10**:
  * a printed pull may say which hold it reads (`MonsterPull.of:
@@ -2434,12 +2433,14 @@ export const LINE_RESIDUE_SEAMS: Readonly<Record<string, string>> = {
     'a touch whose **legality** is a record the engine does not keep, around an effect that is fiction. "The rust monster touches a nonmagical metal object within 5 feet of itself that isn\'t being worn or carried. The touch destroys a 1-foot Cube of the object." The cube is narration — a declared object has no shape a cubic foot could be taken from — but the touch names a reach, a thing that is nonmagical metal and a thing nobody is wearing, and the hand-over door has no field to name the object, nor any record whether a substance is metal or a thing magical. Filed whole it would pass that legality as fiction (W7-B13\'s review), so the line stays owed: the day the door can name a declared object and the object says what it is made of, the touch is checked and the cube is filed.',
   'will-o-wisp/Vanish':
     'Concentration on something that is not a casting. "The wisp and its light have the Invisible condition until the wisp\'s Concentration ends on this effect, which ends early immediately after the wisp makes an attack roll or uses Consume Life." Every clause but the first is machinery the engine holds — the condition, the trigger that ends it, the light — and all of it hangs off `CreatureState.concentration`, which only a casting may occupy.',
-  'succubus/Charm':
-    'a cast line at a **fixed level**. "The succubus casts Dominate Person (level 8 version), requiring no spell components and using Charisma as the spellcasting ability (spell save DC 15)" is the book\'s cast template with one clause the reader has no field for, and `parseCastLine` refuses it whole rather than casting the spell at its own level. `a-duration-the-slot-changes` is the shape beside it; what this needs is a slot level a printed route states. The reader half is one clause; the other half is the casting pipeline taking a level from a route rather than from a slot — the level a casting is paid at is decided in `spell-resolution.ts`, which a stat block\'s own track does not hold (W7-B13 stopped here and said so).',
+  // **The Succubus's Charm and the Sea Hag's Illusory Appearance left this map
+  // in M-MIND**: a cast line reads "(level 8 version)" into
+  // `MonsterCastLine.castLevel` and "The spell's duration is 24 hours." into
+  // `durationSeconds`, the route carries both (`GrantedSpell.castLevel`,
+  // `.durationSeconds`), and `spell-resolution.ts` casts at the route's level
+  // and pins the route's span.
   'wraith/Create Specter':
     'a-stat-block-created-mid-fight, at a door the summoning spells do not use. The raising itself is `summonCreature`, `Vitals.diedAt` answers the minute, and a cap of seven is a count a sheet can hold; what is missing is a *printed line* reaching the road a casting reaches, and a corpse being a thing the scene holds — the line targets "a Humanoid corpse within 10 feet", and a dead creature is a creature here rather than an object with a space.',
-  'sea-hag/Illusory Appearance':
-    'a cast line with a **printed duration**. "The hag casts _Disguise Self_, using Constitution as the spellcasting ability (spell save DC 13). The spell\'s duration is 24 hours." Disguise Self is handed over whole already and its Investigation check is the engine\'s, so the line would be spent the day a printed route may state the duration it casts at — the hour the spell prints would end the check\'s deadline twenty-three hours early. The succubus\'s Charm waits on the same hunk, a route stating its level; both are in the casting pipeline rather than the cast line\'s reader.',
   // Two of the Otherworldly Steed's Bonus Actions — W7-B13. The steed is
   // transcribed from Find Steed's own entry, and `missing-shapes.ts` names all
   // four of its unread lines; these are the two the ledger's residue lists.
@@ -2477,10 +2478,15 @@ export const UNREAD_SAVE_SEAMS: Readonly<Record<string, string>> = {
 // (2026-09-24), so each save is read — the Charisma save and its day's grace,
 // the Charm with its repeat and the Incapacitated it carries — and what the
 // compulsion makes the creature do is filed for the table under
-// `a-compulsion-the-table-plays`. Each still carries a residue it owes, and
-// sits on `SAVE_HANDOVER_SHAPE` for it: the day's grace a possession's ending
+// `a-compulsion-the-table-plays`. Each then carried a residue it owed, and
+// sat on `SAVE_HANDOVER_SHAPE` for it: the day's grace a possession's ending
 // buys, and the song's Concentration, the other harpies' songs and the two
-// repeats a blow or lava raise.
+// repeats a blow or lava raise. **The Ghost's residue moved in M-MIND**: the
+// possession is a `possesses` clause — the ghost inside the body, the
+// Incapacitated for as long as it lasts, the two endings and the grace — and
+// who drives the body is filed. What it still owes is the exception to "can't
+// be targeted": an effect that specifically targets Undead (SRD Turn Undead)
+// reaching a possessor that has no position, at its host's place.
 
 /** Whether this line prints the save template and the reader got nothing out of it. */
 export const isUnreadSave = (line: StatBlockLine): boolean =>

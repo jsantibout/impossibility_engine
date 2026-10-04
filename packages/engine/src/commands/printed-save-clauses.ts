@@ -70,7 +70,7 @@ import { filedFor, reportFiled } from './filed-handovers.js';
 import { insideRoomOf, isWoundSource, printedLineSource, woundSource } from '../monster.js';
 import { sendingEvents } from './elsewhere.js';
 import { grapplesOn } from './unarmed.js';
-import { evadesHalfDamage, sheetAsItStands } from '../standing.js';
+import { evadesHalfDamage, possessionWardedAgainst, sheetAsItStands } from '../standing.js';
 import { dropToZero } from '../vitals.js';
 import { applyConditionTo, schedule } from './conditions.js';
 import { ZERO_HIT_POINTS, unknownCreature } from './command.js';
@@ -942,6 +942,92 @@ export function applyPrintedClauses(
         }
         land(sent.value);
         conditions.push(...(clause.whileInside ?? []));
+        break;
+      }
+
+      case 'possesses': {
+        // SRD Ghost's Possession — M-MIND: "The target is possessed by the
+        // ghost; the ghost disappears, and the target has the Incapacitated
+        // condition and loses control of its body."
+        //
+        // **The engine's facts of it, and not who plays the body.** The
+        // possessor goes inside the target — the second place's `inside`, the
+        // target its host — under the line's own elsewhere source, and the
+        // target has the condition under that same source, so the possession's
+        // ending lifts it: the body's fall, derived (`endFallenPossessions`),
+        // or the possessor's own Bonus Action at `returnFromElsewhere`, which
+        // also lays the day's grace the record pins. What the possessor does
+        // with the body is filed for the table and reported beside this.
+        //
+        // **A ward the book says keeps a possessor out is read first** — SRD
+        // Protection from Evil and Good's "can't be possessed by … them", SRD
+        // Magic Circle's "can't be possessed by … the creature". The die was
+        // thrown and failed; the ward is why nothing came of it, and the caller
+        // is told.
+        if (possessionWardedAgainst(current, target, source)) {
+          unverified.push(
+            `${target} is warded against being possessed by ${source}, and ${line}'s failure took nothing`,
+          );
+          break;
+        }
+        const possessing = printedElsewhereSource(source, line);
+        const sent = sendingEvents(
+          current,
+          source,
+          {
+            kind: 'inside',
+            host: target,
+            source: possessing,
+            // "the ghost appears in an unoccupied space within 5 feet of the
+            // target" — measured from the body, wherever it has walked to.
+            returns: { within: clause.appearsWithin, near: target },
+            possesses: {
+              leavesAs: clause.leavesAs,
+              // The grace is hung on the full heading the success's is, so
+              // `forcePrintedSave` reads one record whichever way it came —
+              // and only where the sentence names this line, the check
+              // `line-immunity` makes for the same reason.
+              ...(line.startsWith(clause.immunity.line)
+                ? { immunity: { line, seconds: clause.immunity.seconds } }
+                : {}),
+            },
+          },
+          null,
+        );
+        if (!sent.ok) {
+          if (sent.code !== 'already_elsewhere') return sent;
+          unverified.push(`${source} is already elsewhere and did not possess ${target}`);
+          break;
+        }
+        land(sent.value);
+        if (!line.startsWith(clause.immunity.line)) {
+          unverified.push(
+            `${line} says its ending makes the target immune to "${clause.immunity.line}", which is not this line — no grace will be granted`,
+          );
+        }
+        const landed = conditionLanding(
+          applyConditionTo(
+            current,
+            target,
+            clause.condition,
+            possessing,
+            [],
+            undefined,
+            undefined,
+            {},
+            undefined,
+            undefined,
+            {},
+            source,
+          ),
+        );
+        if (!landed.ok) return landed;
+        if (!landed.value.landed) {
+          immuneTo.push(clause.condition);
+          break;
+        }
+        land(landed.value.events);
+        conditions.push(clause.condition);
         break;
       }
 

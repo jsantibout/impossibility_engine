@@ -264,6 +264,7 @@
     "applyElsewhere",
     "withoutHung",
     "freeTheSwallowedOfTheDead",
+    "endFallenPossessions",
     "holdsSomebodyInside"
   ],
   "fold/features.ts": [
