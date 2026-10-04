@@ -165,8 +165,10 @@ export interface StatedAttack extends MonsterAttack {
  * `CreatureState.concentration` and the fold puts it in `activeFeatures`, and
  * every road that ends one ends the other (`settleConcentratedFeatures`). What
  * the effect *does* while it runs is read off this record by the readers that
- * need it — the darkness `carriedLight` lays, the Illumination it withholds,
- * the conditions the spender hangs under the key. (M-REFLEX)
+ * need it — the darkness `carriedLight` lays, the Illumination it withholds —
+ * or hung by whichever door takes the line under its `printedLineSource`: the
+ * holder's own conditions here, a save's failure conditions on its targets.
+ * `beginPrintedConcentration` (commands/actions.ts) is the door in. (M-REFLEX)
  */
 export interface StatedConcentration extends MonsterConcentration {
   /** The key the effect runs under, minted by the adapter as every printed feature's is. */

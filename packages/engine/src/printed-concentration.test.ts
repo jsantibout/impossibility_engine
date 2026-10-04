@@ -37,6 +37,9 @@ import {
 import { hasCondition } from './conditions.js';
 import { createRng, type Rng } from './dice.js';
 import { applyEvent, fold, type GameEvent, type GameState } from './events.js';
+import { beginPrintedConcentration } from './commands/actions.js';
+import { extendContent } from './content.js';
+import { printedLineSource, statedActionOf } from './monster.js';
 import { lightAt } from './positioning.js';
 import { createRollIssuer } from './rolls.js';
 import { canSee } from './standing.js';
@@ -162,6 +165,82 @@ describe("the wisp's Vanish", () => {
     );
     expect(invisible(dropped, WISP)).toBe(false);
     expect(lightBeside(dropped, 10)).toBe('bright');
+  });
+});
+
+/**
+ * **The save-line shape**, which no SRD line in this slice prints and SRD
+ * Harpy's Luring Song does: "The harpy sings a magical melody, which lasts until
+ * the harpy's Concentration ends on it … _Failure:_ The target has the Charmed
+ * condition until the song ends."
+ *
+ * The Harpy itself is a follow-up. What is proved here is that the primitive
+ * holds it without redesign: a save line carrying a `concentrates` record is
+ * compiled with a feature key like any other, `beginPrintedConcentration` puts
+ * it under the harpy's Concentration, and a condition the save door hangs on
+ * **another** creature under `printedLineSource` — which is where
+ * `forcePrintedSave` hangs a failure's conditions — ends when the Concentration
+ * does, by any road. The block is the SRD harpy with the one field added, so the
+ * shape is the book's line and not an invented one.
+ */
+describe('a save line held under Concentration', () => {
+  const HARPY = id('harpy');
+  const harpy = SRD_CONTENT.monsterById('harpy')!;
+  const singing = {
+    ...harpy,
+    id: 'concentrating-harpy',
+    actions: harpy.actions.map((line) =>
+      line.name === 'Luring Song' ? { ...line, concentrates: {} } : line,
+    ),
+  };
+  const content = unwrap(extendContent(SRD_CONTENT, { monsters: [singing] }), 'content');
+
+  /** The harpy singing, and the goblin charmed by the song's failure clause. */
+  const charmed = (): GameState => {
+    let state = fold('luring-song', []);
+    state = after(state, unwrap(addCreature(state, content, HARPY, 'concentrating-harpy'), 'harpy').events);
+    state = after(state, unwrap(addCreature(state, content, GOBLIN, 'goblin-warrior'), 'goblin').events);
+    const line = statedActionOf(state.creatures[HARPY]!.sheet, 'Luring Song')!;
+    expect(line.save).toBeDefined();
+    state = after(state, unwrap(beginPrintedConcentration(state, HARPY, line.name, line.concentrates!), 'sing'));
+    return after(state, [
+      {
+        type: 'condition-applied',
+        id: GOBLIN,
+        condition: 'charmed',
+        source: printedLineSource(HARPY, 'Luring Song'),
+        implies: ['incapacitated'],
+      },
+    ]);
+  };
+
+  it('keeps the charm on the target while the harpy concentrates', () => {
+    const state = charmed();
+    expect(state.creatures[HARPY]!.concentration).toMatchObject({ spell: 'Luring Song', feature: true });
+    expect(hasCondition(state.creatures[GOBLIN]!.conditions, 'charmed')).toBe(true);
+  });
+
+  it('ends the charm on the target when the Concentration breaks', () => {
+    const broken = after(charmed(), [
+      { type: 'condition-applied', id: HARPY, condition: 'stunned', source: 'a stun' },
+    ]);
+    expect(broken.creatures[HARPY]!.concentration).toBeNull();
+    expect(hasCondition(broken.creatures[GOBLIN]!.conditions, 'charmed')).toBe(false);
+    expect(hasCondition(broken.creatures[GOBLIN]!.conditions, 'incapacitated')).toBe(false);
+  });
+
+  it('ends it when the harpy takes up another Concentration', () => {
+    const state = charmed();
+    const again = after(
+      state,
+      unwrap(
+        beginPrintedConcentration(state, HARPY, 'Luring Song', statedActionOf(state.creatures[HARPY]!.sheet, 'Luring Song')!.concentrates!),
+        'sing again',
+      ),
+    );
+    // The new song is running; the old one's charm went with the old song.
+    expect(again.creatures[HARPY]!.concentration).toMatchObject({ spell: 'Luring Song' });
+    expect(hasCondition(again.creatures[GOBLIN]!.conditions, 'charmed')).toBe(false);
   });
 });
 
