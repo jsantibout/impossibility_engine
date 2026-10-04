@@ -246,6 +246,7 @@
     "COMBAT_EVENTS",
     "CombatEvent",
     "isCombatEvent",
+    "forgetTurnDamage",
     "spendableSpeed",
     "applyCombat"
   ],

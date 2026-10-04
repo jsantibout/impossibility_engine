@@ -1226,6 +1226,12 @@ export type GameEvent =
        * which is what every log written before it says.
        */
       readonly raisedFrom?: CharacterId;
+      /**
+       * The corpse whose **spirit** this creature is, where the body stays
+       * lying — see `CreatureState.spiritOf`. SRD Wraith's Create Specter.
+       * Absent for every other summons. (M-RISE)
+       */
+      readonly spiritOf?: CharacterId;
       readonly command?: CommandStamp;
     }
   | {

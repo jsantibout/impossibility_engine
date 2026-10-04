@@ -8,12 +8,14 @@ import { createRng, type Rng } from './dice.js';
 import { createRollIssuer } from './rolls.js';
 import { fold, type GameEvent, type GameState } from './events.js';
 import { declaredCasting } from './spellcasting.js';
+import type { SpellDefinition } from './spell-definitions.js';
 import {
   addCreature,
   beginCombat,
   forcePrintedSave,
   raisePrintedLine,
   resolveSpell,
+  resolveTurn,
   takePrintedHeal,
   takePrintedTeleport,
 } from './commands.js';
@@ -84,7 +86,7 @@ const SETUP: readonly GameEvent[] = [
   {
     type: 'spellcasting-declared',
     id: PAL,
-    spellcasting: declaredCasting({ ability: 'cha', prepared: ['find-steed', 'cure-wounds'] }),
+    spellcasting: declaredCasting({ ability: 'cha', prepared: ['find-steed', 'cure-wounds', 'vampiric-touch', 'test-mending'] }),
   },
   ...[1, 2, 3].map(
     (level): GameEvent => ({
@@ -159,8 +161,9 @@ describe('Fell Glare (Fiend Only)', () => {
         'Fell Glare',
       );
       const outcome = out.outcomes[0]!;
-      expect(outcome.save?.dc ?? 14).toBe(14);
       if (outcome.save?.success !== false) continue;
+      // The Paladin's spell save DC, which the casting wrote over the mark.
+      expect(outcome.save.dc).toBe(14);
       g.push(out.events);
       const foe = g.state.creatures[FOE]!;
       expect(foe.conditions.instances.map((one) => one.condition)).toContain('frightened');
@@ -394,5 +397,55 @@ describe('Life Bond', () => {
       ).events,
     );
     expect(g.state.creatures[g.steed]!.vitals.hp).toBe(steedBefore);
+  });
+
+  it('shares what a spell’s drain gives back — SRD Vampiric Touch, a level 3 spell', () => {
+    for (const seed of ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h']) {
+      const g = wound(Game.withSteed('Fey', 2, false), 20);
+      g.push([{ type: 'creature-moved', id: FOE, placement: { from: { creature: PAL }, feet: 5, bearing: 270 }, forced: true }]);
+      const palBefore = g.state.creatures[PAL]!.vitals.hp;
+      const steedBefore = g.state.creatures[g.steed]!.vitals.hp;
+      g.push(
+        unwrap(
+          resolveSpell(g.state, PAL, { spellId: 'vampiric-touch', targets: [FOE], slotLevel: 3 }, supply(seed)),
+          'Vampiric Touch',
+        ).events,
+      );
+      const regained = g.state.creatures[PAL]!.vitals.hp - palBefore;
+      if (regained <= 0) continue;
+      expect(g.state.creatures[g.steed]!.vitals.hp - steedBefore).toBe(regained);
+      return;
+    }
+    throw new Error('no seed landed the touch');
+  });
+
+  it('shares a running spell’s payout at the summoner’s turn boundary', () => {
+    const MENDING: SpellDefinition = {
+      id: 'test-mending',
+      name: 'Test Mending',
+      level: 1,
+      school: 'transmutation',
+      castingTime: 'action',
+      range: { kind: 'touch' },
+      targets: { count: 1, self: true },
+      concentration: true,
+      durationSeconds: 60,
+      effects: [{ kind: 'turn-payout', at: 'start-of-turn', payout: 'healing', flat: 1 }],
+    };
+    const content = unwrap(extendContent(SRD_CONTENT, { spells: [MENDING] }), 'mending');
+    const withMending = (seed: string) => ({ ...supply(seed), content });
+    const g = wound(Game.withSteed('Fey'), 20);
+    g.push(
+      unwrap(
+        resolveSpell(g.state, PAL, { spellId: 'test-mending', targets: [PAL], slotLevel: 1 }, withMending('m')),
+        'Test Mending',
+      ).events,
+    );
+    const steedBefore = g.state.creatures[g.steed]!.vitals.hp;
+    // The Paladin's turn ends, the steed's, the foe's; the Paladin's begins.
+    for (const seed of ['t1', 't2', 't3']) {
+      g.push(unwrap(resolveTurn(g.state, withMending(seed)), seed).events);
+    }
+    expect(g.state.creatures[g.steed]!.vitals.hp - steedBefore).toBe(1);
   });
 });

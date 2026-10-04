@@ -84,11 +84,13 @@ export function formWornBy(creature: CreatureState): string | null {
  * "Celestial, Fey, or Fiend", none of the three — which is the conservative
  * reading {@link wrongFormFor} takes of a form nobody can be in.
  *
- * **Its own function as well as a clause of `wrongFormFor`**, because the
- * doors that spend a steed's lines — `forcePrintedSave`, `takePrintedTeleport`
- * and `takePrintedHeal` — ask only this: asking the form gate there too would
+ * **Its own function as well as a clause of `wrongFormFor`**, because two of
+ * the doors that spend a steed's lines — `forcePrintedSave` and
+ * `takePrintedTeleport` — ask only this: asking the form gate there too would
  * refuse lines the form gate has never been asked about (SRD Vampire's Bite,
- * whose block's own Shape-Shift is refused whole).
+ * whose block's own Shape-Shift is refused whole). The M-RISE doors
+ * (`takePrintedHeal`, `raisePrintedLine`) are new and ask `wrongFormFor`, both
+ * gates.
  */
 export function wrongTypeFor(
   creature: CreatureState,

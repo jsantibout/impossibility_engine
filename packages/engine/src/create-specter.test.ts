@@ -90,10 +90,12 @@ describe('Create Specter', () => {
       castingId: null,
       controlled: { spell: printedLineSource(WRAITH, LINE) },
     });
-    expect(specter.raisedFrom).toBe(BANDIT);
+    // The spirit of the corpse, and not the body walking: the bandit lies there.
+    expect(specter.spiritOf).toBe(BANDIT);
+    expect(specter.raisedFrom).toBeNull();
     expect(specter.side).toBe('dead');
-    // In the corpse's space or the nearest unoccupied one: beside it, here.
-    expect(after.scene!.positions[SPECTER]).toBeDefined();
+    // "in the space of its corpse" — a corpse is no bar to it.
+    expect(after.scene!.positions[SPECTER]).toEqual(after.scene!.positions[BANDIT]);
     // The corpse stays; it is the spirit that rose.
     expect(after.creatures[BANDIT]!.vitals.dead).toBe(true);
     expect(out.events.some((e) => e.type === 'action-spent' && e.id === WRAITH)).toBe(true);

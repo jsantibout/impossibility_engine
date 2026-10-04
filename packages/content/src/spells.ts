@@ -14815,9 +14815,11 @@ export const FIND_FAMILIAR: SpellDefinition = {
  * arrival writes the casting's attack modifier, slot level and stated type
  * over them before the block is adapted — so the steed swings at the
  * Paladin's bonus for 1d8 plus the slot level of the type the Paladin chose,
- * and the log replays it without a book. The three Bonus Actions stay prose:
- * Fell Glare's span is the summoner's turn, which no save reader can name, and
- * Fey Step and Healing Touch print no template.
+ * and the log replays it without a book. The three Bonus Actions and Life Bond
+ * execute too (M-RISE), on the block: Fell Glare's span is the summoner's turn,
+ * Healing Touch's flat is the slot level under the Slam's own mark, each
+ * heading's "(Fiend Only)" reads the type stated here, and Life Bond shares a
+ * level 1+ spell's healing of the caster.
  */
 export const FIND_STEED: SpellDefinition = {
   id: 'find-steed',
@@ -14851,10 +14853,9 @@ export const FIND_STEED: SpellDefinition = {
   ],
   // **The three Bonus Actions are not this spell's line** (W8-S26). Fell
   // Glare, Fey Step, Healing Touch and Life Bond are printed on the
-  // Otherworldly Steed's block, and `LEDGER.md`'s bestiary row already counts
-  // each of them as a line nothing applies; filing them here as well would
-  // count one debt in two populations. The Slam's numbers are the casting's
-  // and are executed.
+  // Otherworldly Steed's block, and the bestiary row is where they are counted;
+  // filing them here as well would count one line in two populations. Every
+  // one of them executes since M-RISE, the Slam's numbers since W8.
   // What the steed looks like, what it says and what it does with a turn its
   // rider cannot direct are the table's (W8-S26). The last is the question
   // left open for every creature in the scene, and the turn itself — taken

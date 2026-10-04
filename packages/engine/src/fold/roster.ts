@@ -278,10 +278,21 @@ export function applyRoster({ state, next }: Applying, event: RosterEvent): Game
           throw new CorruptLogError(event, `${walker} already walks in ${body}; ${event.id} cannot be raised from it too`);
         }
       }
+      // **And the corpse whose spirit it is**, where the body stays lying —
+      // SRD Create Specter. A corpse the game does not hold is a log the
+      // command could not have written. (M-RISE)
+      const spirit = event.spiritOf;
+      if (spirit !== undefined && state.creatures[spirit] === undefined) {
+        throw new CorruptLogError(event, `${event.id} is the spirit of ${spirit}, which is not in the game`);
+      }
       return withCreature(
         next,
         event.id,
-        { summonedBy: bond, ...(body === undefined ? {} : { raisedFrom: body }) },
+        {
+          summonedBy: bond,
+          ...(body === undefined ? {} : { raisedFrom: body }),
+          ...(spirit === undefined ? {} : { spiritOf: spirit }),
+        },
         creature,
       );
     }

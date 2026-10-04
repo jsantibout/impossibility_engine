@@ -343,7 +343,13 @@ export function takePrintedHeal(
  * seated straight after it and so takes the very next turn, which is "acts
  * immediately after the troll's turn" read for the one case where the two
  * could come apart. The turn's damage is the fold's count
- * (`CreatureState.turnDamage`) for this turn and no other.
+ * (`CreatureState.turnDamage`) for this turn, cleared when the fight ends.
+ *
+ * **One limit, said rather than hidden.** Damage the boundary itself settles
+ * *after* the order moves — a scheduled end-of-turn hit, an area's end-of-turn
+ * damage, a repeat save's fire — is counted to the turn that is beginning, not
+ * the one that ended. Nothing in level-5 reach deals Slashing there; a source
+ * that did would sever a turn late.
  *
  * **What it writes is what already exists.** The limb arrives through
  * `summonCreature` — the block the trait names, on the holder's side and its
@@ -446,10 +452,10 @@ export interface PrintedRaiseOutcome {
  *
  * **Every clause is a fact the engine already holds.** The corpse is a dead
  * creature with a type and a `Vitals.diedAt`; the distance is the ruler's; the
- * block arrives through `summonCreature` and stands through
- * `placeCreatureInScene` measured from the corpse at no distance, which is the
- * corpse's space where it is free and the nearest unoccupied one where it is
- * not — the sentence's own two answers. "Under the wraith's control" is
+ * block arrives through `summonCreature` and rises in the corpse's own space —
+ * the sentence's first answer, which a corpse lying there leaves free: it is
+ * placed beside the body and set down into its space as a rise rather than a
+ * move of its own (`forced`). "Under the wraith's control" is
  * `SummonBond.controlled` with no lapse, named by this line's own source, and
  * the seven are counted over the live creatures bound that way. The corpse
  * stays where it lies: it is the spirit that rises, and a spirit rises once.
@@ -543,7 +549,7 @@ export function raisePrintedLine(
       // risen out of has no spirit left in it for a second line to raise.
       const risen = Object.keys(state.creatures)
         .sort()
-        .find((key) => state.creatures[key]?.raisedFrom === command.corpse);
+        .find((key) => state.creatures[key]?.spiritOf === command.corpse);
       if (risen !== undefined) {
         return err(
           'spirit_already_risen',
@@ -610,19 +616,33 @@ export function raisePrintedLine(
         monsterId: raises.block,
         by: id,
         controlled: { spell: bondKey },
-        raisedFrom: command.corpse,
+        spiritOf: command.corpse,
       });
       if (!raised.ok) return raised;
       land(raised.value.events);
 
-      // "in the space of its corpse or in the nearest unoccupied space": a
-      // placement at no distance from the corpse is exactly that pair.
-      const stood = placeCreatureInScene(current, command.into, {
-        from: { creature: command.corpse },
-        feet: 0,
-      });
-      if (!stood.ok) return stood;
-      land(stood.value);
+      // "in the space of its corpse or in the nearest unoccupied space". The
+      // lattice counts a placed corpse as standing in its space, so a placement
+      // at no distance lands beside it; the spirit rising out of the body is
+      // then set down in the corpse's own space — a rise, not a move the
+      // specter makes (`forced`), the way a severed limb falls into its troll's.
+      // Where the corpse lies nowhere, the specter stands nowhere either.
+      if (current.scene?.positions[command.corpse] !== undefined) {
+        const stood = placeCreatureInScene(current, command.into, {
+          from: { creature: command.corpse },
+          feet: 0,
+        });
+        if (!stood.ok) return stood;
+        land(stood.value);
+        land([
+          {
+            type: 'creature-moved',
+            id: command.into,
+            placement: { from: { creature: command.corpse }, feet: 0 },
+            forced: true,
+          },
+        ]);
+      }
 
       return ok({
         events,

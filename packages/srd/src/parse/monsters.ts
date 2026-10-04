@@ -1349,7 +1349,7 @@ const LIFE_BOND = new RegExp(
 );
 
 /** The types a sentence lists with "or" and commas, lower-cased, or null if any is not a type. */
-const damageTypesOf =(printed: string): string[] | null => {
+const damageTypesOf = (printed: string): string[] | null => {
   const types = printed.split(/, or |, | or /).map((word) => damageTypeOf(word));
   return types.every((type): type is string => type !== null) ? types : null;
 };

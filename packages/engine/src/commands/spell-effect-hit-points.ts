@@ -180,6 +180,14 @@ export function resolveHealEffect(
  * prints the trait — read off the sheet the arrival pinned, never a book. A
  * pair whose distance nobody can measure shares nothing and the caller is told.
  *
+ * **Asked on three roads**: a spell's `heal` effect here, SRD Vampiric
+ * Touch's drain (`spell-effect-rolls.ts`), and a running casting's healing
+ * payout at a turn boundary (`turns.ts`). **Not asked** on two, each an owner
+ * question rather than an oversight: the Hit Point Dice SRD Prayer of
+ * Healing's Short Rest benefits spend (Hit Points regained from the dice, by a
+ * spell's leave), and a Goodberry berry eaten later (an item's conferral, of a
+ * berry a level 1 spell made).
+ *
  * Walked in key order, so two readers of one state heal in one order.
  */
 export function sharesOfSpellHealing(

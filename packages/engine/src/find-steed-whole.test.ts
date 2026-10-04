@@ -62,10 +62,10 @@ const added = (who: CharacterId, side: string): GameEvent => ({
 
 /**
  * A homebrew warden whose Bonus Action prints the book's save template with
- * the summoner's DC — SRD Fell Glare's sentence with a span the reader can
- * hold. The steed's own Fell Glare lasts "until the end of **your** next
- * turn", the summoner's, which the span vocabulary cannot name, so that line
- * is carried as prose in the bestiary and the DC mark is proved here instead.
+ * the summoner's DC — SRD Fell Glare's sentence over the target's turn. The
+ * steed's own Fell Glare, "until the end of **your** next turn", is read
+ * since M-RISE and driven in `steed-lines.test.ts`; this one proves the DC
+ * mark on its own.
  */
 const GLARE_TEXT =
   '_Wisdom Saving Throw:_ DC equals your spell save DC, one creature within 60 feet the warden can see. _Failure:_ The target has the Frightened condition until the end of its next turn.';

@@ -81,6 +81,7 @@ import {
   alteredCastingDice,
 } from './rolls.js';
 import { type EffectContext, type EffectOfKind } from './spell-effect-context.js';
+import { sharesOfSpellHealing } from './spell-effect-hit-points.js';
 import { applyRiders, conditionLanding, repeatSaveFrom } from './spell-effect-riders.js';
 import { timerKey, type EffectTarget } from '../timers.js';
 
@@ -690,10 +691,23 @@ function resolveOneAttackRoll(
   if (effect.healsCasterForHalf === true && hurt.value.amount > 0) {
     const back = Math.floor(hurt.value.amount / 2);
     if (back > 0) {
+      const hpBefore = current.creatures[casterId]?.vitals.hp ?? 0;
       const drained = healCreature(current, casterId, back);
       if (!drained.ok) return drained;
       events.push(...drained.value);
       current = drained.value.reduce(applyEvent, current);
+      // And SRD Otherworldly Steed's Life Bond: the caster regained Hit Points
+      // from a level 1+ spell. (M-RISE)
+      const shared = sharesOfSpellHealing(
+        current,
+        casterId,
+        (current.creatures[casterId]?.vitals.hp ?? hpBefore) - hpBefore,
+        definition.level,
+        unverified,
+      );
+      if (!shared.ok) return shared;
+      events.push(...shared.value);
+      current = shared.value.reduce(applyEvent, current);
     }
   }
 

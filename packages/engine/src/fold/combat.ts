@@ -63,6 +63,23 @@ import {
 } from './turns.js';
 import { forgetDeferredRiders } from './deferred.js';
 
+/**
+ * Every creature's count of the damage it took in a turn of the fight that has
+ * just ended — `CreatureState.turnDamage`, keyed by `turnsTaken`, which the
+ * next fight restarts. By reference where nobody held one. (M-RISE)
+ */
+function forgetTurnDamage(state: GameState): GameState {
+  let creatures: GameState['creatures'] | null = null;
+  for (const key of Object.keys(state.creatures)) {
+    const creature = state.creatures[key];
+    if (creature?.turnDamage === undefined) continue;
+    const { turnDamage: _gone, ...rest } = creature;
+    void _gone;
+    creatures = { ...(creatures ?? state.creatures), [key]: rest };
+  }
+  return creatures === null ? state : { ...state, creatures };
+}
+
 /** The event types this seam owns. Every one of them, and no other seam's. */
 export const COMBAT_EVENTS = [
   'combat-started',
@@ -150,8 +167,11 @@ export function applyCombat({ state, next }: Applying, event: CombatEvent): Game
       // `forgetSustainedTurns` and `forgetCarriedTurns`. And every debt owed to
       // somebody's next turn goes too, for the same reason: it named a turn of
       // this fight — see `forgetDeferredRiders`. (W7-S22)
-      return forgetDeferredRiders(
-        forgetCarriedTurns(forgetSustainedTurns({ ...next, combat: null })),
+      // And the damage a block counted over a turn of this fight — SRD Troll's
+      // Loathsome Limbs — for the same reason: it is keyed by a turn number
+      // the next fight starts again from. (M-RISE)
+      return forgetTurnDamage(
+        forgetDeferredRiders(forgetCarriedTurns(forgetSustainedTurns({ ...next, combat: null }))),
       );
     }
 

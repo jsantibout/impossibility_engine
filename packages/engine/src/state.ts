@@ -827,6 +827,16 @@ export interface CreatureState {
    */
   readonly raisedFrom: CharacterId | null;
   /**
+   * The corpse whose **spirit** rose as this creature — M-RISE, SRD Wraith's
+   * Create Specter: "The target's spirit rises as a **Specter** in the space of
+   * its corpse". Not {@link raisedFrom}: the body does not walk, it stays
+   * lying where it fell, and a rite on the body is not refused because a
+   * spirit left it. Read by `raisePrintedLine`, which raises a spirit out of a
+   * corpse once. Absent on everything else, which is every log written before
+   * it.
+   */
+  readonly spiritOf?: CharacterId;
+  /**
    * What a feature made this thing to do, or null for everything that is not
    * such a thing — which is every creature in the book but one trait's.
    *

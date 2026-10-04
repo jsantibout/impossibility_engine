@@ -166,6 +166,24 @@ describe('Loathsome Limbs', () => {
     expect(after.creatures[LIMB]).toBeUndefined();
   });
 
+  it('does not carry a fight’s Slashing into the next fight’s turn of the same number', () => {
+    // Turn numbers restart with every fight; the count goes with the fight.
+    const first = slash(fight(), '15d2');
+    const again: GameEvent[] = [
+      ...first,
+      { type: 'combat-ended' },
+      ...unwrap(
+        beginCombat(state([...first, { type: 'combat-ended' }]), [
+          { id: HERO, initiative: 20, speed: 30 },
+          { id: TROLL, initiative: 10, speed: 30 },
+        ]),
+        'the second fight',
+      ),
+    ];
+    expect(state(again).creatures[TROLL]!.turnDamage).toBeUndefined();
+    expect(state(endTurn(again)).creatures[LIMB]).toBeUndefined();
+  });
+
   it('severs nothing for Fire, or for a troll that is not Bloodied', () => {
     const fire = state(endTurn(slash(fight(), '15d2', 'fire')));
     expect(fire.creatures[LIMB]).toBeUndefined();
@@ -184,13 +202,12 @@ describe('Loathsome Limbs', () => {
     let events = fight();
     events.push(
       ...[1, 2, 3, 4].map(
-        (n): GameEvent => ({
+        (): GameEvent => ({
           type: 'resource-spent',
           id: TROLL,
           key: SEVERED_LIMB_TALLY,
           amount: 1,
           tally: 'dawn',
-          ...(n === 0 ? {} : {}),
         }),
       ),
     );

@@ -402,6 +402,12 @@ export interface Summons {
    */
   readonly raisedFrom?: CharacterId;
   /**
+   * The corpse whose spirit it is, where the body stays lying — SRD Wraith's
+   * Create Specter; see `CreatureState.spiritOf`. Pinned onto the
+   * `creature-summoned` the bond writes, as {@link raisedFrom} is. (M-RISE)
+   */
+  readonly spiritOf?: CharacterId;
+  /**
    * Which side it is on, when it is not the summoner's.
    *
    * Defaults to the summoner's own, because that is what a summons is. It is
@@ -560,9 +566,14 @@ export function summonCreature(
   summons: Summons,
   command: CommandIdentity = {},
 ): Result<AddCreatureOutcome> {
-  const { id, monsterId, by, castingId, kept, controlled, block, raisedFrom, ...stated } = summons;
-  if (raisedFrom !== undefined && castingId === undefined && kept === undefined && controlled === undefined) {
-    throw new Error(`${id} names the body ${raisedFrom} it rises from and no bond to write it on`);
+  const { id, monsterId, by, castingId, kept, controlled, block, raisedFrom, spiritOf, ...stated } = summons;
+  if (
+    (raisedFrom !== undefined || spiritOf !== undefined) &&
+    castingId === undefined &&
+    kept === undefined &&
+    controlled === undefined
+  ) {
+    throw new Error(`${id} names the body ${raisedFrom ?? spiritOf} it rises from and no bond to write it on`);
   }
 
   // **Everything the caller stated, whole.** A retry that moved the placement
@@ -588,6 +599,7 @@ export function summonCreature(
       ...(kept === undefined ? {} : { kept }),
       ...(controlled === undefined ? {} : { controlled }),
       ...(raisedFrom === undefined ? {} : { raisedFrom }),
+      ...(spiritOf === undefined ? {} : { spiritOf }),
     },
     () => ({ events: [], unverified: [], duplicate: true }),
     (stamp) => {
@@ -669,7 +681,10 @@ export function summonCreature(
       }
 
       // The body it rose out of rides whichever bond is written.
-      const body = raisedFrom === undefined ? {} : { raisedFrom };
+      const body = {
+        ...(raisedFrom === undefined ? {} : { raisedFrom }),
+        ...(spiritOf === undefined ? {} : { spiritOf }),
+      };
       if (castingId !== undefined) {
         events.push({ type: 'creature-summoned', id, by, castingId, ...body });
       } else if (kept !== undefined) {
