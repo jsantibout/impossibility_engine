@@ -37,8 +37,7 @@ import {
   statedBonusActionOf,
 } from '../monster.js';
 import { tallied } from '../resources.js';
-import { rollRecorded, type RollIssuer } from '../rolls.js';
-import { type Rng } from '../dice.js';
+import { rollRecorded } from '../rolls.js';
 import { healingRuleOf, maximisedHealing } from '../vitals.js';
 import { creatureOf, unknownCreature } from './command.js';
 import { healCreature, summonCreature } from './creatures.js';
@@ -208,7 +207,7 @@ export function takePrintedHeal(
   state: GameState,
   id: CharacterId,
   command: PrintedHealCommand,
-  supply: { readonly issuer: RollIssuer; readonly rng: Rng },
+  supply: Supply,
 ): Result<PrintedHealOutcome> {
   return once(
     state,

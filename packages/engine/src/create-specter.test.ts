@@ -122,6 +122,22 @@ describe('Create Specter', () => {
     if (!refused.ok) expect(refused.code).toBe('dead_too_long');
   });
 
+  it('refuses a corpse whose death the log never timed', () => {
+    // A death no fold stamps any more; a log written before `diedAt` existed
+    // carries one. Whether a minute has passed cannot be told, so it refuses.
+    const world = state(killed(room(), BANDIT));
+    const untimed: GameState = {
+      ...world,
+      creatures: {
+        ...world.creatures,
+        [BANDIT]: { ...world.creatures[BANDIT]!, vitals: { ...world.creatures[BANDIT]!.vitals, diedAt: null } },
+      },
+    };
+    const refused = raisePrintedLine(untimed, WRAITH, { line: LINE, corpse: BANDIT, into: SPECTER }, supply());
+    expect(refused.ok).toBe(false);
+    if (!refused.ok) expect(refused.code).toBe('death_unrecorded');
+  });
+
   it('refuses a corpse further than 10 feet away', () => {
     const events: GameEvent[] = [
       ...killed(room(), BANDIT),
@@ -136,10 +152,16 @@ describe('Create Specter', () => {
     const events = killed(room(), BANDIT);
     const noCorpse = raisePrintedLine(state(events), WRAITH, { line: LINE, into: SPECTER }, supply());
     expect(noCorpse.ok).toBe(false);
-    if (!noCorpse.ok) expect(noCorpse.kind).toBe('needs-context');
+    if (!noCorpse.ok) {
+      expect(noCorpse.kind).toBe('needs-context');
+      expect(noCorpse.code).toBe('undeclared_corpse');
+    }
     const noName = raisePrintedLine(state(events), WRAITH, { line: LINE, corpse: BANDIT }, supply());
     expect(noName.ok).toBe(false);
-    if (!noName.ok) expect(noName.kind).toBe('needs-context');
+    if (!noName.ok) {
+      expect(noName.kind).toBe('needs-context');
+      expect(noName.code).toBe('undeclared_creature');
+    }
   });
 
   it('raises one spirit from one corpse', () => {

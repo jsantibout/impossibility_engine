@@ -217,6 +217,10 @@ describe('the door and the query name the same creatures', () => {
         (line) =>
           line.save !== undefined &&
           line.save.trigger === undefined &&
+          // A DC that is the summoner's — SRD Otherworldly Steed's Fell Glare,
+          // read since M-RISE — is carried as prose on a creature walked in by
+          // hand, which is what `add_creature` does here; a casting supplies it.
+          line.save.dcFromSummoner === undefined &&
           (line.save.catches !== undefined || line.save.reach !== undefined),
       );
       if (measured.length === 0) continue;

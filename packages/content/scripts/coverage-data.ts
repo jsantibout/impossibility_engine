@@ -1468,6 +1468,10 @@ export interface StatBlockLine {
   readonly addsToRoll?: { readonly tests: readonly string[] } | undefined;
   /** What a Reaction line adds to its own Armour Class against one attack. */
   readonly addsToAc?: unknown;
+  /** The Hit Points a line restores — SRD Otherworldly Steed's Healing Touch. (M-RISE) */
+  readonly heals?: unknown;
+  /** The creature a line raises from a corpse — SRD Wraith's Create Specter. (M-RISE) */
+  readonly raises?: unknown;
   /** The printed line a Reaction's whole response performs, by its heading. */
   readonly usesLine?: string | undefined;
   /**
@@ -1543,6 +1547,9 @@ export const isReadLine = (line: StatBlockLine): boolean =>
   // use switches on — W7-B11.
   line.rampages !== undefined ||
   line.togglesLight !== undefined ||
+  // And the heal and the raise a line performs — M-RISE.
+  line.heals !== undefined ||
+  line.raises !== undefined ||
   line.addsToRoll !== undefined ||
   line.addsToAc !== undefined ||
   line.usesLine !== undefined ||
@@ -1753,6 +1760,10 @@ export const TRAIT_KINDS_WITH_A_READER: readonly string[] = [
   'magic-resistance',
   'penalised-after-taking-a-damage-type',
   'regains-no-hit-points',
+  // SRD Otherworldly Steed's Life Bond, whose reader is where a spell's healing
+  // lands — `resolveHealEffect` and a casting's payout at a turn boundary.
+  // (M-RISE)
+  'regains-what-its-summoner-regains-from-a-spell',
   // SRD Regeneration, whose readers are the turn's start, the damage hook that
   // hangs the marker, and the floor that holds the death. (W7-B12)
   'regenerates',
@@ -1760,6 +1771,10 @@ export const TRAIT_KINDS_WITH_A_READER: readonly string[] = [
   // `settleStartOfTurnTraitDice` throws the d6 at a Bloodied start and reports
   // the face beside the sentences the trait files for the table. (W7-B13)
   'rolls-to-go-berserk',
+  // SRD Troll's Loathsome Limbs, whose readers are the blow that counts the
+  // turn's Slashing (`printedTypeTriggers`) and the end of every turn, which
+  // severs (`severedLimbsAt`). (M-RISE)
+  'severs-a-limb',
   'sheds-light',
   'speed-cut-after-taking-a-damage-type',
   // SRD Split, whose reader is the Reaction the adapter compiles and
@@ -1822,7 +1837,6 @@ export const TRAIT_KINDS_WITH_A_READER: readonly string[] = [
  * | Lines | The one seam each waits on |
  * |---|---|
  * | Redirect Attack | a Reaction window on **being attacked**, before the roll is decided, whose response retargets the attack at somebody else. Every window the engine holds opens on a hit, and nothing can re-aim an attack that has been declared |
- * | Otherworldly Steed's Life Bond | a trigger on the **rider's** healing that nothing raises: "When you regain Hit Points from a level 1+ spell, the steed regains the same number of Hit Points if you're within 5 feet of it." A heal landing is a moment the engine has; a watcher on another creature's heal is not. See `missing-shapes.ts`, where the steed's spell names this line |
  *
  * **Fourteen lines left this table in W7-B12, and two more left the row
  * below**, each by the seam its row named. Regeneration ×2 is `regenerates`: a
@@ -2229,7 +2243,14 @@ export const isExecutedLine = (line: StatBlockLine): boolean =>
   // **The kind rather than the section**, because that is what decides it: a
   // trait the adapter compiles into nothing is still a debt, and this names the
   // one kind that becomes a Reaction. A second such kind joins this arm.
-  line.trait?.kind === 'chooses-to-succeed-on-a-failed-save';
+  line.trait?.kind === 'chooses-to-succeed-on-a-failed-save' ||
+  // **And the M-RISE doors.** A heal is spent by `takePrintedHeal` and a raise
+  // by `raisePrintedLine`, at the heading's price; SRD Troll's Loathsome
+  // Limbs is spent by the end of a turn, out of the heading's own day, which
+  // is the same claim the Legendary Resistance arm makes about a trait.
+  line.heals !== undefined ||
+  line.raises !== undefined ||
+  line.trait?.kind === 'severs-a-limb';
 
 /**
  * **The row a cast line used to have is gone**, and this is where it was.
@@ -2318,12 +2339,10 @@ export const MONSTER_LINE_SHAPES: readonly (readonly [
    * reason `RIDER_HANDOVER_SHAPE`'s own table is written out: a line with no
    * note beside it looks like a line nobody read.
    *
-   * | Lines | The kind, and the seam |
-   * |---|---|
-   * | Otherworldly Steed's Fell Glare | a span anchored on a third creature's turn — see {@link UNREAD_SAVE_SEAMS} |
-   *
-   * The table is pinned to the catalogue by {@link UNREAD_SAVE_SEAMS}, so a
-   * row that has been built comes out in the same commit.
+   * The table is empty, and pinned to the catalogue by
+   * {@link UNREAD_SAVE_SEAMS}, so a row that has been built comes out in the
+   * same commit — the Otherworldly Steed's Fell Glare, the last, left in
+   * M-RISE, when the span vocabulary learned the summoner's turn.
    *
    * **The Ghost's Possession and the Harpy's Luring Song left this table in
    * W7-B13**: the owner ruled a compulsion the table's, so each save is read
@@ -2425,8 +2444,8 @@ export const MONSTER_LINE_SHAPES: readonly (readonly [
  * rules and the pair is what a reader needs.
  *
  * **Lines only.** A trait's residue is the table in {@link HANDOVER_TRAIT_KINDS}'
- * own note — Redirect Attack and Life Bond, now that W7-B12 has built Coven
- * Magic, Regeneration and the rest — and keeping the two apart is what stops one sentence being
+ * own note — Redirect Attack, now that W7-B12 has built Coven Magic,
+ * Regeneration and the rest and M-RISE Life Bond — and keeping the two apart is what stops one sentence being
  * answered for twice in two places that could come to disagree.
  */
 export const LINE_RESIDUE_SEAMS: Readonly<Record<string, string>> = {
@@ -2436,17 +2455,13 @@ export const LINE_RESIDUE_SEAMS: Readonly<Record<string, string>> = {
     'Concentration on something that is not a casting. "The wisp and its light have the Invisible condition until the wisp\'s Concentration ends on this effect, which ends early immediately after the wisp makes an attack roll or uses Consume Life." Every clause but the first is machinery the engine holds — the condition, the trigger that ends it, the light — and all of it hangs off `CreatureState.concentration`, which only a casting may occupy.',
   'succubus/Charm':
     'a cast line at a **fixed level**. "The succubus casts Dominate Person (level 8 version), requiring no spell components and using Charisma as the spellcasting ability (spell save DC 15)" is the book\'s cast template with one clause the reader has no field for, and `parseCastLine` refuses it whole rather than casting the spell at its own level. `a-duration-the-slot-changes` is the shape beside it; what this needs is a slot level a printed route states. The reader half is one clause; the other half is the casting pipeline taking a level from a route rather than from a slot — the level a casting is paid at is decided in `spell-resolution.ts`, which a stat block\'s own track does not hold (W7-B13 stopped here and said so).',
-  'wraith/Create Specter':
-    'a-stat-block-created-mid-fight, at a door the summoning spells do not use. The raising itself is `summonCreature`, `Vitals.diedAt` answers the minute, and a cap of seven is a count a sheet can hold; what is missing is a *printed line* reaching the road a casting reaches, and a corpse being a thing the scene holds — the line targets "a Humanoid corpse within 10 feet", and a dead creature is a creature here rather than an object with a space.',
   'sea-hag/Illusory Appearance':
     'a cast line with a **printed duration**. "The hag casts _Disguise Self_, using Constitution as the spellcasting ability (spell save DC 13). The spell\'s duration is 24 hours." Disguise Self is handed over whole already and its Investigation check is the engine\'s, so the line would be spent the day a printed route may state the duration it casts at — the hour the spell prints would end the check\'s deadline twenty-three hours early. The succubus\'s Charm waits on the same hunk, a route stating its level; both are in the casting pipeline rather than the cast line\'s reader.',
-  // Two of the Otherworldly Steed's Bonus Actions — W7-B13. The steed is
-  // transcribed from Find Steed's own entry, and `missing-shapes.ts` names all
-  // four of its unread lines; these are the two the ledger's residue lists.
-  'otherworldly-steed/Fey Step (Fey Only; Recharges after a Long Rest)':
-    'a teleport **with a passenger**. "The steed teleports, along with its rider, to an unoccupied space of your choice up to 60 feet away from itself." `teleportTo` moves one creature, and nothing here is ridden: there is no mount, no rider and no relation that would carry a second creature along — the seam `confers-a-resistance-to-a-rider` names as the reason that sentence is fiction, which is a mechanic here because the rider really moves. The heading\'s "(Fey Only)" is read by no heading reader either.',
-  'otherworldly-steed/Healing Touch (Celestial Only; Recharges after a Long Rest)':
-    'a heal whose dice read the **casting that raised the creature**. "One creature within 5 feet of the steed regains a number of Hit Points equal to 2d8 plus the spell\'s level." `healCreature` is the door and the reach is `reachedBy`; what is missing is a printed line that is not a save or an attack carrying a `flatFromSlotLevel` mark the way the steed\'s Otherworldly Slam does, and a heading reader for "(Celestial Only)".',
+  // **The Wraith's Create Specter and the Otherworldly Steed's Fey Step and
+  // Healing Touch left this map in M-RISE**: a printed raise
+  // (`raisePrintedLine`), a teleport whose rider goes with the mount by the
+  // engine's own rule, and a printed heal whose flat is the casting's level,
+  // each behind its heading's "(… Only)" type gate.
 };
 
 /**
@@ -2468,8 +2483,9 @@ export const LINE_RESIDUE_SEAMS: Readonly<Record<string, string>> = {
  * puts at the table.
  */
 export const UNREAD_SAVE_SEAMS: Readonly<Record<string, string>> = {
-  'otherworldly-steed/Fell Glare (Fiend Only; Recharges after a Long Rest)':
-    'a span anchored on a **third** creature\'s turn — "The target has the Frightened condition until the end of **your** next turn", the summoner\'s, where `PrintedSpan` names the target\'s turn or the source\'s and no other. The DC is read ("DC equals your spell save DC" is `dcFromSummoner`, resolved from the casting that raised the steed); the span is what keeps the line prose, and the heading\'s type gate and its rest recharge wait on the same reading.',
+  // **The Otherworldly Steed's Fell Glare left this map in M-RISE**: the span
+  // vocabulary names the summoner's turn (`of: 'summoner'`), so the line is
+  // read whole and `forcePrintedSave` rolls it.
 };
 // **The Ghost's Possession and the Harpy's Luring Song left this map in
 // W7-B13**, written down rather than deleted because a row that leaves is a

@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { SRD_CONTENT } from '@ie/content';
 import { asCharacterId, expect as unwrap, type CharacterId } from '@ie/shared';
+import { parseSaveLine, type Monster } from '@ie/srd';
+import { extendContent } from './content.js';
 import type { CharacterSheet } from './character.js';
 import { createRng, type Rng } from './dice.js';
 import { createRollIssuer } from './rolls.js';
@@ -10,6 +12,7 @@ import {
   addCreature,
   beginCombat,
   forcePrintedSave,
+  raisePrintedLine,
   resolveSpell,
   takePrintedHeal,
   takePrintedTeleport,
@@ -191,6 +194,39 @@ describe('Fell Glare (Fiend Only)', () => {
   });
 });
 
+describe('a span on the summoner’s turn', () => {
+  it('is refused to a creature nobody summoned, before anything is rolled', () => {
+    const text =
+      '_Wisdom Saving Throw:_ DC 13, one creature within 60 feet the warden can see. _Failure:_ The target has the Frightened condition until the end of your next turn.';
+    const warden: Monster = {
+      ...SRD_CONTENT.monsterById('otherworldly-steed')!,
+      id: 'glaring-warden',
+      name: 'Glaring Warden',
+      type: 'Fiend',
+      traits: [],
+      actions: [],
+      bonusActions: [{ name: 'Glare', text, save: parseSaveLine(text)! }],
+    };
+    const content = unwrap(extendContent(SRD_CONTENT, { monsters: [warden] }), 'the warden');
+    const events: GameEvent[] = [...SETUP];
+    events.push(...unwrap(addCreature(fold('seed', events), content, id('warden'), 'glaring-warden'), 'warden').events);
+    events.push({ type: 'creature-placed', id: id('warden'), placement: { from: { creature: PAL }, feet: 10, bearing: 90, size: 'large' } });
+    events.push(
+      ...unwrap(
+        beginCombat(fold('seed', events), [
+          { id: id('warden'), initiative: 20, speed: 60 },
+          { id: FOE, initiative: 10, speed: 30 },
+          { id: PAL, initiative: 5, speed: 30 },
+        ]),
+        'combat',
+      ),
+    );
+    const refused = forcePrintedSave(fold('seed', events), id('warden'), { line: 'Glare', targets: [FOE] }, { ...supply(), content });
+    expect(refused.ok).toBe(false);
+    if (!refused.ok) expect(refused.code).toBe('no_summoner');
+  });
+});
+
 describe('Fey Step (Fey Only)', () => {
   it('teleports the steed and its rider up to 60 feet, with no sight clause to meet', () => {
     const g = Game.withSteed('Fey').toSteedsTurn();
@@ -271,7 +307,24 @@ describe('Healing Touch (Celestial Only)', () => {
     const g = Game.withSteed('Celestial').toSteedsTurn();
     const asked = takePrintedHeal(g.state, g.steed, { line: TOUCH }, supply());
     expect(asked.ok).toBe(false);
-    if (!asked.ok) expect(asked.kind).toBe('needs-context');
+    if (!asked.ok) {
+      expect(asked.kind).toBe('needs-context');
+      expect(asked.code).toBe('undeclared_target');
+    }
+  });
+
+  it('is a door for a heal and nothing else', () => {
+    const g = Game.withSteed('Fey').toSteedsTurn();
+    const notAHeal = takePrintedHeal(g.state, g.steed, { line: FEY_STEP, target: PAL }, supply());
+    expect(notAHeal.ok).toBe(false);
+    if (!notAHeal.ok) expect(notAHeal.code).toBe('line_states_no_heal');
+  });
+
+  it('is no door for raising either', () => {
+    const g = Game.withSteed('Celestial').toSteedsTurn();
+    const refused = raisePrintedLine(g.state, g.steed, { line: TOUCH, corpse: FOE, into: id('risen') }, supply());
+    expect(refused.ok).toBe(false);
+    if (!refused.ok) expect(refused.code).toBe('line_states_no_raise');
   });
 
   it('is refused to a Fey steed', () => {

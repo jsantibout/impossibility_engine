@@ -218,13 +218,14 @@ describe('the adapter carries the forms a block prints', () => {
     // and so do the two roads into the second place a stat block prints
     // (`commands/elsewhere.ts`) and the door on a save a move precedes
     // (`commands/printed-move.ts`, W7-B9), which spend a printed line like
-    // the rest.
+    // the rest; and the M-RISE heal and raise (`commands/printed-rise.ts`).
     expect([...asking].sort()).toEqual([
       'actions.ts',
       'attacks.ts',
       'elsewhere.ts',
       'forms.ts',
       'printed-move.ts',
+      'printed-rise.ts',
     ]);
   });
 

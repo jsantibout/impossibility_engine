@@ -581,6 +581,9 @@ describe('the bestiary row counts blocks, and the prose it cannot read', () => {
       // — read off the **name** like `recharge` and `perDay` beside it, and
       // changing what "read" counts for exactly as little.
       'forms',
+      // M-RISE: the Hit Points SRD Healing Touch restores, read out of the
+      // sentence.
+      'heals',
       'jumps',
       // What a legendary action does — SRD Unicorn's Charging Horn and
       // Shimmering Shield — read out of the sentence under that heading alone,
@@ -588,6 +591,10 @@ describe('the bestiary row counts blocks, and the prose it cannot read', () => {
       'legendary',
       'multiattack',
       'name',
+      // And the creature type a heading prints its line for — SRD Otherworldly
+      // Steed's "(Fiend Only)" — read off the **name** like `onlyInForms` and
+      // changing what "read" counts for exactly as little. (M-RISE)
+      'onlyAsType',
       'onlyInForms',
       'perDay',
       // What SRD Roper's Reel drags toward it, read out of the sentence.
@@ -595,6 +602,8 @@ describe('the bestiary row counts blocks, and the prose it cannot read', () => {
       // The move and the swing a blow on an already-Bloodied creature buys —
       // W7-B11, read out of the sentence like the moves above it, and out of the
       // trigger clause a `dashes` line has none of.
+      // And what SRD Create Specter raises out of a corpse. (M-RISE)
+      'raises',
       'rampages',
       'recharge',
       // What a heading says its line may not be taken without — SRD Night Hag's

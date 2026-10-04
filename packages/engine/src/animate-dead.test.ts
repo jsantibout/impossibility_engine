@@ -275,7 +275,7 @@ describe('a corpse becomes a Zombie under the caster’s control', () => {
     const g = new Game();
     unwrap(g.animate({ targets: [BANDIT] }), 'the rite');
     const zombie = g.one();
-    const until = g.state.creatures[zombie]!.summonedBy!.controlled!.until;
+    const until = g.state.creatures[zombie]!.summonedBy!.controlled!.until!;
 
     g.push(unwrap(advanceTime(g.state, until - g.state.elapsed - 1, 'a long day'), 'almost'));
     expect(g.state.creatures[zombie]?.summonedBy?.controlled?.until).toBe(until);
@@ -291,7 +291,7 @@ describe('a corpse becomes a Zombie under the caster’s control', () => {
     const g = new Game();
     unwrap(g.animate({ targets: [BANDIT] }), 'the first rite');
     const zombie = g.one();
-    const first = g.state.creatures[zombie]!.summonedBy!.controlled!.until;
+    const first = g.state.creatures[zombie]!.summonedBy!.controlled!.until!;
 
     g.push(unwrap(advanceTime(g.state, 12 * 60 * 60, 'half a day'), 'noon'));
     const again = unwrap(g.animate({ targets: [zombie] }), 'the second rite');

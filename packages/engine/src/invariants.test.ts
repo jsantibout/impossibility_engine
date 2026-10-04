@@ -155,6 +155,8 @@ import {
   takePrintedForm,
   takePrintedPull,
   takePrintedTeleport,
+  takePrintedHeal,
+  raisePrintedLine,
   commandSummons,
   borrowSenses,
   declareWayInHeight,
@@ -625,6 +627,42 @@ const BLINKING: readonly GameEvent[] = SETUP.map((event) =>
     ? { ...event, sheet: sheet({ stated: { unreadActions: [TELEPORTING_LINE] } }) }
     : event,
 );
+
+/**
+ * The same invented line with SRD Healing Touch's template read off it —
+ * M-RISE: dice the engine throws for one creature within reach. B is hurt, so
+ * a second run under one id would be a second heal.
+ */
+const HEALING_LINE: StatedAction = { ...PRINTED_LINE, heals: { dice: '2d8', flat: 2, within: 5 } };
+
+/** The same world again, with that line under Actions and B wounded. */
+const HEALING: readonly GameEvent[] = [
+  ...SETUP.map((event) =>
+    event.type === 'creature-added' && event.id === A
+      ? { ...event, sheet: sheet({ stated: { unreadActions: [HEALING_LINE] } }) }
+      : event,
+  ),
+  { type: 'damage-taken', id: B, amount: 30 },
+];
+
+/**
+ * And with SRD Create Specter's template read off it — M-RISE: B dies beside
+ * A, and a second run under one id would raise a second creature.
+ */
+const RAISING_LINE: StatedAction = {
+  ...PRINTED_LINE,
+  raises: { block: 'specter', within: 10, corpseType: 'Humanoid', deadForAtMostSeconds: 60, controlsAtMost: 7 },
+};
+
+/** The same world again, with that line under Actions and B a corpse. */
+const RAISING: readonly GameEvent[] = [
+  ...SETUP.map((event) =>
+    event.type === 'creature-added' && event.id === A
+      ? { ...event, sheet: sheet({ stated: { unreadActions: [RAISING_LINE] } }) }
+      : event,
+  ),
+  { type: 'creature-died', id: B, cause: 'the fixture' },
+];
 
 /**
  * The same invented line with the book's Shape-Shift template read off it.
@@ -2459,6 +2497,27 @@ const GUARDED: readonly Guarded[] = [
         to: { from: { landmark: 'here' }, feet: 10, bearing: 180 },
         commandId,
       }),
+  },
+  /**
+   * And the two M-RISE doors: a heal that would land twice and a raise that
+   * would raise a second creature under the same name.
+   */
+  {
+    name: 'takePrintedHeal',
+    log: HEALING,
+    run: (s, commandId) =>
+      takePrintedHeal(s, A, { line: HEALING_LINE.name, target: B, commandId }, supply()),
+  },
+  {
+    name: 'raisePrintedLine',
+    log: RAISING,
+    run: (s, commandId) =>
+      raisePrintedLine(
+        s,
+        A,
+        { line: RAISING_LINE.name, corpse: B, into: asCharacterId('risen'), commandId },
+        supply(),
+      ),
   },
   /**
    * And the fourth door one line can be taken through. A retry that was not
@@ -4379,6 +4438,15 @@ const SPENDERS: readonly Spender[] = [
         line: 'A Printed Line',
         to: { from: { landmark: 'here' }, feet: 10, bearing: 180 },
       }),
+  },
+  /**
+   * And the two M-RISE doors, each refused for the same debt before the line,
+   * the target or the corpse is looked at.
+   */
+  { name: 'takePrintedHeal', run: (s) => takePrintedHeal(s, B, { line: 'A Printed Line', target: A }, supply()) },
+  {
+    name: 'raisePrintedLine',
+    run: (s) => raisePrintedLine(s, B, { line: 'A Printed Line', corpse: A, into: asCharacterId('risen') }, supply()),
   },
   /**
    * And the fourth door on one line, which spends the same slot to change the

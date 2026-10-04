@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { SRD_CONTENT } from '@ie/content';
-import { asCharacterId, expect as unwrap, type CharacterId } from '@ie/shared';
+import { asCharacterId, expect as unwrap } from '@ie/shared';
 import type { CharacterSheet } from './character.js';
 import { currentCombatant } from './combat.js';
 import { createRng, type Rng } from './dice.js';
@@ -34,6 +34,7 @@ const sheet = (): CharacterSheet => ({
   shield: null,
   armorTraining: { light: true, medium: true, heavy: true, shields: true },
   baseSpeed: 30,
+  spellcastingAbility: null,
   weaponProficiencies: ['simple', 'martial'],
 });
 
@@ -196,6 +197,13 @@ describe('Loathsome Limbs', () => {
     events = slash(events, '15d2');
     const after = state(endTurn(events));
     expect(after.creatures[LIMB]).toBeUndefined();
+  });
+
+  it('refuses to end the turn without the catalogue a limb is raised from', () => {
+    const events = slash(fight(), '15d2');
+    const refused = resolveTurn(state(events));
+    expect(refused.ok).toBe(false);
+    if (!refused.ok) expect(refused.code).toBe('limb_owed');
   });
 
   it('replays to the same world', () => {

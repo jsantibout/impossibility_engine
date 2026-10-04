@@ -186,8 +186,10 @@ describe('the residue, named with its seams', () => {
     const end = source.indexOf('export const HANDOVER_TRAIT_KINDS');
     expect(start).toBeGreaterThan(0);
     const note = source.slice(start, end);
+    // **Empty since M-RISE**, when the Otherworldly Steed's Life Bond — the last
+    // trait the residue listed — was built. The walk stays, so a trait that
+    // joins the residue must be named in the note in the same commit.
     const traits = ledger.monsters.residue.filter((one) => one.section === 'trait');
-    expect(traits.length).toBeGreaterThan(0);
     const unnamed = traits
       .filter((one) => !note.includes(one.line))
       .map((one) => `${one.monster}/${one.line}`);
