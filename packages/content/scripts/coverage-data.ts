@@ -2478,8 +2478,8 @@ export const UNREAD_SAVE_SEAMS: Readonly<Record<string, string>> = {
 // (2026-09-24), so each save is read — the Charisma save and its day's grace,
 // the Charm with its repeat and the Incapacitated it carries — and what the
 // compulsion makes the creature do is filed for the table under
-// `a-compulsion-the-table-plays`. Each still carries a residue it owes, and
-// sits on `SAVE_HANDOVER_SHAPE` for it: the day's grace a possession's ending
+// `a-compulsion-the-table-plays`. Each then carried a residue it owed, and
+// sat on `SAVE_HANDOVER_SHAPE` for it: the day's grace a possession's ending
 // buys, and the song's Concentration, the other harpies' songs and the two
 // repeats a blow or lava raise. **The Ghost's residue moved in M-MIND**: the
 // possession is a `possesses` clause — the ghost inside the body, the
