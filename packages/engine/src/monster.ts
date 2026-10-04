@@ -483,11 +483,22 @@ export function resolveSummonerMarks(
             };
           })();
     const resolvedSave = save(line.save);
-    if (attack === line.attack && resolvedSave === line.save) return line;
+    // SRD Healing Touch's "2d8 plus the spell's level" — the flat is the
+    // slot level, under the Slam's own mark. (M-RISE)
+    const heals =
+      line.heals?.flatFromSlotLevel === undefined
+        ? line.heals
+        : (() => {
+            const { flatFromSlotLevel: _mark, ...plain } = line.heals;
+            void _mark;
+            return { ...plain, flat: numbers.slotLevel };
+          })();
+    if (attack === line.attack && resolvedSave === line.save && heals === line.heals) return line;
     return {
       ...line,
       ...(attack === undefined ? {} : { attack }),
       ...(resolvedSave === undefined ? {} : { save: resolvedSave }),
+      ...(heals === undefined ? {} : { heals }),
     };
   };
   const sections = ['traits', 'actions', 'bonusActions', 'reactions', 'legendaryActions'] as const;
@@ -518,10 +529,22 @@ function withoutUnresolvedMarks(monster: Monster): {
   readonly caveats: readonly string[];
 } {
   const caveats: string[] = [];
-  const demote = (line: Feature): Feature => {
-    const attack = line.attack !== undefined && attackIsSummoners(line.attack);
-    const save = line.save?.dcFromSummoner !== undefined;
-    if (!attack && !save) return line;
+  const demote = (printed: Feature): Feature => {
+    const attack = printed.attack !== undefined && attackIsSummoners(printed.attack);
+    const save = printed.save?.dcFromSummoner !== undefined;
+    // And a heal whose flat is the spell's level — SRD Healing Touch. (M-RISE)
+    const heals = printed.heals?.flatFromSlotLevel !== undefined;
+    if (!attack && !save && !heals) return printed;
+    let line = printed;
+    if (heals) {
+      caveats.push(
+        `${line.name}'s Hit Points add a level that is its summoner's — the level of the casting that raised it — and no casting supplied it; the line is carried as prose`,
+      );
+      const { heals: _heals, ...prose } = line;
+      void _heals;
+      if (!attack && !save) return prose;
+      line = prose;
+    }
     caveats.push(
       `${line.name}'s ${attack ? 'attack bonus, damage and type' : 'save DC'} ${
         attack ? 'are' : 'is'
@@ -1294,7 +1317,10 @@ export const describeRecharge = (recharge: MonsterRecharge): string =>
       }, and so does finishing a Short or Long Rest`
     : recharge.kind === 'turn'
       ? 'the start of its next turn brings it back'
-      : 'finishing a Short or Long Rest brings it back';
+      : recharge.kind === 'long-rest'
+        ? // SRD Otherworldly Steed's "Recharges after a Long Rest". (M-RISE)
+          'finishing a Long Rest brings it back, and a Short Rest does not'
+        : 'finishing a Short or Long Rest brings it back';
 
 /**
  * The pool a block's legendary action uses come out of.
@@ -1604,6 +1630,34 @@ export const printedRegeneration = (
   }
   return null;
 };
+
+/**
+ * SRD Otherworldly Steed's Life Bond: the spell level that shares its
+ * summoner's healing and how near the summoner must be — or null for every
+ * block that prints none. (M-RISE)
+ *
+ * "When you regain Hit Points from a level 1+ spell, the steed regains the
+ * same number of Hit Points if you're within 5 feet of it." Read where a
+ * spell's healing lands (`spell-effect-hit-points.ts`, and a casting's
+ * payout at a turn boundary).
+ */
+export const printedSummonerShare = (
+  sheet: CharacterSheet,
+): { readonly minimumSpellLevel: number; readonly within: number } | null => {
+  for (const trait of sheet.stated?.traits ?? []) {
+    if (trait.kind === 'regains-what-its-summoner-regains-from-a-spell') {
+      return { minimumSpellLevel: trait.minimumSpellLevel, within: trait.within };
+    }
+  }
+  return null;
+};
+
+/**
+ * What a share of a summoner's healing is recorded under — the rule's own
+ * words rather than a catalogue name, for {@link REGENERATION}'s reason.
+ * (M-RISE)
+ */
+export const SUMMONERS_SHARE = "a share of its summoner's healing";
 
 /**
  * The source the "doesn't function on its next turn" marker is hung under —
@@ -3044,6 +3098,12 @@ export function adaptMonster(printed: Monster, id: CharacterId): AdaptedMonster 
       ...(line.treeStride === undefined ? {} : { treeStride: line.treeStride }),
       // And the forms the heading gates the line to, where it names any.
       ...(line.onlyInForms === undefined ? {} : { onlyInForms: [...line.onlyInForms] }),
+      // And the creature type the heading gates it to, and the corpse it
+      // raises a creature out of — M-RISE: SRD Wraith's Create Specter is the
+      // one line that prints a raise, under this heading.
+      ...(line.onlyAsType === undefined ? {} : { onlyAsType: [...line.onlyAsType] }),
+      ...(line.raises === undefined ? {} : { raises: line.raises }),
+      ...(line.heals === undefined ? {} : { heals: line.heals }),
       // And the thing the heading says the line may not be taken without — SRD
       // Night Hag's "Requires Soul Bag", compiled into the requirement
       // vocabulary a standing effect is already gated by. **The word is carried
@@ -3108,6 +3168,12 @@ export function adaptMonster(printed: Monster, id: CharacterId): AdaptedMonster 
     // And the forms the heading gates it to: SRD Weretiger's Prowl is the one
     // Bonus Action in the book that prints the clause.
     ...(line.onlyInForms === undefined ? {} : { onlyInForms: [...line.onlyInForms] }),
+    // And the creature type the heading gates it to, and the Hit Points it
+    // restores — M-RISE: SRD Otherworldly Steed prints three lines "(Fiend
+    // Only)", "(Fey Only)", "(Celestial Only)" under this heading, and its
+    // Healing Touch is the one line in the book that prints a heal.
+    ...(line.onlyAsType === undefined ? {} : { onlyAsType: [...line.onlyAsType] }),
+    ...(line.heals === undefined ? {} : { heals: line.heals }),
     // And the thing the heading requires, on this section for the reason
     // everything else here is: a heading says what a use costs. No SRD Bonus
     // Action prints the clause. (W7-B11)

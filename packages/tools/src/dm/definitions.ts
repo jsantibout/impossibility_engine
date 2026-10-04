@@ -119,6 +119,7 @@ import {
   takeLegendaryAction,
   takeSearch,
   takePrintedForm,
+  takePrintedHeal,
   takePrintedMove,
   takePrintedPlaneShift,
   takePrintedPull,
@@ -2859,7 +2860,59 @@ const SPLIT_PRINTED_LINE = tool({
     ),
 });
 
+/**
+ * Take the heal a creature's stat block prints — M-RISE.
+ *
+ * SRD Otherworldly Steed, Healing Touch (Celestial Only; Recharges after a
+ * Long Rest): "One creature within 5 feet of the steed regains a number of Hit
+ * Points equal to 2d8 plus the spell's level." The dice are the engine's, the
+ * flat is the level the casting that raised the steed wrote over the line, and
+ * the reach is measured.
+ *
+ * **Here and not on the model's surface**, by {@link TELEPORT_PRINTED_LINE}'s
+ * rule: whether a creature spends its Bonus Action, and on whom, is the choice
+ * of whoever is running it. What the call carries is one name.
+ */
+const HEAL_PRINTED_LINE = tool({
+  name: 'heal_printed_line',
+  description:
+    'Have the engine take the healing a creature’s stat block prints — the Otherworldly Steed’s Healing Touch. Name the heading as the block prints it and the creature it restores. The engine refuses a creature beyond the reach the line prints, a line printed for another creature type (Healing Touch is Celestial only: the type the caster chose for the steed), and a line already used and not yet back; it then spends whichever slot the heading names, rolls the dice, adds the number the casting supplied (the spell’s level) and heals. You state no number. `look` says which lines this door takes, under `engineHeals` on `printed.actions[]` and `printed.bonusActions[]`; a line it takes is refused by `take_printed_action` and `take_printed_bonus_action`.',
+  mutates: true,
+  selfAnswers: ['creature', 'position'],
+  input: z.strictObject({
+    who: creatureId.describe('Which creature is taking the line.'),
+    line: printedLineName,
+    target: creatureId.optional().describe('The creature the line restores. The engine asks where it is missing.'),
+  }),
+  run: (context, args) =>
+    settle(
+      context,
+      takePrintedHeal(
+        context.campaign.state(),
+        who(args.who),
+        {
+          line: args.line,
+          ...(args.target === undefined ? {} : { target: who(args.target) }),
+          ...identity(context),
+        },
+        context.campaign.supply(),
+      ),
+      (value) => value.events,
+      (value) => ({
+        ...lineTaken(
+          context,
+          ['stated-action-taken', 'stated-bonus-action-taken'],
+          value.duplicate,
+          args.who,
+        ),
+        healed: value.healed,
+      }),
+      (value) => value.unverified,
+    ),
+});
+
 export const DM_ONLY_TOOLS: readonly ToolDefinition[] = [
+  HEAL_PRINTED_LINE,
   SETTLE_BLOCK_DEADLINES,
   SPLIT_PRINTED_LINE,
   TAKE_REST_FORM,

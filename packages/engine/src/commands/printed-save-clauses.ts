@@ -35,6 +35,7 @@ import {
   ABILITY_NAMES,
   type CharacterId,
   type ConditionName,
+  err,
   needsContext,
   ok,
   type Result,
@@ -332,16 +333,38 @@ function durationOf(
   capSeconds: number | undefined,
   source: CharacterId,
   target: CharacterId,
+  /**
+   * Whose bond `source` stands on — M-RISE, for SRD Fell Glare's "your next
+   * turn". `forcePrintedSaveOn` refuses a summoner's span on a creature with
+   * no bond before anything here runs, so absent is a span that names none.
+   */
+  summoner?: CharacterId,
 ): Duration | undefined {
   if (lasts?.kind === 'turn') {
     return {
       kind: lasts.moment === 'start' ? 'start-of-next-turn' : 'end-of-next-turn',
-      of: lasts.of === 'target' ? target : source,
+      of: lasts.of === 'target' ? target : lasts.of === 'summoner' ? (summoner ?? source) : source,
     };
   }
   if (lasts?.kind === 'seconds') return { kind: 'seconds', seconds: lasts.seconds };
   if (capSeconds !== undefined) return { kind: 'seconds', seconds: capSeconds };
   return undefined;
+}
+
+/**
+ * Whether a printed save anchors any span on the **summoner's** turn — SRD
+ * Otherworldly Steed's Fell Glare. (M-RISE)
+ *
+ * Walked rather than listed, because a span may sit on any clause the
+ * vocabulary nests — a condition, a deepening, a rule under a span — and a
+ * walk cannot miss one that is added later.
+ */
+function printsSummonerSpan(value: unknown): boolean {
+  if (Array.isArray(value)) return value.some(printsSummonerSpan);
+  if (value === null || typeof value !== 'object') return false;
+  const record = value as Record<string, unknown>;
+  if (record.kind === 'turn' && record.of === 'summoner') return true;
+  return Object.values(record).some(printsSummonerSpan);
 }
 
 /** Every clause that carries a lifetime of either kind — see {@link hangTo}. */
@@ -386,7 +409,8 @@ interface Hung {
  */
 function spanWords(span: PrintedSpan): string {
   if (span.kind === 'turn') {
-    return `the ${span.moment} of ${span.of === 'target' ? 'its own' : "the source's"} next turn`;
+    const whose = span.of === 'target' ? 'its own' : span.of === 'summoner' ? "the summoner's" : "the source's";
+    return `the ${span.moment} of ${whose} next turn`;
   }
   const plural = (n: number, word: string): string => `${n} ${word}${n === 1 ? '' : 's'}`;
   if (span.seconds % 3600 === 0) return plural(span.seconds / 3600, 'hour');
@@ -582,6 +606,10 @@ export function applyPrintedClauses(
   let revealed: RevealedFacts | null = null;
   const died: CharacterId[] = [];
   const lineSource = printedLineSource(source, line);
+  // Whose turn "your next turn" is, for a line whose span names the summoner —
+  // SRD Fell Glare (M-RISE). `forcePrintedSaveOn` has already refused one with
+  // no bond to read.
+  const summoner = state.creatures[source]?.summonedBy?.by;
   /**
    * The instance id each condition **this line** imposed actually landed
    * under, so a clause naming one as its lifetime can be sourced to it.
@@ -752,7 +780,7 @@ export function applyPrintedClauses(
             clause.condition,
             conditionSource,
             [],
-            durationOf(clause.lasts, clause.repeats?.capSeconds, source, target),
+            durationOf(clause.lasts, clause.repeats?.capSeconds, source, target, summoner),
             repeat,
             {},
             grapple
@@ -1008,7 +1036,7 @@ export function applyPrintedClauses(
         // A signed grant on the target for the span, exactly as Ray of Frost's
         // ten feet are hung and released.
         const grantSource = `${lineSource}:speed`;
-        const duration = durationOf(clause.lasts, undefined, source, target);
+        const duration = durationOf(clause.lasts, undefined, source, target, summoner);
         if (duration === undefined) break;
         const timer = schedule(current, { kind: 'grants', on: target, source: grantSource }, duration);
         if (!timer.ok) return timer;
@@ -1152,7 +1180,7 @@ export function applyPrintedClauses(
           break;
         }
         if (hung.deadline !== undefined && !scheduled.has(hung.source)) {
-          const duration = durationOf(hung.deadline, undefined, source, target);
+          const duration = durationOf(hung.deadline, undefined, source, target, summoner);
           if (duration === undefined) break;
           const timer = schedule(
             current,
@@ -1718,6 +1746,19 @@ export function forcePrintedSaveOn(
   if (source === undefined) return unknownCreature(by, 'has no record here yet; add it first');
   const victim = state.creatures[target];
   if (victim === undefined) return unknownCreature(target);
+
+  // **A span on the summoner's turn needs a summoner** — M-RISE. SRD
+  // Otherworldly Steed's Fell Glare lasts "until the end of **your** next
+  // turn", and "you" is whoever's bond the steed stands on. A creature
+  // nobody's spell keeps has no such turn, so the line is refused rather than
+  // anchored to somebody the book did not name. Before the roll, and a
+  // refusal here unwinds the whole command, so it leaves no footprint.
+  if (printsSummonerSpan(printed) && source.summonedBy === null) {
+    return err(
+      'no_summoner',
+      `${line} lasts until a turn of the creature that summoned ${by}, and nobody's spell keeps ${by}`,
+    );
+  }
 
   // **A creature that already has an infernal wound is not asked to save.**
   // SRD Bearded Devil: "If the target is a creature **and doesn't already have

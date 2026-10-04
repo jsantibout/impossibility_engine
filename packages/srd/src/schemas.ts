@@ -219,6 +219,15 @@ export const MonsterRechargeSchema = z.union([
    * legendary line prints the sentence.
    */
   z.object({ kind: z.literal('turn') }),
+  /**
+   * SRD Otherworldly Steed: "Fell Glare (Fiend Only; **Recharges after a Long
+   * Rest**)" — M-RISE.
+   *
+   * The `rest` arm with the Short Rest taken out of it: the line comes back
+   * when its holder finishes a **Long** Rest and at no other moment, so a Short
+   * Rest leaves it spent. Read off the name, where the book prints it.
+   */
+  z.object({ kind: z.literal('long-rest') }),
 ]);
 export type MonsterRecharge = z.infer<typeof MonsterRechargeSchema>;
 
@@ -491,7 +500,15 @@ export const PrintedSpanSchema = z.discriminatedUnion('kind', [
   z.object({
     kind: z.literal('turn'),
     moment: z.enum(['start', 'end']),
-    of: z.enum(['target', 'source']),
+    /**
+     * Whose turn: the target's ("its next turn"), the source's ("the mephit's
+     * next turn"), or — M-RISE — the **summoner's**: SRD Otherworldly Steed's
+     * Fell Glare lasts "until the end of **your** next turn", and the "you" of
+     * that block is the caster who raised the steed. The executor resolves it
+     * through the source's `summonedBy` bond and refuses the line where there
+     * is no summoner to anchor it to.
+     */
+    of: z.enum(['target', 'source', 'summoner']),
   }),
   PrintedSecondsSchema,
 ]);
@@ -2126,9 +2143,63 @@ export const MonsterTeleportSchema = z.object({
    * states, and writing it down is what keeps a homebrew line that *omits* the
    * clause from being read as though it said it.
    */
-  mustSee: z.literal(true),
+  mustSee: z.literal(true).optional(),
 });
 export type MonsterTeleport = z.infer<typeof MonsterTeleportSchema>;
+
+/**
+ * One line that restores Hit Points to a creature near its holder — M-RISE.
+ *
+ * SRD Otherworldly Steed, Healing Touch: "One creature within 5 feet of the
+ * steed regains a number of Hit Points equal to 2d8 plus the spell's level."
+ * The dice are the line's; the flat is **the summoner's**, the level of the
+ * casting that raised the steed, marked as the Otherworldly Slam's damage flat
+ * is (`MonsterDamageSchema.flatFromSlotLevel`) and written over by the casting
+ * before the block is adapted.
+ *
+ * **One creature, the line's whole catch**, so there is no count: the door
+ * takes one target and measures it.
+ */
+export const MonsterHealSchema = z.object({
+  /** "**2d8**". */
+  dice: z.string().regex(/^\d+d\d+$/),
+  /** What the dice add to, after the casting's numbers are written over it. */
+  flat: z.number().int(),
+  /** "plus **the spell's level**" — see {@link MonsterDamageSchema}'s mark of the same name. */
+  flatFromSlotLevel: z.literal(true).optional(),
+  /** "One creature **within 5 feet** of the steed". */
+  within: z.number().int().min(5),
+});
+export type MonsterHeal = z.infer<typeof MonsterHealSchema>;
+
+/**
+ * One line that raises a creature out of a corpse and keeps it under its
+ * holder's control — M-RISE.
+ *
+ * SRD Wraith, Create Specter: "The wraith targets a Humanoid corpse within 10
+ * feet of itself that has been dead for no longer than 1 minute. The target's
+ * spirit rises as a **Specter** in the space of its corpse or in the nearest
+ * unoccupied space. The specter is under the wraith's control. The wraith can
+ * have no more than seven specters under its control at a time."
+ *
+ * Every clause is a fact a rule reads: the corpse's type and how long it has
+ * been dead (`Vitals.diedAt`), how far it lies, the block that arrives, and the
+ * count of those the holder already controls. Where the specter stands is the
+ * placement's own sweep — the corpse's space, or the nearest unoccupied one.
+ */
+export const MonsterRaiseSchema = z.object({
+  /** "rises as a **Specter**" — the block, by its id in content. */
+  block: z.string().regex(/^[a-z0-9-]+$/),
+  /** "within **10** feet of itself". */
+  within: z.number().int().min(5),
+  /** "a **Humanoid** corpse" — the book's capitalised word. */
+  corpseType: z.string().regex(/^[A-Z][a-z]+$/),
+  /** "dead for no longer than **1 minute**", in seconds. */
+  deadForAtMostSeconds: z.number().int().min(1),
+  /** "no more than **seven** specters under its control at a time". */
+  controlsAtMost: z.number().int().min(1),
+});
+export type MonsterRaise = z.infer<typeof MonsterRaiseSchema>;
 
 /**
  * One shape a creature's own line offers it.
@@ -3175,6 +3246,44 @@ const MonsterTraitMechanicSchema = z.discriminatedUnion('kind', [
     /** "or is subjected to **Lightning or Slashing** damage". */
     damageTypes: z.array(z.string().min(1)).min(1),
   }),
+  z.object({
+    /**
+     * SRD Troll, Loathsome Limbs (4/Day): "If the troll ends any turn Bloodied
+     * and took 15+ Slashing damage during that turn, one of the troll's limbs
+     * is severed, falls into the troll's space, and becomes a **Troll Limb**.
+     * The limb acts immediately after the troll's turn. The troll has 1
+     * Exhaustion level for each missing limb, and it grows replacement limbs
+     * the next time it regains Hit Points." — M-RISE.
+     *
+     * A moment at the end of any turn, a block that arrives, a seat after its
+     * holder, a level of Exhaustion per limb and a regrowth at the next heal:
+     * every clause is the engine's, and the numbers are the ones carried.
+     */
+    kind: z.literal('severs-a-limb'),
+    /** "took 15+ **Slashing** damage". */
+    damageType: z.string().min(1),
+    /** "took **15**+". */
+    atLeast: z.number().int().min(1),
+    /** "becomes a **Troll Limb**" — the block, by its id in content. */
+    block: z.string().regex(/^[a-z0-9-]+$/),
+    /** The heading's "(4/Day)", carried here because the trait's reader spends it. */
+    perDay: z.number().int().min(1).optional(),
+  }),
+  z.object({
+    /**
+     * SRD Otherworldly Steed, Life Bond: "When you regain Hit Points from a
+     * level 1+ spell, the steed regains the same number of Hit Points if
+     * you're within 5 feet of it." — M-RISE.
+     *
+     * "You" is the summoner (`SummonBond.by`); the moment is a spell's healing
+     * landing on them, read where a spell's healing lands.
+     */
+    kind: z.literal('regains-what-its-summoner-regains-from-a-spell'),
+    /** "from a level **1**+ spell". */
+    minimumSpellLevel: z.number().int().min(0),
+    /** "if you're within **5** feet of it". */
+    within: z.number().int().min(5),
+  }),
 
   // ---------------------------------------------------------------------
   // What follows is the **third answer**: sentences the parser reads so that
@@ -3867,6 +3976,31 @@ export const featureSchema = z.object({
    * off the name for {@link onlyInForms}' reason. (W7-B11)
    */
   requiresObject: z.string().min(1).optional(),
+  /**
+   * The creature types this line may be used as, where its **heading** says so
+   * — M-RISE.
+   *
+   * SRD Otherworldly Steed: "Fell Glare (**Fiend Only**; Recharges after a Long
+   * Rest)", "Fey Step (**Fey Only**; …)", "Healing Touch (**Celestial Only**;
+   * …)". The type is the one SRD Find Steed has its caster choose — "Celestial,
+   * Fey, or Fiend (Your Choice)" — and the casting pins it over the block's at
+   * the arrival (`creature-added.creatureType`), so the gate is read against
+   * the creature as it stands rather than against the block. {@link onlyInForms}'
+   * sibling, and read off the name for its reason. The book's capitalised word.
+   */
+  onlyAsType: z.array(z.string().regex(/^[A-Z][a-z]+$/)).min(1).optional(),
+  /**
+   * The Hit Points this line restores to a creature near it — see
+   * {@link MonsterHealSchema}. SRD Otherworldly Steed's Healing Touch, printed
+   * under Bonus Actions. (M-RISE)
+   */
+  heals: MonsterHealSchema.optional(),
+  /**
+   * The creature this line raises out of a corpse, and how many its creature may
+   * control — see {@link MonsterRaiseSchema}. SRD Wraith's Create Specter.
+   * (M-RISE)
+   */
+  raises: MonsterRaiseSchema.optional(),
   /**
    * The flat addend this Reaction line puts on somebody's D20 Test — see
    * {@link MonsterRollAddendSchema}.

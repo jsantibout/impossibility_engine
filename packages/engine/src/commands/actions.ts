@@ -53,7 +53,7 @@ import {
 } from '../combat.js';
 import { type Bonus, type ModeSource } from '../bonuses.js';
 import { type StatedAction, type StatedBonusAction, type StatedTraitCast } from '../character.js';
-import { formNamed, wrongFormFor } from '../forms.js';
+import { formNamed, wrongFormFor, wrongTypeFor } from '../forms.js';
 import { grapplesOn } from './unarmed.js';
 import { pullToward } from './spell-effect-movement.js';
 import type { CreatureSize, PrintedSaveEffect } from '@ie/srd';
@@ -723,6 +723,12 @@ function ownDoorOf(
   if (line.shiftsPlane !== undefined) {
     return 'the door that steps onto another plane (takePrintedPlaneShift)';
   }
+  // M-RISE: SRD Otherworldly Steed's Healing Touch and SRD Wraith's Create
+  // Specter.
+  if (line.heals !== undefined) return 'the door that heals by a printed line (takePrintedHeal)';
+  if ('raises' in line && line.raises !== undefined) {
+    return 'the door that raises a creature from a corpse (raisePrintedLine)';
+  }
   return null;
 }
 
@@ -1372,6 +1378,12 @@ export function forcePrintedSave(
       const line: StatedAction | StatedBonusAction = found.value.line;
       const action = found.value.action ? line : null;
       const printed = found.value.save;
+
+      // **The creature type the heading prints the line for** — M-RISE: SRD
+      // Otherworldly Steed's "Fell Glare (Fiend Only; …)", read against the
+      // type the casting pinned. Before anything is spent.
+      const wrongType = wrongTypeFor(creature, line);
+      if (wrongType !== null) return err('wrong_form', wrongType);
 
       // **A line that moves first is not a save over a head count** — W7-B9.
       // SRD Bulette's Deadly Leap and SRD Centaur Trooper's Trampling Charge
@@ -2410,6 +2422,11 @@ export function takePrintedTeleport(
         );
       }
 
+      // **The creature type the heading prints the line for** — M-RISE: SRD
+      // Otherworldly Steed's "Fey Step (Fey Only; …)". Before anything else.
+      const wrongType = wrongTypeFor(creature, line);
+      if (wrongType !== null) return err('wrong_form', wrongType);
+
       const printed = line.teleports;
       // The other teleport a line prints — W7-B9: SRD Dryad's Tree Stride,
       // whose two ends are trees rather than a distance from the creature.
@@ -2478,7 +2495,7 @@ export function takePrintedTeleport(
           'undeclared_destination',
           stride !== undefined
             ? `${line.name} sends ${id} "to an unoccupied space within ${stride.toWithin} feet of a second … tree", and nobody has said which space`
-            : `${line.name} sends ${id} "up to ${printed!.feet} feet to an unoccupied space it can see", and nobody has said which space`,
+            : `${line.name} sends ${id} up to ${printed!.feet} feet to an unoccupied space${printed!.mustSee === true ? ' it can see' : ''}, and nobody has said which space`,
           [
             {
               kind: 'position',

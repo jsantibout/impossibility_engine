@@ -20,6 +20,8 @@ import {
   type MonsterSpeech,
   MonsterSwallowSchema,
   MonsterTeleportSchema,
+  MonsterHealSchema,
+  MonsterRaiseSchema,
   MonsterTreeStrideSchema,
   slugify,
   type Feature,
@@ -49,6 +51,8 @@ import {
   type MonsterSpell,
   type MonsterSpellcasting,
   type MonsterTeleport,
+  type MonsterHeal,
+  type MonsterRaise,
   type MonsterTrait,
   type ParseOutput,
   type ParseProblem,
@@ -1321,8 +1325,31 @@ const SPLIT = new RegExp(
     `Hit Points are divided evenly between the new ${SUBJECT} \\(round down\\)\\.$`,
 );
 
+/**
+ * SRD Troll, Loathsome Limbs — M-RISE. The whole trait, anchored end to end and
+ * back-referenced so the clauses are about one creature: the moment ("ends any
+ * turn Bloodied and took 15+ Slashing damage during that turn"), the block that
+ * arrives, the seat after its holder, the Exhaustion per missing limb and the
+ * regrowth at the next heal.
+ */
+const SEVERS_A_LIMB = new RegExp(
+  `^If the ([a-z][a-z' -]*) ends any turn Bloodied and took (\\d+)\\+ (\\w+) damage during that turn, ` +
+    `one of the \\1['’]s limbs is severed, falls into the \\1['’]s space, and becomes an? \\*\\*([A-Z][A-Za-z' -]+)\\*\\*\\. ` +
+    `The limb acts immediately after the \\1['’]s turn\\. ` +
+    `The \\1 has 1 Exhaustion level for each missing limb, and it grows replacement limbs the next time it regains Hit Points\\.$`,
+);
+
+/**
+ * SRD Otherworldly Steed, Life Bond — M-RISE: "When you regain Hit Points from
+ * a level 1+ spell, the steed regains the same number of Hit Points if you're
+ * within 5 feet of it." Anchored end to end; "you" is the summoner.
+ */
+const LIFE_BOND = new RegExp(
+  `^When you regain Hit Points from a level (\\d+)\\+ spell, the ${SUBJECT} regains the same number of Hit Points if you['’]re within (\\d+) feet of it\\.$`,
+);
+
 /** The types a sentence lists with "or" and commas, lower-cased, or null if any is not a type. */
-const damageTypesOf = (printed: string): string[] | null => {
+const damageTypesOf =(printed: string): string[] | null => {
   const types = printed.split(/, or |, | or /).map((word) => damageTypeOf(word));
   return types.every((type): type is string => type !== null) ? types : null;
 };
@@ -2032,6 +2059,30 @@ export function parseTraitShape(text: string): MonsterTrait | null {
     }
   }
 
+  // — M-RISE: a limb a slashed troll loses, and a steed's share of its rider's
+  // healing ————————————————————————————————————————————————————————————————
+  const severs = SEVERS_A_LIMB.exec(oneLine(text));
+  if (severs !== null) {
+    const damageType = damageTypeOf(severs[3]!);
+    if (damageType !== null) {
+      return {
+        kind: 'severs-a-limb',
+        damageType,
+        atLeast: Number(severs[2]),
+        block: slugify(severs[4]!),
+      };
+    }
+  }
+
+  const lifeBond = LIFE_BOND.exec(oneLine(text));
+  if (lifeBond !== null) {
+    return {
+      kind: 'regains-what-its-summoner-regains-from-a-spell',
+      minimumSpellLevel: Number(lifeBond[1]),
+      within: Number(lifeBond[2]),
+    };
+  }
+
   // Last, because every sentence above states a mechanic and these state
   // none: a handover that matched first would be a rule read as fiction.
   for (const [pattern, kind] of HANDOVERS) {
@@ -2567,9 +2618,30 @@ const TELEPORT_LINE = new RegExp(
   `^The ${SUBJECT} teleports up to (\\d+) feet to an unoccupied space it can see\\.$`,
 );
 
+/**
+ * SRD Otherworldly Steed, Fey Step: "The steed teleports, along with its rider,
+ * to an unoccupied space of your choice up to 60 feet away from itself." —
+ * M-RISE.
+ *
+ * The same teleport with the sight clause taken out — the space is "of your
+ * choice", the summoner's, and nothing says either has to see it. The rider is
+ * the engine's own rule already: a teleported mount carries whoever sits on it
+ * (`commands/teleport.ts`), so the clause is executed by the geometry and
+ * needs no field of its own.
+ */
+const RIDER_TELEPORT_LINE = new RegExp(
+  `^The ${SUBJECT} teleports, along with its rider, to an unoccupied space of your choice up to (\\d+) feet away from itself\\.$`,
+);
+
 /** Where this line teleports its creature, or null for every other line. */
 export function parseTeleportLine(text: string): MonsterTeleport | null {
-  const matched = TELEPORT_LINE.exec(text.replace(/\s+/g, ' ').trim());
+  const flat = text.replace(/\s+/g, ' ').trim();
+  const ridden = RIDER_TELEPORT_LINE.exec(flat);
+  if (ridden !== null) {
+    const checked = MonsterTeleportSchema.safeParse({ feet: Number(ridden[1]!) });
+    return checked.success ? checked.data : null;
+  }
+  const matched = TELEPORT_LINE.exec(flat);
   if (matched === null) return null;
   const checked = MonsterTeleportSchema.safeParse({
     feet: Number(matched[1]!),
@@ -2620,6 +2692,77 @@ export function parsePullLine(text: string): MonsterPull | null {
     of: 'restrained-by-object',
     within: Number(webbed[1]!),
     heldBy: webbed[2]!,
+  });
+  return checked.success ? checked.data : null;
+}
+
+/**
+ * SRD Otherworldly Steed, Healing Touch: "One creature within 5 feet of the
+ * steed regains a number of Hit Points equal to 2d8 plus the spell's level." —
+ * M-RISE.
+ *
+ * Anchored end to end. "the spell's level" is the summoner's number, read into
+ * the mark the Otherworldly Slam's damage flat already carries
+ * (`flatFromSlotLevel`) beside a zero that means nothing until the casting
+ * writes the level over it; a line printing a plain number takes the number.
+ */
+const HEAL_LINE = new RegExp(
+  `^One creature within (\\d+) feet of the ${SUBJECT} regains a number of Hit Points equal to (\\d+d\\d+)(?: plus (\\d+|the spell${APOSTROPHE}s level))?\\.$`,
+);
+
+/** What this line restores to a creature near its holder, or null for every other line. */
+export function parseHealLine(text: string): MonsterHeal | null {
+  const matched = HEAL_LINE.exec(text.replace(/\s+/g, ' ').trim());
+  if (matched === null) return null;
+  const plus = matched[3];
+  const fromLevel = plus !== undefined && !/^\d+$/.test(plus);
+  const checked = MonsterHealSchema.safeParse({
+    dice: matched[2]!,
+    flat: plus === undefined || fromLevel ? 0 : Number(plus),
+    ...(fromLevel ? { flatFromSlotLevel: true } : {}),
+    within: Number(matched[1]!),
+  });
+  return checked.success ? checked.data : null;
+}
+
+/**
+ * SRD Wraith, Create Specter — M-RISE. See `MonsterRaiseSchema`; anchored end
+ * to end, so a sentence that drops the control clause or the count is refused
+ * whole rather than read down to a raise with no ceiling.
+ */
+const RAISE_LINE = new RegExp(
+  `^The ${SUBJECT} targets an? ([A-Z][a-z]+) corpse within (\\d+) feet of itself that has been dead for no longer than (\\d+) (minute|hour)s?\\. ` +
+    `The target${APOSTROPHE}s spirit rises as an? \\*\\*([A-Z][A-Za-z' -]+)\\*\\* in the space of its corpse or in the nearest unoccupied space\\. ` +
+    `The ${SUBJECT} is under the ${SUBJECT}${APOSTROPHE}s control\\. ` +
+    `The ${SUBJECT} can have no more than ([a-z]+) ${SUBJECT} under its control at a time\\.$`,
+);
+
+/** The count words a control ceiling prints — "no more than **seven**". */
+const CONTROL_COUNT: Readonly<Record<string, number>> = {
+  one: 1,
+  two: 2,
+  three: 3,
+  four: 4,
+  five: 5,
+  six: 6,
+  seven: 7,
+  eight: 8,
+  nine: 9,
+  ten: 10,
+};
+
+/** The creature this line raises out of a corpse, or null for every other line. */
+export function parseRaiseLine(text: string): MonsterRaise | null {
+  const matched = RAISE_LINE.exec(text.replace(/\s+/g, ' ').trim());
+  if (matched === null) return null;
+  const count = CONTROL_COUNT[matched[6]!];
+  if (count === undefined) return null;
+  const checked = MonsterRaiseSchema.safeParse({
+    block: slugify(matched[5]!),
+    within: Number(matched[2]!),
+    corpseType: matched[1]!,
+    deadForAtMostSeconds: Number(matched[3]!) * (matched[4] === 'hour' ? 3600 : 60),
+    controlsAtMost: count,
   });
   return checked.success ? checked.data : null;
 }
@@ -3060,6 +3203,43 @@ export function parseFormQualification(name: string): readonly string[] | null {
   const matched = /\(([A-Za-z]+(?: or [A-Za-z]+)*) Form Only\)\s*$/.exec(name);
   if (matched === null) return null;
   return matched[1]!.split(' or ').map((word) => word.toLowerCase());
+}
+
+/**
+ * The fourteen creature types SRD 5.2.1 prints, capitalised as a stat block's
+ * type line writes them — the words a heading's type clause may name.
+ */
+const CREATURE_TYPE_WORDS = new Set([
+  'Aberration',
+  'Beast',
+  'Celestial',
+  'Construct',
+  'Dragon',
+  'Elemental',
+  'Fey',
+  'Fiend',
+  'Giant',
+  'Humanoid',
+  'Monstrosity',
+  'Ooze',
+  'Plant',
+  'Undead',
+]);
+
+/**
+ * SRD Otherworldly Steed: "Fell Glare (**Fiend Only**; Recharges after a Long
+ * Rest)". The creature types a heading says its line may be used as, or null
+ * where it says nothing — M-RISE.
+ *
+ * {@link parseFormQualification}'s sibling, read off the name for its reason.
+ * Only a creature type is read, so "(Wolf or Hybrid Form Only)" is the form
+ * clause's and never this one's.
+ */
+export function parseTypeQualification(name: string): readonly string[] | null {
+  const matched = /\(([A-Z][a-z]+(?: or [A-Z][a-z]+)*) Only(?:;[^)]*)?\)\s*$/.exec(name);
+  if (matched === null) return null;
+  const types = matched[1]!.split(' or ');
+  return types.every((type) => CREATURE_TYPE_WORDS.has(type)) ? types : null;
 }
 
 /**
@@ -3650,6 +3830,10 @@ export function parseMultiattack(
  * reading a string.
  */
 export function parseRecharge(name: string): MonsterRecharge | null {
+  // SRD Otherworldly Steed: "Fell Glare (Fiend Only; **Recharges after a Long
+  // Rest**)" — the Long Rest alone, printed after a type clause rather than
+  // opening the parenthesis. (M-RISE)
+  if (/(?:\(|; )Recharges after a Long Rest\)\s*$/.test(name)) return { kind: 'long-rest' };
   const printed = /\(Recharge([^)]*)\)/i.exec(name);
   if (printed === null) return null;
 
@@ -3815,7 +3999,15 @@ function parseFeatures(
     // line *says* is not a property of the heading it is printed under.
     if (text !== '') {
       const attack = parseAttackLine(text);
-      const trait = parseTraitShape(text);
+      const shape = parseTraitShape(text);
+      // **A trait that spends uses carries the heading's count**, because its
+      // reader is a moment rather than a door and has no heading in hand: SRD
+      // Troll's "Loathsome Limbs (4/Day)". (M-RISE)
+      const headingCount = parsePerDay(current.name);
+      const trait =
+        shape?.kind === 'severs-a-limb' && headingCount !== null
+          ? { ...shape, perDay: headingCount }
+          : shape;
       // **Only where the line prints no attack roll.** A save printed after a
       // hit is that attack's rider, and the swing's own reader is the one
       // reader of it; a second here would be two answers to one clause.
@@ -3863,6 +4055,13 @@ function parseFeatures(
       // Night Hag's "Requires Soul Bag", read off the name for the reason the
       // form clause above it is. (W7-B11)
       const requiresObject = parseObjectRequirement(current.name);
+      // And the creature type a heading says its line is printed for — SRD
+      // Otherworldly Steed's "(Fiend Only; …)", read off the name for the
+      // reason the form clause is. (M-RISE)
+      const onlyAsType = parseTypeQualification(current.name);
+      // And the two lines that restore and raise — M-RISE.
+      const heals = parseHealLine(text);
+      const raises = parseRaiseLine(text);
       // And the sixth: a line that drags toward itself what it is already
       // holding, which is `pullToward` at a heading's price.
       const pulls = parsePullLine(text);
@@ -3907,6 +4106,9 @@ function parseFeatures(
         ...(forms === null ? {} : { forms }),
         ...(onlyInForms === null ? {} : { onlyInForms: [...onlyInForms] }),
         ...(requiresObject === null ? {} : { requiresObject }),
+        ...(onlyAsType === null ? {} : { onlyAsType: [...onlyAsType] }),
+        ...(heals === null ? {} : { heals }),
+        ...(raises === null ? {} : { raises }),
         ...(pulls === null ? {} : { pulls }),
         ...(swallows === null ? {} : { swallows }),
         ...(shiftsPlane === null ? {} : { shiftsPlane }),

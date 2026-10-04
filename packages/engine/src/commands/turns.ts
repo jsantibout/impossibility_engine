@@ -103,6 +103,7 @@ import {
 } from './rolls.js';
 import { resolveEffects } from './spell-resolution.js';
 import { settleDeferredRiders } from './spell-effect-riders.js';
+import { sharesOfSpellHealing } from './spell-effect-hit-points.js';
 import { type SpellTargetOutcome } from './targeting.js';
 import { grapplerOf, grapplesOn, attachmentsOf } from './unarmed.js';
 import { attachedTo, type CommandStamp } from '../state.js';
@@ -745,8 +746,23 @@ function settleTurnPayouts(
           healCreature(current, target, rolled, {}, payout.source)
         : grantTemporaryHpTo(current, target, rolled);
     if (!paid.ok) return paid;
+    const hpBefore = current.creatures[target]?.vitals.hp ?? 0;
     events.push(...paid.value);
     current = paid.value.reduce(applyEvent, current);
+
+    // SRD Otherworldly Steed's Life Bond, on the other road a spell's healing
+    // lands by: a running casting's payout is Hit Points regained from that
+    // spell, at the level it was cast. A printed hold's payout is no spell.
+    // (M-RISE)
+    const record = payout.payout === 'healing' ? castingIdOf(payout.source) : null;
+    const castAt = record === null ? undefined : current.ongoing[record]?.level;
+    if (castAt !== undefined) {
+      const regained = (current.creatures[target]?.vitals.hp ?? hpBefore) - hpBefore;
+      const shared = sharesOfSpellHealing(current, target, regained, castAt, unverified);
+      if (!shared.ok) return shared;
+      events.push(...shared.value);
+      current = shared.value.reduce(applyEvent, current);
+    }
   }
 
   // A log that does not say how far the generator moved is a log that rewinds
