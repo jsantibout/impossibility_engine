@@ -475,7 +475,7 @@ export function answerTheBlow(
  * - **dealt damage** — a blow the holder's defences turned wholly aside (a
  *   Slashing blow on a pudding, which is immune to it) wears nothing;
  * - **contact** — a weapon swung or thrown, never the bow that loosed an arrow
- *   (the arrow is the ammunition sentence, which is owed);
+ *   (the arrow is the ammunition sentence, {@link eatTheAmmunition}'s);
  * - **the copy in hand** — the equipped record for the weapon's id;
  * - **nonmagical** — not a magic item by its record (`isMagicalItem`, or grants
  *   the equip event pinned), and no running casting whose spell says the

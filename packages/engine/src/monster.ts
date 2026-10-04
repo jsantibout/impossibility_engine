@@ -1671,9 +1671,11 @@ export interface PrintedBoundaryDamage {
   readonly unlessIncapacitated: boolean;
   /**
    * SRD Fire Elemental's "Creatures … in the Emanation **start burning**" —
-   * W7-B12. The glossary's Burning, lit on every creature the line catches;
-   * the flammable objects the same sentence names are the table's, and the
-   * boundary says so where it lights the creatures.
+   * W7-B12. The glossary's Burning, lit on every creature the line catches,
+   * and — M-MATTER — on every declared object it catches whose substance takes
+   * light (`takesLight`). A creature's own gear burns with the creature: an
+   * item worn or carried holds no Hit Points and takes no turn, so the
+   * creature's fire is the whole of what the engine can light on it.
    */
   readonly ignites: boolean;
 }
@@ -3707,9 +3709,9 @@ export interface PrintedMaximumRider {
 export interface PrintedHazardRider {
   readonly kind: 'hazard';
   readonly hazard: HazardName;
-  /** "If the target is a creature" — absent on SRD Hurl Flame, which names none. */
+  /** "If the target is a creature" — false on SRD Hurl Flame, which names none. */
   readonly creatures: boolean;
-  /** "… a flammable object" — absent on a line that names only a creature. */
+  /** "… a flammable object" — false on a line that names only a creature. */
   readonly flammableObjects: boolean;
 }
 
