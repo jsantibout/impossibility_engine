@@ -31,6 +31,7 @@ import type {
   MonsterMultiattack,
   MonsterDash,
   MonsterLightToggle,
+  MonsterConcentration,
   MonsterRampage,
   MonsterJump,
   MonsterPlaneShift,
@@ -155,6 +156,27 @@ export interface StatedAttack extends MonsterAttack {
 }
 
 /**
+ * An effect a stat block's line keeps up under its creature's Concentration —
+ * the parser's {@link MonsterConcentration}, with the key it runs under.
+ *
+ * SRD Will-o'-Wisp's Vanish and SRD Darkmantle's Darkness Aura: "until the
+ * wisp's Concentration ends on this effect", "while the darkmantle maintains
+ * Concentration on it". **Concentration on something that is not a casting**,
+ * held as a running feature: the spender names `feature` on
+ * `CreatureState.concentration` and the fold puts it in `activeFeatures`, and
+ * every road that ends one ends the other (`settleConcentratedFeatures`). What
+ * the effect *does* while it runs is read off this record by the readers that
+ * need it — the darkness `carriedLight` lays, the Illumination it withholds —
+ * or hung by whichever door takes the line under its `printedLineSource`: the
+ * holder's own conditions here, a save's failure conditions on its targets.
+ * `beginPrintedConcentration` (commands/actions.ts) is the door in. (M-REFLEX)
+ */
+export interface StatedConcentration extends MonsterConcentration {
+  /** The key the effect runs under, minted by the adapter as every printed feature's is. */
+  readonly feature: string;
+}
+
+/**
  * One line a stat block prints under **Bonus Actions**, as printed.
  *
  * The heading and the sentence, and nothing derived from either. A caller
@@ -255,6 +277,12 @@ export interface StatedBonusAction {
    * in the book under this heading**: the Magmin's Ignited Illumination.
    */
   readonly togglesLight?: MonsterLightToggle;
+  /**
+   * The effect this line keeps up under Concentration — see
+   * {@link StatedConcentration}. SRD Will-o'-Wisp's Vanish is printed under
+   * this heading. (M-REFLEX)
+   */
+  readonly concentrates?: StatedConcentration;
   /**
    * What must hold of this creature for the line to be taken — see
    * {@link StatedAction.requires}, the same field. **No SRD Bonus Action prints
@@ -527,6 +555,12 @@ export interface StatedAction {
    * (W7-B11)
    */
   readonly togglesLight?: MonsterLightToggle;
+  /**
+   * The effect this line keeps up under Concentration — see
+   * {@link StatedConcentration}. SRD Darkmantle's Darkness Aura is printed
+   * under this heading. (M-REFLEX)
+   */
+  readonly concentrates?: StatedConcentration;
   /**
    * The step between two trees this line makes — see
    * `MonsterTreeStrideSchema`. SRD Dryad's Tree Stride; `takePrintedTeleport`
@@ -1898,6 +1932,51 @@ export function printedDifficultGround(sheet: CharacterSheet): number | null {
     if (trait.kind === 'emanation-is-difficult-terrain') return trait.feet;
   }
   return null;
+}
+
+/**
+ * The lines a creature's stat block prints that keep an effect up under
+ * Concentration, from both sections a creature takes a line from. (M-REFLEX)
+ */
+export function concentratedLines(
+  sheet: CharacterSheet,
+): readonly { readonly name: string; readonly concentrates: StatedConcentration }[] {
+  const found: { readonly name: string; readonly concentrates: StatedConcentration }[] = [];
+  for (const line of [...(sheet.stated?.unreadActions ?? []), ...(sheet.stated?.bonusActions ?? [])]) {
+    if (line.concentrates !== undefined) found.push({ name: line.name, concentrates: line.concentrates });
+  }
+  return found;
+}
+
+/**
+ * SRD Darkmantle's Darkness Aura, while it runs: the Emanations of darkness a
+ * creature is keeping up, by the line's name and radius. (M-REFLEX)
+ *
+ * Here beside {@link printedLight} for its reason: `lightAt` spends it, and
+ * that module may reach this file and no further.
+ */
+export function concentratedDarkness(
+  sheet: CharacterSheet,
+  activeFeatures: readonly string[],
+): readonly { readonly name: string; readonly radius: number }[] {
+  return concentratedLines(sheet).flatMap(({ name, concentrates }) =>
+    concentrates.darkness !== undefined && activeFeatures.includes(concentrates.feature)
+      ? [{ name, radius: concentrates.darkness.emanationFeet }]
+      : [],
+  );
+}
+
+/**
+ * SRD Will-o'-Wisp's Vanish: "The wisp **and its light** have the Invisible
+ * condition". Whether a running line has taken the creature's own
+ * Illumination with it — a light nobody can see lights nothing, so
+ * `carriedLight` sheds none while it runs. (M-REFLEX)
+ */
+export function ownLightHidden(sheet: CharacterSheet, activeFeatures: readonly string[]): boolean {
+  return concentratedLines(sheet).some(
+    ({ concentrates }) =>
+      concentrates.withItsLight === true && activeFeatures.includes(concentrates.feature),
+  );
 }
 
 /** One light a creature's own features are shedding, named so a report can say which. */

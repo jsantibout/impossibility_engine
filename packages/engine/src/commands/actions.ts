@@ -52,7 +52,12 @@ import {
   type TurnBudget,
 } from '../combat.js';
 import { type Bonus, type ModeSource } from '../bonuses.js';
-import { type StatedAction, type StatedBonusAction, type StatedTraitCast } from '../character.js';
+import {
+  type StatedAction,
+  type StatedBonusAction,
+  type StatedConcentration,
+  type StatedTraitCast,
+} from '../character.js';
 import { formNamed, wrongFormFor } from '../forms.js';
 import { grapplesOn } from './unarmed.js';
 import { pullToward } from './spell-effect-movement.js';
@@ -500,6 +505,67 @@ export function takeDisengage(
  * told what was applied and what was not. A line that is neither returns
  * nothing and the caller's blanket hand-over stands.
  */
+/**
+ * **Concentration on a printed line** — the one door into it, M-REFLEX.
+ *
+ * The events that put a stat block's line under its creature's Concentration:
+ * the Concentration already held ends ("another-concentration-effect", the
+ * reading `resolveCast` takes of a spell), the new one is started naming the
+ * line's feature key — the fold switches the feature on with it, in one event
+ * — and the line's cap (`upToMinutes`) is hung as the feature's deadline.
+ *
+ * **It hangs nothing else**, and that is what makes it the door for every
+ * shape a line comes in: a self-effect (SRD Will-o'-Wisp's Vanish), an area
+ * derived off the running feature (SRD Darkmantle's Darkness Aura), or a save
+ * whose failure lands conditions on other creatures (SRD Harpy's Luring Song,
+ * "until the song ends"). Whatever the caller hangs **after** these events
+ * under `printedLineSource(id, heading)` — on the holder or on anybody — ends
+ * with the line, by every road it ends: the Concentration broken (a failed
+ * save, Incapacitated, death, a new Concentration, a dismissal), the cap
+ * lapsing, or a printed early ending (`StatedConcentration.endsAfter`). That
+ * is `settleConcentratedFeatures`, and the line has to carry a `concentrates`
+ * record for it to be found there.
+ *
+ * The order the caller hangs them in does not matter: the pass takes the
+ * line's conditions off at the moment the line *stops* running, so whatever is
+ * standing under its source then — hung before these events or after — goes.
+ */
+export function beginPrintedConcentration(
+  state: GameState,
+  id: CharacterId,
+  heading: string,
+  held: StatedConcentration,
+): Result<GameEvent[]> {
+  const events: GameEvent[] = [];
+  const holder = state.creatures[id];
+  if (holder?.concentration != null) {
+    events.push({
+      type: 'concentration-ended',
+      id,
+      castingId: holder.concentration.castingId,
+      reason: 'another-concentration-effect',
+    });
+  }
+  events.push({
+    type: 'concentration-started',
+    id,
+    castingId: held.feature,
+    spell: heading,
+    level: 0,
+    feature: true,
+  });
+  if (held.upToMinutes !== undefined) {
+    const deadline = schedule(
+      state,
+      { kind: 'feature', on: id, feature: held.feature },
+      { kind: 'seconds', seconds: held.upToMinutes * 60 },
+    );
+    if (!deadline.ok) return deadline;
+    events.push(deadline.value);
+  }
+  return ok(events);
+}
+
 function grantsOfPrintedLine(
   state: GameState,
   id: CharacterId,
@@ -624,6 +690,30 @@ function grantsOfPrintedLine(
     }
   }
 
+  // **An effect kept up under Concentration** — M-REFLEX. SRD Will-o'-Wisp's
+  // Vanish: "The wisp and its light have the Invisible condition until the
+  // wisp's Concentration ends on this effect"; SRD Darkmantle's Darkness Aura:
+  // "This effect lasts while the darkmantle maintains Concentration on it, up to
+  // 10 minutes." The Concentration names the line's feature, and the fold
+  // switches the feature on with it in one event; what the effect does while it
+  // runs is derived off that feature (the darkness laid, the Illumination
+  // withheld) or hung under its key (the conditions), and every road out of the
+  // Concentration takes it away — see `settleConcentratedFeatures`.
+  const held = line.concentrates;
+  if (held !== undefined) {
+    const begun = beginPrintedConcentration(state, id, line.name, held);
+    if (!begun.ok) return begun;
+    events.push(...begun.value);
+    // The self-effect the line prints: "The wisp … ha[s] the Invisible
+    // condition", hung under the line's own source so the ending takes it.
+    for (const condition of held.conditions ?? []) {
+      events.push({ type: 'condition-applied', id, condition, source });
+    }
+    unverified.push(
+      `${line.name}: ${id} is concentrating on it, and it ends the moment that Concentration does`,
+    );
+  }
+
   return ok({
     events,
     unverified,
@@ -631,7 +721,8 @@ function grantsOfPrintedLine(
       line.jumps !== undefined ||
       line.dashes !== undefined ||
       line.rampages !== undefined ||
-      line.togglesLight !== undefined,
+      line.togglesLight !== undefined ||
+      line.concentrates !== undefined,
   });
 }
 
@@ -2379,6 +2470,11 @@ export function takePrintedTeleport(
       if (state.pendingAttack !== null) {
         return err('attack_pending', 'a hit is waiting for its damage; settle it first');
       }
+      // A swing declared and not thrown is measured from where its two ends
+      // stand — M-REFLEX, SRD Redirect Attack. Nothing moves until it is thrown.
+      if (state.pendingSwing !== undefined) {
+        return err('attack_declared', 'a declared attack is waiting to be thrown; settle it first');
+      }
 
       // A mandatory effect this creature has been caught by, or a turn whose
       // start has not arrived. **After the duplicate check, never before it.**
@@ -2932,6 +3028,11 @@ export function takePrintedPull(
       }
       if (state.pendingAttack !== null) {
         return err('attack_pending', 'a hit is waiting for its damage; settle it first');
+      }
+      // A swing declared and not thrown is measured from where its two ends
+      // stand — M-REFLEX, SRD Redirect Attack. Nothing moves until it is thrown.
+      if (state.pendingSwing !== undefined) {
+        return err('attack_declared', 'a declared attack is waiting to be thrown; settle it first');
       }
 
       const owedHere = mayAct(state, id, 'act');

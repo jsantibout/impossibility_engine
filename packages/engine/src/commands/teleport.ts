@@ -158,6 +158,11 @@ export function relocateCreature(
       if (state.pendingAttack !== null) {
         return err('attack_pending', 'a hit is waiting for its damage; settle it first');
       }
+      // A swing declared and not thrown is measured from where its two ends
+      // stand — M-REFLEX, SRD Redirect Attack. Nothing moves until it is thrown.
+      if (state.pendingSwing !== undefined) {
+        return err('attack_declared', 'a declared attack is waiting to be thrown; settle it first');
+      }
 
       const owedHere = owedRefusal(state, who);
       if (owedHere !== null) return owedHere;

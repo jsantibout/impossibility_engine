@@ -161,7 +161,7 @@ export function applyCombat({ state, next }: Applying, event: CombatEvent): Game
       // A rite the ending turn's caster did not keep at fails **before** the
       // end-of-turn area debts are raised, so the boundary's debts are raised
       // against the world the failure leaves. See `failUnsustainedCastings`.
-      return raiseTurnEnd(
+      const ended = raiseTurnEnd(
         failUnsustainedCastings(
           raiseTurnSaves(withCombat(next, state, after), before, after),
           before,
@@ -169,6 +169,16 @@ export function applyCombat({ state, next }: Applying, event: CombatEvent): Game
         before,
         after,
       );
+      // **A declared swing answered and never thrown lapses here** — M-REFLEX,
+      // SRD Redirect Attack. The attacker made no attack; the target's answer,
+      // and the Reaction it cost, stand. `resolveTurn` refuses to move on past
+      // one still waiting for its answer, so only an answered one arrives.
+      if (ended.pendingSwing?.answered === true) {
+        const lapsed = { ...ended };
+        delete (lapsed as { pendingSwing?: unknown }).pendingSwing;
+        return lapsed;
+      }
+      return ended;
     }
 
     // **The action rules are deliberately not re-checked here, and that is a

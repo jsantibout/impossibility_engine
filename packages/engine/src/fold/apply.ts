@@ -69,7 +69,12 @@ import { applyTimers, isTimersEvent } from './timers.js';
 import { applyCombat, isCombatEvent } from './combat.js';
 import { applyElsewhere, endFallenPossessions, freeTheSwallowedOfTheDead, isElsewhereEvent } from './elsewhere.js';
 import { applyScene, isSceneEvent, layBodiesWhereWalkersFell } from './scene.js';
-import { applyFeatures, isFeaturesEvent, resized } from './features.js';
+import {
+  applyFeatures,
+  isFeaturesEvent,
+  resized,
+  settleConcentratedFeatures,
+} from './features.js';
 import { overriddenSizeOf, printedSizeOf, printsASize } from '../size.js';
 import { applyHolds, isHoldsEvent } from './holds.js';
 import { applyInventory, isInventoryEvent, withEquipment } from './inventory.js';
@@ -338,6 +343,12 @@ function applyEventUnder(state: GameState, event: GameEvent, legacy: Content | n
     // an explicit ending — because what this puts back is a sheet a feature
     // was holding up, and it has to see the feature gone first. The size an
     // activation prints is settled after the shape for the same reason.
+    // **A line held under Concentration and the Concentration holding it, kept
+    // in step** — M-REFLEX. After every pass that ends either half — a broken
+    // Concentration and an arrived deadline are both inside — and before the
+    // turn's start is reached, which reads the conditions this may lift. See
+    // `settleConcentratedFeatures`.
+    settleConcentratedFeatures(
     settleSizes(
     settleShapes(
     // **A harm whose host has gone, and a curse whose day or maker has** —
@@ -465,6 +476,8 @@ function applyEventUnder(state: GameState, event: GameEvent, legacy: Content | n
     ),
     // The world before this event, so the pass sees an override leave.
     state,
+    ),
+    event,
     ),
     ),
     ),

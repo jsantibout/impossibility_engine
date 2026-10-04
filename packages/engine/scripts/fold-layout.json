@@ -25,6 +25,7 @@
     "GrantedLift",
     "BorrowedSenses",
     "GrantedJump",
+    "PendingSwing",
     "PendingAttack",
     "PendingMove",
     "PendingCasting",
@@ -149,6 +150,7 @@
     "allyOfCaster",
     "EndingFact",
     "isBodyArmor",
+    "attackRollMadeBy",
     "endingFactsOf",
     "subjectOf",
     "casterOutsideArea",
@@ -278,6 +280,7 @@
     "FeaturesEvent",
     "isFeaturesEvent",
     "applyFeatures",
+    "settleConcentratedFeatures",
     "resized"
   ],
   "fold/holds.ts": [

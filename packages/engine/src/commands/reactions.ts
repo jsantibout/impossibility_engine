@@ -47,7 +47,7 @@ import {
   type PendingAttack,
 } from '../events.js';
 import { type CommandIdentity, once } from '../idempotency.js';
-import { distanceBetween, type Placement } from '../positioning.js';
+import { cubeCentredOn, distanceBetween, type Placement, positionOf } from '../positioning.js';
 import { effectiveSizeOf } from '../size.js';
 import type { CreatureSize } from '@ie/srd';
 import {
@@ -59,6 +59,8 @@ import {
   reactionAddends,
   reactionFeatureOf,
   reactionsOf,
+  redirectAllyProblem,
+  turnEndWindowOpen,
   undeclaredFacts,
   type ReactionEffect,
   type ReactionFeature,
@@ -66,7 +68,8 @@ import {
   type ReactionOpportunity,
   type SpellReactionWindow,
 } from '../reactions.js';
-import { statedActionOf, statedBonusActionOf } from '../monster.js';
+import { printedLineSource, statedActionOf, statedBonusActionOf } from '../monster.js';
+import { timerKey } from '../timers.js';
 import { remaining } from '../resources.js';
 import { type Content } from '../content.js';
 import { type SpellDefinition } from '../spell-definitions.js';
@@ -77,6 +80,7 @@ import {
   rollModesFor,
   isBloodied,
   sheetAsItStands,
+  speedOf,
 } from '../standing.js';
 import {
   heldSwingIsMelee,
@@ -116,7 +120,8 @@ import {
   forcePrintedSaveOn,
   type PrintedSaveOnACreature,
 } from './printed-save-clauses.js';
-import { reactionSwing } from './movement.js';
+import { moveWithin, reactionSwing } from './movement.js';
+import { schedule } from './conditions.js';
 import {
   checkBonuses,
   mergedModes,
@@ -1422,6 +1427,19 @@ export interface DamageResponseCommand extends CommandIdentity {
    * space and the engine picks none. Asked for where a scene is set.
    */
   readonly placement?: Omit<Placement, 'size'>;
+  /**
+   * Whether the reactor is underwater — M-REFLEX. SRD Ink Cloud's trigger is a
+   * blow "while underwater", and the engine holds no water: the table says so,
+   * and a Reaction whose trigger names the fact is asked for it rather than
+   * taken on a guess. Read by no other Reaction.
+   */
+  readonly underwater?: boolean;
+  /**
+   * Where the reactor moves as part of its answer — M-REFLEX. SRD Ink Cloud:
+   * "and the octopus moves up to its Swim Speed". Absent is no move, which is
+   * what "up to" allows.
+   */
+  readonly moveTo?: Omit<Placement, 'size'>;
 }
 
 /**
@@ -1458,6 +1476,19 @@ export function takeDamageResponse(
     // its question. See {@link splitInTwo}. (W7-B12)
     if (feature !== null && feature.does.kind === 'split') {
       return splitInTwo(state, reactor, feature, feature.does, command, supply, stamp);
+    }
+    // **SRD Ink Cloud, the fourth**, which answers the blow with a cloud where
+    // the holder stands — so, like Split, none of the reach below is its
+    // question. See {@link releaseCloud}. (M-REFLEX)
+    if (feature !== null && feature.does.kind === 'release-cloud') {
+      const hurt = damageWindowOpen(state, reactor);
+      if (hurt === null) {
+        return err(
+          'no_trigger',
+          `${feature.name} answers damage as it lands, and nothing has just damaged ${reactor}`,
+        );
+      }
+      return releaseCloud(state, reactor, feature, feature.does, 'damaged-by-creature', hurt.by, command, supply, stamp);
     }
     // **Two answers to one window, and this command is both.** SRD Retaliation
     // swings back; SRD Storm's Thunder throws 1d8 Thunder back. Neither can
@@ -1746,6 +1777,319 @@ function splitInTwo(
 }
 
 /**
+ * What the creature a swing was declared at says, where it turns the swing —
+ * M-REFLEX. SRD Goblin Boss, Redirect Attack: "The goblin chooses a Small or
+ * Medium ally within 5 feet of itself."
+ */
+export interface DeclaredAttackRedirectCommand extends CommandIdentity {
+  readonly feature: string;
+  /** The ally the attack goes to instead — the reactor's choice, which the book gives it. */
+  readonly ally: CharacterId;
+}
+
+/**
+ * Turn a declared attack on an ally, and change places with it — M-REFLEX.
+ *
+ * SRD Goblin Boss, Redirect Attack: "The goblin and that ally swap places, and
+ * the ally becomes the target of the attack instead." The Reaction is spent,
+ * the two creatures change places — each to the spot the other stood on, which
+ * is no movement of either's, so it provokes nothing — and the hold now names
+ * the ally. The attacker then makes the swing it declared, and it is thrown at
+ * the ally (`swingAt`).
+ *
+ * The ally is checked by the reader the offer was counted by
+ * (`redirectAllyProblem`): one on another declared side, of a size the line
+ * does not name or beyond its reach is refused; one whose side nobody has said
+ * is asked about, because the engine invents no ally.
+ */
+export function redirectDeclaredAttack(
+  state: GameState,
+  reactor: CharacterId,
+  command: DeclaredAttackRedirectCommand,
+): Result<GameEvent[]> {
+  return once(state, `declared-attack-answer:${reactor}`, command, () => [], (stamp) => {
+    const declared = state.pendingSwing;
+    if (declared === undefined || declared.answered || declared.declaredAt !== reactor) {
+      return err('no_declared_attack', `no attack declared at ${reactor} is waiting for its answer`);
+    }
+    const feature = reactionFeatureOf(state, reactor, command.feature, 'attack-declared');
+    if (
+      feature === null ||
+      feature.does.kind !== 'redirect-attack' ||
+      !declared.offers.some((offer) => offer.reactor === reactor && offer.feature === feature.feature)
+    ) {
+      return err('no_such_feature', `${reactor} was offered no Reaction called ${command.feature} against this attack`);
+    }
+    const problem = redirectAllyProblem(state, reactor, feature.does, command.ally, declared.attacker);
+    if (problem === 'undeclared') {
+      return needsContext(
+        'allegiance_undeclared',
+        `${feature.name} turns the attack on an ally, and nobody has said whether ${command.ally} is ${reactor}'s`,
+        [
+          {
+            kind: 'side',
+            subject: command.ally,
+            need: `which side ${command.ally} and ${reactor} are on`,
+            because: `${feature.name} names "an ally"`,
+            satisfyWith: 'declareCreatureSide for both, then the same answer again',
+          },
+        ],
+      );
+    }
+    if (problem !== null) return err(problem.code, problem.reason);
+
+    const creature = creatureOf(state, reactor);
+    if (creature === null) return unknownCreature(reactor);
+    const spent = spendReactionCost(state, reactor, creature, feature);
+    if (!spent.ok) return spent;
+
+    const scene = state.scene!;
+    const mine = positionOf(scene, reactor)!;
+    const theirs = positionOf(scene, command.ally)!;
+    return ok([
+      ...spent.value,
+      // "Swap places": the reactor onto the ally's spot — which the book wills
+      // it to share for an instant, the reading `intoOccupied` names — and the
+      // ally onto the one the reactor left.
+      { type: 'creature-moved', id: reactor, placement: { from: { point: theirs }, feet: 0 }, intoOccupied: true },
+      { type: 'creature-moved', id: command.ally, placement: { from: { point: mine }, feet: 0 } },
+      {
+        type: 'declared-attack-answered',
+        reactor,
+        redirectedTo: command.ally,
+        feature: feature.feature,
+        ...(stamp === null ? {} : { command: stamp }),
+      },
+    ]);
+  });
+}
+
+/**
+ * Let a declared attack come — M-REFLEX. Nothing is spent; the attacker makes
+ * the swing it declared, at the creature it declared it at.
+ */
+export function declineDeclaredAttack(
+  state: GameState,
+  reactor: CharacterId,
+  command: CommandIdentity = {},
+): Result<GameEvent[]> {
+  return once(state, `declared-attack-answer:${reactor}`, command, () => [], (stamp) => {
+    const declared = state.pendingSwing;
+    if (declared === undefined || declared.answered || declared.declaredAt !== reactor) {
+      return err('no_declared_attack', `no attack declared at ${reactor} is waiting for its answer`);
+    }
+    return ok([
+      { type: 'declared-attack-answered', reactor, ...(stamp === null ? {} : { command: stamp }) },
+    ]);
+  });
+}
+
+/**
+ * What a creature answering the turn boundary says — M-REFLEX.
+ *
+ * SRD Octopus, Ink Cloud: "_Trigger:_ A creature ends its turn within 5 feet of
+ * the octopus while underwater." The feature, the one fact the engine cannot
+ * hold, and where the octopus swims to.
+ */
+export interface TurnEndReactionCommand extends CommandIdentity {
+  readonly feature: string;
+  /** Whether the reactor is underwater — see {@link DamageResponseCommand.underwater}. */
+  readonly underwater?: boolean;
+  /** Where the reactor moves as part of its answer — see {@link DamageResponseCommand.moveTo}. */
+  readonly moveTo?: Omit<Placement, 'size'>;
+}
+
+/**
+ * Answer another creature's turn ending close by — M-REFLEX.
+ *
+ * SRD Octopus, Ink Cloud. The window is the boundary `advanceTurn` records
+ * (`turnEndWindowOpen`), open through the turn that began at it; the creature
+ * that ended its turn must be within the feet the trigger prints, measured as
+ * it stands now. What the answer does is {@link releaseCloud}'s.
+ */
+export function takeTurnEndReaction(
+  state: GameState,
+  reactor: CharacterId,
+  command: TurnEndReactionCommand,
+  supply: Supply,
+): Result<AttackResolution> {
+  return once(state, `turn-end-reaction:${reactor}`, command, () => {
+    return { events: [], attack: null, unverified: [], duplicate: true };
+  }, (stamp) => {
+    const feature = reactionFeatureOf(state, reactor, command.feature, 'creature-ended-turn');
+    if (feature === null || feature.does.kind !== 'release-cloud') {
+      return err('no_such_feature', `${reactor} has no Reaction called ${command.feature} that answers a turn ending`);
+    }
+    const ender = turnEndWindowOpen(state);
+    if (ender === null || ender === reactor) {
+      return err(
+        'no_trigger',
+        `${feature.name} answers another creature ending its turn, and no turn has just ended but ${reactor}'s own or none`,
+      );
+    }
+    const feet = feature.does.withinFeet;
+    if (feet !== undefined) {
+      const apart = state.scene === null ? null : distanceBetween(state.scene, reactor, ender);
+      if (apart === null || !apart.ok) {
+        return needsContext(
+          'unplaced',
+          `${feature.name} needs ${reactor} and ${ender} to be standing somewhere before ${feet} feet means anything`,
+          [
+            {
+              kind: 'position',
+              subject: reactor,
+              need: `where ${reactor} and ${ender} are standing`,
+              because: `${feature.name} answers a creature ending its turn within ${feet} feet`,
+              satisfyWith: `a placeCreatureInScene command for ${reactor} and ${ender}`,
+            },
+          ],
+        );
+      }
+      if (apart.value > feet) {
+        return err('out_of_range', `${ender} ended its turn ${apart.value} feet away and ${feature.name} reaches ${feet}`);
+      }
+    }
+    return releaseCloud(state, reactor, feature, feature.does, 'creature-ended-turn', ender, command, supply, stamp);
+  });
+}
+
+/**
+ * SRD Ink Cloud, performed — M-REFLEX.
+ *
+ * "The octopus releases ink that fills a 10-foot Cube centered on itself, and
+ * the octopus moves up to its Swim Speed. The Cube is Heavily Obscured for 1
+ * minute or until a strong current or similar effect disperses the ink."
+ *
+ * **The water first**, because it is the trigger's own clause: asked where the
+ * caller has not said, refused where they said no. Then the price — the
+ * Reaction and the day's use — then the cloud: an obscurement patch laid over
+ * the Cube centred where the holder stands (`cubeCentredOn`), which stays there
+ * when the holder leaves, lapsing with a `grants` timer of its own at the
+ * minute the line prints (`LatticePatch.lapsesWith`), the Starry Wisp glow's
+ * lifetime. The current is the table's, through `clearObscurement`. Then the
+ * move, if one was asked for: the holder's own movement, paid out of an
+ * allowance the size of the Speed the line names, exactly as SRD Ready's move
+ * on somebody else's turn is (`moveWithin`) — Opportunity Attacks and all.
+ */
+function releaseCloud(
+  state: GameState,
+  reactor: CharacterId,
+  feature: ReactionFeature,
+  does: Extract<ReactionEffect, { readonly kind: 'release-cloud' }>,
+  window: 'damaged-by-creature' | 'creature-ended-turn',
+  against: CharacterId,
+  command: { readonly underwater?: boolean; readonly moveTo?: Omit<Placement, 'size'> },
+  supply: Supply,
+  stamp: CommandStamp | null,
+): Result<AttackResolution> {
+  const creature = creatureOf(state, reactor);
+  if (creature === null) return unknownCreature(reactor);
+
+  if (does.underwater === true) {
+    if (command.underwater === undefined) {
+      return needsContext(
+        'underwater_undeclared',
+        `${feature.name} is taken only while ${reactor} is underwater, and the engine holds no water to know it`,
+        [
+          {
+            kind: 'creature',
+            subject: reactor,
+            need: `whether ${reactor} is underwater`,
+            because: `${feature.name}'s trigger is "while underwater"`,
+            satisfyWith: `${window === 'creature-ended-turn' ? 'takeTurnEndReaction' : 'takeDamageResponse'} again with underwater stated`,
+          },
+        ],
+      );
+    }
+    if (!command.underwater) {
+      return err('not_underwater', `${feature.name} is taken only while ${reactor} is underwater`);
+    }
+  }
+
+  const scene = state.scene;
+  if (scene === null || positionOf(scene, reactor) === null) {
+    return needsContext(
+      'unplaced',
+      `${feature.name} fills a Cube centred on ${reactor}, and nobody has said where ${reactor} is`,
+      [
+        {
+          kind: 'position',
+          subject: reactor,
+          need: `where ${reactor} is standing`,
+          because: `${feature.name}'s Cube is centred on it`,
+          satisfyWith: `a placeCreatureInScene command for ${reactor}`,
+        },
+      ],
+    );
+  }
+  const region = cubeCentredOn(scene, reactor, does.cubeFeet);
+  if (region === null) {
+    return err(
+      'cube_off_the_lattice',
+      `a ${does.cubeFeet}-foot Cube centred on ${reactor} would not sit on whole spaces around it, and the engine lays a centred Cube only where it does`,
+    );
+  }
+
+  const spent = spendReactionCost(state, reactor, creature, feature);
+  if (!spent.ok) return spent;
+
+  const lasts = schedule(
+    state,
+    { kind: 'grants', on: reactor, source: printedLineSource(reactor, feature.name) },
+    { kind: 'seconds', seconds: does.lastsSeconds },
+  );
+  if (!lasts.ok) return lasts;
+  const timer = lasts.value;
+  if (timer.type !== 'effect-scheduled') {
+    throw new Error(`releaseCloud: schedule wrote ${timer.type}`);
+  }
+
+  const events: GameEvent[] = [
+    ...spent.value,
+    timer,
+    {
+      type: 'obscurement-declared',
+      patch: `${feature.name} released by ${reactor}`,
+      region,
+      degree: does.degree,
+      lapsesWith: timerKey(timer.target),
+    },
+    {
+      type: 'reaction-taken',
+      reactor,
+      window,
+      feature: feature.feature,
+      against,
+      ...(stamp === null ? {} : { command: stamp }),
+    },
+  ];
+  const unverified: string[] =
+    does.dispersedBy === undefined
+      ? []
+      : [
+          `${feature.name} lasts until ${does.dispersedBy} disperses it; that is the table's to say, with clear_obscurement`,
+        ];
+
+  if (command.moveTo === undefined) {
+    return ok({ events, attack: null, unverified, duplicate: false });
+  }
+
+  // "Moves up to its Swim Speed": the allowance is the Speed the line names,
+  // and the move is the holder's own, on somebody else's turn.
+  const mode = does.movesUpTo ?? 'walk';
+  const allowance = speedOf(state, reactor, mode);
+  const after = events.reduce(applyEvent, state);
+  const moved = moveWithin(after, reactor, { placement: command.moveTo, mode }, supply, allowance);
+  if (!moved.ok) return moved;
+  return ok({
+    events: [...events, ...moved.value.events],
+    attack: null,
+    unverified: [...unverified, ...moved.value.unverified],
+    duplicate: false,
+  });
+}
+
+/**
  * The other answer to a blow that has landed: dice thrown back.
  *
  * SRD Storm's Thunder: "When you take damage from a creature within 60 feet of
@@ -2015,6 +2359,25 @@ export function reactionOpportunities(state: GameState, content: Content): reado
     return creature !== undefined && remaining(creature.resources, offer.pool) >= 1;
   };
 
+  // **The declared swing** — M-REFLEX. The window holds the swing, so its
+  // offers are the ones the declaration computed, re-checked as the others are.
+  const declared = state.pendingSwing;
+  if (declared !== undefined && !declared.answered) {
+    for (const offer of declared.offers.filter(affordable)) {
+      found.push({
+        window: 'attack-declared',
+        reactor: offer.reactor,
+        id: offer.feature,
+        name: offer.name,
+        kind: 'feature',
+        costsReaction: offer.costsReaction,
+        pool: offer.pool,
+        against: declared.attacker,
+        ...(offer.granted === undefined ? {} : { granted: offer.granted }),
+      });
+    }
+  }
+
   const damage = state.pendingDamage;
   if (damage !== null) {
     for (const offer of damage.offers.filter(affordable)) {
@@ -2082,6 +2445,40 @@ export function reactionOpportunities(state: GameState, content: Content): reado
 
     for (const chance of spellsFor(who, 'damaged-by-creature')) {
       found.push({ ...chance, against: hurt.by });
+    }
+  }
+
+  // **The boundary window** — M-REFLEX. Nothing is held open: the fact is the
+  // turn that just ended (`turnEndWindowOpen`), and a feature answers it where
+  // the creature that ended it stands within the feet the trigger prints. One
+  // nobody has placed is offered nothing, for `reaches`' reason.
+  const ender = turnEndWindowOpen(state);
+  if (ender !== null) {
+    for (const key of Object.keys(state.creatures).sort()) {
+      const who = key as CharacterId;
+      if (who === ender || !canReact(who)) continue;
+      for (const feature of reactionsOf(state.creatures[who]!)) {
+        if (feature.window !== 'creature-ended-turn') continue;
+        if (feature.pool !== null && remaining(state.creatures[who]!.resources, feature.pool) < 1) {
+          continue;
+        }
+        const feet = feature.does.kind === 'release-cloud' ? feature.does.withinFeet : undefined;
+        if (feet !== undefined) {
+          const apart = state.scene === null ? null : distanceBetween(state.scene, who, ender);
+          if (apart === null || !apart.ok || apart.value > feet) continue;
+        }
+        found.push({
+          window: 'creature-ended-turn',
+          reactor: who,
+          id: feature.feature,
+          name: feature.name,
+          kind: 'feature',
+          costsReaction: feature.costsReaction,
+          pool: feature.pool,
+          against: ender,
+          ...(feature.granted === undefined ? {} : { granted: feature.granted }),
+        });
+      }
     }
   }
 

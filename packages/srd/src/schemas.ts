@@ -2593,6 +2593,84 @@ export const MonsterLightToggleSchema = z.object({
 export type MonsterLightToggle = z.infer<typeof MonsterLightToggleSchema>;
 
 /**
+ * An effect a line keeps up for as long as its creature holds Concentration on
+ * it — M-REFLEX.
+ *
+ * SRD Will-o'-Wisp, Vanish: "The wisp and its light have the Invisible
+ * condition until the wisp's Concentration ends on this effect, which ends
+ * early immediately after the wisp makes an attack roll or uses Consume Life."
+ * SRD Darkmantle, Darkness Aura: "Magical Darkness fills a 15-foot Emanation
+ * originating from the darkmantle. This effect lasts while the darkmantle
+ * maintains Concentration on it, up to 10 minutes. Darkvision can't penetrate
+ * this area, and no light can illuminate it."
+ *
+ * **Concentration on something that is not a casting**, which is the one fact
+ * the two lines share and the seam `LINE_RESIDUE_SEAMS` named for Vanish. What
+ * each keeps up is a field; the Concentration is the record's existence, as
+ * the toggle is `MonsterLightToggleSchema`'s.
+ */
+export const MonsterConcentrationSchema = z.object({
+  /** "The wisp … ha[s] the Invisible condition": conditions on the creature itself. */
+  conditions: z.array(PrintedConditionSchema).min(1).optional(),
+  /** "and its light": the creature's own Illumination shares them and sheds nothing while it lasts. */
+  withItsLight: z.literal(true).optional(),
+  /**
+   * "Magical Darkness fills a 15-foot Emanation originating from the
+   * darkmantle … Darkvision can't penetrate this area, and no light can
+   * illuminate it." The radius; the two clauses after it are what the record
+   * *is*, because the parser reads only the whole sentence.
+   */
+  darkness: z.object({ emanationFeet: z.number().int().positive() }).optional(),
+  /** "up to 10 minutes": the longest it may be maintained, where the line prints one. */
+  upToMinutes: z.number().int().positive().optional(),
+  /** "which ends early immediately after the wisp makes an attack roll or uses Consume Life". */
+  endsAfter: z
+    .object({
+      attackRoll: z.literal(true).optional(),
+      /** The headings of the block's own lines whose use ends it. */
+      lines: z.array(z.string().min(1)).min(1).optional(),
+    })
+    .optional(),
+});
+export type MonsterConcentration = z.infer<typeof MonsterConcentrationSchema>;
+
+/**
+ * A cloud a Reaction releases, and the move it makes away from it — M-REFLEX.
+ *
+ * SRD Giant Octopus, Ink Cloud (1/Day): "_Trigger:_ The octopus takes damage
+ * while underwater. _Response:_ The octopus releases ink that fills a 10-foot
+ * Cube centered on itself, and the octopus moves up to its Swim Speed. The Cube
+ * is Heavily Obscured for 1 minute or until a strong current or similar effect
+ * disperses the ink." SRD Octopus prints the same response at 5 feet behind a
+ * second trigger: "A creature ends its turn within 5 feet of the octopus while
+ * underwater."
+ *
+ * **"While underwater" is carried, not settled.** The engine holds no water:
+ * nothing in a scene says a space is submerged, so the door that takes this
+ * Reaction asks the table for the fact rather than assuming either answer.
+ */
+export const MonsterCloudSchema = z.object({
+  /** Which instant opens it: a blow landing, or another creature's turn ending close by. */
+  trigger: z.discriminatedUnion('kind', [
+    z.object({ kind: z.literal('takes-damage') }),
+    z.object({ kind: z.literal('creature-ends-turn-within'), feet: z.number().int().positive() }),
+  ]),
+  /** "while underwater": a clause of the trigger the table states at the door. */
+  underwater: z.literal(true).optional(),
+  /** "a 10-foot Cube centered on itself". */
+  cubeFeet: z.number().int().positive(),
+  /** "Heavily Obscured" — the glossary's degree the Cube is. */
+  degree: z.enum(['lightly', 'heavily']),
+  /** "for 1 minute". */
+  lastsMinutes: z.number().int().positive(),
+  /** "or until a strong current or similar effect disperses the ink" — the table's word ends it early. */
+  dispersedBy: z.string().min(1).optional(),
+  /** "and the octopus moves up to its Swim Speed": the Speed the move is measured against. */
+  movesUpTo: z.enum(['walk', 'swim', 'fly', 'burrow', 'climb']).optional(),
+});
+export type MonsterCloud = z.infer<typeof MonsterCloudSchema>;
+
+/**
  * One line that teleports its creature from beside one tree to beside another.
  *
  * SRD Dryad, Tree Stride: "If within 5 feet of a Large or bigger tree, the
@@ -3467,14 +3545,18 @@ const MonsterTraitMechanicSchema = z.discriminatedUnion('kind', [
      * Small or Medium ally within 5 feet of itself. The goblin and that ally
      * swap places, and the ally becomes the target of the attack instead."
      *
-     * **Read into a kind and no further**, because two of the three things it
-     * says are rules the engine does not have. The window is *before* the roll
-     * is decided — every other Reaction to a swing answers a hit — and the
-     * response retargets an attack that has already been aimed, which nothing
-     * in the attack path can be told to do. The swap of two creatures' spaces
-     * is the one third of it that is built.
+     * The window is *before* the roll is decided — every other Reaction to a
+     * swing answers a hit — and the response retargets the attack that has
+     * been declared, so the three clauses the sentence prints are carried as
+     * the numbers and words it prints them in. (M-REFLEX)
      */
     kind: z.literal('swaps-places-with-an-ally-to-take-an-attack'),
+    /** "a Small or Medium ally". */
+    allySizes: z.array(CreatureSizeSchema).min(1),
+    /** "within 5 feet of itself". */
+    withinFeet: z.number().int().positive(),
+    /** "A creature the goblin can see". */
+    seesAttacker: z.literal(true),
   }),
   z.object({
     /**
@@ -4018,6 +4100,19 @@ export const featureSchema = z.object({
    * (W7-B11)
    */
   togglesLight: MonsterLightToggleSchema.optional(),
+  /**
+   * The effect this line keeps up under the creature's Concentration — see
+   * {@link MonsterConcentrationSchema}. SRD prints one under Bonus Actions (the
+   * Will-o'-Wisp's Vanish) and one under Actions (the Darkmantle's Darkness
+   * Aura), and it is read on every section for the reason everything here is.
+   * (M-REFLEX)
+   */
+  concentrates: MonsterConcentrationSchema.optional(),
+  /**
+   * The cloud this Reaction line releases — see {@link MonsterCloudSchema}. SRD
+   * prints it on the two octopuses. (M-REFLEX)
+   */
+  releasesCloud: MonsterCloudSchema.optional(),
   /**
    * The teleport between two trees this line makes — see
    * {@link MonsterTreeStrideSchema}. SRD prints the one line under Bonus

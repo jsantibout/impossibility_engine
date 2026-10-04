@@ -199,6 +199,8 @@ const KNOWN_EVENT_TYPES: readonly string[] = [
   'armor-class-granted',
   'armor-penalised',
   'attack-damage-dealt',
+  // M-REFLEX: a swing declared and held before its die, answered, and thrown.
+  'attack-declared',
   'attack-landed',
   'attack-made',
   'attack-rider-granted',
@@ -264,6 +266,8 @@ const KNOWN_EVENT_TYPES: readonly string[] = [
   'damage-type-declared',
   'dash-taken',
   'death-save-recorded',
+  'declared-attack-answered',
+  'declared-attack-thrown',
   'decoy-destroyed',
   // W7-S22: a word obeyed on the target's next turn, owed and then settled.
   'deferred-riders-settled',
@@ -315,6 +319,8 @@ const KNOWN_EVENT_TYPES: readonly string[] = [
   'movement-declared',
   'movement-granted',
   'movement-spent',
+  // M-REFLEX: the table's word that a patch nothing casts has cleared.
+  'obscurement-cleared',
   'obscurement-declared',
   'opportunity-answered',
   'passive-defense-granted',

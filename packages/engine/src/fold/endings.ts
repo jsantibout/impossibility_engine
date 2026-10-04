@@ -233,6 +233,22 @@ function isBodyArmor(state: GameState, event: { readonly id: CharacterId; readon
   return piece !== null && piece.category !== 'shield';
 }
 
+/**
+ * Who this event says has just made an attack roll, or null — the one
+ * `target-attacks` reading, for a reader that is not a casting or a timer.
+ *
+ * SRD Will-o'-Wisp's Vanish "ends early immediately after the wisp makes an
+ * attack roll", which is SRD Invisibility's own clause on a line held under
+ * Concentration; `settleConcentratedFeatures` asks it here rather than spelling
+ * the rule a second time. (M-REFLEX)
+ */
+export function attackRollMadeBy(state: GameState, event: GameEvent): CharacterId | null {
+  for (const fact of endingFactsOf(state, event)) {
+    if (fact.cause === 'target-attacks') return fact.who;
+  }
+  return null;
+}
+
 function endingFactsOf(state: GameState, event: GameEvent): readonly EndingFact[] {
   switch (event.type) {
     // A slot of the Attack action spent on a printed use rather than a swing

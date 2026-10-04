@@ -1876,6 +1876,44 @@ export interface GrantedJump {
   readonly takenOnTurn?: number;
 }
 
+/**
+ * An attack declared at a creature that may turn it on somebody else, held
+ * before its d20 is thrown — M-REFLEX.
+ *
+ * SRD Goblin Boss, Redirect Attack: "_Trigger:_ A creature the goblin can see
+ * makes an attack roll against it. _Response:_ The goblin chooses a Small or
+ * Medium ally within 5 feet of itself. The goblin and that ally swap places,
+ * and the ally becomes the target of the attack instead."
+ *
+ * **Whom it is at and what it is made with, and no more.** The attacker makes
+ * the swing again once the target has answered, naming the target it declared
+ * and the weapon or printed line it declared with, and the engine throws it at
+ * {@link target} — the ally where the target redirected it, the target itself
+ * where it declined. A swing re-sent with another weapon is refused: the target
+ * answered *this* attack. The swing was rehearsed whole, at the creature it
+ * was declared at, before it was held; a throw turned on the ally can still be
+ * refused (that ally's own ward, say), and then the lapse below ends the hold.
+ *
+ * **It lapses at the turn's end once answered**: an attacker that never throws
+ * an answered swing has made no attack, and the target's spent Reaction stands.
+ * An unanswered one holds the turn, because its target owes the answer.
+ */
+export interface PendingSwing {
+  readonly attacker: CharacterId;
+  /** The catalogue weapon the swing was declared with, or null. */
+  readonly weapon: string | null;
+  /** The printed line it was declared with, where it was one. */
+  readonly action?: string;
+  /** Whom the attacker declared the swing at. */
+  readonly declaredAt: CharacterId;
+  /** Whom it will be thrown at: {@link declaredAt}, or the ally it was turned on. */
+  readonly target: CharacterId;
+  /** Who was offered what, when the swing was declared. */
+  readonly offers: readonly ReactionOffer[];
+  /** Whether the target has answered, by turning it or by declining. */
+  readonly answered: boolean;
+}
+
 export interface PendingAttack {
   readonly attacker: CharacterId;
   readonly target: CharacterId;
@@ -2915,6 +2953,15 @@ export interface GameState {
    * At most one: an attack cannot be held while another is.
    */
   readonly pendingAttack: PendingAttack | null;
+  /**
+   * A swing declared and not yet thrown, waiting on its target's answer —
+   * M-REFLEX. See {@link PendingSwing}.
+   *
+   * **Absent rather than null when there is none**, so every state folded
+   * before it existed is the state it always was. At most one, for
+   * `pendingAttack`'s reason, and the turn does not advance past it.
+   */
+  readonly pendingSwing?: PendingSwing;
   /**
    * A declared move waiting on the Opportunity Attacks it provoked.
    *

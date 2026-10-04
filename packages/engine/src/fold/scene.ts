@@ -10,6 +10,7 @@ import type { CharacterId } from '@ie/shared';
 import {
   addLandmark,
   altitudeOf,
+  clearObscuringPatch,
   declareCover,
   declareDifficultPatch,
   declareLightPatch,
@@ -44,6 +45,7 @@ export const SCENE_EVENTS = [
   'difficult-terrain-declared',
   'light-declared',
   'obscurement-declared',
+  'obscurement-cleared',
   'mounted',
   'dismounted',
 ] as const;
@@ -257,8 +259,17 @@ export function applyScene({ state, next }: Applying, event: SceneEvent): GameSt
             event.region,
             event.degree,
             event.source,
+            event.lapsesWith,
           ),
         ),
+      };
+
+    // The table's word that a patch nothing casts has cleared — SRD Ink
+    // Cloud's current. (M-REFLEX)
+    case 'obscurement-cleared':
+      return {
+        ...next,
+        scene: must(event, clearObscuringPatch(sceneOf(state, event), event.patch)),
       };
 
     // Mounting and dismounting move a creature to a space it was not in — SRD

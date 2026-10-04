@@ -193,8 +193,11 @@ describe('toolSchemas', () => {
     // And one on the DM's alone for M-LINGER, `settle_daily_tolls` — the toll
     // a curse or a poison that outlasts the fight takes every 24 hours.
     // And one on the DM's alone for M-MATTER, `touch_printed_line`.
-    expect(toolSchemas(player())).toHaveLength(101);
-    expect(toolSchemas(dm())).toHaveLength(139);
+    // And one on each for M-REFLEX, `clear_obscurement` — the table's word that
+    // a strong current dispersed the ink — and two more on the DM's alone,
+    // `release_printed_cloud` and `answer_declared_attack`.
+    expect(toolSchemas(player())).toHaveLength(102);
+    expect(toolSchemas(dm())).toHaveLength(142);
     // Re-pinned 2026-09-24 for the printed-lines track, which opened one door
     // on the DM's surface alone: `teleport_printed_line` takes the teleport a
     // stat block prints, at the distance the block prints, to a space the DM
@@ -487,10 +490,16 @@ describe('toolSchemas', () => {
     // Monster's Destroy Metal — the declared object it touches and whether the
     // cube is the whole of it), a new door. 137 → 138 tools; +1,603 bytes on
     // the DM's door, none on the player's.
-    expect(toolSchemas(player())).toHaveLength(101);
-    expect(toolSchemas(dm())).toHaveLength(139);
-    expect(JSON.stringify(toolSchemas(player())).length).toBe(179628);
-    expect(JSON.stringify(toolSchemas(dm())).length).toBe(247236);
+    // M-REFLEX (2026-10-03): `clear_obscurement` on both doors, and one more
+    // sentence on `attack` saying a swing at a goblin boss may come back
+    // `declared` — 101 → 102 tools and +780 bytes on the player's. On the DM's
+    // the same, plus `release_printed_cloud` (SRD Ink Cloud) and
+    // `answer_declared_attack` (SRD Redirect Attack): 137 → 140 tools and
+    // +3,937 bytes.
+    expect(toolSchemas(player())).toHaveLength(102);
+    expect(toolSchemas(dm())).toHaveLength(142);
+    expect(JSON.stringify(toolSchemas(player())).length).toBe(180408);
+    expect(JSON.stringify(toolSchemas(dm())).length).toBe(251173);
   });
 });
 

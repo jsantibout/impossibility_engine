@@ -264,15 +264,13 @@ describe('the ledger measures the three populations of the roadmap', () => {
     // which is what it would do if the predicate stopped matching and the debt
     // it names quietly left the ledger.
     expect(ledger.monsters.riders).toBeGreaterThan(0);
-    // **And the inert trait is one, which is the day that note foresaw.**
-    // The column stood at zero while every kind `MonsterTraitSchema` admits
-    // was either spent by something in the engine or filed as a handover; the
-    // parser learned three sentences nothing read — the two oozes' Split and
-    // the Goblin Boss's Redirect Attack — and W7-B12 spent the two Splits, so
-    // the Goblin Boss's is what is left and the guard is the same one.
-    // `coverage.test.ts` names the kind and holds both lists against the
-    // schema and against the engine's own sources.
-    expect(ledger.monsters.inertTraits).toBe(1);
+    // **And the inert traits are none again.** The parser learned three
+    // sentences nothing read — the two oozes' Split and the Goblin Boss's
+    // Redirect Attack — W7-B12 spent the two Splits and M-REFLEX the Goblin
+    // Boss's, so the column is back at zero and the guard is the same one: the
+    // day the parser learns a fourth, this rises. `coverage.test.ts` holds both
+    // lists against the schema and against the engine's own sources.
+    expect(ledger.monsters.inertTraits).toBe(0);
     expect(ledger.monsters.clean + ledger.monsters.unfinished).toBe(ledger.monsters.blocks);
   });
 
