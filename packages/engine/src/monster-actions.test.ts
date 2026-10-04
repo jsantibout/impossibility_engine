@@ -65,6 +65,7 @@ const MUMMY = id('mummy');
 const ANKHEG = id('ankheg');
 const MERROW = id('merrow');
 const DEVIL = id('barbed-devil');
+const CAPTAIN = id('pirate-captain');
 
 const supply = (seed = 'fangs') => ({
   issuer: createRollIssuer('r'),
@@ -350,34 +351,35 @@ describe('a monster attacks with what its block prints', () => {
    * handed back. Saying so is the difference between a shape that is honest
    * about its edges and one that quietly makes a creature weaker than the book.
    *
-   * The Barbed Devil's Hurl Flame, because what its line catches is not a
-   * creature at all: "If the target is a flammable object that isn't being
-   * worn or carried, it starts burning." The Wolf's Prone was this example
+   * The Pirate Captain's Rapier (CR 6), because no CR ≤ 5 line is left to
+   * be the example: "and the pirate has Advantage on the next attack roll it
+   * makes before the end of this turn." The Wolf's Prone was this example
    * until `printed-riders.test.ts` started executing it, the Ghoul's printed
-   * save was until the reader learned to read one, and the Mummy's curse was
-   * until M-LINGER built the clock it waited on; the two files are the two
-   * halves of one claim, and this is the half that must not shrink to nothing.
+   * save until the reader learned to read one, the Mummy's curse until
+   * M-LINGER built the clock it waited on, and the Barbed Devil's Hurl Flame
+   * until M-MATTER lit flammable objects; the two files are the two halves of
+   * one claim, and this is the half that must not shrink to nothing.
    */
   it('reports the rider the block prints and the engine does not apply', () => {
-    const table = inTheWoods('barbed-devil', DEVIL);
-    const flame = unwrap(
+    const table = inTheWoods('pirate-captain', CAPTAIN);
+    const rapier = unwrap(
       resolveAttack(
         table.state,
-        DEVIL,
+        CAPTAIN,
         {
           target: BREN,
           weapon: null,
-          action: 'Hurl Flame',
+          action: 'Rapier',
           attackBonuses: [{ source: 'forced', flat: 40 }],
         },
         supply(),
       ),
-      'the flame',
+      'the rapier',
     );
 
-    expect(flame.attack?.hit).toBe(true);
-    expect(flame.unverified.join(' ')).toContain('flammable object');
-    expect(flame.unverified.join(' ')).toContain('the engine does not apply that');
+    expect(rapier.attack?.hit).toBe(true);
+    expect(rapier.unverified.join(' ')).toContain('Advantage on the next attack roll');
+    expect(rapier.unverified.join(' ')).toContain('the engine does not apply that');
   });
 
   /**
