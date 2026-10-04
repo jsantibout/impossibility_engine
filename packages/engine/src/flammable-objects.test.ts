@@ -241,6 +241,21 @@ describe('SRD Barbed Devil, Hurl Flame: a flammable object, and nothing else', (
     expect(out.unverified.join(' ')).not.toContain('the engine does not apply that');
   });
 
+  it('lights nothing the blow has broken: a destroyed rag has nothing left to burn', () => {
+    const table = room('barbed-devil');
+    const RAG = id('rag');
+    table.do('the rag', (s) =>
+      declareObject(s, SRD_CONTENT, RAG, { name: 'the rag', material: 'cloth', size: 'tiny', build: 'fragile' }),
+    );
+    table.do('the rag nearby', (s) =>
+      placeCreatureInScene(s, RAG, { from: { creature: BEAST }, feet: 10, bearing: 180 }),
+    );
+    const out = swing(table, 'Hurl Flame', RAG);
+    expect(out.state.creatures[RAG]!.vitals.dead).toBe(true);
+    expect(caughtIn(out.state, RAG, 'burning')).toBe(false);
+    expect(out.unverified.join(' ')).not.toContain('is burning');
+  });
+
   it('sets no creature alight, because the sentence names none', () => {
     const out = swing(room('barbed-devil'), 'Hurl Flame', BREN);
     expect(out.attack?.hit).toBe(true);
