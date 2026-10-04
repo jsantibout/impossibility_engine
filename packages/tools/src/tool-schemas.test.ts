@@ -190,8 +190,9 @@ describe('toolSchemas', () => {
     // And one on each for E-L2, `expose_to_fire`.
     // And one on the DM's alone for E-L2's owner rulings, `declare_plants`.
     // And one on the DM's alone for E-L1, `declare_contact`.
-    expect(toolSchemas(player())).toHaveLength(101);
-    expect(toolSchemas(dm())).toHaveLength(137);
+    // And one on each for M-HOLD, `detach_creature`.
+    expect(toolSchemas(player())).toHaveLength(102);
+    expect(toolSchemas(dm())).toHaveLength(138);
     // Re-pinned 2026-09-24 for the printed-lines track, which opened one door
     // on the DM's surface alone: `teleport_printed_line` takes the teleport a
     // stat block prints, at the distance the block prints, to a space the DM
@@ -471,10 +472,14 @@ describe('toolSchemas', () => {
     // And `declare_contact.item` on the DM's alone — a second hand on a thing a
     // creature wears or wields (the owner's ruling, applied 2026-10-03) — with
     // the description and `object` saying so, +445. No tool added.
-    expect(toolSchemas(player())).toHaveLength(101);
-    expect(toolSchemas(dm())).toHaveLength(137);
-    expect(JSON.stringify(toolSchemas(player())).length).toBe(179328);
-    expect(JSON.stringify(toolSchemas(dm())).length).toBe(244658);
+    // And for M-HOLD, on both doors: `detach_creature` (SRD Darkmantle's and
+    // SRD Stirge's "take an action to detach", the attach's own check and
+    // reach — W7-B10's named gap, which a darkmantle's smothering made
+    // urgent). 101 → 102 and 137 → 138 tools; +1,090 bytes on each.
+    expect(toolSchemas(player())).toHaveLength(102);
+    expect(toolSchemas(dm())).toHaveLength(138);
+    expect(JSON.stringify(toolSchemas(player())).length).toBe(180418);
+    expect(JSON.stringify(toolSchemas(dm())).length).toBe(245748);
   });
 });
 

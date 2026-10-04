@@ -189,6 +189,7 @@ import {
   enterElsewhere,
   escapeFromInside,
   pullOutOfCreature,
+  detachFrom,
   recallKeptSummons,
   returnFromElsewhere,
   eligibleTargets,
@@ -1344,6 +1345,47 @@ const PULL_OUT_OF_CREATURE = tool({
         duplicate: value.duplicate,
       }),
       (value) => value.unverified,
+    ),
+});
+
+/**
+ * SRD Darkmantle: "A creature can take an action to try to detach the
+ * darkmantle from itself, doing so with a successful DC 13 Strength
+ * (Athletics) check." SRD Stirge: "The target or a creature within 5 feet of
+ * it can detach the stirge as an action." — M-HOLD.
+ *
+ * W7-B10 named the gap: an attach could be made through this surface and not
+ * undone, and since a darkmantle's cover smothers what it covers, a creature
+ * under one had no way through the table's door to breathe again but killing
+ * it. A creature's own act and a neighbour's, so the player's door; the reach,
+ * the check and its DC are the attach's own record, and the caller states
+ * nothing but who is pulling what off whom.
+ */
+const DETACH_CREATURE = tool({
+  name: 'detach_creature',
+  description:
+    'Spend a creature’s action pulling off a creature attached to somebody — a Darkmantle covering a head, a Stirge drinking. Name who pulls, the creature holding on, and whom it holds. The engine checks the puller can reach the held creature, spends the action, and rolls the check the attacher’s line prints where it prints one (the Darkmantle’s DC 13 Strength (Athletics)); a line that prints none comes off for the action alone. On a success the attach ends at both ends, and whatever it hung — a Blinded cover, a held breath, a drink at each turn — ends with it. Refused for a creature not attached to that one, and for a puller out of reach.',
+  mutates: true,
+  input: z.object({
+    who: creatureId.describe('The creature spending its action to pull it off.'),
+    holder: creatureId.describe('The creature that is attached.'),
+    from: creatureId.describe('The creature it is attached to — the puller itself, or one within its reach.'),
+  }),
+  run: (context, args) =>
+    settle(
+      context,
+      detachFrom(
+        context.campaign.state(),
+        who(args.who),
+        { holder: who(args.holder), from: who(args.from), ...identity(context) },
+        context.campaign.supply(),
+      ),
+      (value) => value.events,
+      (value) => ({
+        success: value.success,
+        check: value.check === null ? null : { total: value.check.total, natural: value.check.natural },
+        duplicate: value.duplicate,
+      }),
     ),
 });
 
@@ -6680,6 +6722,7 @@ export const TOOLS: readonly ToolDefinition[] = [
   RETURN_FROM_ELSEWHERE,
   ESCAPE_FROM_INSIDE,
   PULL_OUT_OF_CREATURE,
+  DETACH_CREATURE,
   REVERT_SHAPE,
   RESOLVE_DECLARED_CAST,
   ROLL_INITIATIVE,

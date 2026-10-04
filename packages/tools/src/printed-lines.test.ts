@@ -471,3 +471,50 @@ describe('what a code-run monster reads off look to rank its lines', () => {
     expect(budget.movementFeet).toBe(5);
   });
 });
+
+/**
+ * SRD Darkmantle: "A creature can take an action to try to detach the
+ * darkmantle from itself, doing so with a successful DC 13 Strength
+ * (Athletics) check." — M-HOLD. The door W7-B10 named as missing: an attach
+ * could be made through this surface and not undone, and a darkmantle's
+ * cover takes the breath of what it covers.
+ */
+describe('a creature attached to somebody, pulled off through the door', () => {
+  it('rolls the attach’s own check for the action, and on a success ends the cover and the smothering with it', () => {
+    let sawSuccess = false;
+    let sawFailure = false;
+    for (let n = 0; n < 12 && !(sawSuccess && sawFailure); n += 1) {
+      const t = pair(`detach-${n}`, 'darkmantle', 5);
+      // The cover as the hit leaves it, by hand: the attach, the Blinded, the breath.
+      t.campaign.append([
+        { type: 'creature-attached', id: asCharacterId('beast'), attachment: { to: asCharacterId('grish'), name: 'Crush', detachDc: 13 } },
+        { type: 'condition-applied', id: asCharacterId('grish'), condition: 'blinded', source: 'attach:beast' },
+        {
+          type: 'hazard-caught',
+          id: asCharacterId('grish'),
+          hazard: { hazard: 'suffocating', lit: 'Crush', while: [{ by: 'attach', source: 'attach:beast' }] },
+        },
+      ]);
+      const out = expectOk(t.call('detach_creature', { who: 'grish', holder: 'beast', from: 'grish' }));
+      const value = out.resolution as { success: boolean; check: { total: number } | null };
+      expect(value.check).not.toBeNull();
+      const state = t.campaign.state();
+      if (value.success) {
+        sawSuccess = true;
+        expect(state.creatures['beast' as never]!.attachments).toEqual([]);
+        expect(state.creatures['grish' as never]!.conditions.conditions).not.toContain('blinded');
+        expect(state.creatures['grish' as never]!.hazards).toEqual([]);
+      } else {
+        sawFailure = true;
+        expect(state.creatures['beast' as never]!.attachments).toHaveLength(1);
+      }
+    }
+    expect(sawSuccess).toBe(true);
+    expect(sawFailure).toBe(true);
+  });
+
+  it('refuses a creature that is not attached to that one', () => {
+    const t = pair('detach-none', 'darkmantle', 5);
+    expectRefused(t.call('detach_creature', { who: 'grish', holder: 'beast', from: 'grish' }));
+  });
+});
