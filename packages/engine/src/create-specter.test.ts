@@ -4,6 +4,8 @@ import { asCharacterId, expect as unwrap, type CharacterId } from '@ie/shared';
 import { createRng, type Rng } from './dice.js';
 import { createRollIssuer } from './rolls.js';
 import { fold, type GameEvent, type GameState } from './events.js';
+import { CorruptLogError } from './fold/common.js';
+import { walkerOf } from './state.js';
 import { addCreature, beginCombat, raisePrintedLine } from './commands.js';
 import { printedLineSource } from './monster.js';
 
@@ -99,6 +101,43 @@ describe('Create Specter', () => {
     // The corpse stays; it is the spirit that rose.
     expect(after.creatures[BANDIT]!.vitals.dead).toBe(true);
     expect(out.events.some((e) => e.type === 'action-spent' && e.id === WRAITH)).toBe(true);
+  });
+
+  it('leaves the body lying: no rite on it is refused as a body walking, and it stays put when the specter falls', () => {
+    const events = killed(room(), BANDIT);
+    const raised = [
+      ...events,
+      ...unwrap(
+        raisePrintedLine(state(events), WRAITH, { line: LINE, corpse: BANDIT, into: SPECTER }, supply()),
+        'Create Specter',
+      ).events,
+    ];
+    expect(walkerOf(state(raised), BANDIT)).toBeNull();
+    const lying = state(raised).scene!.positions[BANDIT];
+    // The specter is set down in the corpse's space and then moved off; it is
+    // destroyed elsewhere, and the body is where it was.
+    const moved: GameEvent[] = [
+      ...raised,
+      { type: 'creature-moved', id: SPECTER, placement: { from: { creature: WRAITH }, feet: 15, bearing: 90 }, forced: true },
+    ];
+    const destroyed = killed(moved, SPECTER);
+    expect(state(destroyed).creatures[SPECTER]!.vitals.dead).toBe(true);
+    expect(state(destroyed).scene!.positions[BANDIT]).toEqual(lying);
+  });
+
+  it('refuses a spirit of a corpse the game does not hold', () => {
+    const events = killed(room(), BANDIT);
+    const raised = [
+      ...events,
+      ...unwrap(
+        raisePrintedLine(state(events), WRAITH, { line: LINE, corpse: BANDIT, into: SPECTER }, supply()),
+        'Create Specter',
+      ).events,
+    ];
+    const rewritten = raised.map((event) =>
+      event.type === 'creature-summoned' && event.id === SPECTER ? { ...event, spiritOf: id('nobody') } : event,
+    );
+    expect(() => fold('seed', rewritten)).toThrow(CorruptLogError);
   });
 
   it('refuses a creature that is not dead', () => {
